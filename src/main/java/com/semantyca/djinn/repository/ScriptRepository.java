@@ -9,6 +9,7 @@ import com.semantyca.mixpla.model.BrandScript;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -34,7 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.SCRIPT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.SCRIPT;
+
 
 @ApplicationScoped
 public class ScriptRepository extends AsyncRepository {

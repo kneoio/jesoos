@@ -1,6 +1,6 @@
 package com.semantyca.djinn.service.manipulation.mixing;
 
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import com.semantyca.djinn.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.service.exceptions.AudioMergeException;
 import io.smallrye.mutiny.Uni;
@@ -29,7 +29,7 @@ public class AudioConcatenator {
     private final String outputDir;
 
     @Inject
-    public AudioConcatenator(BroadcasterConfig config, FFmpegProvider ffmpeg) throws AudioMergeException {
+    public AudioConcatenator(DjinnConfig config, FFmpegProvider ffmpeg) throws AudioMergeException {
         this.outputDir = config.getPathForMerged();
 
         try {

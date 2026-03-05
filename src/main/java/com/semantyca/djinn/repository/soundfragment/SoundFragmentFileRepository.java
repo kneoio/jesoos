@@ -1,7 +1,7 @@
 package com.semantyca.djinn.repository.soundfragment;
 
 import com.semantyca.core.repository.file.IFileStorage;
-import com.semantyca.djinn.repository.MixplaNameResolver;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -11,7 +11,7 @@ import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.SOUND_FRAGMENT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
 
 @ApplicationScoped

@@ -6,6 +6,7 @@ import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.mixpla.model.aiagent.TTSSetting;
 import com.semantyca.mixpla.model.cnst.LlmType;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -29,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.AI_AGENT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.AI_AGENT;
 
 
 @ApplicationScoped

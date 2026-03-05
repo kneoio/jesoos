@@ -1,5 +1,6 @@
 package com.semantyca.djinn.dto;
 
+import com.semantyca.mixpla.model.cnst.StreamType;
 import lombok.Data;
 
 import java.util.List;
@@ -9,7 +10,7 @@ public class LiveRadioStationDTO {
     private String name;
     private String slugName;
     private String streamStatus;
-    private String streamType;        // RADIO or ONE_TIME_STREAM
+    private StreamType streamType;        // RADIO or ONE_TIME_STREAM
     private String djName;
     private String languageTag;
     private TtsDTO tts;

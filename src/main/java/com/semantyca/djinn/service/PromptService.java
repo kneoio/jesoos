@@ -3,7 +3,7 @@ package com.semantyca.djinn.service;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.djinn.dto.PromptDTO;
 import com.semantyca.djinn.dto.PromptFilterDTO;
-import com.semantyca.djinn.service.prompt.PromptRepository;
+import com.semantyca.djinn.repository.prompt.PromptRepository;
 import com.semantyca.mixpla.model.Prompt;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -60,6 +60,10 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
     @Override
     public Uni<PromptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         return repository.findById(id, user, false).chain(this::mapToDTO);
+    }
+
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageCode, boolean includeArchived) {
+        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
     }
 
     private Uni<PromptDTO> mapToDTO(Prompt doc) {

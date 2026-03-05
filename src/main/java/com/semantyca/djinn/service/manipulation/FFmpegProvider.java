@@ -1,6 +1,6 @@
 package com.semantyca.djinn.service.manipulation;
 
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -12,7 +12,7 @@ import java.io.IOException;
 @ApplicationScoped
 public class FFmpegProvider {
     @Inject
-    BroadcasterConfig config;
+    DjinnConfig config;
     private FFmpeg ffmpeg;
     private FFprobe ffprobe;
 

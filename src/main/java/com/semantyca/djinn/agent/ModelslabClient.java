@@ -1,7 +1,7 @@
 package com.semantyca.djinn.agent;
 
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -17,7 +17,7 @@ public class ModelslabClient implements TextToSpeechClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(ModelslabClient.class);
 
     @Inject
-    BroadcasterConfig config;
+    DjinnConfig config;
 
     @Inject
     Vertx vertx;

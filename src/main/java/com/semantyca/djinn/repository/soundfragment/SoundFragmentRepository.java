@@ -1,9 +1,11 @@
 package com.semantyca.djinn.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.djinn.repository.MixplaNameResolver;
+import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
+import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.rls.RLSRepository;
@@ -17,10 +19,12 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.SOUND_FRAGMENT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
+
 
 @ApplicationScoped
 public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
@@ -115,4 +119,35 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     }
                 });
     }
+
+    public Uni<SoundFragment> findByArtistAndDate(String artist, LocalDateTime startOfDay, LocalDateTime endOfDay) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " " +
+                "WHERE artist = $1 AND reg_date >= $2 AND reg_date < $3 AND archived = 0 " +
+                "ORDER BY reg_date DESC LIMIT 1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(artist, startOfDay, endOfDay))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        return from(row, false, false, false);
+                    } else {
+                        return Uni.createFrom().nullItem();
+                    }
+                });
+    }
+
+    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
+                                                                 boolean includeArchived, IUser user) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, includeArchived, user);
+    }
+
+
+    public Uni<List<SoundFragment>> findByTypeAndBrand(PlaylistItemType type, UUID brandId, int limit, int offset) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.getBrandSongs(brandId, type, limit, offset);
+    }
+
 }

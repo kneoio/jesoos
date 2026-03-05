@@ -1,18 +1,20 @@
 package com.semantyca.djinn.service.soundfragment;
 
 import com.semantyca.core.service.maintenance.LocalFileCleanupService;
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import com.semantyca.djinn.dto.BrandSoundFragmentDTO;
 import com.semantyca.djinn.dto.SoundFragmentDTO;
 import com.semantyca.djinn.dto.SoundFragmentFilterDTO;
 import com.semantyca.djinn.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.djinn.service.BrandService;
 import com.semantyca.djinn.service.RefService;
+import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.kneo.core.dto.form.upload.UploadFileDTO;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.FileSecurityUtils;
@@ -26,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -57,7 +60,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 LocalFileCleanupService localFileCleanupService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
-                                BroadcasterConfig config,
+                                DjinnConfig config,
                                 RefService refService) {
         super(userService);
         this.genreService = genreService;
@@ -91,7 +94,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getAllCount(user, filter);
     }
 
-
+    public Uni<List<SoundFragment>> getByTypeAndBrand(PlaylistItemType type, UUID brandId) {
+        assert repository != null;
+        return repository.findByTypeAndBrand(type, brandId, 100, 0);
+    }
 
 
     private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl, List<UUID> representedInBrands) {
@@ -186,17 +192,37 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return filter;
     }
 
-    public Uni<UUID> resolveBrandSlug(String brandSlug) {
-        if (brandSlug == null || brandSlug.trim().isEmpty()) {
-            return Uni.createFrom().nullItem();
-        }
-        
+    public Uni<SoundFragment> findByArtistAndDate(String artist, java.time.LocalDateTime startOfDay, java.time.LocalDateTime endOfDay) {
+        assert repository != null;
+        return repository.findByArtistAndDate(artist, startOfDay, endOfDay);
+    }
+
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
+        assert repository != null;
         assert brandService != null;
-        return brandService.getBySlugName(brandSlug)
-                .map(station -> station != null ? station.getId() : null)
-                .onFailure().recoverWithItem(err -> {
-                    LOGGER.warn("Failed to resolve brandSlug: {}", brandSlug, err);
-                    return null;
+
+        return brandService.getBySlugName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.getForBrandBySimilarity(brandId, keyword, limit, offset, false, SuperUser.build())
+                            .chain(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
+                                }
+
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+
+                                return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to similarity-search fragments for brand: {}", brandName, failure);
+                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
                 });
     }
 

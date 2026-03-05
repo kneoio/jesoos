@@ -10,7 +10,7 @@ import com.google.cloud.texttospeech.v1beta1.TextToSpeechSettings;
 import com.google.cloud.texttospeech.v1beta1.VoiceSelectionParams;
 import com.google.protobuf.ByteString;
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -27,7 +27,7 @@ public class GCPTTSClient implements TextToSpeechClient {
     private static final int MAX_TEXT_LENGTH = 3000;
 
     @Inject
-    BroadcasterConfig config;
+    DjinnConfig config;
 
     private com.google.cloud.texttospeech.v1beta1.TextToSpeechClient gcpClient;
 

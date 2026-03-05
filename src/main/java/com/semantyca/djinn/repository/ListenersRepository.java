@@ -5,6 +5,7 @@ import com.semantyca.core.model.UserData;
 import com.semantyca.mixpla.model.BrandListener;
 import com.semantyca.mixpla.model.Listener;
 import com.semantyca.mixpla.model.filter.ListenerFilter;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -31,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.LISTENER;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.LISTENER;
 
 
 @ApplicationScoped

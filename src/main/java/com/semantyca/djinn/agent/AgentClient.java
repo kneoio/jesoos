@@ -2,7 +2,7 @@ package com.semantyca.djinn.agent;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.cnst.TranslationType;
-import com.semantyca.djinn.config.BroadcasterConfig;
+import com.semantyca.djinn.config.DjinnConfig;
 import com.semantyca.djinn.dto.agentrest.AgentRespDTO;
 import com.semantyca.mixpla.model.cnst.LlmType;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -21,7 +21,7 @@ import java.util.Map;
 public class AgentClient {
 
     @Inject
-    BroadcasterConfig config;
+    DjinnConfig config;
 
     @Inject
     Vertx vertx;

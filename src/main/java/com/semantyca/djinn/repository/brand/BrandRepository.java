@@ -1,13 +1,14 @@
 package com.semantyca.djinn.repository.brand;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.djinn.repository.MixplaNameResolver;
 import com.semantyca.mixpla.model.brand.AiOverriding;
 import com.semantyca.mixpla.model.brand.Brand;
+import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.brand.ProfileOverriding;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -30,7 +31,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.RADIO_STATION;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.RADIO_STATION;
+
 
 @ApplicationScoped
 public class BrandRepository extends AsyncRepository {
@@ -223,5 +225,21 @@ public class BrandRepository extends AsyncRepository {
         }
 
         return doc;
+    }
+    public Uni<List<BrandScriptEntry>> getScriptEntriesForBrand(UUID brandId) {
+        String sql = "SELECT script_id, user_variables FROM kneobroadcaster__brand_scripts WHERE brand_id = $1 ORDER BY rank";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> {
+                    BrandScriptEntry entry = new BrandScriptEntry();
+                    entry.setScriptId(row.getUUID("script_id"));
+                    JsonObject userVarsJson = row.getJsonObject("user_variables");
+                    if (userVarsJson != null) {
+                        entry.setUserVariables(userVarsJson.getMap());
+                    }
+                    return entry;
+                })
+                .collect().asList();
     }
 }

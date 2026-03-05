@@ -1,4 +1,4 @@
-package com.semantyca.djinn.service.prompt;
+package com.semantyca.djinn.repository.prompt;
 
 import com.semantyca.djinn.dto.PromptFilterDTO;
 import jakarta.enterprise.context.ApplicationScoped;

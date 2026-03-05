@@ -12,8 +12,6 @@ public class DjinnApplication {
 
     @Inject
     DebugResource debugResource;
-    
-
 
     void setupRoutes(@Observes Router router) {
         debugResource.setupRoutes(router);

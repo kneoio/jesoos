@@ -3,8 +3,8 @@ package com.semantyca.djinn.service.draft;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.djinn.dto.DraftFilterDTO;
-import com.semantyca.djinn.repository.MixplaNameResolver;
 import com.semantyca.mixpla.model.Draft;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -23,7 +23,8 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.DRAFT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.DRAFT;
+
 
 @ApplicationScoped
 public class DraftRepository extends AsyncRepository {

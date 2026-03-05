@@ -3,11 +3,11 @@ package com.semantyca.djinn.repository.soundfragment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.FileMetadata;
 import com.semantyca.core.model.cnst.FileStorageType;
-import com.semantyca.djinn.repository.MixplaNameResolver;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
+import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static com.semantyca.djinn.repository.MixplaNameResolver.SOUND_FRAGMENT;
+import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
 
 public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
