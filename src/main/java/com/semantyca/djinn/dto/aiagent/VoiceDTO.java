@@ -1,8 +1,8 @@
 package com.semantyca.djinn.dto.aiagent;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.semantyca.djinn.model.cnst.TTSEngineType;
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import lombok.Getter;
 import lombok.Setter;
 

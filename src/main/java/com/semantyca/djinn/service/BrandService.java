@@ -1,7 +1,7 @@
 package com.semantyca.djinn.service;
 
-import com.semantyca.djinn.model.brand.Brand;
 import com.semantyca.djinn.repository.brand.BrandRepository;
+import com.semantyca.mixpla.model.brand.Brand;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;

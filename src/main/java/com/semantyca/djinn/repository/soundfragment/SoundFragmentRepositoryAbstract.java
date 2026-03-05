@@ -1,12 +1,13 @@
 package com.semantyca.djinn.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.djinn.model.soundfragment.SoundFragment;
-import com.semantyca.djinn.repository.MixplaNameResolver;
 import com.semantyca.core.model.FileMetadata;
 import com.semantyca.core.model.cnst.FileStorageType;
+import com.semantyca.djinn.repository.MixplaNameResolver;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
+import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
+import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -19,6 +20,8 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -33,6 +36,7 @@ import static com.semantyca.djinn.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
 public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     protected static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SOUND_FRAGMENT);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepositoryAbstract.class);
 
     public SoundFragmentRepositoryAbstract() {
         super();
@@ -51,7 +55,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setAlbum(row.getString("album"));
-        
+
         if (row.getValue("length") != null) {
             Long lengthMillis = row.getLong("length");
             doc.setLength(Duration.ofMillis(lengthMillis));
@@ -83,8 +87,8 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
 
         if (includeFiles) {
             String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, storage_type, mime_type, slug_name, file_original_name, file_key FROM _files WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
-            uni = uni.chain(soundFragment -> client.preparedQuery(fileQuery)
-                    .execute(Tuple.of(soundFragment.getId()))
+            uni = uni.chain(d -> client.preparedQuery(fileQuery)
+                    .execute(Tuple.of(d.getId()))
                     .onItem().transform(rowSet -> {
                         List<FileMetadata> files = new ArrayList<>();
                         for (Row fileRow : rowSet) {
@@ -104,9 +108,9 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                             fileMetadata.setFileKey(fileRow.getString("file_key"));
                             files.add(fileMetadata);
                         }
-                        soundFragment.setFileMetadataList(files);
-                        if (files.isEmpty()) markAsCorrupted(soundFragment.getId()).subscribe().with(r -> {}, e -> {});
-                        return soundFragment;
+                        d.setFileMetadataList(files);
+                        if (files.isEmpty()) markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});
+                        return d;
                     }));
         } else {
             doc.setFileMetadataList(List.of());
@@ -152,5 +156,49 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                             .execute(Tuple.of(ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime(), user.getId(), uuid))
                             .onItem().transform(SqlResult::rowCount);
                 });
+    }
+
+    protected String buildFilterConditions(SoundFragmentFilter filter) {
+        StringBuilder conditions = new StringBuilder();
+
+        if (filter.getGenre() != null && !filter.getGenre().isEmpty()) {
+            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 ")
+                    .append("WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
+            for (int i = 0; i < filter.getGenre().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getGenre().get(i).toString()).append("'");
+            }
+            conditions.append("))");
+        }
+
+        if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
+            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_labels sfl ")
+                    .append("WHERE sfl.id = t.id AND sfl.label_id IN (");
+            for (int i = 0; i < filter.getLabels().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");
+            }
+            conditions.append("))");
+        }
+
+        if (filter.getSource() != null && !filter.getSource().isEmpty()) {
+            conditions.append(" AND t.source IN (");
+            for (int i = 0; i < filter.getSource().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getSource().get(i).name()).append("'");
+            }
+            conditions.append(")");
+        }
+
+        if (filter.getType() != null && !filter.getType().isEmpty()) {
+            conditions.append(" AND t.type IN (");
+            for (int i = 0; i < filter.getType().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getType().get(i).name()).append("'");
+            }
+            conditions.append(")");
+        }
+
+        return conditions.toString();
     }
 }

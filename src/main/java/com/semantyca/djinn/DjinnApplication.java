@@ -5,17 +5,17 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
-import com.semantyca.djinn.rest.StreamingResource;
+import com.semantyca.djinn.rest.DebugResource;
 
 @ApplicationScoped
 public class DjinnApplication {
 
     @Inject
-    StreamingResource streamingResource;
+    DebugResource debugResource;
     
 
 
     void setupRoutes(@Observes Router router) {
-        streamingResource.setupRoutes(router);
+        debugResource.setupRoutes(router);
     }
 }

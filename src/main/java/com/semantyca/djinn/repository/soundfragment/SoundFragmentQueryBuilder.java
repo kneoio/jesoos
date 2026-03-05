@@ -1,6 +1,6 @@
 package com.semantyca.djinn.repository.soundfragment;
 
-import com.semantyca.djinn.model.soundfragment.SoundFragmentFilter;
+import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import io.kneo.core.model.user.IUser;
 import jakarta.enterprise.context.ApplicationScoped;
 

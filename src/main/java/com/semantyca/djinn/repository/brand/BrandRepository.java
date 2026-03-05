@@ -1,11 +1,11 @@
 package com.semantyca.djinn.repository.brand;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.djinn.model.brand.AiOverriding;
-import com.semantyca.djinn.model.brand.Brand;
-import com.semantyca.djinn.model.brand.Owner;
-import com.semantyca.djinn.model.brand.ProfileOverriding;
 import com.semantyca.djinn.repository.MixplaNameResolver;
+import com.semantyca.mixpla.model.brand.AiOverriding;
+import com.semantyca.mixpla.model.brand.Brand;
+import com.semantyca.mixpla.model.brand.Owner;
+import com.semantyca.mixpla.model.brand.ProfileOverriding;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
 import io.kneo.core.localization.LanguageCode;

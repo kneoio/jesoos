@@ -1,9 +1,9 @@
 package com.semantyca.djinn.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.djinn.model.soundfragment.SoundFragment;
-import com.semantyca.djinn.model.soundfragment.SoundFragmentFilter;
 import com.semantyca.djinn.repository.MixplaNameResolver;
+import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
+import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.rls.RLSRepository;

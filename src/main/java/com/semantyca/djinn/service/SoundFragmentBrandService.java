@@ -1,8 +1,8 @@
 package com.semantyca.djinn.service;
 
-import com.semantyca.djinn.model.soundfragment.SoundFragment;
 import com.semantyca.djinn.repository.soundfragment.SoundFragmentBrandRepository;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
