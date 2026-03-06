@@ -56,9 +56,7 @@ public class AiHelperService {
     private final SoundFragmentService soundFragmentService;
     private final GenreService genreService;
     private final LabelService labelService;
-
-    @Inject
-    StatsAccumulator statsAccumulator;
+    private final StatsAccumulator statsAccumulator = new StatsAccumulator();
 
     private static final int SCENE_START_SHIFT_MINUTES = 10;
 

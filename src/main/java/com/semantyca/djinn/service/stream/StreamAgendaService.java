@@ -6,6 +6,7 @@ import com.semantyca.djinn.model.stream.StreamAgenda;
 import com.semantyca.djinn.service.BrandService;
 import com.semantyca.djinn.service.SceneService;
 import com.semantyca.djinn.service.ScriptService;
+import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.Script;
@@ -46,6 +47,21 @@ public class StreamAgendaService {
 
     @Inject
     SceneService sceneService;
+
+    public Uni<StreamAgenda> buildRadioStreamAgenda(String slugName, IUser user) {
+        return brandService.getBySlugName(slugName)
+                .chain(brand -> {
+                    if (brand.getScripts() == null || brand.getScripts().isEmpty()) {
+                        return Uni.createFrom().failure(
+                                new IllegalStateException("Brand has no scripts configured")
+                        );
+                    }
+                    BrandScriptEntry firstScript = brand.getScripts().getFirst();
+                    UUID scriptId = firstScript.getScriptId();
+                    LOGGER.info("Using first script '{}' for brand '{}'", scriptId, brand.getSlugName());
+                    return buildRadioStreamAgenda(brand.getId(), scriptId, user);
+                });
+    }
 
     public Uni<StreamAgenda> buildRadioStreamAgenda(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId, user)

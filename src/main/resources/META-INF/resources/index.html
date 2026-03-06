@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Djinn Control</title>
+</head>
+<body>
+    <h1>Stream Control</h1>
+    
+    <form id="commandForm">
+        <label for="brand">Brand:</label>
+        <select id="brand" name="brand">
+            <option value="lumisonic">lumisonic</option>
+        </select>
+        <br><br>
+        
+        <button type="submit">Start</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('commandForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const brand = document.getElementById('brand').value;
+            const command = 'start';
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Sending...';
+            
+            try {
+                const response = await fetch('/command/' + brand + '/' + command, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
