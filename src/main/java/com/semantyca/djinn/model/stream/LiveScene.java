@@ -26,14 +26,6 @@ public class LiveScene {
     private final List<PendingSongEntry> songs;
     private final LocalTime originalStartTime;
     private final LocalTime originalEndTime;
-
-    @Setter
-    private LocalDateTime actualStartTime;
-    @Setter
-    private LocalDateTime actualEndTime;
-    @Setter
-    private GeneratedContentStatus generatedContentStatus;
-
     private final WayOfSourcing sourcing;
     private final String playlistTitle;
     private final String artist;
@@ -47,7 +39,14 @@ public class LiveScene {
     private final boolean oneTimeRun;
     private final double talkativity;
     private final List<ScenePrompt> introPrompts;
-
+    @Setter
+    private LocalDateTime sentToQueueAt;
+    @Setter
+    private GeneratedContentStatus generatedContentStatus;
+    @Setter
+    private LocalDateTime actualStartTime;
+    @Setter
+    private LocalDateTime actualEndTime;
     @Setter
     private LocalDateTime lastRunDate;
 

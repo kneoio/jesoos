@@ -47,7 +47,7 @@ public class SoundFragmentFileHandler {
                     String fileKey = rows.iterator().next().getString("file_key");
                     LOGGER.debug("Retrieving file with key: {} for ID: {}", fileKey, id);
 
-                    return fileStorage.retrieveFile(fileKey)
+                    return fileStorage.getFileStream(fileKey)
                             .onItem().invoke(file -> LOGGER.debug("File retrieval successful for ID: {}", id))
                             .onFailure().recoverWithUni(ex -> {
                                 LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, fileKey, ex.getMessage());

@@ -24,7 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -74,17 +73,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.getAllCount(user, false, filter);
     }
 
-    public Uni<ListenerDTO> getDTOTemplate(IUser user, LanguageCode code) {
-        return brandService.getAll(10, 0, user)
-                .onItem().transform(userRadioStations -> {
-                    ListenerDTO dto = new ListenerDTO();
-                    dto.setAuthor(user.getUserName());
-                    dto.setLastModifier(user.getUserName());
-                    dto.getLocalizedName().put(LanguageCode.en, "");
-                    dto.getNickName().put(LanguageCode.en, Set.of());
-                    return dto;
-                });
-    }
+
 
     @Override
     public Uni<ListenerDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {

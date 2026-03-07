@@ -6,11 +6,11 @@ import com.semantyca.djinn.model.stream.StreamAgenda;
 import com.semantyca.djinn.service.BrandService;
 import com.semantyca.djinn.service.SceneService;
 import com.semantyca.djinn.service.ScriptService;
-import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.brand.Brand;
+import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -18,12 +18,11 @@ import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -33,7 +32,7 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class StreamAgendaService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StreamAgendaService.class);
+    private static final Logger LOGGER = Logger.getLogger(StreamAgendaService.class);
     private static final int AVG_DJ_INTRO_SECONDS = 30;
 
     @Inject
@@ -48,6 +47,9 @@ public class StreamAgendaService {
     @Inject
     SceneService sceneService;
 
+    @Inject
+    StreamAgendaManager agendaManager;
+
     public Uni<StreamAgenda> buildRadioStreamAgenda(String slugName, IUser user) {
         return brandService.getBySlugName(slugName)
                 .chain(brand -> {
@@ -58,13 +60,18 @@ public class StreamAgendaService {
                     }
                     BrandScriptEntry firstScript = brand.getScripts().getFirst();
                     UUID scriptId = firstScript.getScriptId();
-                    LOGGER.info("Using first script '{}' for brand '{}'", scriptId, brand.getSlugName());
-                    return buildRadioStreamAgenda(brand.getId(), scriptId, user);
+                    LOGGER.infof("Using first script '{}' for brand '{}'", scriptId, brand.getSlugName());
+                    return buildRadioStreamAgenda(brand.getId(), scriptId, user)
+                            .onItem().invoke(agenda -> {
+                                agenda.setTimeZone(brand.getTimeZone());
+                                agendaManager.register(slugName, scriptId, agenda);
+                                LOGGER.infof("Registered agenda for brand: %s, timezone: %s", brand.getSlugName(), brand.getTimeZone());
+                            });
                 });
     }
 
     public Uni<StreamAgenda> buildRadioStreamAgenda(UUID brandId, UUID scriptId, IUser user) {
-        return brandService.getById(brandId, user)
+        return brandService.getById(brandId)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
                                 .chain(script ->
@@ -82,9 +89,10 @@ public class StreamAgendaService {
     }
 
     public Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
-        LocalDate today = LocalDate.now();
-        LocalDateTime scheduleStart = today.atTime(6, 0);
+        ZoneId brandZone = sourceBrand.getTimeZone();
+        LocalDateTime brandNow = LocalDateTime.now(brandZone);
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
+        schedule.setTimeZone(sourceBrand.getTimeZone());
 
         NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
@@ -108,7 +116,7 @@ public class StreamAgendaService {
             return Uni.createFrom().item(schedule);
         }
 
-        LocalDateTime sceneStartTime = scheduleStart;
+        LocalDateTime sceneStartTime = brandNow;
         List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
 
         for (int i = 0; i < timeSlots.size(); i++) {
@@ -243,7 +251,7 @@ public class StreamAgendaService {
             }
         }
 
-        LOGGER.debug("RadioStream scene duration: {}s, effective music time: {}s (talkativity: {}), Selected {} songs with total time: {}s",
+        LOGGER.debugf("RadioStream scene duration: {}s, effective music time: {}s (talkativity: {}), Selected {} songs with total time: {}s",
                 sceneDurationSeconds, effectiveMusicTime, talkativity, selectedSongs.size(), totalTimeUsed);
 
         return selectedSongs;

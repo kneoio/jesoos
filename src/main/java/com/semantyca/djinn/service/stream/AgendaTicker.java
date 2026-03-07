@@ -10,9 +10,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 @ApplicationScoped
 public class AgendaTicker {
@@ -36,9 +38,12 @@ public class AgendaTicker {
         agendas.forEach((key, agenda) -> {
             String[] parts = key.split(":", 2);
             String brand = parts[0];
+            ZoneId zoneId = agenda.getTimeZone() != null ? agenda.getTimeZone() : ZoneId.of("UTC");
+            ZonedDateTime nowInZone = ZonedDateTime.now(zoneId);
+            LocalDateTime nowLocal = nowInZone.toLocalDateTime();
 
             agenda.getLiveScenes().forEach(scene -> {
-                if (isSceneDue(scene, now)) {
+                if (isSceneDue(scene, nowLocal)) {
                     processScene(brand, key, scene);
                 }
             });
@@ -52,18 +57,19 @@ public class AgendaTicker {
         }
 
         // Check if now is within 10 seconds of scene start time
-        long secondsDiff = Math.abs(java.time.Duration.between(now, startTime).getSeconds());
+        long secondsDiff = Math.abs(Duration.between(now, startTime).getSeconds());
         return secondsDiff < 10;
     }
 
     private void processScene(String brand, String agendaKey, LiveScene scene) {
         LOGGER.infof("Processing scene '%s' for brand: %s, agenda: %s", scene.getSceneTitle(), brand, agendaKey);
+        scene.setSentToQueueAt(LocalDateTime.now());
 
         for (PendingSongEntry songEntry : scene.getSongs()) {
             AddToQueueDTO dto = new AddToQueueDTO();
             // TODO: Populate AddToQueueDTO fields based on songEntry
 
-            String uploadId = scene.getSceneId() + ":" + songEntry.getSoundFragment().getId();
+            String uploadId = scene.getSceneId() + ":" + songEntry.getSoundFragment().getId() + ":" + System.currentTimeMillis();
 
             queueSupplier.sendToQueue(brand, dto, uploadId)
                     .subscribe()

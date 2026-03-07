@@ -8,7 +8,6 @@ import com.fasterxml.jackson.datatype.jsr310.ser.DurationSerializer;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
-import io.kneo.core.dto.form.upload.UploadFileDTO;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;

@@ -73,11 +73,6 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         UUID activeSceneId = activeScene.getSceneId();
         String currentSceneTitle = activeScene.getSceneTitle();
-
-        if (activeScene.getActualStartTime() == null) {
-            activeScene.setActualStartTime(LocalDateTime.now());
-        }
-
         Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
         LocalDateTime now = LocalDateTime.now();
@@ -117,21 +112,6 @@ public class RadioStreamSupplier extends StreamSupplier {
             }
         } else {
             List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
-
-            if (pickedSongs.isEmpty()) {
-                if (LocalDateTime.now().isAfter(activeScene.getScheduledEndTime())) {
-                    activeScene.setActualEndTime(LocalDateTime.now());
-                    stream.clearSceneState(activeSceneId);
-                } else {
-                    // Songs exhausted but time remains, wait for next cycle
-                    messageSink.add(
-                            stream.getSlugName(),
-                            AiDjStatsDTO.MessageType.INFO,
-                            String.format("Scene '%s' has no more songs but time remains - waiting", currentSceneTitle)
-                    );
-                }
-                return Uni.createFrom().item(() -> null);
-            }
 
             songsUni = Uni.createFrom().item(pickedSongs);
         }

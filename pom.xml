@@ -53,7 +53,17 @@
         <dependency>
             <groupId>io.kneo</groupId>
             <artifactId>2next</artifactId>
-            <version>1.2.1</version>
+            <version>1.2.4</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-oidc</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-oidc-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -67,18 +77,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging-rabbitmq</artifactId>
         </dependency>
-        <!-- Database -->
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-hibernate-reactive-panache</artifactId>
-        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-reactive-pg-client</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-client</artifactId>
+            <artifactId>quarkus-rest-client-reactive</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -101,6 +106,10 @@
             <groupId>io.vertx</groupId>
             <artifactId>vertx-web</artifactId>
             <version>4.5.8</version>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

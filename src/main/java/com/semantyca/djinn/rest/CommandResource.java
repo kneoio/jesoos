@@ -26,6 +26,29 @@ public class CommandResource {
         String path = "/command";
         
         router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
+        router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
+    }
+    
+    private void getAgendas(RoutingContext rc) {
+        JsonObject agendasJson = new JsonObject();
+        agendaManager.getAll().forEach((key, agenda) -> {
+            JsonObject agendaJson = new JsonObject()
+                    .put("key", key)
+                    .put("createdAt", agenda.getCreatedAt().toString())
+                    .put("totalScenes", agenda.getLiveScenes().size())
+                    .put("scenes", agenda.getLiveScenes().stream().map(scene -> new JsonObject()
+                            .put("id", scene.getSceneId().toString())
+                            .put("title", scene.getSceneTitle())
+                            .put("scheduledStartTime", scene.getScheduledStartTime().toString())
+                            .put("durationSeconds", scene.getDurationSeconds())
+                            .put("totalSongs", scene.getSongs().size())
+                    ).collect(java.util.stream.Collectors.toList()));
+            agendasJson.put(key, agendaJson);
+        });
+        rc.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(agendasJson.encode());
     }
     
     private void handleCommand(RoutingContext rc) {
@@ -56,7 +79,7 @@ public class CommandResource {
                 .with(
                         agenda -> {
                             String key = brand + ":" + agenda.getLiveScenes().size();
-                            LOGGER.infof("Registered agenda for brand: %s, key: %s, total scenes: %d",
+                            LOGGER.infof("Agenda built for brand: %s, key: %s, total scenes: %d",
                                     brand, key, agenda.getLiveScenes().size());
 
                             JsonObject response = new JsonObject()
@@ -71,9 +94,10 @@ public class CommandResource {
                                     .end(response.encode());
                         },
                         failure -> {
-                            LOGGER.errorf("Failed to build agenda for brand: %s", brand, failure);
+                            LOGGER.errorf(failure, "Failed to build agenda for brand: %s", brand);
                             rc.response()
                                     .setStatusCode(500)
+                                    .putHeader("Content-Type", "application/json")
                                     .end(new JsonObject()
                                             .put("error", "Failed to build agenda: " + failure.getMessage())
                                             .encode());

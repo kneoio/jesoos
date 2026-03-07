@@ -14,9 +14,13 @@
         <br><br>
         
         <button type="submit">Start</button>
+        <button type="button" id="viewAgendas">View Agendas</button>
     </form>
     
-    <div id="result"></div>
+    <h2>Start Result</h2>
+    <div id="startResult"></div>
+    <h2>Agendas</h2>
+    <div id="agendasResult"></div>
     
     <script>
         document.getElementById('commandForm').addEventListener('submit', async function(e) {
@@ -25,7 +29,7 @@
             const brand = document.getElementById('brand').value;
             const command = 'start';
             
-            const resultDiv = document.getElementById('result');
+            const resultDiv = document.getElementById('startResult');
             resultDiv.innerHTML = 'Sending...';
             
             try {
@@ -36,6 +40,19 @@
                     }
                 });
                 
+                const data = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        });
+
+        document.getElementById('viewAgendas').addEventListener('click', async function() {
+            const resultDiv = document.getElementById('agendasResult');
+            resultDiv.innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch('/command/agendas');
                 const data = await response.json();
                 resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
             } catch (error) {

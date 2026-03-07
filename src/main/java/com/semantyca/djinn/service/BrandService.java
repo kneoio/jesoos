@@ -9,7 +9,6 @@ import com.semantyca.djinn.dto.radiostation.ProfileOverridingDTO;
 import com.semantyca.djinn.repository.brand.BrandRepository;
 import com.semantyca.mixpla.model.brand.Brand;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -54,21 +53,22 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         return repository.getAllCount(user, false, country, query);
     }
 
-    public Uni<List<Brand>> getAll(final int limit, final int offset) {
-        return repository.getAll(limit, offset, false, SuperUser.build(), null, null);
+    public Uni<Brand> getById(UUID id) {
+        return repository.findById(id);
     }
-
-    public Uni<List<Brand>> getAll(final int limit, final int offset, IUser user) {
-        return repository.getAll(limit, offset, false, user, null, null);
-    }
-
-    public Uni<Brand> getById(UUID id, IUser user) {
-        return repository.findById(id, user, true);
-    }
-
 
     public Uni<Brand> getBySlugName(String name) {
-        return repository.getBySlugName(name);
+        return repository.getBySlugName(name)
+                .chain(brand -> {
+                    if (brand == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+                    return repository.getScriptEntriesForBrand(brand.getId())
+                            .onItem().transform(scripts -> {
+                                brand.setScripts(scripts);
+                                return brand;
+                            });
+                });
     }
 
     private Uni<BrandDTO> mapToDTO(Brand doc) {
@@ -150,5 +150,4 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             return dto;
         });
     }
-
 }
