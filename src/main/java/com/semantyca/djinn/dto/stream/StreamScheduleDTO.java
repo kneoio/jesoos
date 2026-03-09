@@ -1,4 +1,4 @@
-package com.semantyca.djinn.dto;
+package com.semantyca.djinn.dto.stream;
 
 import com.semantyca.mixpla.model.ScenePrompt;
 import lombok.Getter;

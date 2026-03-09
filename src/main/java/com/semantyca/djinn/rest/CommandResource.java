@@ -32,9 +32,9 @@ public class CommandResource {
     private void getAgendas(RoutingContext rc) {
         JsonObject agendasJson = new JsonObject();
         brandPool.getOnlineStationsSnapshot().forEach(stream -> {
-            if (stream.getStreamAgenda() != null) {
+            if (stream.getAgenda() != null) {
                 String key = stream.getSlugName();
-                var agenda = stream.getStreamAgenda();
+                var agenda = stream.getAgenda();
                 JsonObject agendaJson = new JsonObject()
                         .put("key", key)
                         .put("createdAt", agenda.getCreatedAt().toString())
@@ -78,17 +78,17 @@ public class CommandResource {
             return;
         }
 
-        streamAgendaService.buildRadioStreamAgenda(slugName, SuperUser.build())
+        streamAgendaService.buildLiveAgenda(slugName, SuperUser.build())
                 .subscribe()
                 .with(
                         stream -> {
-                            String key = brand + ":" + stream.getStreamAgenda().getTotalScenes();
+                            String key = brand + ":" + stream.getAgenda().getTotalScenes();
 
                             JsonObject response = new JsonObject()
                                     .put("success", true)
                                     .put("key", key)
-                                    .put("totalScenes", stream.getStreamAgenda().getTotalScenes())
-                                    .put("createdAt", stream.getStreamAgenda().getCreatedAt());
+                                    .put("totalScenes", stream.getAgenda().getTotalScenes())
+                                    .put("createdAt", stream.getAgenda().getCreatedAt());
 
                             rc.response()
                                     .setStatusCode(200)

@@ -1,7 +1,9 @@
 package com.semantyca.djinn.service;
 
-import com.semantyca.djinn.dto.StreamScheduleDTO;
+import com.semantyca.djinn.config.DjinnConfig;
 import com.semantyca.djinn.dto.radiostation.OneTimeStreamRunReqDTO;
+import com.semantyca.djinn.dto.stream.OneTimeStreamDTO;
+import com.semantyca.djinn.dto.stream.StreamScheduleDTO;
 import com.semantyca.djinn.model.stream.LiveScene;
 import com.semantyca.djinn.model.stream.OneTimeStream;
 import com.semantyca.djinn.model.stream.PendingSongEntry;
@@ -27,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -47,7 +48,7 @@ public class OneTimeStreamService {
     BrandPool brandPool;
 
     @Inject
-    BroadcasterConfig broadcasterConfig;
+    DjinnConfig djinnConfig;
 
     @Inject
     BrandService brandService;
@@ -135,13 +136,13 @@ public class OneTimeStreamService {
         dto.setLocalizedName(doc.getLocalizedName());
         dto.setTimeZone(doc.getTimeZone() != null ? doc.getTimeZone().getId() : null);
         dto.setBitRate(doc.getBitRate());
-        dto.setStreamSchedule(streamAgendaService.toScheduleDTO(doc.getStreamAgenda()));
+        dto.setStreamSchedule(streamAgendaService.toScheduleDTO(doc.getAgenda()));
         dto.setCreatedAt(doc.getCreatedAt());
         dto.setExpiresAt(doc.getExpiresAt());
         try {
-            dto.setHlsUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8").toURL());
-            dto.setIceCastUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast").toURL());
-            dto.setMp3Url(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.mp3").toURL());
+            dto.setHlsUrl(URI.create(djinnConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8").toURL());
+            dto.setIceCastUrl(URI.create(djinnConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast").toURL());
+            dto.setMp3Url(URI.create(djinnConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.mp3").toURL());
             dto.setMixplaUrl(URI.create("https://player.mixpla.io/?radio=" + dto.getSlugName()).toURL());
         } catch (
                 MalformedURLException e) {
@@ -178,24 +179,7 @@ public class OneTimeStreamService {
                 .replaceWith(stream);
     }
 
-    public Uni<OneTimeStream> run(OneTimeStreamRunReqDTO dto, IUser user) {
-        return brandRepository.findById(dto.getBaseBrandId(), user, true)
-                .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
-                        .chain(script -> {
-                            OneTimeStream stream = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
-                            stream.setAiAgentId(dto.getAiAgentId());
-                            stream.setProfileId(dto.getProfileId());
-                            stream.setStreamAgenda(fromScheduleDTO(dto.getSchedule()));
-                            if (!dto.isStartImmediately()) {
-                                stream.setStatus(StreamStatus.PENDING);
-                            }
-                            oneTimeStreamRepository.insert(stream);
-                            LOGGER.info("OneTimeStream created: slugName={}, id={}, status={}", stream.getSlugName(), stream.getId(), stream.getStatus());
-                            return Uni.createFrom().item(stream);
-                        })
-                )
-                .chain(stream -> dto.isStartImmediately() ? start(stream) : Uni.createFrom().item(stream));
-    }
+
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {
         return oneTimeStreamRepository.getBySlugName(slugName);
@@ -212,48 +196,6 @@ public class OneTimeStreamService {
                 });
     }
 
-    public Uni<OneTimeStreamDTO> upsert(String id, OneTimeStreamDTO dto, IUser user, LanguageCode languageCode) {
-        return brandRepository.findById(dto.getBaseBrandId(), user, true)
-                .chain(sourceBrand -> {
-                    UUID scriptId = dto.getScripts() != null && !dto.getScripts().isEmpty() 
-                            ? dto.getScripts().getFirst().getScriptId()
-                            : null;
-                    
-                    if (scriptId == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Script ID is required"));
-                    }
-                    
-                    return scriptRepository.findById(scriptId, user, false)
-                            .chain(script -> {
-                                OneTimeStream stream;
-                                Map<String, Object> userVariables = dto.getUserVariables();
-                                
-                                if (id == null) {
-                                    stream = new OneTimeStream(sourceBrand, script, userVariables);
-                                    stream.setAiAgentId(dto.getAiAgentId());
-                                    stream.setProfileId(dto.getProfileId());
-                                    stream.setStreamAgenda(fromScheduleDTO(dto.getStreamSchedule()));
-                                    oneTimeStreamRepository.insert(stream);
-                                    return mapToDTO(stream);
-                                } else {
-                                    return oneTimeStreamRepository.findById(UUID.fromString(id))
-                                            .chain(existing -> {
-                                                if (existing == null) {
-                                                    return Uni.createFrom().failure(new RuntimeException("Stream not found"));
-                                                }
-                                                existing.setMasterBrand(sourceBrand);
-                                                existing.setScript(script);
-                                                existing.setUserVariables(userVariables);
-                                                existing.setAiAgentId(dto.getAiAgentId());
-                                                existing.setProfileId(dto.getProfileId());
-                                                existing.setStreamAgenda(fromScheduleDTO(dto.getStreamSchedule()));
-                                                return oneTimeStreamRepository.update(UUID.fromString(id), existing)
-                                                        .chain(this::mapToDTO);
-                                            });
-                                }
-                            });
-                });
-    }
 
     private StreamAgenda fromScheduleDTO(StreamScheduleDTO dto) {
         if (dto == null) {

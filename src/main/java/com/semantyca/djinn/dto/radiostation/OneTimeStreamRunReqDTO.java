@@ -1,7 +1,7 @@
 package com.semantyca.djinn.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.semantyca.djinn.dto.StreamScheduleDTO;
+import com.semantyca.djinn.dto.stream.StreamScheduleDTO;
 import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

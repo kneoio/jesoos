@@ -21,14 +21,14 @@ public class AgendaTicker {
     private static final Logger LOGGER = Logger.getLogger(AgendaTicker.class);
 
     @Inject
-    StreamAgendaManager agendaManager;
+    BrandPool brandPool;
 
     @Inject
     QueueSupplier queueSupplier;
 
     @Scheduled(every = "10s")
     void tick() {
-        Map<String, StreamAgenda> agendas = agendaManager.getAll();
+        Map<String, StreamAgenda> agendas = brandPool.getAll();
         if (agendas.isEmpty()) {
             return;
         }

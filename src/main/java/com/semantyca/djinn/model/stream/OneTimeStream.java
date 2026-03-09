@@ -64,7 +64,7 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public LiveScene findActiveScene(int prepareMinutesInAdvance) {
-        List<LiveScene> scenes = streamAgenda.getLiveScenes();
+        List<LiveScene> scenes = agenda.getLiveScenes();
 
         boolean anySceneStarted = scenes.stream()
                 .anyMatch(scene -> scene.getActualStartTime() != null);
@@ -85,7 +85,7 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public boolean isCompleted() {
-        return streamAgenda.getLiveScenes().stream()
+        return agenda.getLiveScenes().stream()
                 .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
     }
 

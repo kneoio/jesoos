@@ -6,6 +6,7 @@ import com.semantyca.djinn.model.stats.BroadcastingStats;
 import com.semantyca.djinn.model.stream.ILiveAgenda;
 import com.semantyca.djinn.model.stream.OneTimeStream;
 import com.semantyca.djinn.model.stream.RadioStream;
+import com.semantyca.djinn.model.stream.StreamAgenda;
 import com.semantyca.djinn.repository.OneTimeStreamRepository;
 import com.semantyca.djinn.service.AiAgentService;
 import com.semantyca.djinn.service.BrandService;
@@ -27,8 +28,10 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class BrandPool {
@@ -236,4 +239,8 @@ public class BrandPool {
         return Uni.createFrom().item(stats);
     }
 
+    public Map<String, StreamAgenda> getAll() {
+        return pool.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getAgenda()));
+    }
 }

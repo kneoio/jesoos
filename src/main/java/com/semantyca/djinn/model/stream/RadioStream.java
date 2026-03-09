@@ -42,14 +42,14 @@ public class RadioStream extends AbstractStream {
     }
 
     public LiveScene findActiveScene(int prepareMinutesInAdvance) {
-        if (streamAgenda == null) {
+        if (agenda == null) {
             LOGGER.warn("Station '{}': No stream schedule available", slugName);
             return null;
         }
 
         LocalTime now = LocalTime.now(timeZone);
         LocalDateTime nowDateTime = LocalDateTime.now(timeZone);
-        List<LiveScene> scenes = streamAgenda.getLiveScenes();
+        List<LiveScene> scenes = agenda.getLiveScenes();
         
         LOGGER.debug("Station '{}': Checking {} scenes at time {}", slugName, scenes.size(), now);
         
