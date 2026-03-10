@@ -1,13 +1,13 @@
 package com.semantyca.djinn.repository.prompt;
 
-import com.semantyca.djinn.dto.PromptFilterDTO;
+import com.semantyca.mixpla.model.filter.PromptFilter;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class PromptQueryBuilder {
 
     public String buildGetAllQuery(String tableName, String rlsName, long userId, boolean includeArchived,
-                                   PromptFilterDTO filter, int limit, int offset) {
+                                   PromptFilter filter, int limit, int offset) {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT * FROM ").append(tableName).append(" t, ").append(rlsName).append(" rls ")
                 .append("WHERE t.id = rls.entity_id AND rls.reader = ").append(userId);
@@ -29,7 +29,7 @@ public class PromptQueryBuilder {
         return sql.toString();
     }
 
-    String buildFilterConditions(PromptFilterDTO filter) {
+    String buildFilterConditions(PromptFilter filter) {
         StringBuilder conditions = new StringBuilder();
 
         if (filter.getLanguageTag() != null) {

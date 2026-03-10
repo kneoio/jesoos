@@ -1,13 +1,13 @@
 package com.semantyca.djinn.service.stream;
 
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.djinn.dto.queue.SongInfoDTO;
-import com.semantyca.djinn.dto.queue.SongQueueMessageDTO;
 import com.semantyca.djinn.messaging.QueueSupplier;
 import com.semantyca.djinn.model.stream.LiveScene;
 import com.semantyca.djinn.model.stream.PendingSongEntry;
 import com.semantyca.djinn.service.AiAgentService;
 import com.semantyca.djinn.util.AiHelperUtils;
+import com.semantyca.mixpla.dto.queue.SongInfoDTO;
+import com.semantyca.mixpla.dto.queue.SongQueueMessageDTO;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.stream.IStream;

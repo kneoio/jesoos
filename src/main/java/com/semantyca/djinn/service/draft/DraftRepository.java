@@ -2,8 +2,8 @@ package com.semantyca.djinn.service.draft;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.djinn.dto.DraftFilterDTO;
 import com.semantyca.mixpla.model.Draft;
+import com.semantyca.mixpla.model.filter.DraftFilter;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -39,7 +39,7 @@ public class DraftRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<List<Draft>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final DraftFilterDTO filter) {
+    public Uni<List<Draft>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final DraftFilter filter) {
         String sql = queryBuilder.buildGetAllQuery(
                 entityData.getTableName(),
                 includeArchived,
@@ -56,7 +56,7 @@ public class DraftRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, final DraftFilterDTO filter) {
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, final DraftFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t";
 
         if (!includeArchived) {

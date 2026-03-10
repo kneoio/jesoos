@@ -53,7 +53,7 @@
         <dependency>
             <groupId>io.kneo</groupId>
             <artifactId>2next</artifactId>
-            <version>1.2.4</version>
+            <version>1.2.7</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.quarkus</groupId>
