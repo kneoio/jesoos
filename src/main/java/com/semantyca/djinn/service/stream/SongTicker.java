@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class SongTicker {
     private static final Logger LOGGER = LoggerFactory.getLogger(SongTicker.class);
-    private static final int MAX_SONGS_PER_BATCH = 2;
+    private static final int PREPARATION_SECONDS = 60;
 
     @Inject
     ScenePool scenePool;
@@ -73,12 +73,13 @@ public class SongTicker {
     private Uni<Void> processSongsForScene(String brandName, LiveScene scene) {
         Set<UUID> sentSongs = sentSongsTracker.computeIfAbsent(brandName, k -> new HashSet<>());
         
-        List<PendingSongEntry> availableSongs = scene.getSongs().stream()
+        List<PendingSongEntry> songsToSend = scene.getSongs().stream()
                 .filter(song -> !sentSongs.contains(song.getSoundFragment().getId()))
-                .limit(MAX_SONGS_PER_BATCH)
+                .sorted((a, b) -> Integer.compare(a.getSequenceNumber(), b.getSequenceNumber()))
+                .limit(PREPARATION_SECONDS / 30)
                 .toList();
 
-        if (availableSongs.isEmpty()) {
+        if (songsToSend.isEmpty()) {
             LOGGER.info("No more songs to send for brand: {}, scene: {} - removing from pool", 
                     brandName, scene.getSceneTitle());
             scenePool.removeScene(brandName);
@@ -94,7 +95,7 @@ public class SongTicker {
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> sendSongsWithIntros(brandName, scene, availableSongs, agent, stream, sentSongs));
+                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs));
                 });
     }
 
@@ -108,52 +109,73 @@ public class SongTicker {
     ) {
         LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
-        List<Uni<Void>> sendUnis = new ArrayList<>();
-
+        List<Uni<String>> introUnis = new ArrayList<>();
         for (PendingSongEntry songEntry : songs) {
-            Uni<Void> sendUni = introTtsGenerator.generateIntroAudioFile(
-                            scene,
-                            songEntry.getSoundFragment(),
-                            agent,
-                            stream,
-                            broadcastingLanguage
-                    )
-                    .chain(introFilePath -> {
-                        AddToQueueDTO dto = new AddToQueueDTO();
-                        dto.setMergingMethod(MergingType.INTRO_SONG);
-                        
-                        Map<String, String> filePaths = new HashMap<>();
-                        filePaths.put("intro", introFilePath);
-                        dto.setFilePaths(filePaths);
-
-                        Map<String, UUID> soundFragments = new HashMap<>();
-                        soundFragments.put("song", songEntry.getSoundFragment().getId());
-                        dto.setSoundFragments(soundFragments);
-
-                        dto.setPriority(100);
-
-                        String uploadId = scene.getSceneId() + ":" + songEntry.getSoundFragment().getId() + ":" + System.currentTimeMillis();
-
-                        return queueSupplier.sendToQueue(brandName, dto, uploadId)
-                                .invoke(() -> {
-                                    sentSongs.add(songEntry.getSoundFragment().getId());
-                                    LOGGER.info("Sent to queue - brand: {}, scene: {}, song: {}, intro: {}", 
-                                            brandName, scene.getSceneTitle(), 
-                                            songEntry.getSoundFragment().getTitle(), introFilePath);
-                                });
-                    })
-                    .onFailure().invoke(failure -> 
-                            LOGGER.error("Failed to send song '{}' for brand: {}, error: {}", 
-                                    songEntry.getSoundFragment().getTitle(), brandName, failure.getMessage(), failure)
-                    )
-                    .onFailure().recoverWithNull();
-
-            sendUnis.add(sendUni);
+            Uni<String> introUni = introTtsGenerator.generateIntroAudioFile(
+                    scene,
+                    songEntry.getSoundFragment(),
+                    agent,
+                    stream,
+                    broadcastingLanguage
+            );
+            introUnis.add(introUni);
         }
 
-        return Multi.createFrom().iterable(sendUnis)
+        return Multi.createFrom().iterable(introUnis)
                 .onItem().transformToUniAndConcatenate(uni -> uni)
                 .collect().asList()
-                .replaceWithVoid();
+                .chain(introFilePaths -> {
+                    AddToQueueDTO dto = new AddToQueueDTO();
+                    
+                    MergingType mergingType = selectMergingType(songs.size());
+                    dto.setMergingMethod(mergingType);
+                    
+                    Map<String, String> filePaths = new HashMap<>();
+                    Map<String, UUID> soundFragments = new HashMap<>();
+                    
+                    for (int i = 0; i < songs.size(); i++) {
+                        PendingSongEntry songEntry = songs.get(i);
+                        String introPath = introFilePaths.get(i);
+                        
+                        String introKey = i == 0 ? "intro" : "intro" + (i + 1);
+                        String songKey = i == 0 ? "song" : "song" + (i + 1);
+                        
+                        filePaths.put(introKey, introPath);
+                        soundFragments.put(songKey, songEntry.getSoundFragment().getId());
+                    }
+                    
+                    dto.setFilePaths(filePaths);
+                    dto.setSoundFragments(soundFragments);
+                    dto.setPriority(100);
+
+                    String uploadId = scene.getSceneId() + ":" + System.currentTimeMillis();
+
+                    return queueSupplier.sendToQueue(brandName, dto, uploadId)
+                            .invoke(() -> {
+                                songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
+                                LOGGER.info("Sent {} songs to queue - brand: {}, scene: {}, mergingType: {}", 
+                                        songs.size(), brandName, scene.getSceneTitle(), mergingType);
+                            });
+                })
+                .onFailure().invoke(failure -> 
+                        LOGGER.error("Failed to send songs for brand: {}, error: {}", 
+                                brandName, failure.getMessage(), failure)
+                )
+                .onFailure().recoverWithNull();
+    }
+
+    private MergingType selectMergingType(int songCount) {
+        if (songCount == 1) {
+            return Math.random() < 0.5 ? MergingType.INTRO_SONG : MergingType.SONG_ONLY;
+        } else {
+            double rand = Math.random();
+            if (rand < 0.33) {
+                return MergingType.INTRO_SONG_INTRO_SONG;
+            } else if (rand < 0.66) {
+                return MergingType.SONG_CROSSFADE_SONG;
+            } else {
+                return MergingType.SONG_INTRO_SONG;
+            }
+        }
     }
 }

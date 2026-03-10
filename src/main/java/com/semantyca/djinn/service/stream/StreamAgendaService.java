@@ -168,11 +168,10 @@ public class StreamAgendaService {
                                         scene.getTalkativity(),
                                         scene.getIntroPrompts()
                                 );
-                                LocalDateTime songStartTime = capturedSceneStartTime;
+                                int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
-                                    PendingSongEntry songEntry = new PendingSongEntry(song, songStartTime);
+                                    PendingSongEntry songEntry = new PendingSongEntry(song, sequenceNumber++);
                                     entry.addSong(songEntry);
-                                    songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }
                                 return entry;
                             })
@@ -186,14 +185,10 @@ public class StreamAgendaService {
                 });
     }
 
-
-
-
     public Uni<StreamScheduleDTO> getStreamScheduleDTO(UUID brandId, UUID scriptId, IUser user) {
         return buildStreamSchedule(brandId, scriptId, user)
                 .map(this::toScheduleDTO);
     }
-
 
     public Uni<StreamAgenda> buildStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId)
@@ -213,7 +208,6 @@ public class StreamAgendaService {
                 );
     }
 
-
     public Uni<StreamAgenda> build(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
 
@@ -231,11 +225,10 @@ public class StreamAgendaService {
                     fetchSongsForScene(sourceBrand, scene, songSupplier)
                             .map(songs -> {
                                 LiveScene entry = new LiveScene(scene, finalSceneStartTime);
-                                LocalDateTime songStartTime = finalSceneStartTime;
+                                int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
-                                    PendingSongEntry songEntry = new PendingSongEntry(song, songStartTime);
+                                    PendingSongEntry songEntry = new PendingSongEntry(song, sequenceNumber++);
                                     entry.addSong(songEntry);
-                                    songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }
                                 return entry;
                             })
@@ -487,7 +480,7 @@ public class StreamAgendaService {
         dto.setSongId(song.getSoundFragment().getId().toString());
         dto.setTitle(song.getSoundFragment().getTitle());
         dto.setArtist(song.getSoundFragment().getArtist());
-        dto.setScheduledStartTime(song.getScheduledStartTime());
+        dto.setSequenceNumber(song.getSequenceNumber());
         dto.setEstimatedDurationSeconds(song.getDurationSeconds());
         return dto;
     }

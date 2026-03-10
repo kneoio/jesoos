@@ -56,7 +56,7 @@ public class StreamScheduleDTO {
         private String songId;
         private String title;
         private String artist;
-        private LocalDateTime scheduledStartTime;
+        private int sequenceNumber;
         private int estimatedDurationSeconds;
     }
 }

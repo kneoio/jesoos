@@ -100,8 +100,6 @@
             <artifactId>google-cloud-texttospeech</artifactId>
             <version>2.40.0</version>
         </dependency>
-
-
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-web</artifactId>

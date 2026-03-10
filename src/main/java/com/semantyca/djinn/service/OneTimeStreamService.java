@@ -250,7 +250,7 @@ public class OneTimeStreamService {
         return new PendingSongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
-                dto.getScheduledStartTime(),
+                dto.getSequenceNumber(),
                 dto.getEstimatedDurationSeconds()
         );
     }
