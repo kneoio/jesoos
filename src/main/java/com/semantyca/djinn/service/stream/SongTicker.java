@@ -33,7 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class SongTicker {
     private static final Logger LOGGER = LoggerFactory.getLogger(SongTicker.class);
-    private static final int PREPARATION_SECONDS = 60;
 
     @Inject
     ScenePool scenePool;
@@ -52,7 +51,7 @@ public class SongTicker {
 
     private final Map<String, Set<UUID>> sentSongsTracker = new ConcurrentHashMap<>();
 
-    @Scheduled(every = "30s")
+    @Scheduled(every = "5m")
     void tick() {
         Map<String, LiveScene> activeScenes = scenePool.getAllActiveScenes();
         if (activeScenes.isEmpty()) {
@@ -74,10 +73,12 @@ public class SongTicker {
     private Uni<Void> processSongsForScene(String brandName, LiveScene scene) {
         Set<UUID> sentSongs = sentSongsTracker.computeIfAbsent(brandName, k -> new HashSet<>());
         
+        int batchSize = Math.random() < 0.5 ? 1 : 2;
+        
         List<PendingSongEntry> songsToSend = scene.getSongs().stream()
                 .filter(song -> !sentSongs.contains(song.getSoundFragment().getId()))
                 .sorted((a, b) -> Integer.compare(a.getSequenceNumber(), b.getSequenceNumber()))
-                .limit(PREPARATION_SECONDS / 30)
+                .limit(batchSize)
                 .toList();
 
         if (songsToSend.isEmpty()) {
