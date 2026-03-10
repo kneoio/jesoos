@@ -67,6 +67,8 @@ public interface DjinnConfig {
     @WithName("station.whitelist")
     Optional<List<String>> stationWhitelist();
 
+
+
     interface Path {
         @WithDefault("uploads")
         String uploads();
@@ -93,4 +95,20 @@ public interface DjinnConfig {
             String dir();
         }
     }
+
+    @WithName("elevenlabs.api-key")
+    String getElevenLabsApiKey();
+
+    @WithName("elevenlabs.voice-id")
+    @WithDefault("nZ5WsS2E2UAALki8m2V6")
+    String getElevenLabsVoiceId();
+
+    @WithName("elevenlabs.model-id")
+    @WithDefault("eleven_v3")
+    String getElevenLabsModelId();
+
+    @WithName("elevenlabs.output-format")
+    @WithDefault("mp3_44100_128")
+    String getElevenLabsOutputFormat();
+
 }

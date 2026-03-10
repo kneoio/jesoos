@@ -2,7 +2,6 @@ package com.semantyca.djinn.rest;
 
 import com.semantyca.djinn.service.stream.BrandPool;
 import com.semantyca.djinn.service.stream.StreamAgendaService;
-import io.kneo.core.model.user.SuperUser;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -78,7 +77,7 @@ public class CommandResource {
             return;
         }
 
-        streamAgendaService.buildLiveAgenda(slugName, SuperUser.build())
+        streamAgendaService.buildRadioLiveAgenda(slugName)
                 .subscribe()
                 .with(
                         stream -> {

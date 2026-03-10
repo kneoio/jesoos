@@ -57,7 +57,7 @@ public class StreamAgendaService {
         this.brandPool = brandPool;
     }
 
-    public Uni<ILiveAgenda> buildLiveAgenda(String brand, IUser user) {
+    public Uni<ILiveAgenda> buildRadioLiveAgenda(String brand) {
         return brandPool.initializeRadio(brand)
                 .onFailure().invoke(f ->
                         brandPool.get(brand)
@@ -67,7 +67,7 @@ public class StreamAgendaService {
                 );
     }
 
-    public Uni<StreamAgenda> buildLiveAgenda(UUID brandId, UUID scriptId, IUser user) {
+    public Uni<StreamAgenda> buildRadioLiveAgenda(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
@@ -80,12 +80,12 @@ public class StreamAgendaService {
                                                     addAll(list);
                                                 }})
                                                 .invoke(script::setScenes)
-                                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier))
+                                                .chain(x -> buildRadioAgenda(script, sourceBrand, scheduleSongSupplier))
                                 )
                 );
     }
 
-    public Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+    public Uni<StreamAgenda> buildRadioAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         ZoneId brandZone = sourceBrand.getTimeZone();
         LocalDateTime brandNow = LocalDateTime.now(brandZone);
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
@@ -154,7 +154,7 @@ public class StreamAgendaService {
                                         finalDurationSeconds,
                                         sceneOriginalStart,
                                         sceneOriginalEnd,
-                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSourcing() : null,
+                                        scene.getPlaylistRequest().getSourcing(),
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getTitle() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getArtist() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getGenres() : null,
@@ -185,6 +185,9 @@ public class StreamAgendaService {
                     return schedule;
                 });
     }
+
+
+
 
     public Uni<StreamScheduleDTO> getStreamScheduleDTO(UUID brandId, UUID scriptId, IUser user) {
         return buildStreamSchedule(brandId, scriptId, user)

@@ -39,18 +39,6 @@ public class DraftRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE master_id = $1 AND language_code = $2";
-        if (!includeArchived) {
-            sql += " AND archived = 0 ";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(masterId, languageTag.name()))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> iterator.hasNext() ? from(iterator.next()) : null);
-    }
-
     public Uni<List<Draft>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final DraftFilterDTO filter) {
         String sql = queryBuilder.buildGetAllQuery(
                 entityData.getTableName(),

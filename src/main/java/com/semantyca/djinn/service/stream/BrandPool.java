@@ -1,7 +1,6 @@
 package com.semantyca.djinn.service.stream;
 
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.djinn.config.DjinnConfig;
 import com.semantyca.djinn.model.stats.BroadcastingStats;
 import com.semantyca.djinn.model.stream.ILiveAgenda;
 import com.semantyca.djinn.model.stream.OneTimeStream;
@@ -11,10 +10,6 @@ import com.semantyca.djinn.repository.OneTimeStreamRepository;
 import com.semantyca.djinn.service.AiAgentService;
 import com.semantyca.djinn.service.BrandService;
 import com.semantyca.djinn.service.OneTimeStreamService;
-import com.semantyca.djinn.service.live.AiHelperService;
-import com.semantyca.djinn.service.playlist.SongSupplier;
-import com.semantyca.djinn.service.soundfragment.BrandSoundFragmentUpdateService;
-import com.semantyca.djinn.service.soundfragment.SoundFragmentService;
 import com.semantyca.djinn.util.AiHelperUtils;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.core.localization.LanguageCode;
@@ -40,21 +35,6 @@ public class BrandPool {
 
     @Inject
     BrandService brandService;
-
-    @Inject
-    DjinnConfig djinnConfig;
-
-    @Inject
-    SoundFragmentService soundFragmentService;
-
-    @Inject
-    BrandSoundFragmentUpdateService updateService;
-
-    @Inject
-    AiHelperService aiHelperService;
-
-    @Inject
-    private SongSupplier songSupplier;
 
     @Inject
     private StreamAgendaService streamAgendaService;
@@ -105,7 +85,7 @@ public class BrandPool {
 
                                 if (finalStationToUse instanceof RadioStream radioStream && radioStream.getAgenda() == null) {
                                     LOGGER.info("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
-                                    return streamAgendaService.buildLiveAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
+                                    return streamAgendaService.buildRadioLiveAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
                                                 radioStream.setAgenda(schedule);
                                                 LOGGER.info("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
@@ -241,6 +221,7 @@ public class BrandPool {
 
     public Map<String, StreamAgenda> getAll() {
         return pool.entrySet().stream()
+                .filter(entry -> entry.getValue().getAgenda() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getAgenda()));
     }
 }
