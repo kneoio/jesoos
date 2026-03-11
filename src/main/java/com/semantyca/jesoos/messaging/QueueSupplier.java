@@ -18,13 +18,13 @@ public class QueueSupplier {
     Emitter<SongQueueMessageDTO> songEmitter;
 
 
-    public Uni<Void> sendSongsToQueue(String brandName, SongQueueMessageDTO message, String uploadId) {
+    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, String uploadId) {
         return Uni.createFrom()
                 .completionStage(songEmitter.send(message))
                 .onItem().invoke(() -> LOGGER.info("Successfully sent songs to queue - brand: {}, scene: {}, uploadId: {}", 
-                        brandName, message.getSceneTitle(), uploadId))
+                        brandSlug, message.getSceneTitle(), uploadId))
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to send songs to queue - brand: {}, uploadId: {}, error: {}",
-                        brandName, uploadId, throwable.getMessage(), throwable))
+                        brandSlug, uploadId, throwable.getMessage(), throwable))
                 .onFailure().recoverWithUni(throwable -> Uni.createFrom().failure(throwable));
     }
 }

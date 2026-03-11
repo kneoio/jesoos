@@ -72,9 +72,8 @@ public class IntroTtsGenerator {
     ) {
         List<ScenePrompt> introPrompts = scene.getIntroPrompts();
         if (introPrompts == null || introPrompts.isEmpty()) {
-            return Uni.createFrom().failure(
-                new IllegalStateException("Scene has no intro prompts: " + scene.getSceneTitle())
-            );
+            LOGGER.info("Scene has no intro prompts: {}, will send song without intro", scene.getSceneTitle());
+            return Uni.createFrom().nullItem();
         }
 
         List<UUID> enabledPromptIds = introPrompts.stream()
@@ -83,9 +82,8 @@ public class IntroTtsGenerator {
                 .toList();
 
         if (enabledPromptIds.isEmpty()) {
-            return Uni.createFrom().failure(
-                new IllegalStateException("Scene has no enabled intro prompts: " + scene.getSceneTitle())
-            );
+            LOGGER.info("Scene has no enabled intro prompts: {}, will send song without intro", scene.getSceneTitle());
+            return Uni.createFrom().nullItem();
         }
 
         UUID selectedPromptId = enabledPromptIds.get(random.nextInt(enabledPromptIds.size()));

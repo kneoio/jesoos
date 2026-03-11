@@ -123,13 +123,13 @@ public class SongTicker {
             introUnis.add(introUni);
         }
 
-        return Multi.createFrom().iterable(introUnis)
-                .onItem().transformToUniAndConcatenate(uni -> uni)
-                .collect().asList()
-                .chain(introFilePaths -> {
+        return Uni.join().all(introUnis).andCollectFailures().chain(introFilePaths -> {
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
                     
-                    MergingType mergingType = selectMergingType(songs.size());
+                    boolean hasIntros = introFilePaths.stream().anyMatch(path -> path != null);
+                    MergingType mergingType = hasIntros ? selectMergingType(songs.size()) : 
+                            (songs.size() == 1 ? MergingType.SONG_ONLY : MergingType.SONG_CROSSFADE_SONG);
+                    
                     dto.setMergingMethod(mergingType);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
@@ -144,7 +144,9 @@ public class SongTicker {
                         String introKey = "intro" + (i + 1);
                         String songKey = "song" + (i + 1);
                         
-                        filePaths.put(introKey, introPath);
+                        if (introPath != null) {
+                            filePaths.put(introKey, introPath);
+                        }
                         
                         SongInfoDTO songInfoDTO = new SongInfoDTO(
                             songEntry.getSoundFragment().getId(),
@@ -163,8 +165,8 @@ public class SongTicker {
                     return queueSupplier.sendSongsToQueue(brandName, dto, uploadId)
                             .invoke(() -> {
                                 songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
-                                LOGGER.info("Sent {} songs to queue - brand: {}, scene: {}, mergingType: {}", 
-                                        songs.size(), brandName, scene.getSceneTitle(), mergingType);
+                                LOGGER.info("Sent {} songs to queue - brand: {}, scene: {}, mergingType: {}, hasIntros: {}", 
+                                        songs.size(), brandName, scene.getSceneTitle(), mergingType, hasIntros);
                             });
                 })
                 .onFailure().invoke(failure -> 
