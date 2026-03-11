@@ -73,7 +73,8 @@ public class SongTicker {
     private Uni<Void> processSongsForScene(String brandName, LiveScene scene) {
         Set<UUID> sentSongs = sentSongsTracker.computeIfAbsent(brandName, k -> new HashSet<>());
         
-        int batchSize = Math.random() < 0.5 ? 1 : 2;
+        // TODO: TEMPORARY - force batchSize=2 for SONG_CROSSFADE_SONG testing
+        int batchSize = 2;
         
         List<PendingSongEntry> songsToSend = scene.getSongs().stream()
                 .filter(song -> !sentSongs.contains(song.getSoundFragment().getId()))
@@ -111,7 +112,8 @@ public class SongTicker {
     ) {
         LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
-        MergingType mergingType = selectMergingType(songs.size());
+        // TODO: TEMPORARY - force SONG_CROSSFADE_SONG for testing
+        MergingType mergingType = MergingType.SONG_CROSSFADE_SONG;
         boolean needsIntros = mergingType != MergingType.SONG_ONLY && mergingType != MergingType.SONG_CROSSFADE_SONG;
 
         List<Uni<String>> introUnis = new ArrayList<>();
