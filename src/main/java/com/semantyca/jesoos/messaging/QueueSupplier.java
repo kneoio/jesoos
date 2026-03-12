@@ -35,8 +35,7 @@ public class QueueSupplier {
                                 .build();
                         Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                         songEmitter.send(msg);
-                        LOGGER.info("Sent to queue - brand: {}, scene: {}, messageId: {}",
-                                brandSlug, message.getSceneTitle(), message.getMessageId());
+                        LOGGER.info("Sent to queue, brand: {},  messageId: {}", brandSlug,  message.getMessageId());
                         return null;
                     } catch (Exception e) {
                         LOGGER.error("Failed to send - brand: {}, messageId: {}",

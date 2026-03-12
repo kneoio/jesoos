@@ -6,15 +6,18 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PendingSongEntry;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
+import com.semantyca.mixpla.dto.queue.IntroInfoDTO;
+import com.semantyca.mixpla.dto.queue.IntroKey;
 import com.semantyca.mixpla.dto.queue.SongInfoDTO;
+import com.semantyca.mixpla.dto.queue.SongKey;
 import com.semantyca.mixpla.dto.queue.SongQueueMessageDTO;
+import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.quarkus.scheduler.Scheduled;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -26,9 +29,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.semantyca.mixpla.dto.queue.IntroKey.*;
+import static com.semantyca.mixpla.dto.queue.SongKey.*;
 
 @ApplicationScoped
 public class SongTicker {
@@ -49,6 +56,9 @@ public class SongTicker {
     @Inject
     AiAgentService aiAgentService;
 
+    @Inject
+    MixingTypeStrategy mixingTypeStrategy;
+
     private final Map<String, Set<UUID>> sentSongsTracker = new ConcurrentHashMap<>();
 
     @Scheduled(every = "60s")
@@ -62,9 +72,9 @@ public class SongTicker {
             processSongsForScene(brandName, scene)
                     .subscribe()
                     .with(
-                            success -> LOGGER.info("Successfully processed songs for brand: {}, scene: {}", 
+                            success -> LOGGER.info("Successfully processed songs for brand: {}, scene: {}",
                                     brandName, scene.getSceneTitle()),
-                            failure -> LOGGER.error("Failed to process songs for brand: {}, scene: {}, error: {}", 
+                            failure -> LOGGER.error("Failed to process songs for brand: {}, scene: {}, error: {}",
                                     brandName, scene.getSceneTitle(), failure.getMessage(), failure)
                     );
         });
@@ -72,18 +82,14 @@ public class SongTicker {
 
     private Uni<Void> processSongsForScene(String brandName, LiveScene scene) {
         Set<UUID> sentSongs = sentSongsTracker.computeIfAbsent(brandName, k -> new HashSet<>());
-        
-        // TODO: TEMPORARY - force batchSize=2 for SONG_CROSSFADE_SONG testing
-        int batchSize = 2;
-        
-        List<PendingSongEntry> songsToSend = scene.getSongs().stream()
+
+        List<PendingSongEntry> availableSongs = scene.getSongs().stream()
                 .filter(song -> !sentSongs.contains(song.getSoundFragment().getId()))
                 .sorted((a, b) -> Integer.compare(a.getSequenceNumber(), b.getSequenceNumber()))
-                .limit(batchSize)
                 .toList();
 
-        if (songsToSend.isEmpty()) {
-            LOGGER.info("No more songs to send for brand: {}, scene: {} - removing from pool", 
+        if (availableSongs.isEmpty()) {
+            LOGGER.info("No more songs to send for brand: {}, scene: {} - removing from pool",
                     brandName, scene.getSceneTitle());
             scenePool.removeScene(brandName);
             sentSongsTracker.remove(brandName);
@@ -97,8 +103,18 @@ public class SongTicker {
                         return Uni.createFrom().voidItem();
                     }
 
+                    List<ScenePrompt> introPrompts = scene.getIntroPrompts();
+                    boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
+
+                    MixingTypeStrategy.MixingTypeConfig mixingType = mixingTypeStrategy.selectStrategy(availableSongs.size(), hasIntros);
+
+                    List<PendingSongEntry> songsToSend = availableSongs.stream()
+                            .limit(mixingType.batchSize())
+                            .toList();
+
+
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs));
+                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs, mixingType));
                 });
     }
 
@@ -108,13 +124,13 @@ public class SongTicker {
             List<PendingSongEntry> songs,
             AiAgent agent,
             IStream stream,
-            Set<UUID> sentSongs
+            Set<UUID> sentSongs,
+            MixingTypeStrategy.MixingTypeConfig mixing
     ) {
         LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
-        // TODO: TEMPORARY - force SONG_CROSSFADE_SONG for testing
-        MergingType mergingType = MergingType.SONG_CROSSFADE_SONG;
-        boolean needsIntros = mergingType != MergingType.SONG_ONLY && mergingType != MergingType.SONG_CROSSFADE_SONG;
+        MergingType mergingType = mixing.mergingType();
+        boolean needsIntros = mixing.needsIntros();
 
         List<Uni<String>> introUnis = new ArrayList<>();
         if (needsIntros) {
@@ -136,65 +152,64 @@ public class SongTicker {
 
         return Uni.join().all(introUnis).andCollectFailures().chain(introFilePaths -> {
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    
-                    boolean hasIntros = introFilePaths.stream().anyMatch(path -> path != null);
-                    
+
+                    boolean hasIntros = introFilePaths.stream().anyMatch(Objects::nonNull);
+
                     dto.setMergingMethod(mergingType);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
-                    
-                    Map<String, String> filePaths = new HashMap<>();
-                    Map<String, SongInfoDTO> songMap = new HashMap<>();
-                    
-                    for (int i = 0; i < songs.size(); i++) {
+                    dto.setSequenceNumber(sentSongs.size());
+
+                    Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+                    Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+
+                    for (int i = 0; i < songs.size() && i < 4; i++) {
                         PendingSongEntry songEntry = songs.get(i);
                         String introPath = introFilePaths.get(i);
-                        
-                        String introKey = "intro" + (i + 1);
-                        String songKey = "song" + (i + 1);
-                        
+
+                        IntroKey introKey = getIntroKeyByIndex(i);
+                        SongKey songKey = getSongKeyByIndex(i);
+
                         if (introPath != null) {
-                            filePaths.put(introKey, introPath);
+                            introMap.put(introKey, new IntroInfoDTO(introPath, 0));
                         }
-                        
-                        SongInfoDTO songInfoDTO = new SongInfoDTO(
-                            songEntry.getSoundFragment().getId(),
-                            songEntry.getSequenceNumber(),
-                            songEntry.getDurationSeconds()
-                        );
-                        songMap.put(songKey, songInfoDTO);
+                        songMap.put(songKey, new SongInfoDTO(
+                                songEntry.getSoundFragment().getId(),
+                                songEntry.getDurationSeconds()
+                        ));
                     }
-                    
-                    dto.setFilePaths(filePaths);
+
+                    dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
                     dto.setPriority(100);
 
                     return queueSupplier.sendSongsToQueue(brandName, dto)
                             .invoke(() -> {
                                 songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
-                                LOGGER.info("Sent {} songs to queue - brand: {}, scene: {}, mergingType: {}, hasIntros: {}", 
-                                        songs.size(), brandName, scene.getSceneTitle(), mergingType, hasIntros);
+                                LOGGER.info("Queuing {} songs, brand: {}, scene: {}, {}", songs.size(), brandName, scene.getSceneTitle(), mergingType);
                             });
                 })
-                .onFailure().invoke(failure -> 
-                        LOGGER.error("Failed to send songs for brand: {}, error: {}", 
+                .onFailure().invoke(failure ->
+                        LOGGER.error("Failed to send songs for brand: {}, error: {}",
                                 brandName, failure.getMessage(), failure)
                 )
                 .onFailure().recoverWithNull();
     }
 
-    private MergingType selectMergingType(int songCount) {
-        if (songCount == 1) {
-            return Math.random() < 0.5 ? MergingType.INTRO_SONG : MergingType.SONG_ONLY;
-        } else {
-            double rand = Math.random();
-            if (rand < 0.33) {
-                return MergingType.INTRO_SONG_INTRO_SONG;
-            } else if (rand < 0.66) {
-                return MergingType.SONG_CROSSFADE_SONG;
-            } else {
-                return MergingType.SONG_INTRO_SONG;
-            }
-        }
+    private IntroKey getIntroKeyByIndex(int index) {
+        return switch (index) {
+            case 0 -> INTRO_1;
+            case 1 -> INTRO_2;
+            default -> throw new IllegalArgumentException("Unsupported intro index: " + index);
+        };
+    }
+
+    private SongKey getSongKeyByIndex(int index) {
+        return switch (index) {
+            case 0 -> SONG_1;
+            case 1 -> SONG_2;
+            case 2 -> SONG_3;
+            default -> throw new IllegalArgumentException("Unsupported song index: " + index);
+        };
     }
 }

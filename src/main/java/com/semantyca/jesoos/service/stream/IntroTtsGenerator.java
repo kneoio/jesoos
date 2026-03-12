@@ -23,6 +23,8 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -62,6 +64,15 @@ public class IntroTtsGenerator {
     JesoosConfig config;
 
     private final Random random = new Random();
+    private AnthropicClient anthropicClient;
+
+    @PostConstruct
+    void init() {
+        anthropicClient = AnthropicOkHttpClient.builder()
+                .apiKey(config.getAnthropicApiKey())
+                .timeout(java.time.Duration.ofSeconds(60))
+                .build();
+    }
 
     public Uni<String> generateIntroAudioFile(
             LiveScene scene,
@@ -71,20 +82,10 @@ public class IntroTtsGenerator {
             LanguageTag broadcastingLanguage
     ) {
         List<ScenePrompt> introPrompts = scene.getIntroPrompts();
-        if (introPrompts == null || introPrompts.isEmpty()) {
-            LOGGER.info("Scene has no intro prompts: {}, will send song without intro", scene.getSceneTitle());
-            return Uni.createFrom().nullItem();
-        }
-
         List<UUID> enabledPromptIds = introPrompts.stream()
                 .filter(ScenePrompt::isActive)
                 .map(ScenePrompt::getPromptId)
                 .toList();
-
-        if (enabledPromptIds.isEmpty()) {
-            LOGGER.info("Scene has no enabled intro prompts: {}, will send song without intro", scene.getSceneTitle());
-            return Uni.createFrom().nullItem();
-        }
 
         UUID selectedPromptId = enabledPromptIds.get(random.nextInt(enabledPromptIds.size()));
 
@@ -99,7 +100,7 @@ public class IntroTtsGenerator {
                 })
                 .chain(prompt -> generateDraftText(prompt, song, agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
-                .chain(tuple -> generateSpokenText(tuple.prompt, tuple.draftContent, agent, stream, broadcastingLanguage))
+                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, stream, broadcastingLanguage))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, broadcastingLanguage, scene.getSceneTitle()));
     }
 
@@ -118,10 +119,11 @@ public class IntroTtsGenerator {
     }
 
     private Uni<String> generateSpokenText(Prompt prompt, String draftContent, AiAgent agent, IStream stream, LanguageTag broadcastingLanguage) {
-        return Uni.createFrom().item(() -> {
+        return Uni.createFrom().<String>emitter(em -> {
             if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                 LOGGER.error("Draft content contains error, skipping generation: {}", draftContent);
-                return null;
+                em.complete(null);
+                return;
             }
 
             String fullPrompt = String.format(
@@ -130,7 +132,7 @@ public class IntroTtsGenerator {
                     draftContent
             );
 
-            LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
+           // LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
 
             long maxTokens = 2048L;
             MessageCreateParams params = MessageCreateParams.builder()
@@ -141,10 +143,6 @@ public class IntroTtsGenerator {
                     .build();
 
             try {
-                AnthropicClient anthropicClient = AnthropicOkHttpClient.builder()
-                        .apiKey(config.getAnthropicApiKey())
-                        .timeout(java.time.Duration.ofSeconds(60))
-                        .build();
                 Message response = anthropicClient.messages().create(params);
 
                 LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}",
@@ -162,19 +160,20 @@ public class IntroTtsGenerator {
                             Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
                             maxTokens);
                 }
+
                 if (text.contains("technical difficulty")
                         || text.contains("technical error")
                         || text.contains("technical issue")) {
-                    return null;
+                    em.complete(null);
                 } else {
                     LOGGER.info("Generated text ({} tokens): {}", response.usage().outputTokens(), text);
-                    return text;
+                    em.complete(text);
                 }
             } catch (Exception e) {
                 LOGGER.error("Anthropic API call failed - Type: {}, Message: {}", e.getClass().getSimpleName(), e.getMessage(), e);
-                throw e;
+                em.fail(e);
             }
-        });
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
     private String getSystemPrompt() {
@@ -190,15 +189,16 @@ public class IntroTtsGenerator {
         String modelId;
         String finalText = text;
 
+        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\\n{3,}", "\n\n").trim();
         if (engineType == TTSEngineType.MODELSLAB) {
             ttsClient = modelslabClient;
             modelId = null;
-            finalText = text.replaceAll("\\[.*?\\]", "").replaceAll("\\n{3,}", "\n\n").trim();
+            finalText = trimmed;
             LOGGER.info("Using Modelslab TTS for scene '{}' (cleaned tags)", sceneTitle);
         } else if (engineType == TTSEngineType.GOOGLE) {
             ttsClient = gcpttsClient;
             modelId = null;
-            finalText = text.replaceAll("\\[.*?\\]", "").replaceAll("\\n{3,}", "\n\n").trim();
+            finalText = trimmed;
             LOGGER.info("Using GCP TTS for scene '{}' (cleaned tags)", sceneTitle);
         } else {
             ttsClient = elevenLabsClient;
