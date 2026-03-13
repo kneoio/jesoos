@@ -1,13 +1,13 @@
 package com.semantyca.jesoos.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.dto.AbstractDTO;
+import com.semantyca.core.dto.validation.ValidCountry;
+import com.semantyca.core.dto.validation.ValidLocalizedName;
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
-import io.kneo.core.dto.AbstractDTO;
-import io.kneo.core.dto.validation.ValidCountry;
-import io.kneo.core.dto.validation.ValidLocalizedName;
-import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;

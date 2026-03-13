@@ -1,10 +1,10 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ProfileDTO;
 import com.semantyca.jesoos.repository.ProfileRepository;
 import com.semantyca.mixpla.model.Profile;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

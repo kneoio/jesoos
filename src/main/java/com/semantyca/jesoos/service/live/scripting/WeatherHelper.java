@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.service.live.scripting;
 
 import com.semantyca.jesoos.agent.WeatherApiClient;
-import io.kneo.officeframe.cnst.CountryCode;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.HashMap;

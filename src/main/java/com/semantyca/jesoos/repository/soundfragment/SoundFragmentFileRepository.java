@@ -1,9 +1,9 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
-import com.semantyca.core.repository.file.IFileStorage;
+import com.semantyca.core.repository.IFileStorage;
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.core.repository.table.EntityData;
 import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

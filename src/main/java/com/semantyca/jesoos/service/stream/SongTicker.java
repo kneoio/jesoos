@@ -1,22 +1,22 @@
 package com.semantyca.jesoos.service.stream;
 
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PendingSongEntry;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
-import com.semantyca.mixpla.dto.queue.IntroInfoDTO;
-import com.semantyca.mixpla.dto.queue.IntroKey;
-import com.semantyca.mixpla.dto.queue.SongInfoDTO;
-import com.semantyca.mixpla.dto.queue.SongKey;
-import com.semantyca.mixpla.dto.queue.SongQueueMessageDTO;
+import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.SongKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.stream.IStream;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.SuperUser;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -29,13 +29,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.semantyca.mixpla.dto.queue.IntroKey.*;
-import static com.semantyca.mixpla.dto.queue.SongKey.*;
+import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_1;
+import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_2;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_1;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_2;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 
 @ApplicationScoped
 public class SongTicker {

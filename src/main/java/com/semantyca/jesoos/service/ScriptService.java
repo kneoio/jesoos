@@ -1,12 +1,12 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ScriptDTO;
 import com.semantyca.jesoos.repository.ScriptRepository;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

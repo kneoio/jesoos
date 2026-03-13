@@ -1,15 +1,15 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.repository.exception.DocumentHasNotFoundException;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;

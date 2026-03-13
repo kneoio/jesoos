@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.agent;
 
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.jesoos.config.PerplexityApiConfig;
-import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

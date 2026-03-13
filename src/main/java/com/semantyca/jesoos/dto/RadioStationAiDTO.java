@@ -1,9 +1,9 @@
 package com.semantyca.jesoos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
-import io.kneo.core.localization.LanguageCode;
 import lombok.Getter;
 import lombok.Setter;
 

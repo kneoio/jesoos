@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.dto.AbstractDTO;
 import com.semantyca.core.model.ScriptVariable;
-import io.kneo.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

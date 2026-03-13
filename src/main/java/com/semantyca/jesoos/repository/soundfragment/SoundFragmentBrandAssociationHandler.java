@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
-import io.kneo.core.model.user.IUser;
+import com.semantyca.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;

@@ -2,10 +2,10 @@ package com.semantyca.jesoos.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.dto.aiagent.VoiceDTO;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.officeframe.dto.GenreDTO;
 import io.kneo.officeframe.dto.LabelDTO;
 import io.kneo.officeframe.service.GenreService;

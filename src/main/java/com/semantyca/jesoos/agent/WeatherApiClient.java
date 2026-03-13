@@ -3,7 +3,7 @@ package com.semantyca.jesoos.agent;
 import com.semantyca.core.util.PropertiesUtil;
 import com.semantyca.jesoos.config.WeatherApiConfig;
 import com.semantyca.jesoos.service.live.scripting.WeatherHelper;
-import io.kneo.officeframe.cnst.CountryCode;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;

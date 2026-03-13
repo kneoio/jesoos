@@ -5,7 +5,7 @@ import com.semantyca.core.model.cnst.TranslationType;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.agentrest.AgentRespDTO;
 import com.semantyca.mixpla.model.cnst.LlmType;
-import io.kneo.officeframe.cnst.CountryCode;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;

@@ -1,16 +1,16 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.aiagent.AiAgentDTO;
 import com.semantyca.jesoos.dto.aiagent.LanguagePreferenceDTO;
 import com.semantyca.jesoos.dto.aiagent.TTSSettingDTO;
 import com.semantyca.jesoos.dto.aiagent.VoiceDTO;
 import com.semantyca.jesoos.repository.AiAgentRepository;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

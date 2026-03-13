@@ -2,13 +2,13 @@ package com.semantyca.jesoos.service.draft;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.repository.AsyncRepository;
+import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
+import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.mixpla.model.Draft;
 import com.semantyca.mixpla.model.filter.DraftFilter;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.repository.AsyncRepository;
-import io.kneo.core.repository.exception.DocumentHasNotFoundException;
-import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;

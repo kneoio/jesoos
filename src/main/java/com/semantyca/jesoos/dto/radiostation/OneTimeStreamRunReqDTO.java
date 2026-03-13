@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.jesoos.dto.stream.StreamScheduleDTO;
-import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;

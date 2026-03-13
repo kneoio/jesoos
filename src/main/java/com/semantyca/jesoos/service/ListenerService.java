@@ -1,14 +1,14 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.BrandListenerDTO;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.repository.ListenersRepository;
 import com.semantyca.mixpla.model.BrandListener;
 import com.semantyca.mixpla.model.Listener;
 import com.semantyca.mixpla.model.filter.ListenerFilter;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

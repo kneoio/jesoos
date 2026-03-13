@@ -1,9 +1,9 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
 import com.semantyca.core.model.FileMetadata;
-import com.semantyca.core.repository.file.IFileStorage;
-import io.kneo.core.repository.exception.attachment.FileRetrievalFailureException;
-import io.kneo.core.repository.exception.attachment.MissingFileRecordException;
+import com.semantyca.core.repository.IFileStorage;
+import com.semantyca.core.repository.exception.attachment.FileRetrievalFailureException;
+import com.semantyca.core.repository.exception.attachment.MissingFileRecordException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Tuple;

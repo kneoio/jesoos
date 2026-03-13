@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
+import com.semantyca.core.model.user.IUser;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
-import io.kneo.core.model.user.IUser;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped

@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.core.dto.AbstractReferenceDTO;
-import io.kneo.core.localization.LanguageCode;
+import com.semantyca.core.dto.AbstractReferenceDTO;
+import com.semantyca.core.model.cnst.LanguageCode;
 import jakarta.validation.constraints.Email;
 import lombok.Builder;
 import lombok.Getter;

@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.dto;
 
+import com.semantyca.core.dto.AbstractDTO;
 import com.semantyca.mixpla.model.cnst.PromptType;
-import io.kneo.core.dto.AbstractDTO;
 import io.vertx.core.json.JsonObject;
 import lombok.Getter;
 import lombok.Setter;

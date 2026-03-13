@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.mixpla.dto.queue.SongQueueMessageDTO;
+import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.rabbitmq.OutgoingRabbitMQMetadata;
 import jakarta.enterprise.context.ApplicationScoped;

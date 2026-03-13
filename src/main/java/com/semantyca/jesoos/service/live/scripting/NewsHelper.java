@@ -4,7 +4,7 @@ import com.semantyca.jesoos.agent.WorldNewsApiClient;
 import com.semantyca.jesoos.util.NewsMapper;
 import com.semantyca.mixpla.model.news.NewsArticle;
 import com.semantyca.mixpla.model.news.NewsResponse;
-import io.kneo.officeframe.cnst.CountryCode;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.ArrayList;
