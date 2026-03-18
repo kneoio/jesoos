@@ -3,6 +3,8 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.EnvConst;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PendingSongEntry;
@@ -13,6 +15,8 @@ import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
@@ -60,6 +64,9 @@ public class SongTicker {
 
     @Inject
     MixingTypeStrategy mixingTypeStrategy;
+
+    @Inject
+    MetricPublisher metricPublisher;
 
     private final Map<String, Set<UUID>> sentSongsTracker = new ConcurrentHashMap<>();
 
@@ -187,6 +194,7 @@ public class SongTicker {
                             .invoke(() -> {
                                 songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
                                 LOGGER.info("Queuing {} songs, brand: {}, scene: {}, {}", songs.size(), brandName, scene.getSceneTitle(), mergingType);
+                                publishMetric(brandName, "songs_queued", songs.size());
                             });
                 })
                 .onFailure().invoke(failure ->
@@ -211,5 +219,26 @@ public class SongTicker {
             case 2 -> SONG_3;
             default -> throw new IllegalArgumentException("Unsupported song index: " + index);
         };
+    }
+
+    private void publishMetric(String brandName, String eventType, int songCount) {
+        try {
+            Map<String, Object> payload = Map.of("event", eventType, "songCount", songCount);
+            MetricEventDTO event = MetricEventDTO.of(
+                    EnvConst.APP_ID,
+                    brandName,
+                    MetricEventType.INFORMATION,
+                    UUID.randomUUID(),
+                    payload
+            );
+            metricPublisher.publish(event)
+                    .subscribe()
+                    .with(
+                            v -> LOGGER.debug("Published metric for {}: {}", brandName, eventType),
+                            e -> LOGGER.error("Failed to publish metric for {}: {}", brandName, e.getMessage())
+                    );
+        } catch (Exception e) {
+            LOGGER.error("Error publishing metric for {}: {}", brandName, e.getMessage());
+        }
     }
 }

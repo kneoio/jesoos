@@ -21,14 +21,13 @@ public class CommandService {
     }
 
     public Uni<JsonObject> startBrand(String brand) {
-        String slug = brand != null ? brand.trim().toLowerCase() : null;
-        if (slug == null || slug.isEmpty()) {
+        if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
 
-        return streamAgendaService.buildRadioLiveAgenda(slug)
+        return streamAgendaService.buildRadioLiveAgenda(brand)
                 .map(this::toResponse)
-                .invoke(response -> LOGGER.infof("Built agenda for brand %s", slug));
+                .invoke(response -> LOGGER.infof("Built agenda for brand %s", brand));
     }
 
     private JsonObject toResponse(ILiveAgenda agendaHolder) {

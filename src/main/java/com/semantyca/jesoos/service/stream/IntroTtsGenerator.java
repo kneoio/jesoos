@@ -188,7 +188,7 @@ public class IntroTtsGenerator {
         String modelId;
         String finalText = text;
 
-        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\\n{3,}", "\n\n").trim();
+        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
         if (engineType == TTSEngineType.MODELSLAB) {
             ttsClient = modelslabClient;
             modelId = null;
