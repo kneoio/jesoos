@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.rest;
 
+import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.stream.BrandPool;
-import com.semantyca.jesoos.service.stream.StreamAgendaService;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -16,13 +16,13 @@ public class CommandResource {
     private static final Logger LOGGER = Logger.getLogger(CommandResource.class);
 
     @Inject
-    StreamAgendaService streamAgendaService;
-
-    @Inject
     BrandPool brandPool;
 
+    @Inject
+    CommandService commandService;
+
     public void setupRoutes(Router router) {
-        String path = "/command";
+        String path = "/jesoos";
         
         router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
         router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
@@ -68,40 +68,28 @@ public class CommandResource {
     }
 
     private void handleStartCommand(RoutingContext rc, String brand) {
-        String slugName = rc.request().getParam("brand");
-
-        if (slugName == null || slugName.isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .end(new JsonObject().put("error", "Missing brand parameter").encode());
-            return;
-        }
-
-        streamAgendaService.buildRadioLiveAgenda(slugName)
+        commandService.startBrand(brand)
                 .subscribe()
                 .with(
-                        stream -> {
-                            String key = brand + ":" + stream.getAgenda().getTotalScenes();
-
-                            JsonObject response = new JsonObject()
-                                    .put("success", true)
-                                    .put("key", key)
-                                    .put("totalScenes", stream.getAgenda().getTotalScenes())
-                                    .put("createdAt", stream.getAgenda().getCreatedAt());
-
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
+                        response -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode()),
                         failure -> {
-                            LOGGER.errorf(failure, "Failed to build agenda for brand: %s", brand);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(new JsonObject()
-                                            .put("error", "Failed to build agenda: " + failure.getMessage())
-                                            .encode());
+                            if (failure instanceof IllegalArgumentException) {
+                                rc.response()
+                                        .setStatusCode(400)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject().put("error", failure.getMessage()).encode());
+                            } else {
+                                LOGGER.errorf(failure, "Failed to build agenda for brand: %s", brand);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("error", "Failed to build agenda: " + failure.getMessage())
+                                                .encode());
+                            }
                         }
                 );
     }

@@ -37,10 +37,6 @@ public class DraftQueryBuilder {
                     .append("'");
         }
 
-        if (filter.getArchived() != null) {
-            conditions.append(" AND t.archived = ")
-                    .append(filter.getArchived());
-        }
 
         if (filter.isEnabled()) {
             conditions.append(" AND t.enabled = true");

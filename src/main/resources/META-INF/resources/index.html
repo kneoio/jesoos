@@ -1,65 +1,563 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Jesoos Control</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jesoos · Stream Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --surface: #2a2a2a;
+            --surface2: #1a1a1a;
+            --border: #333333;
+            --border-bright: #444444;
+            --accent: #2196F3;
+            --accent2: #42A5F5;
+            --accent3: #fa6d6d;
+            --amber: #f5a623;
+            --text: #f0f0f0;
+            --text-muted: #d0d0d0;
+            --text-dim: #b0b0b0;
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'Space Grotesk', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--sans);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,176,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,176,0.025) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.4;
+            top: -2px;
+            animation: scanline 6s linear infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        @keyframes scanline { to { top: 100vh; } }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            grid-template-rows: auto 1fr;
+            min-height: 100vh;
+            position: relative;
+            z-index: 2;
+        }
+
+        .sidebar {
+            grid-row: 1 / 3;
+            border-right: 1px solid var(--border);
+            padding: 32px 0;
+            display: flex;
+            flex-direction: column;
+            background: rgba(13,13,26,0.7);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+
+        .logo {
+            padding: 0 24px 32px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-text {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 4px;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .logo-sub {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+
+        .sidebar-section {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0 24px;
+        }
+
+        .section-label {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .select-wrap {
+            position: relative;
+        }
+
+        .select-wrap select {
+            width: 100%;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: var(--accent2);
+            background: var(--surface2);
+            border: 1px solid var(--border-bright);
+            border-radius: 3px;
+            padding: 8px 32px 8px 12px;
+            cursor: pointer;
+            appearance: none;
+            outline: none;
+            transition: border-color 0.15s;
+            letter-spacing: 1px;
+        }
+
+        .select-wrap select:hover,
+        .select-wrap select:focus {
+            border-color: var(--accent);
+        }
+
+        .select-arrow {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            font-size: 0.6rem;
+            pointer-events: none;
+            font-family: var(--mono);
+        }
+
+        .status-indicator {
+            margin-top: auto;
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--amber);
+            flex-shrink: 0;
+        }
+
+        .status-dot.idle { background: var(--text-dim); }
+        .status-dot.running {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        .status-dot.error { background: var(--accent3); }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .status-text {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        /* TOPBAR */
+        .topbar {
+            grid-column: 2;
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(8,8,16,0.8);
+            backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .topbar-title {
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 400;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* MAIN */
+        .main {
+            grid-column: 2;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ACTION BUTTONS */
+        .actions-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 10px 24px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid;
+            background: transparent;
+        }
+
+        .action-btn.primary {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .action-btn.primary:hover {
+            background: rgba(33,150,243,0.12);
+            box-shadow: 0 0 12px rgba(33,150,243,0.2);
+        }
+
+        .action-btn.primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .action-btn.secondary {
+            border-color: var(--border-bright);
+            color: var(--text-muted);
+        }
+
+        .action-btn.secondary:hover {
+            border-color: var(--accent2);
+            color: var(--accent2);
+        }
+
+        /* RESULT PANELS */
+        .result-panel {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(8,8,16,0.5);
+        }
+
+        .panel-title {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .panel-badge {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 2px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .panel-badge.ok {
+            color: var(--accent);
+            background: rgba(33,150,243,0.1);
+            border: 1px solid rgba(33,150,243,0.25);
+        }
+
+        .panel-badge.err {
+            color: var(--accent3);
+            background: rgba(250,109,109,0.1);
+            border: 1px solid rgba(250,109,109,0.25);
+        }
+
+        .panel-badge.pending {
+            color: var(--amber);
+            background: rgba(245,166,35,0.1);
+            border: 1px solid rgba(245,166,35,0.25);
+        }
+
+        .panel-body {
+            padding: 16px;
+            background: var(--surface2);
+        }
+
+        .panel-empty {
+            padding: 32px 16px;
+            text-align: center;
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        pre.result-json {
+            background: #080810;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 14px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: #a8b3cf;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 320px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid var(--border-bright);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 0;
+        }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+        @media (max-width: 768px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .topbar, .main { grid-column: 1; }
+        }
+    </style>
 </head>
 <body>
-    <h1>Stream Control</h1>
-    
-    <form id="commandForm">
-        <label for="brand">Brand:</label>
-        <select id="brand" name="brand">
-            <option value="lumisonic">lumisonic</option>
-            <option value="sunonation">sunonation</option>
-        </select>
-        <br><br>
-        
-        <button type="submit">Start</button>
-        <button type="button" id="viewAgendas">View Agendas</button>
-    </form>
-    
-    <h2>Start Result</h2>
-    <div id="startResult"></div>
-    <h2>Agendas</h2>
-    <div id="agendasResult"></div>
-    
-    <script>
-        document.getElementById('commandForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const brand = document.getElementById('brand').value;
-            const command = 'start';
-            
-            const resultDiv = document.getElementById('startResult');
-            resultDiv.innerHTML = 'Sending...';
-            
-            try {
-                const response = await fetch('/command/' + brand + '/' + command, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const data = await response.json();
-                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-            } catch (error) {
-                resultDiv.innerHTML = 'Error: ' + error.message;
-            }
-        });
 
-        document.getElementById('viewAgendas').addEventListener('click', async function() {
-            const resultDiv = document.getElementById('agendasResult');
-            resultDiv.innerHTML = 'Loading...';
-            
-            try {
-                const response = await fetch('/command/agendas');
-                const data = await response.json();
-                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-            } catch (error) {
-                resultDiv.innerHTML = 'Error: ' + error.message;
-            }
-        });
-    </script>
+<div class="layout">
+
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-text">jesoos</div>
+            <div class="logo-sub">stream control</div>
+        </div>
+
+        <div class="sidebar-section">
+            <div>
+                <div class="section-label">Brand</div>
+                <div class="select-wrap">
+                    <select id="brand">
+                        <option value="lumisonic">lumisonic</option>
+                        <option value="sunonation">sunonation</option>
+                    </select>
+                    <span class="select-arrow">▾</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-divider"></div>
+
+        <div class="status-indicator">
+            <div class="status-row">
+                <div class="status-dot idle" id="status-dot"></div>
+                <span class="status-text" id="status-text">idle</span>
+            </div>
+        </div>
+    </aside>
+
+    <header class="topbar">
+        <span class="topbar-title">stream control</span>
+        <div class="topbar-right">
+        </div>
+    </header>
+
+    <main class="main">
+
+        <div class="actions-row">
+            <button class="action-btn primary" id="start-btn">▶ start</button>
+            <button class="action-btn secondary" id="agendas-btn">view agendas</button>
+        </div>
+
+        <div class="result-panel" id="start-panel">
+            <div class="panel-header">
+                <span class="panel-title">start result</span>
+                <span class="panel-badge pending" id="start-badge" style="display:none"></span>
+            </div>
+            <div class="panel-body" id="start-body">
+                <div class="panel-empty">no result yet</div>
+            </div>
+        </div>
+
+        <div class="result-panel" id="agendas-panel">
+            <div class="panel-header">
+                <span class="panel-title">agendas</span>
+                <span class="panel-badge pending" id="agendas-badge" style="display:none"></span>
+            </div>
+            <div class="panel-body" id="agendas-body">
+                <div class="panel-empty">no result yet</div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+    const startBtn = document.getElementById('start-btn');
+    const agendasBtn = document.getElementById('agendas-btn');
+    const startBody = document.getElementById('start-body');
+    const agendasBody = document.getElementById('agendas-body');
+    const startBadge = document.getElementById('start-badge');
+    const agendasBadge = document.getElementById('agendas-badge');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(s, label) {
+        statusDot.className = 'status-dot ' + s;
+        statusText.textContent = label || s;
+    }
+
+    function showLoading(bodyEl, badgeEl) {
+        badgeEl.style.display = '';
+        badgeEl.className = 'panel-badge pending';
+        badgeEl.textContent = 'pending';
+        bodyEl.innerHTML = '<div class="loading-text"><span class="spinner"></span>fetching</div>';
+    }
+
+    function showResult(bodyEl, badgeEl, data, ok) {
+        badgeEl.style.display = '';
+        badgeEl.className = 'panel-badge ' + (ok ? 'ok' : 'err');
+        badgeEl.textContent = ok ? 'ok' : 'error';
+        bodyEl.innerHTML = `<pre class="result-json">${esc(JSON.stringify(data, null, 2))}</pre>`;
+        gsap.fromTo(bodyEl.querySelector('pre'),
+            { opacity: 0, y: 6 },
+            { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }
+        );
+    }
+
+    function showError(bodyEl, badgeEl, msg) {
+        badgeEl.style.display = '';
+        badgeEl.className = 'panel-badge err';
+        badgeEl.textContent = 'error';
+        bodyEl.innerHTML = `<pre class="result-json" style="color:var(--accent3)">${esc(msg)}</pre>`;
+    }
+
+    function esc(str) {
+        const d = document.createElement('div');
+        d.textContent = String(str);
+        return d.innerHTML;
+    }
+
+    startBtn.addEventListener('click', async () => {
+        const brand = document.getElementById('brand').value;
+        setStatus('running', 'running');
+        startBtn.disabled = true;
+        showLoading(startBody, startBadge);
+
+        try {
+            const res = await fetch(`/jesoos/${brand}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            showResult(startBody, startBadge, data, res.ok);
+            setStatus(res.ok ? 'running' : 'error', res.ok ? 'running' : 'error');
+        } catch (err) {
+            showError(startBody, startBadge, err.message);
+            setStatus('error', 'error');
+        } finally {
+            startBtn.disabled = false;
+        }
+    });
+
+    agendasBtn.addEventListener('click', async () => {
+        showLoading(agendasBody, agendasBadge);
+
+        try {
+            const res = await fetch('/jesoos/agendas');
+            const data = await res.json();
+            showResult(agendasBody, agendasBadge, data, res.ok);
+        } catch (err) {
+            showError(agendasBody, agendasBadge, err.message);
+        }
+    });
+
+    gsap.from('.sidebar', { x: -20, opacity: 0, duration: 0.6, ease: 'power3.out' });
+    gsap.from('.topbar', { y: -10, opacity: 0, duration: 0.5, delay: 0.15, ease: 'power3.out' });
+    gsap.from('.result-panel', { y: 10, opacity: 0, duration: 0.4, stagger: 0.1, delay: 0.3, ease: 'power2.out' });
+    gsap.from('.actions-row', { y: 8, opacity: 0, duration: 0.35, delay: 0.25, ease: 'power2.out' });
+</script>
 </body>
 </html>

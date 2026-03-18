@@ -3,6 +3,8 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.EnvConst;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stats.BroadcastingStats;
 import com.semantyca.jesoos.model.stream.ILiveAgenda;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
@@ -13,6 +15,8 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.OneTimeStreamService;
 import com.semantyca.jesoos.util.AiHelperUtils;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,6 +29,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -47,6 +52,9 @@ public class BrandPool {
 
     @Inject
     private AiAgentService aiAgentService;
+
+    @Inject
+    private MetricPublisher metricPublisher;
 
     public Uni<ILiveAgenda> initializeRadio(String brandName) {
         LOGGER.info("Attempting to initialize Radio Stream for brand: {}", brandName);
@@ -98,6 +106,7 @@ public class BrandPool {
                                 return Uni.createFrom().item(finalStationToUse);
                             });
                 })
+                .onItem().invoke(result -> publishMetric(result, "station_start"))
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
@@ -172,6 +181,7 @@ public class BrandPool {
             LOGGER.info("Station {} found in pool and removed. Shutting down StreamManager.", brandName);
 
             brand.setStatus(StreamStatus.OFF_LINE);
+            publishMetric(brand, "station_stop");
             
             if (brand instanceof OneTimeStream oneTimeStream) {
                 return oneTimeStreamRepository.getBySlugName(brandName)
@@ -223,5 +233,26 @@ public class BrandPool {
         return pool.entrySet().stream()
                 .filter(entry -> entry.getValue().getAgenda() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getAgenda()));
+    }
+
+    private void publishMetric(ILiveAgenda agenda, String eventType) {
+        try {
+            Map<String, Object> payload = Map.of("event", eventType, "status", agenda.getStatus().name());
+            MetricEventDTO event = MetricEventDTO.of(
+                    EnvConst.APP_ID,
+                    agenda.getSlugName(),
+                    MetricEventType.INFORMATION,
+                    UUID.randomUUID(),
+                    payload
+            );
+            metricPublisher.publish(event)
+                    .subscribe()
+                    .with(
+                            v -> LOGGER.debug("Published metric for {}: {}", agenda.getSlugName(), eventType),
+                            e -> LOGGER.error("Failed to publish metric for {}: {}", agenda.getSlugName(), e.getMessage())
+                    );
+        } catch (Exception e) {
+            LOGGER.error("Error publishing metric for {}: {}", agenda.getSlugName(), e.getMessage());
+        }
     }
 }

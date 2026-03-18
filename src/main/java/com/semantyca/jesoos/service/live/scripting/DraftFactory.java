@@ -22,7 +22,7 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import com.semantyca.mixpla.template.GroovyTemplateEngine;
 import com.semantyca.officeframe.model.cnst.CountryCode;
-import io.kneo.officeframe.service.GenreService;
+import com.semantyca.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

@@ -64,10 +64,6 @@ public interface JesoosConfig {
 
     JesoosConfig.Segmentation segmentation();
 
-    @WithName("station.whitelist")
-    Optional<List<String>> stationWhitelist();
-
-
 
     interface Path {
         @WithDefault("uploads")
