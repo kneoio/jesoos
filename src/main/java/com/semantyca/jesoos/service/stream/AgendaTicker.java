@@ -24,6 +24,9 @@ public class AgendaTicker {
     @Inject
     ScenePool scenePool;
 
+    @Inject
+    StaggeredSongScheduler staggeredSongScheduler;
+
     @Scheduled(every = "60s")
     void tick() {
         Map<String, StreamAgenda> agendas = brandPool.getAll();
@@ -41,9 +44,9 @@ public class AgendaTicker {
             List<LiveScene> scenes = agenda.getLiveScenes();
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
-                
+
                 if (scene.getOriginalStartTime() == null) continue;
-                
+
                 if (scene.getSentToQueueAt() != null) {
                     if (scene.getSentToQueueAt().toLocalDate().equals(nowDateTime.toLocalDate())) {
                         LOGGER.debugf("Skipping scene '%s' - already sent to queue today at %s",
@@ -63,7 +66,6 @@ public class AgendaTicker {
                 LiveScene nextScene = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
                 boolean isActive = scene.isActiveAt(nowTime, nextScene != null ? nextScene.getOriginalStartTime() : null);
 
-
                 if (!isActive) continue;
 
                 LOGGER.infof("Checking: %s, start: %s, isActive: %s", scene.getSceneTitle(), scene.getOriginalStartTime(), isActive);
@@ -77,7 +79,7 @@ public class AgendaTicker {
     private long calculateLagSeconds(LocalTime nowTime, LocalTime sceneStartTime) {
         int nowSeconds = nowTime.toSecondOfDay();
         int startSeconds = sceneStartTime.toSecondOfDay();
-        
+
         if (nowSeconds >= startSeconds) {
             return nowSeconds - startSeconds;
         } else {
@@ -94,5 +96,7 @@ public class AgendaTicker {
         scenePool.addScene(brand, scene);
         LOGGER.infof("Added scene '%s' to ScenePool for brand: %s (contains %d songs)",
                 scene.getSceneTitle(), brand, scene.getSongs().size());
+
+        staggeredSongScheduler.scheduleSceneSongs(brand, scene);
     }
 }

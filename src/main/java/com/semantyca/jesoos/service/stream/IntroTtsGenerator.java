@@ -234,8 +234,8 @@ public class IntroTtsGenerator {
     private Uni<IntroAudioResult> calculateDuration(String filePath) {
         return Uni.createFrom().item(() -> {
             try {
-                net.bramp.ffmpeg.probe.FFmpegProbeResult probeResult = 
-                    ffmpegProvider.getFFprobe().probe(filePath);
+                net.bramp.ffmpeg.probe.FFmpegProbeResult probeResult =
+                        ffmpegProvider.getFFprobe().probe(filePath);
                 double durationSeconds = probeResult.getFormat().duration;
                 int roundedDuration = (int) Math.ceil(durationSeconds);
                 LOGGER.info("Intro audio duration: {} seconds (file: {})", roundedDuration, filePath);
@@ -244,6 +244,6 @@ public class IntroTtsGenerator {
                 LOGGER.warn("Failed to probe intro audio duration for {}, using default 10s", filePath, e);
                 return new IntroAudioResult(filePath, 10);
             }
-        });
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 }

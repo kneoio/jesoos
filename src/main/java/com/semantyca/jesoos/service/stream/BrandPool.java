@@ -3,7 +3,6 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.EnvConst;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stats.BroadcastingStats;
 import com.semantyca.jesoos.model.stream.ILiveAgenda;
@@ -15,27 +14,25 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.OneTimeStreamService;
 import com.semantyca.jesoos.util.AiHelperUtils;
-import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
+
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class BrandPool {
-    private static final Logger LOGGER = LoggerFactory.getLogger(BrandPool.class);
+    private static final Logger LOGGER = Logger.getLogger(BrandPool.class);
     private final ConcurrentHashMap<String, ILiveAgenda> pool = new ConcurrentHashMap<>();
 
     @Inject
@@ -57,7 +54,7 @@ public class BrandPool {
     private MetricPublisher metricPublisher;
 
     public Uni<ILiveAgenda> initializeRadio(String brandName) {
-        LOGGER.info("Attempting to initialize Radio Stream for brand: {}", brandName);
+        LOGGER.infof("Attempting to initialize Radio Stream for brand: {}", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(bn -> {
@@ -65,14 +62,14 @@ public class BrandPool {
                     if (stationAlreadyActive != null &&
                             (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
                                     stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
-                        LOGGER.info("Radio Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
+                        LOGGER.infof("Radio Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
                     return brandService.getBySlugName(bn)
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
-                                    LOGGER.warn("Brand with brandName {} not found in database. Cannot initialize.", bn);
+                                    LOGGER.warnf("Brand with brandName {} not found in database. Cannot initialize.", bn);
                                     pool.remove(bn);
                                     return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
                                 }
@@ -81,22 +78,22 @@ public class BrandPool {
                                     if (currentInPool != null &&
                                             (currentInPool.getStatus() == StreamStatus.ON_LINE ||
                                                     currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
-                                        LOGGER.info("Radio stream {} was concurrently initialized and is active in pool. Using that instance.", key);
+                                        LOGGER.infof("Radio stream {} was concurrently initialized and is active in pool. Using that instance.", key);
                                         return currentInPool;
                                     }
 
-                                    LOGGER.info("RadioStationPool: Creating new StreamManager instance for brand {}.", key);
+                                    LOGGER.infof("RadioStationPool: Creating new StreamManager instance for brand {}.", key);
                                     RadioStream radioStream = new RadioStream(brand);
-                                    LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP", key);
+                                    LOGGER.infof("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP", key);
                                     return radioStream;
                                 });
 
                                 if (finalStationToUse instanceof RadioStream radioStream && radioStream.getAgenda() == null) {
-                                    LOGGER.info("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
+                                    LOGGER.infof("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
                                     return streamAgendaService.buildRadioLiveAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
                                                 radioStream.setAgenda(schedule);
-                                                LOGGER.info("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
+                                                LOGGER.infof("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
                                                         radioStream.getSlugName(),
                                                         schedule != null ? schedule.getTotalScenes() : 0,
                                                         schedule != null ? schedule.getTotalSongs() : 0);
@@ -106,8 +103,8 @@ public class BrandPool {
                                 return Uni.createFrom().item(finalStationToUse);
                             });
                 })
-                .onItem().invoke(result -> publishMetric(result, "station_start"))
-                .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
+                .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_start", Map.of("status", agenda.getStatus().name())))
+                .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
     public Uni<ILiveAgenda> initializeStream(ILiveAgenda oneTimeStream) {
@@ -117,7 +114,7 @@ public class BrandPool {
                     if (stationAlreadyActive != null &&
                             (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
                                     stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
-                        LOGGER.info("Stream {} already active (status: {}). Returning existing instance.", ots.getSlugName(), stationAlreadyActive.getStatus());
+                        LOGGER.infof("Stream {} already active (status: {}). Returning existing instance.", ots.getSlugName(), stationAlreadyActive.getStatus());
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
@@ -129,12 +126,12 @@ public class BrandPool {
                                             .onItem().transform(agent -> {
                                                 LanguageTag selectedLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                                                 stream.setStreamLanguage(selectedLanguage);
-                                                LOGGER.info("Set stream language to '{}' for stream '{}' based on AI agent '{}'", 
+                                                LOGGER.infof("Set stream language to '{}' for stream '{}' based on AI agent '{}'", 
                                                     selectedLanguage.tag(), stream.getSlugName(), agent.getName());
                                                 return stream;
                                             })
                                             .onFailure().invoke(failure -> {
-                                                LOGGER.warn("Failed to resolve AI agent for stream '{}', using default language: {}", 
+                                                LOGGER.warnf("Failed to resolve AI agent for stream '{}', using default language: {}", 
                                                     stream.getSlugName(), failure.getMessage());
                                                 stream.setStreamLanguage(LanguageTag.EN_US);
                                             })
@@ -143,7 +140,7 @@ public class BrandPool {
                                                 return stream;
                                             });
                                 } else {
-                                    LOGGER.warn("No AI Agent ID set for stream '{}', using default language", stream.getSlugName());
+                                    LOGGER.warnf("No AI Agent ID set for stream '{}', using default language", stream.getSlugName());
                                     stream.setStreamLanguage(LanguageTag.EN_US);
                                     return Uni.createFrom().item(stream);
                                 }
@@ -154,18 +151,18 @@ public class BrandPool {
                                     if (currentInPool != null &&
                                             (currentInPool.getStatus() == StreamStatus.ON_LINE ||
                                                     currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
-                                        LOGGER.info("Stream {} was concurrently initialized and is active in pool. Using that instance.", key);
+                                        LOGGER.infof("Stream {} was concurrently initialized and is active in pool. Using that instance.", key);
                                         return currentInPool;
                                     }
 
-                                    LOGGER.info("RadioStationPool: Creating new StreamManager instance for stream {}.", key);
+                                    LOGGER.infof("RadioStationPool: Creating new StreamManager instance for stream {}.", key);
 
                                     return stream;
                                 });
                                 return Uni.createFrom().item(finalStationToUse);
                             });
                 })
-                .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize stream {}: {}", oneTimeStream.getSlugName(), failure.getMessage(), failure));
+                .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize stream {}: {}", oneTimeStream.getSlugName(), failure.getMessage(), failure));
     }
 
     public Uni<ILiveAgenda> get(String brandName) {
@@ -174,16 +171,16 @@ public class BrandPool {
     }
 
     public Uni<ILiveAgenda> stopAndRemove(String brandName) {
-        LOGGER.info("Attempting to stop and remove station: {}", brandName);
-        ILiveAgenda brand = pool.remove(brandName);
+        LOGGER.infof("Attempting to stop and remove station: {}", brandName);
+        ILiveAgenda liveAgenda = pool.remove(brandName);
 
-        if (brand != null) {
-            LOGGER.info("Station {} found in pool and removed. Shutting down StreamManager.", brandName);
+        if (liveAgenda != null) {
+            LOGGER.infof("Station {} found in pool and removed. Shutting down StreamManager.", brandName);
 
-            brand.setStatus(StreamStatus.OFF_LINE);
-            publishMetric(brand, "station_stop");
+            liveAgenda.setStatus(StreamStatus.OFF_LINE);
+            metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             
-            if (brand instanceof OneTimeStream oneTimeStream) {
+            if (liveAgenda instanceof OneTimeStream oneTimeStream) {
                 return oneTimeStreamRepository.getBySlugName(brandName)
                         .onItem().invoke(repoStream -> {
                             if (repoStream != null) {
@@ -192,15 +189,15 @@ public class BrandPool {
                                     ? StreamStatus.FINISHED 
                                     : StreamStatus.OFF_LINE;
                                 repoStream.setStatus(newStatus);
-                                LOGGER.info("Updated repository status to {} for OneTimeStream station: {}", newStatus, brandName);
+                                LOGGER.infof("Updated repository status to {} for OneTimeStream station: {}", newStatus, brandName);
                             }
                         })
-                        .replaceWith(brand);
+                        .replaceWith(liveAgenda);
             }
             
-            return Uni.createFrom().item(brand);
+            return Uni.createFrom().item(liveAgenda);
         } else {
-            LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);
+            LOGGER.warnf("Station {} not found in pool during stopAndRemove.", brandName);
             return Uni.createFrom().nullItem();
         }
     }
@@ -235,24 +232,4 @@ public class BrandPool {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getAgenda()));
     }
 
-    private void publishMetric(ILiveAgenda agenda, String eventType) {
-        try {
-            Map<String, Object> payload = Map.of("event", eventType, "status", agenda.getStatus().name());
-            MetricEventDTO event = MetricEventDTO.of(
-                    EnvConst.APP_ID,
-                    agenda.getSlugName(),
-                    MetricEventType.INFORMATION,
-                    UUID.randomUUID(),
-                    payload
-            );
-            metricPublisher.publish(event)
-                    .subscribe()
-                    .with(
-                            v -> LOGGER.debug("Published metric for {}: {}", agenda.getSlugName(), eventType),
-                            e -> LOGGER.error("Failed to publish metric for {}: {}", agenda.getSlugName(), e.getMessage())
-                    );
-        } catch (Exception e) {
-            LOGGER.error("Error publishing metric for {}: {}", agenda.getSlugName(), e.getMessage());
-        }
-    }
 }

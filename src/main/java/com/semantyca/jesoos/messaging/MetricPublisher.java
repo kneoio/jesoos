@@ -27,13 +27,18 @@ public class MetricPublisher {
     @Channel("metrics")
     Emitter<byte[]> metricsEmitter;
 
-    public void publishMetric(String brandName, MetricEventType eventType,  Map<String, Object> payload) {
+    public void publishMetric(String brandName, MetricEventType eventType, String code, Map<String, Object> payload) {
+        publishMetric(brandName, eventType, code, payload, UUID.randomUUID());
+    }
+
+    public void publishMetric(String brandName, MetricEventType eventType, String code, Map<String, Object> payload, UUID traceId) {
         try {
             MetricEventDTO event = MetricEventDTO.of(
                     EnvConst.APP_ID,
                     brandName,
                     eventType,
-                    UUID.randomUUID(),
+                    traceId,
+                    code,
                     payload
             );
             publish(event)
@@ -47,7 +52,7 @@ public class MetricPublisher {
         }
     }
 
-    public Uni<Void> publish(MetricEventDTO event) {
+    private Uni<Void> publish(MetricEventDTO event) {
         return Uni.createFrom().item(() -> {
                     try {
                         return objectMapper.writeValueAsBytes(event);

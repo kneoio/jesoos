@@ -3,6 +3,7 @@ package com.semantyca.jesoos.config;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,10 @@ public interface JesoosConfig {
     @WithName("agent.url")
     @WithDefault("http://localhost:38799")
     String getAgentUrl();
+
+    @WithName("song.buffer-seconds")
+    @WithDefault("60")
+    int bufferSeconds();
 
     @WithName("controller.upload.files.path")
     @WithDefault("controller-uploads")

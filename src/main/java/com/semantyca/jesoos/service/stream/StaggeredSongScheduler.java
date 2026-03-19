@@ -3,7 +3,7 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.EnvConst;
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -15,43 +15,38 @@ import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
-import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.stream.IStream;
-import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
 import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
-import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_1;
-import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_2;
-import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_1;
-import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_2;
-import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 
 @ApplicationScoped
-public class SongTicker {
-    private static final Logger LOGGER = Logger.getLogger(SongTicker.class);
+public class StaggeredSongScheduler {
+    private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
 
     @Inject
-    ScenePool scenePool;
+    JesoosConfig config;
+
+    @Inject
+    Vertx vertx;
 
     @Inject
     BrandPool brandPool;
@@ -74,64 +69,78 @@ public class SongTicker {
     @Inject
     JinglePlaybackHandler jinglePlaybackHandler;
 
-    private final Map<String, Set<UUID>> sentSongsTracker = new ConcurrentHashMap<>();
+    @Inject
+    ScenePool scenePool;
 
-    @Scheduled(every = "60s")
-    void tick() {
-        Map<String, LiveScene> activeScenes = scenePool.getAllActiveScenes();
-        if (activeScenes.isEmpty()) {
+    private final Map<String, Integer> sentSongsCounter = new ConcurrentHashMap<>();
+
+    public void scheduleSceneSongs(String brandName, LiveScene scene) {
+        LOGGER.infof("Scheduling staggered song sends for brand: {}, scene: {}, total songs: {}",
+                brandName, scene.getSceneTitle(), scene.getSongs().size());
+
+        List<PendingSongEntry> allSongs = scene.getSongs();
+        if (allSongs.isEmpty()) {
+            LOGGER.warnf("No songs in scene for brand: {}, scene: {}", brandName, scene.getSceneTitle());
+            scenePool.removeScene(brandName);
             return;
         }
 
-        activeScenes.forEach((brandName, scene) -> {
-            processSongsForScene(brandName, scene)
+        sentSongsCounter.put(brandName, 0);
+        scheduleNextBatch(brandName, scene, 0, 0);
+    }
+
+    private void scheduleNextBatch(String brandName, LiveScene scene, int startIndex, int cumulativeDurationSeconds) {
+        List<PendingSongEntry> allSongs = scene.getSongs();
+
+        if (startIndex >= allSongs.size()) {
+            LOGGER.infof("All songs scheduled for brand: {}, scene: {}", brandName, scene.getSceneTitle());
+            scenePool.removeScene(brandName);
+            sentSongsCounter.remove(brandName);
+            return;
+        }
+
+        List<PendingSongEntry> remainingSongs = allSongs.subList(startIndex, allSongs.size());
+        List<ScenePrompt> introPrompts = scene.getIntroPrompts();
+        boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
+
+        MixingTypeStrategy.MixingTypeConfig mixingConfig = mixingTypeStrategy.selectStrategy(remainingSongs.size(), hasIntros);
+        int batchSize = mixingConfig.batchSize();
+        List<PendingSongEntry> batchSongs = remainingSongs.stream().limit(batchSize).toList();
+
+        long delayMillis = Math.max(1, (cumulativeDurationSeconds - config.bufferSeconds())) * 1000L;
+
+        LOGGER.infof("Scheduling batch for brand: {}, scene: {}, batch size: {}, delay: {}s, songs: {}",
+                brandName, scene.getSceneTitle(), batchSize, delayMillis / 1000,
+                batchSongs.stream().map(s -> s.getSoundFragment().getTitle()).toList());
+
+        vertx.setTimer(delayMillis, timerId -> {
+            sendBatch(brandName, scene, batchSongs)
                     .subscribe()
                     .with(
-                            success -> LOGGER.infof("Successfully processed songs for brand: {}, scene: {}",
-                                    brandName, scene.getSceneTitle()),
-                            failure -> LOGGER.errorf("Failed to process songs for brand: {}, scene: {}, error: {}",
+                            success -> {
+                                int batchDuration = batchSongs.stream()
+                                        .mapToInt(PendingSongEntry::getDurationSeconds)
+                                        .sum();
+                                scheduleNextBatch(brandName, scene, startIndex + batchSize, cumulativeDurationSeconds + batchDuration);
+                            },
+                            failure -> LOGGER.errorf("Failed to send batch for brand: {}, scene: {}, error: {}",
                                     brandName, scene.getSceneTitle(), failure.getMessage(), failure)
                     );
         });
     }
 
-    private Uni<Void> processSongsForScene(String brandName, LiveScene scene) {
-        Set<UUID> sentSongs = sentSongsTracker.computeIfAbsent(brandName, k -> new HashSet<>());
-
-        List<PendingSongEntry> availableSongs = scene.getSongs().stream()
-                .filter(song -> !sentSongs.contains(song.getSoundFragment().getId()))
-                .sorted((a, b) -> Integer.compare(a.getSequenceNumber(), b.getSequenceNumber()))
-                .toList();
-
-        if (availableSongs.isEmpty()) {
-            LOGGER.warnf("No more songs to send for brand: {}, scene: {} - removing from pool",
-                    brandName, scene.getSceneTitle());
-            scenePool.removeScene(brandName);
-            sentSongsTracker.remove(brandName);
-            metricPublisher.publishMetric(brandName, MetricEventType.WARNING,
-                    Map.of("event", "songs_exhausted", "scene", scene.getSceneTitle()));
-            return Uni.createFrom().voidItem();
-        }
-
+    private Uni<Void> sendBatch(String brandName, LiveScene scene, List<PendingSongEntry> songs) {
         return brandPool.get(brandName)
                 .chain(stream -> {
                     double talkativity = scene.getTalkativity();
                     boolean shouldPlayJingle = AiHelperUtils.shouldPlayJingle(talkativity);
+
                     if (shouldPlayJingle) {
-                        return jinglePlaybackHandler.handleJingleAndSong(stream, scene, sentSongs);
+                        return jinglePlaybackHandler.handleJingleAndSong(stream, scene, new java.util.HashSet<>());
                     }
-                    List<ScenePrompt> introPrompts = scene.getIntroPrompts();
-                    boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
-
-                    MixingTypeStrategy.MixingTypeConfig mixingType = mixingTypeStrategy.selectStrategy(availableSongs.size(), hasIntros);
-
-                    List<PendingSongEntry> songsToSend = availableSongs.stream()
-                            .limit(mixingType.batchSize())
-                            .toList();
-
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs));
+                            .chain(agent -> sendSongsWithIntros(brandName, scene, songs, agent, stream));
                 });
     }
 
@@ -140,17 +149,14 @@ public class SongTicker {
             LiveScene scene,
             List<PendingSongEntry> songs,
             AiAgent agent,
-            IStream stream,
-            Set<UUID> sentSongs
+            IStream stream
     ) {
-
         List<ScenePrompt> introPrompts = scene.getIntroPrompts();
         boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
         MixingTypeStrategy.MixingTypeConfig mixing = mixingTypeStrategy.selectStrategy(songs.size(), hasIntros);
         MergingType mergingType = mixing.mergingType();
         boolean needsIntros = mixing.needsIntros();
         LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-
 
         List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
         if (needsIntros) {
@@ -176,7 +182,9 @@ public class SongTicker {
                     dto.setMergingMethod(mergingType);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
-                    dto.setSequenceNumber(sentSongs.size());
+
+                    int sequenceNumber = sentSongsCounter.merge(brandName, songs.size(), Integer::sum) - songs.size();
+                    dto.setSequenceNumber(sequenceNumber);
 
                     Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -216,17 +224,15 @@ public class SongTicker {
 
                     return queueSupplier.sendSongsToQueue(brandName, dto)
                             .invoke(() -> {
-                                songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
-                                LOGGER.infof("Queuing {} songs, brand: {}, scene: {}, {}", songs.size(), brandName, scene.getSceneTitle(), mergingType);
-                                Map<String, Object> payload =
-                                        Map.of(
-                                                "scene", dto.getSceneTitle(),
-                                                "seq", dto.getSequenceNumber(),
-                                                "mixing", dto.getMergingMethod(),
-                                                "event", "songs_queued",
-                                                "songCount", songs.size()
-                                        );
-                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, payload);
+                                LOGGER.infof("Queued {} songs, brand: {}, scene: {}, seq: {}, {}",
+                                        songs.size(), brandName, scene.getSceneTitle(), sequenceNumber, mergingType);
+                                Map<String, Object> payload = Map.of(
+                                        "scene", dto.getSceneTitle(),
+                                        "seq", dto.getSequenceNumber(),
+                                        "mixing", dto.getMergingMethod(),
+                                        "songCount", songs.size()
+                                );
+                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "songs_aivoxed", payload);
                             });
                 })
                 .onFailure().invoke(failure ->
