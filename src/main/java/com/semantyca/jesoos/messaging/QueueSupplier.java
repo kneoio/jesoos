@@ -26,6 +26,7 @@ public class QueueSupplier {
     public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message) {
         message.setBrandSlug(brandSlug);
         message.setMessageId(UUID.randomUUID());
+        message.setTimestamp(System.currentTimeMillis());
 
         return Uni.createFrom().item(() -> {
             try {

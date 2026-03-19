@@ -25,9 +25,10 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,6 +38,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
+import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_1;
 import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_2;
 import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_1;
@@ -45,7 +48,7 @@ import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 
 @ApplicationScoped
 public class SongTicker {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SongTicker.class);
+    private static final Logger LOGGER = Logger.getLogger(SongTicker.class);
 
     @Inject
     ScenePool scenePool;
@@ -68,6 +71,9 @@ public class SongTicker {
     @Inject
     MetricPublisher metricPublisher;
 
+    @Inject
+    JinglePlaybackHandler jinglePlaybackHandler;
+
     private final Map<String, Set<UUID>> sentSongsTracker = new ConcurrentHashMap<>();
 
     @Scheduled(every = "60s")
@@ -81,9 +87,9 @@ public class SongTicker {
             processSongsForScene(brandName, scene)
                     .subscribe()
                     .with(
-                            success -> LOGGER.info("Successfully processed songs for brand: {}, scene: {}",
+                            success -> LOGGER.infof("Successfully processed songs for brand: {}, scene: {}",
                                     brandName, scene.getSceneTitle()),
-                            failure -> LOGGER.error("Failed to process songs for brand: {}, scene: {}, error: {}",
+                            failure -> LOGGER.errorf("Failed to process songs for brand: {}, scene: {}, error: {}",
                                     brandName, scene.getSceneTitle(), failure.getMessage(), failure)
                     );
         });
@@ -98,20 +104,22 @@ public class SongTicker {
                 .toList();
 
         if (availableSongs.isEmpty()) {
-            LOGGER.info("No more songs to send for brand: {}, scene: {} - removing from pool",
+            LOGGER.warnf("No more songs to send for brand: {}, scene: {} - removing from pool",
                     brandName, scene.getSceneTitle());
             scenePool.removeScene(brandName);
             sentSongsTracker.remove(brandName);
+            metricPublisher.publishMetric(brandName, MetricEventType.WARNING,
+                    Map.of("event", "songs_exhausted", "scene", scene.getSceneTitle()));
             return Uni.createFrom().voidItem();
         }
 
         return brandPool.get(brandName)
                 .chain(stream -> {
-                    if (stream == null) {
-                        LOGGER.warn("Stream not found in BrandPool for: {}", brandName);
-                        return Uni.createFrom().voidItem();
+                    double talkativity = scene.getTalkativity();
+                    boolean shouldPlayJingle = AiHelperUtils.shouldPlayJingle(talkativity);
+                    if (shouldPlayJingle) {
+                        return jinglePlaybackHandler.handleJingleAndSong(stream, scene, sentSongs);
                     }
-
                     List<ScenePrompt> introPrompts = scene.getIntroPrompts();
                     boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
@@ -123,7 +131,7 @@ public class SongTicker {
 
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs, mixingType));
+                            .chain(agent -> sendSongsWithIntros(brandName, scene, songsToSend, agent, stream, sentSongs));
                 });
     }
 
@@ -133,18 +141,21 @@ public class SongTicker {
             List<PendingSongEntry> songs,
             AiAgent agent,
             IStream stream,
-            Set<UUID> sentSongs,
-            MixingTypeStrategy.MixingTypeConfig mixing
+            Set<UUID> sentSongs
     ) {
-        LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
+        List<ScenePrompt> introPrompts = scene.getIntroPrompts();
+        boolean hasIntros = !introPrompts.isEmpty() && introPrompts.stream().anyMatch(ScenePrompt::isActive);
+        MixingTypeStrategy.MixingTypeConfig mixing = mixingTypeStrategy.selectStrategy(songs.size(), hasIntros);
         MergingType mergingType = mixing.mergingType();
         boolean needsIntros = mixing.needsIntros();
+        LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
-        List<Uni<String>> introUnis = new ArrayList<>();
+
+        List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
         if (needsIntros) {
             for (PendingSongEntry songEntry : songs) {
-                Uni<String> introUni = introTtsGenerator.generateIntroAudioFile(
+                Uni<IntroTtsGenerator.IntroAudioResult> introUni = introTtsGenerator.generateIntroAudioFile(
                         scene,
                         songEntry.getSoundFragment(),
                         agent,
@@ -159,7 +170,7 @@ public class SongTicker {
             }
         }
 
-        return Uni.join().all(introUnis).andCollectFailures().chain(introFilePaths -> {
+        return Uni.join().all(introUnis).andCollectFailures().chain(introResults -> {
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
 
                     dto.setMergingMethod(mergingType);
@@ -172,13 +183,16 @@ public class SongTicker {
 
                     for (int i = 0; i < songs.size() && i < 4; i++) {
                         PendingSongEntry songEntry = songs.get(i);
-                        String introPath = introFilePaths.get(i);
+                        IntroTtsGenerator.IntroAudioResult introResult = introResults.get(i);
 
                         IntroKey introKey = getIntroKeyByIndex(i);
                         SongKey songKey = getSongKeyByIndex(i);
 
-                        if (introPath != null) {
-                            introMap.put(introKey, new IntroInfoDTO(introPath, 0));
+                        if (introResult != null) {
+                            introMap.put(introKey, new IntroInfoDTO(
+                                    introResult.filePath(),
+                                    introResult.durationSeconds()
+                            ));
                         }
                         songMap.put(songKey, new SongInfoDTO(
                                 songEntry.getSoundFragment().getId(),
@@ -188,57 +202,37 @@ public class SongTicker {
 
                     dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
-                    dto.setPriority(100);
+                    dto.setPriority(9);
+
+                    LocalDateTime sceneEndTime = scene.getScheduledEndTime();
+                    long sceneDeadlineMillis = sceneEndTime
+                            .atZone(ZoneId.systemDefault())
+                            .toInstant()
+                            .toEpochMilli();
+                    dto.setSceneDeadlineTimestamp(sceneDeadlineMillis);
+
+                    LOGGER.infof("Scene deadline set: {} ({}), brand: {}, scene: {}",
+                            sceneEndTime, sceneDeadlineMillis, brandName, scene.getSceneTitle());
 
                     return queueSupplier.sendSongsToQueue(brandName, dto)
                             .invoke(() -> {
                                 songs.forEach(song -> sentSongs.add(song.getSoundFragment().getId()));
-                                LOGGER.info("Queuing {} songs, brand: {}, scene: {}, {}", songs.size(), brandName, scene.getSceneTitle(), mergingType);
-                                publishMetric(brandName, "songs_queued", songs.size());
+                                LOGGER.infof("Queuing {} songs, brand: {}, scene: {}, {}", songs.size(), brandName, scene.getSceneTitle(), mergingType);
+                                Map<String, Object> payload =
+                                        Map.of(
+                                                "scene", dto.getSceneTitle(),
+                                                "seq", dto.getSequenceNumber(),
+                                                "mixing", dto.getMergingMethod(),
+                                                "event", "songs_queued",
+                                                "songCount", songs.size()
+                                        );
+                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, payload);
                             });
                 })
                 .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to send songs for brand: {}, error: {}",
+                        LOGGER.errorf("Failed to send songs for brand: {}, error: {}",
                                 brandName, failure.getMessage(), failure)
                 )
                 .onFailure().recoverWithNull();
-    }
-
-    private IntroKey getIntroKeyByIndex(int index) {
-        return switch (index) {
-            case 0 -> INTRO_1;
-            case 1 -> INTRO_2;
-            default -> throw new IllegalArgumentException("Unsupported intro index: " + index);
-        };
-    }
-
-    private SongKey getSongKeyByIndex(int index) {
-        return switch (index) {
-            case 0 -> SONG_1;
-            case 1 -> SONG_2;
-            case 2 -> SONG_3;
-            default -> throw new IllegalArgumentException("Unsupported song index: " + index);
-        };
-    }
-
-    private void publishMetric(String brandName, String eventType, int songCount) {
-        try {
-            Map<String, Object> payload = Map.of("event", eventType, "songCount", songCount);
-            MetricEventDTO event = MetricEventDTO.of(
-                    EnvConst.APP_ID,
-                    brandName,
-                    MetricEventType.INFORMATION,
-                    UUID.randomUUID(),
-                    payload
-            );
-            metricPublisher.publish(event)
-                    .subscribe()
-                    .with(
-                            v -> LOGGER.debug("Published metric for {}: {}", brandName, eventType),
-                            e -> LOGGER.error("Failed to publish metric for {}: {}", brandName, e.getMessage())
-                    );
-        } catch (Exception e) {
-            LOGGER.error("Error publishing metric for {}: {}", brandName, e.getMessage());
-        }
     }
 }

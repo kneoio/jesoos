@@ -16,6 +16,7 @@ import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
+import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.model.Prompt;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
@@ -42,6 +43,8 @@ import java.util.UUID;
 public class IntroTtsGenerator {
     private static final Logger LOGGER = LoggerFactory.getLogger(IntroTtsGenerator.class);
 
+    public record IntroAudioResult(String filePath, int durationSeconds) {}
+
     private record PromptAndDraft(Prompt prompt, String draftContent) {}
 
     @Inject
@@ -62,6 +65,9 @@ public class IntroTtsGenerator {
     @Inject
     JesoosConfig config;
 
+    @Inject
+    FFmpegProvider ffmpegProvider;
+
     private final Random random = new Random();
     private AnthropicClient anthropicClient;
 
@@ -73,7 +79,7 @@ public class IntroTtsGenerator {
                 .build();
     }
 
-    public Uni<String> generateIntroAudioFile(
+    public Uni<IntroAudioResult> generateIntroAudioFile(
             LiveScene scene,
             SoundFragment song,
             AiAgent agent,
@@ -100,7 +106,8 @@ public class IntroTtsGenerator {
                 .chain(prompt -> generateDraftText(prompt, song, agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, stream, broadcastingLanguage))
-                .chain(spokenText -> generateTtsAudio(spokenText, agent, broadcastingLanguage, scene.getSceneTitle()));
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, broadcastingLanguage, scene.getSceneTitle()))
+                .chain(this::calculateDuration);
     }
 
     private Uni<String> generateDraftText(Prompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
@@ -131,7 +138,7 @@ public class IntroTtsGenerator {
                     draftContent
             );
 
-           // LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
+            // LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
 
             long maxTokens = 2048L;
             MessageCreateParams params = MessageCreateParams.builder()
@@ -222,5 +229,21 @@ public class IntroTtsGenerator {
                         throw new RuntimeException("Failed to save TTS audio", e);
                     }
                 });
+    }
+
+    private Uni<IntroAudioResult> calculateDuration(String filePath) {
+        return Uni.createFrom().item(() -> {
+            try {
+                net.bramp.ffmpeg.probe.FFmpegProbeResult probeResult = 
+                    ffmpegProvider.getFFprobe().probe(filePath);
+                double durationSeconds = probeResult.getFormat().duration;
+                int roundedDuration = (int) Math.ceil(durationSeconds);
+                LOGGER.info("Intro audio duration: {} seconds (file: {})", roundedDuration, filePath);
+                return new IntroAudioResult(filePath, roundedDuration);
+            } catch (Exception e) {
+                LOGGER.warn("Failed to probe intro audio duration for {}, using default 10s", filePath, e);
+                return new IntroAudioResult(filePath, 10);
+            }
+        });
     }
 }

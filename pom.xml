@@ -52,17 +52,7 @@
         <dependency>
             <groupId>io.kneo</groupId>
             <artifactId>2next</artifactId>
-            <version>1.3.12</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.quarkus</groupId>
-                    <artifactId>quarkus-oidc</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.quarkus</groupId>
-                    <artifactId>quarkus-oidc-client</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>1.3.14</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

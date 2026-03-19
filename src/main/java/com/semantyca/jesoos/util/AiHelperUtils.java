@@ -1,6 +1,8 @@
 package com.semantyca.jesoos.util;
 
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.mixpla.model.brand.AiOverriding;
@@ -10,6 +12,12 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Random;
+
+import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_1;
+import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.INTRO_2;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_1;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_2;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 
 public final class AiHelperUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperUtils.class);
@@ -55,11 +63,22 @@ public final class AiHelperUtils {
         return preferences.getFirst().getLanguageTag();
     }
 
-    public static String resolvePrimaryVoiceId(IStream currentStream, AiAgent agent) {
-        AiOverriding overriding = currentStream.getAiOverriding();
-        if (overriding != null && overriding.getPrimaryVoice() != null) {
-            return overriding.getPrimaryVoice();
-        }
-        return agent.getTtsSetting().getDj().getId();
+    public static IntroKey getIntroKeyByIndex(int index) {
+        return switch (index) {
+            case 0 -> INTRO_1;
+            case 1 -> INTRO_2;
+            default -> throw new IllegalArgumentException("Unsupported intro index: " + index);
+        };
     }
+
+    public static SongKey getSongKeyByIndex(int index) {
+        return switch (index) {
+            case 0 -> SONG_1;
+            case 1 -> SONG_2;
+            case 2 -> SONG_3;
+            default -> throw new IllegalArgumentException("Unsupported song index: " + index);
+        };
+    }
+
+
 }

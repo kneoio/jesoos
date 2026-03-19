@@ -58,10 +58,11 @@ public class CommandResource {
         String slugName = rc.pathParam("brand").toLowerCase();
         String command = rc.pathParam("command").toLowerCase();
 
-        if ("start".equals(command)) {
-            handleStartCommand(rc, slugName);
-        } else {
-            rc.response()
+        switch (command) {
+            case "start" -> handleStartCommand(rc, slugName);
+            case "enabledj" -> handleEnableDjCommand(rc, slugName);
+            case "disabledj" -> handleDisableDjCommand(rc, slugName);
+            default -> rc.response()
                     .setStatusCode(400)
                     .end(new JsonObject().put("error", "Unknown command: " + command).encode());
         }
@@ -75,23 +76,55 @@ public class CommandResource {
                                 .setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
                                 .end(response.encode()),
-                        failure -> {
-                            if (failure instanceof IllegalArgumentException) {
-                                rc.response()
-                                        .setStatusCode(400)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", failure.getMessage()).encode());
-                            } else {
-                                LOGGER.errorf(failure, "Failed to build agenda for brand: %s", brand);
-                                rc.response()
-                                        .setStatusCode(500)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject()
-                                                .put("error", "Failed to build agenda: " + failure.getMessage())
-                                                .encode());
-                            }
-                        }
+                        failure -> handleCommandFailure(rc, brand, "build agenda", failure)
                 );
+    }
+
+    private void handleEnableDjCommand(RoutingContext rc, String brand) {
+        commandService.enableDj(brand)
+                .subscribe()
+                .with(
+                        response -> {
+                            LOGGER.infof("DJ enabled via command for brand: %s", brand);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        failure -> handleCommandFailure(rc, brand, "enable DJ", failure)
+                );
+    }
+
+    private void handleDisableDjCommand(RoutingContext rc, String brand) {
+        commandService.disableDj(brand)
+                .subscribe()
+                .with(
+                        response -> {
+                            LOGGER.infof("DJ disabled via command for brand: %s", brand);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        failure -> handleCommandFailure(rc, brand, "disable DJ", failure)
+                );
+    }
+
+    private void handleCommandFailure(RoutingContext rc, String brand, String action, Throwable failure) {
+        if (failure instanceof IllegalArgumentException) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", failure.getMessage()).encode());
+        } else {
+            LOGGER.errorf(failure, "Failed to %s for brand: %s", action, brand);
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject()
+                            .put("error", "Failed to " + action + ": " + failure.getMessage())
+                            .encode());
+        }
     }
 
 }
