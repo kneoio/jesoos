@@ -52,6 +52,8 @@ public class LiveScene {
     private LocalDateTime lastRunDate;
     @Setter
     private FireReason fireReason;
+    @Setter
+    private UUID traceId;
 
     public LiveScene(Scene scene, LocalDateTime scheduledStartTime) {
         this.sceneId = scene.getId();

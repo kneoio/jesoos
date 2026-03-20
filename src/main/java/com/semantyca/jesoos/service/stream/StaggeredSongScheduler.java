@@ -75,15 +75,24 @@ public class StaggeredSongScheduler {
     private final Map<String, Integer> sentSongsCounter = new ConcurrentHashMap<>();
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
-        LOGGER.infof("Scheduling staggered song sends for brand: {}, scene: {}, total songs: {}",
-                brandName, scene.getSceneTitle(), scene.getSongs().size());
+        LOGGER.infof("Scheduling staggered song sends for brand: {}, scene: {}, total songs: {}, traceId: {}",
+                brandName, scene.getSceneTitle(), scene.getSongs().size(), scene.getTraceId());
 
         List<PendingSongEntry> allSongs = scene.getSongs();
         if (allSongs.isEmpty()) {
-            LOGGER.warnf("No songs in scene for brand: {}, scene: {}", brandName, scene.getSceneTitle());
+            LOGGER.warnf("No songs in scene for brand: {}, scene: {}, traceId: {}", 
+                    brandName, scene.getSceneTitle(), scene.getTraceId());
             scenePool.removeScene(brandName);
             return;
         }
+
+        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, 
+                "scene_scheduling_started",
+                Map.of(
+                    "scene", scene.getSceneTitle(),
+                    "sceneId", scene.getSceneId().toString(),
+                    "totalSongs", scene.getSongs().size()
+                ), scene.getTraceId());
 
         sentSongsCounter.put(brandName, 0);
         scheduleNextBatch(brandName, scene, 0, 0);
@@ -93,7 +102,8 @@ public class StaggeredSongScheduler {
         List<PendingSongEntry> allSongs = scene.getSongs();
 
         if (startIndex >= allSongs.size()) {
-            LOGGER.infof("All songs scheduled for brand: {}, scene: {}", brandName, scene.getSceneTitle());
+            LOGGER.infof("All songs scheduled for brand: {}, scene: {}, traceId: {}", 
+                    brandName, scene.getSceneTitle(), scene.getTraceId());
             scenePool.removeScene(brandName);
             sentSongsCounter.remove(brandName);
             return;
@@ -109,9 +119,9 @@ public class StaggeredSongScheduler {
 
         long delayMillis = Math.max(1, (cumulativeDurationSeconds - config.bufferSeconds())) * 1000L;
 
-        LOGGER.infof("Scheduling batch for brand: {}, scene: {}, batch size: {}, delay: {}s, songs: {}",
+        LOGGER.infof("Scheduling batch for brand: {}, scene: {}, batch size: {}, delay: {}s, songs: {}, traceId: {}",
                 brandName, scene.getSceneTitle(), batchSize, delayMillis / 1000,
-                batchSongs.stream().map(s -> s.getSoundFragment().getTitle()).toList());
+                batchSongs.stream().map(s -> s.getSoundFragment().getTitle()).toList(), scene.getTraceId());
 
         vertx.setTimer(delayMillis, timerId -> {
             sendBatch(brandName, scene, batchSongs)
@@ -123,8 +133,8 @@ public class StaggeredSongScheduler {
                                         .sum();
                                 scheduleNextBatch(brandName, scene, startIndex + batchSize, cumulativeDurationSeconds + batchDuration);
                             },
-                            failure -> LOGGER.errorf("Failed to send batch for brand: {}, scene: {}, error: {}",
-                                    brandName, scene.getSceneTitle(), failure.getMessage(), failure)
+                            failure -> LOGGER.errorf("Failed to send batch for brand: {}, scene: {}, error: {}, traceId: {}",
+                                    brandName, scene.getSceneTitle(), failure.getMessage(), scene.getTraceId(), failure)
                     );
         });
     }
@@ -222,22 +232,23 @@ public class StaggeredSongScheduler {
                     LOGGER.infof("Scene deadline set: {} ({}), brand: {}, scene: {}",
                             sceneEndTime, sceneDeadlineMillis, brandName, scene.getSceneTitle());
 
-                    return queueSupplier.sendSongsToQueue(brandName, dto)
+                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
                             .invoke(() -> {
-                                LOGGER.infof("Queued {} songs, brand: {}, scene: {}, seq: {}, {}",
-                                        songs.size(), brandName, scene.getSceneTitle(), sequenceNumber, mergingType);
+                                LOGGER.infof("Queued {} songs, brand: {}, scene: {}, seq: {}, {}, traceId: {}",
+                                        songs.size(), brandName, scene.getSceneTitle(), sequenceNumber, mergingType, scene.getTraceId());
                                 Map<String, Object> payload = Map.of(
                                         "scene", dto.getSceneTitle(),
+                                        "sceneId", scene.getSceneId().toString(),
                                         "seq", dto.getSequenceNumber(),
                                         "mixing", dto.getMergingMethod(),
                                         "songCount", songs.size()
                                 );
-                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "songs_aivoxed", payload);
+                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "songs_aivoxed", payload, scene.getTraceId());
                             });
                 })
                 .onFailure().invoke(failure ->
-                        LOGGER.errorf("Failed to send songs for brand: {}, error: {}",
-                                brandName, failure.getMessage(), failure)
+                        LOGGER.errorf("Failed to send songs for brand: {}, error: {}, traceId: {}",
+                                brandName, failure.getMessage(), scene.getTraceId(), failure)
                 )
                 .onFailure().recoverWithNull();
     }

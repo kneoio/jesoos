@@ -29,29 +29,39 @@ public class CommandResource {
     }
     
     private void getAgendas(RoutingContext rc) {
-        JsonObject agendasJson = new JsonObject();
-        brandPool.getOnlineStationsSnapshot().forEach(stream -> {
-            if (stream.getAgenda() != null) {
-                String key = stream.getSlugName();
-                var agenda = stream.getAgenda();
-                JsonObject agendaJson = new JsonObject()
-                        .put("key", key)
-                        .put("createdAt", agenda.getCreatedAt().toString())
-                        .put("totalScenes", agenda.getLiveScenes().size())
-                        .put("scenes", agenda.getLiveScenes().stream().map(scene -> new JsonObject()
-                                .put("id", scene.getSceneId().toString())
-                                .put("title", scene.getSceneTitle())
-                                .put("scheduledStartTime", scene.getScheduledStartTime().toString())
-                                .put("durationSeconds", scene.getDurationSeconds())
-                                .put("totalSongs", scene.getSongs().size())
-                        ).collect(java.util.stream.Collectors.toList()));
-                agendasJson.put(key, agendaJson);
-            }
+        rc.vertx().executeBlocking(() -> {
+            JsonObject agendasJson = new JsonObject();
+            brandPool.getOnlineStationsSnapshot().forEach(stream -> {
+                if (stream.getAgenda() != null) {
+                    String key = stream.getSlugName();
+                    var agenda = stream.getAgenda();
+                    JsonObject agendaJson = new JsonObject()
+                            .put("key", key)
+                            .put("createdAt", agenda.getCreatedAt().toString())
+                            .put("totalScenes", agenda.getLiveScenes().size())
+                            .put("scenes", agenda.getLiveScenes().stream().map(scene -> new JsonObject()
+                                    .put("id", scene.getSceneId().toString())
+                                    .put("title", scene.getSceneTitle())
+                                    .put("scheduledStartTime", scene.getScheduledStartTime().toString())
+                                    .put("durationSeconds", scene.getDurationSeconds())
+                                    .put("totalSongs", scene.getSongs().size())
+                            ).collect(java.util.stream.Collectors.toList()));
+                    agendasJson.put(key, agendaJson);
+                }
+            });
+            return agendasJson.encode();
+        }).onSuccess(encodedJson -> {
+            rc.response()
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(encodedJson);
+        }).onFailure(err -> {
+            LOGGER.error("Failed to get agendas", err);
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", err.getMessage()).encode());
         });
-        rc.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(agendasJson.encode());
     }
     
     private void handleCommand(RoutingContext rc) {
@@ -60,6 +70,7 @@ public class CommandResource {
 
         switch (command) {
             case "start" -> handleStartCommand(rc, slugName);
+            case "stop" -> handleStopCommand(rc, slugName);
             case "enabledj" -> handleEnableDjCommand(rc, slugName);
             case "disabledj" -> handleDisableDjCommand(rc, slugName);
             default -> rc.response()
@@ -77,6 +88,21 @@ public class CommandResource {
                                 .putHeader("Content-Type", "application/json")
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, brand, "build agenda", failure)
+                );
+    }
+
+    private void handleStopCommand(RoutingContext rc, String brand) {
+        commandService.stopBrand(brand)
+                .subscribe()
+                .with(
+                        response -> {
+                            LOGGER.infof("Stop command executed for brand: %s", brand);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        failure -> handleCommandFailure(rc, brand, "stop brand", failure)
                 );
     }
 

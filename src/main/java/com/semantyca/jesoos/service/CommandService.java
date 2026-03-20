@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.jesoos.model.stream.ILiveAgenda;
+import com.semantyca.jesoos.service.stream.BrandPool;
 import com.semantyca.jesoos.service.stream.DjStateService;
 import com.semantyca.jesoos.service.stream.StreamAgendaService;
 import io.smallrye.mutiny.Uni;
@@ -18,6 +19,9 @@ public class CommandService {
     
     @Inject
     DjStateService djStateService;
+
+    @Inject
+    BrandPool brandPool;
 
     @Inject
     public CommandService(StreamAgendaService streamAgendaService) {
@@ -64,6 +68,30 @@ public class CommandService {
                     .put("djEnabled", false)
                     .put("message", "DJ intros disabled, songs only mode");
         });
+    }
+
+    public Uni<JsonObject> stopBrand(String brand) {
+        if (brand == null || brand.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
+        }
+
+        return brandPool.stopAndRemove(brand)
+                .map(stoppedAgenda -> {
+                    if (stoppedAgenda != null) {
+                        LOGGER.infof("Stopped brand: %s, status: %s", brand, stoppedAgenda.getStatus());
+                        return new JsonObject()
+                                .put("success", true)
+                                .put("brand", brand)
+                                .put("status", stoppedAgenda.getStatus().name())
+                                .put("message", "Brand stopped and removed from pool");
+                    } else {
+                        LOGGER.warnf("Brand %s not found in pool", brand);
+                        return new JsonObject()
+                                .put("success", false)
+                                .put("brand", brand)
+                                .put("message", "Brand not found in pool");
+                    }
+                });
     }
 
     private JsonObject toResponse(ILiveAgenda agendaHolder) {

@@ -113,10 +113,12 @@ public class JinglePlaybackHandler {
                     dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
 
-                    return queueSupplier.sendSongsToQueue(stream.getSlugName(), dto);
+                    LOGGER.info("Station '{}': Sending jingle playback to queue, traceId: {}", 
+                            stream.getSlugName(), scene.getTraceId());
+                    return queueSupplier.sendSongsToQueue(stream.getSlugName(), dto, scene.getTraceId());
                 })
-                .onFailure().invoke(failure -> LOGGER.error("Station '{}': Failed to process songs: {}",
-                        stream.getSlugName(), failure.getMessage(), failure))
+                .onFailure().invoke(failure -> LOGGER.error("Station '{}': Failed to process songs: {}, traceId: {}",
+                        stream.getSlugName(), failure.getMessage(), scene.getTraceId(), failure))
                 .onFailure().recoverWithNull();
     }
 }

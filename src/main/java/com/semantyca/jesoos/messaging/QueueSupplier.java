@@ -28,8 +28,7 @@ public class QueueSupplier {
     @Channel("streaming")
     Emitter<byte[]> songEmitter;
 
-    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message) {
-        UUID traceId = UUID.randomUUID();
+    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID traceId) {
         message.setBrandSlug(brandSlug);
         message.setMessageId(UUID.randomUUID());
         message.setTraceId(traceId);
@@ -43,14 +42,14 @@ public class QueueSupplier {
                         .build();
                 Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                 songEmitter.send(msg);
-                LOGGER.info("Sent to queue, brand: {}, messageId: {}", brandSlug, message.getMessageId());
+                LOGGER.info("Sent to queue, brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId);
                 metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, "sound_fragment_stuff_sent",
-                        Map.of( "merging_method", message.getMergingMethod()), traceId);
+                        Map.of("merging_method", message.getMergingMethod(), "sceneId", message.getSceneId().toString()), traceId);
                 return null;
             } catch (Exception e) {
-                LOGGER.error("Failed to send - brand: {}, messageId: {}", brandSlug, message.getMessageId(), e);
+                LOGGER.error("Failed to send - brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId, e);
                 metricPublisher.publishMetric(brandSlug, MetricEventType.ERROR, "sound_fragment_stuff_not_sent",
-                        Map.of( "error", e.getMessage()), traceId);
+                        Map.of("error", e.getMessage()), traceId);
                 throw new RuntimeException("Failed to send message", e);
             }
         });

@@ -10,16 +10,18 @@
         :root {
             --bg: #1a1a1a;
             --surface: #2a2a2a;
-            --surface2: #1a1a1a;
+            --surface2: #1f1f1f;
             --border: #333333;
             --border-bright: #444444;
             --accent: #2196F3;
             --accent2: #42A5F5;
             --accent3: #fa6d6d;
             --amber: #f5a623;
+            --purple: #b084ff;
+            --green: #34d399;
             --text: #f0f0f0;
-            --text-muted: #d0d0d0;
-            --text-dim: #b0b0b0;
+            --text-muted: #b0b0b0;
+            --text-dim: #808080;
             --mono: 'IBM Plex Mono', monospace;
             --sans: 'Space Grotesk', sans-serif;
         }
@@ -31,43 +33,13 @@
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            overflow-x: hidden;
         }
-
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(rgba(0,229,176,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,229,176,0.025) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        body::after {
-            content: '';
-            position: fixed;
-            left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0.4;
-            top: -2px;
-            animation: scanline 6s linear infinite;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        @keyframes scanline { to { top: 100vh; } }
 
         .layout {
             display: grid;
             grid-template-columns: 260px 1fr;
             grid-template-rows: auto 1fr;
             min-height: 100vh;
-            position: relative;
-            z-index: 2;
         }
 
         .sidebar {
@@ -77,7 +49,6 @@
             display: flex;
             flex-direction: column;
             background: rgba(13,13,26,0.7);
-            backdrop-filter: blur(12px);
             position: sticky;
             top: 0;
             height: 100vh;
@@ -94,7 +65,6 @@
             letter-spacing: 4px;
             color: var(--accent);
             text-transform: uppercase;
-            font-weight: 500;
         }
 
         .logo-sub {
@@ -107,15 +77,6 @@
 
         .sidebar-section {
             padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .sidebar-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 0 24px;
         }
 
         .section-label {
@@ -124,11 +85,7 @@
             letter-spacing: 2px;
             color: var(--text-muted);
             text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .select-wrap {
-            position: relative;
+            margin-bottom: 8px;
         }
 
         .select-wrap select {
@@ -139,28 +96,8 @@
             background: var(--surface2);
             border: 1px solid var(--border-bright);
             border-radius: 3px;
-            padding: 8px 32px 8px 12px;
+            padding: 8px 12px;
             cursor: pointer;
-            appearance: none;
-            outline: none;
-            transition: border-color 0.15s;
-            letter-spacing: 1px;
-        }
-
-        .select-wrap select:hover,
-        .select-wrap select:focus {
-            border-color: var(--accent);
-        }
-
-        .select-arrow {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-dim);
-            font-size: 0.6rem;
-            pointer-events: none;
-            font-family: var(--mono);
         }
 
         .status-indicator {
@@ -179,19 +116,16 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--amber);
-            flex-shrink: 0;
+            background: var(--text-dim);
         }
 
-        .status-dot.idle { background: var(--text-dim); }
         .status-dot.running {
             background: var(--accent);
             box-shadow: 0 0 8px var(--accent);
-            animation: pulse-dot 2s ease-in-out infinite;
+            animation: pulse 2s infinite;
         }
-        .status-dot.error { background: var(--accent3); }
 
-        @keyframes pulse-dot {
+        @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
@@ -199,11 +133,9 @@
         .status-text {
             font-family: var(--mono);
             font-size: 0.65rem;
-            letter-spacing: 1px;
             color: var(--text-muted);
         }
 
-        /* TOPBAR */
         .topbar {
             grid-column: 2;
             padding: 24px 32px;
@@ -212,10 +144,6 @@
             align-items: center;
             justify-content: space-between;
             background: rgba(8,8,16,0.8);
-            backdrop-filter: blur(8px);
-            position: sticky;
-            top: 0;
-            z-index: 10;
         }
 
         .topbar-title {
@@ -223,28 +151,17 @@
             letter-spacing: 3px;
             color: var(--text-muted);
             text-transform: uppercase;
-            font-weight: 400;
         }
 
-        .topbar-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        /* MAIN */
         .main {
             grid-column: 2;
             padding: 32px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
         }
 
-        /* ACTION BUTTONS */
         .actions-row {
             display: flex;
             gap: 12px;
+            margin-bottom: 24px;
         }
 
         .action-btn {
@@ -267,12 +184,6 @@
 
         .action-btn.primary:hover {
             background: rgba(33,150,243,0.12);
-            box-shadow: 0 0 12px rgba(33,150,243,0.2);
-        }
-
-        .action-btn.primary:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
         }
 
         .action-btn.secondary {
@@ -285,12 +196,12 @@
             color: var(--accent2);
         }
 
-        /* RESULT PANELS */
         .result-panel {
             border: 1px solid var(--border);
             border-radius: 6px;
             overflow: hidden;
             background: var(--surface);
+            margin-bottom: 24px;
         }
 
         .panel-header {
@@ -343,16 +254,217 @@
         }
 
         .panel-empty {
-            padding: 32px 16px;
+            padding: 32px;
             text-align: center;
             font-family: var(--mono);
             font-size: 0.65rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        /* AGENDA HEADER */
+        .agenda-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .agenda-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-label {
+            font-family: var(--mono);
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-family: var(--mono);
+            font-size: 1.2rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* SCENE CARDS - Metriq Style */
+        .scenes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .scene-card {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--surface);
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .scene-card:hover {
+            border-color: var(--border-bright);
+        }
+
+        .scene-card.expanded {
+            border-color: var(--accent2);
+        }
+
+        .scene-row {
+            display: grid;
+            grid-template-columns: max-content max-content 1fr max-content max-content auto;
+            align-items: center;
+            gap: 20px;
+            padding: 12px 16px;
+            min-height: 48px;
+        }
+
+        .scene-time {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: var(--accent2);
+            min-width: 50px;
+        }
+
+        .scene-type-badge {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.5px;
+            padding: 3px 10px;
+            border-radius: 3px;
+            text-align: center;
+            border: 1px solid;
+            white-space: nowrap;
+            min-width: 80px;
+            text-transform: uppercase;
+        }
+
+        .scene-type-badge.music {
+            color: var(--accent);
+            background: rgba(33,150,243,0.08);
+            border-color: rgba(33,150,243,0.2);
+        }
+
+        .scene-type-badge.news {
+            color: var(--purple);
+            background: rgba(176,132,255,0.08);
+            border-color: rgba(176,132,255,0.2);
+        }
+
+        .scene-type-badge.weather {
+            color: var(--green);
+            background: rgba(52,211,153,0.08);
+            border-color: rgba(52,211,153,0.2);
+        }
+
+        .scene-type-badge.greeting {
+            color: var(--amber);
+            background: rgba(245,166,35,0.08);
+            border-color: rgba(245,166,35,0.2);
+        }
+
+        .scene-title {
+            font-size: 0.9rem;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .scene-duration {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .scene-songs {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            padding: 3px 10px;
+            border-radius: 3px;
+            border: 1px dashed rgba(255,255,255,0.12);
+            white-space: nowrap;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .chevron-cell {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            transition: transform 0.2s;
+            width: 20px;
+            text-align: center;
+        }
+
+        .scene-card.expanded .chevron-cell {
+            transform: rotate(90deg);
+        }
+
+        .scene-payload {
+            overflow: hidden;
+            height: 0;
+            border-top: 0 solid var(--border);
+        }
+
+        .scene-payload.open {
+            border-top-width: 1px;
+        }
+
+        .payload-inner {
+            padding: 16px;
+            background: var(--surface2);
+        }
+
+        .payload-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .meta-pair {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-key {
+            font-family: var(--mono);
+            font-size: 0.55rem;
             letter-spacing: 2px;
             color: var(--text-dim);
             text-transform: uppercase;
         }
 
-        pre.result-json {
+        .meta-val {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .payload-json-wrap {
+            position: relative;
+        }
+
+        .payload-json {
             background: #080810;
             border: 1px solid var(--border);
             border-radius: 4px;
@@ -362,9 +474,103 @@
             color: #a8b3cf;
             white-space: pre-wrap;
             overflow-x: auto;
-            max-height: 320px;
+            max-height: 260px;
             overflow-y: auto;
             line-height: 1.6;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            background: var(--surface2);
+            border: 1px solid var(--border-bright);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-transform: uppercase;
+        }
+
+        .copy-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* FULL JSON DUMP EXPANDABLE */
+        .json-dump-section {
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .json-dump-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(8,8,16,0.5);
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .json-dump-header:hover {
+            background: rgba(8,8,16,0.8);
+        }
+
+        .json-dump-title {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .json-dump-chevron {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            transition: transform 0.2s;
+        }
+
+        .json-dump-section.expanded .json-dump-chevron {
+            transform: rotate(90deg);
+        }
+
+        .json-dump-body {
+            overflow: hidden;
+            height: 0;
+            background: var(--surface2);
+        }
+
+        .json-dump-body.open {
+            height: auto;
+        }
+
+        .json-dump-inner {
+            padding: 16px;
+        }
+
+        pre.json-code {
+            background: #080810;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 14px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: #a8b3cf;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+            margin: 0;
         }
 
         .spinner {
@@ -376,7 +582,6 @@
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
             margin-right: 8px;
-            vertical-align: middle;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -384,51 +589,34 @@
         .loading-text {
             font-family: var(--mono);
             font-size: 0.65rem;
-            letter-spacing: 2px;
             color: var(--text-dim);
             text-transform: uppercase;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 16px 0;
-        }
-
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
-
-        @media (max-width: 768px) {
-            .layout { grid-template-columns: 1fr; }
-            .sidebar { display: none; }
-            .topbar, .main { grid-column: 1; }
         }
     </style>
 </head>
 <body>
 
 <div class="layout">
-
     <aside class="sidebar">
         <div class="logo">
             <div class="logo-text">jesoos</div>
             <div class="logo-sub">stream control</div>
         </div>
-
         <div class="sidebar-section">
-            <div>
-                <div class="section-label">Brand</div>
-                <div class="select-wrap">
-                    <select id="brand">
-                        <option value="lumisonic">lumisonic</option>
-                        <option value="sunonation">sunonation</option>
-                    </select>
-                    <span class="select-arrow">▾</span>
-                </div>
+            <div class="section-label">Brand</div>
+            <div class="select-wrap">
+                <select id="brand">
+                    <option value="lumisonic">lumisonic</option>
+                    <option value="sacana">sacana</option>
+                    <option value="em07chat">em07chat</option>
+                    <option value="malucra">malucra</option>
+                    <option value="bratan">bratan</option>
+                    <option value="sunonation">sunonation</option>
+                    <option value="mixplaclone">mixplaclone</option>
+                    <option value="aye-ayes-ear">aye-ayes-ear</option>
+                </select>
             </div>
         </div>
-
-        <div class="sidebar-divider"></div>
-
         <div class="status-indicator">
             <div class="status-row">
                 <div class="status-dot idle" id="status-dot"></div>
@@ -439,12 +627,9 @@
 
     <header class="topbar">
         <span class="topbar-title">stream control</span>
-        <div class="topbar-right">
-        </div>
     </header>
 
     <main class="main">
-
         <div class="actions-row">
             <button class="action-btn primary" id="start-btn">▶ start</button>
             <button class="action-btn secondary" id="agendas-btn">view agendas</button>
@@ -469,7 +654,6 @@
                 <div class="panel-empty">no result yet</div>
             </div>
         </div>
-
     </main>
 </div>
 
@@ -483,6 +667,8 @@
     const agendasBadge = document.getElementById('agendas-badge');
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
+
+    let currentData = null;
 
     function setStatus(s, label) {
         statusDot.className = 'status-dot ' + s;
@@ -500,24 +686,227 @@
         badgeEl.style.display = '';
         badgeEl.className = 'panel-badge ' + (ok ? 'ok' : 'err');
         badgeEl.textContent = ok ? 'ok' : 'error';
-        bodyEl.innerHTML = `<pre class="result-json">${esc(JSON.stringify(data, null, 2))}</pre>`;
-        gsap.fromTo(bodyEl.querySelector('pre'),
-            { opacity: 0, y: 6 },
-            { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }
-        );
+        bodyEl.innerHTML = `<pre class="json-code">${esc(JSON.stringify(data, null, 2))}</pre>`;
+        gsap.from(bodyEl.querySelector('pre'), { opacity: 0, y: 10, duration: 0.3 });
     }
 
     function showError(bodyEl, badgeEl, msg) {
         badgeEl.style.display = '';
         badgeEl.className = 'panel-badge err';
         badgeEl.textContent = 'error';
-        bodyEl.innerHTML = `<pre class="result-json" style="color:var(--accent3)">${esc(msg)}</pre>`;
+        bodyEl.innerHTML = `<pre class="json-code" style="color:var(--accent3)">${esc(msg)}</pre>`;
     }
 
     function esc(str) {
         const d = document.createElement('div');
         d.textContent = String(str);
         return d.innerHTML;
+    }
+
+    function formatDuration(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        if (hours > 0) return `${hours}h ${mins}m`;
+        return `${mins}m`;
+    }
+
+    function formatTime(datetime) {
+        return new Date(datetime).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    }
+
+    function getSceneType(title) {
+        const lower = title.toLowerCase();
+        if (lower.includes('news')) return 'news';
+        if (lower.includes('weather')) return 'weather';
+        if (lower.includes('greeting') || lower.includes('bye')) return 'greeting';
+        return 'music';
+    }
+
+    function renderAgenda(data) {
+        currentData = data;
+        const brand = Object.keys(data)[0];
+        const agenda = data[brand];
+
+        const totalDuration = agenda.scenes.reduce((acc, s) => acc + s.durationSeconds, 0);
+        const totalSongs = agenda.scenes.reduce((acc, s) => acc + s.totalSongs, 0);
+
+        let html = `
+            <div class="agenda-header">
+                <div class="agenda-stats">
+                    <div class="stat-box">
+                        <span class="stat-label">Brand</span>
+                        <span class="stat-value">${esc(brand)}</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Scenes</span>
+                        <span class="stat-value">${agenda.totalScenes}</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Duration</span>
+                        <span class="stat-value">${formatDuration(totalDuration)}</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Songs</span>
+                        <span class="stat-value">${totalSongs}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="scenes-list">
+        `;
+
+        agenda.scenes.forEach((scene, index) => {
+            const type = getSceneType(scene.title);
+            const sceneJson = JSON.stringify(scene, null, 2);
+
+            html += `
+                <div class="scene-card" data-index="${index}">
+                    <div class="scene-row">
+                        <span class="scene-time">${formatTime(scene.scheduledStartTime)}</span>
+                        <span class="scene-type-badge ${type}">${type}</span>
+                        <span class="scene-title">${esc(scene.title)}</span>
+                        <span class="scene-duration">${formatDuration(scene.durationSeconds)}</span>
+                        <span class="scene-songs">${scene.totalSongs} songs</span>
+                        <span class="chevron-cell">›</span>
+                    </div>
+                    <div class="scene-payload" id="scene-payload-${index}">
+                        <div class="payload-inner">
+                            <div class="payload-meta">
+                                <div class="meta-pair">
+                                    <span class="meta-key">scene id</span>
+                                    <span class="meta-val">${esc(scene.id)}</span>
+                                </div>
+                                <div class="meta-pair">
+                                    <span class="meta-key">duration</span>
+                                    <span class="meta-val">${scene.durationSeconds}s</span>
+                                </div>
+                                <div class="meta-pair">
+                                    <span class="meta-key">songs</span>
+                                    <span class="meta-val">${scene.totalSongs}</span>
+                                </div>
+                                <div class="meta-pair">
+                                    <span class="meta-key">start time</span>
+                                    <span class="meta-val">${esc(scene.scheduledStartTime)}</span>
+                                </div>
+                            </div>
+                            <div class="payload-json-wrap">
+                                <pre class="payload-json">${esc(sceneJson)}</pre>
+                                <button class="copy-btn" onclick="copySceneJson(this, '${esc(sceneJson.replace(/'/g, "\\'"))}')">copy</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+
+        // Full JSON dump expandable section
+        const fullJson = JSON.stringify(data, null, 2);
+        html += `
+            <div class="json-dump-section" id="json-dump-section">
+                <div class="json-dump-header" id="json-dump-header">
+                    <span class="json-dump-title">📋 full json dump</span>
+                    <span class="json-dump-chevron">›</span>
+                </div>
+                <div class="json-dump-body" id="json-dump-body">
+                    <div class="json-dump-inner">
+                        <div class="payload-json-wrap">
+                            <pre class="json-code" id="full-json-code">${esc(fullJson)}</pre>
+                            <button class="copy-btn" onclick="copyFullJson()">copy all</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        return html;
+    }
+
+    function toggleSceneCard(card, index) {
+        const payloadEl = document.getElementById('scene-payload-' + index);
+        const isOpen = card.classList.contains('expanded');
+
+        if (isOpen) {
+            gsap.to(payloadEl, {
+                height: 0,
+                duration: 0.3,
+                ease: 'power2.inOut',
+                onComplete: () => payloadEl.classList.remove('open')
+            });
+            card.classList.remove('expanded');
+        } else {
+            payloadEl.classList.add('open');
+            const naturalH = payloadEl.scrollHeight;
+            gsap.fromTo(payloadEl,
+                { height: 0 },
+                { height: naturalH, duration: 0.35, ease: 'power2.out', onComplete: () => gsap.set(payloadEl, { height: 'auto' }) }
+            );
+            gsap.fromTo(payloadEl.querySelectorAll('.meta-pair, .payload-json-wrap'),
+                { opacity: 0, y: 8 },
+                { opacity: 1, y: 0, duration: 0.25, stagger: 0.04 }
+            );
+            card.classList.add('expanded');
+        }
+    }
+
+    function toggleJsonDump() {
+        const section = document.getElementById('json-dump-section');
+        const body = document.getElementById('json-dump-body');
+        const isOpen = section.classList.contains('expanded');
+
+        if (isOpen) {
+            gsap.to(body, {
+                height: 0,
+                duration: 0.3,
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    body.classList.remove('open');
+                    section.classList.remove('expanded');
+                }
+            });
+        } else {
+            section.classList.add('expanded');
+            body.classList.add('open');
+            const naturalH = body.scrollHeight;
+            gsap.fromTo(body,
+                { height: 0 },
+                { height: naturalH, duration: 0.35, ease: 'power2.out', onComplete: () => gsap.set(body, { height: 'auto' }) }
+            );
+            gsap.fromTo(body.querySelector('.json-dump-inner'),
+                { opacity: 0, y: 8 },
+                { opacity: 1, y: 0, duration: 0.25 }
+            );
+        }
+    }
+
+    function copySceneJson(btn, json) {
+        navigator.clipboard.writeText(json).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = 'copied';
+            setTimeout(() => btn.textContent = orig, 1800);
+        }).catch(() => {
+            btn.textContent = 'failed';
+            setTimeout(() => btn.textContent = 'copy', 1800);
+        });
+    }
+
+    function copyFullJson() {
+        if (!currentData) return;
+        const json = JSON.stringify(currentData, null, 2);
+        navigator.clipboard.writeText(json).then(() => {
+            const btn = document.querySelector('#json-dump-body .copy-btn');
+            const orig = btn.textContent;
+            btn.textContent = 'copied';
+            setTimeout(() => btn.textContent = orig, 1800);
+        }).catch(() => {
+            const btn = document.querySelector('#json-dump-body .copy-btn');
+            btn.textContent = 'failed';
+            setTimeout(() => btn.textContent = 'copy all', 1800);
+        });
     }
 
     startBtn.addEventListener('click', async () => {
@@ -548,16 +937,36 @@
         try {
             const res = await fetch('/jesoos/agendas');
             const data = await res.json();
-            showResult(agendasBody, agendasBadge, data, res.ok);
+
+            agendasBadge.style.display = '';
+            agendasBadge.className = 'panel-badge ' + (res.ok ? 'ok' : 'err');
+            agendasBadge.textContent = res.ok ? 'ok' : 'error';
+
+            agendasBody.innerHTML = renderAgenda(data);
+
+            gsap.from('.agenda-header', { opacity: 0, y: -10, duration: 0.3 });
+            gsap.from('.scene-card', {
+                opacity: 0,
+                y: 20,
+                duration: 0.3,
+                stagger: 0.03,
+                ease: 'power2.out'
+            });
+            gsap.from('.json-dump-section', { opacity: 0, y: 10, duration: 0.3, delay: 0.5 });
+
+            // Add click handlers to scene cards
+            document.querySelectorAll('.scene-card').forEach((card) => {
+                const index = card.dataset.index;
+                card.querySelector('.scene-row').addEventListener('click', () => toggleSceneCard(card, index));
+            });
+
+            // Add click handler to JSON dump header
+            document.getElementById('json-dump-header').addEventListener('click', toggleJsonDump);
+
         } catch (err) {
             showError(agendasBody, agendasBadge, err.message);
         }
     });
-
-    gsap.from('.sidebar', { x: -20, opacity: 0, duration: 0.6, ease: 'power3.out' });
-    gsap.from('.topbar', { y: -10, opacity: 0, duration: 0.5, delay: 0.15, ease: 'power3.out' });
-    gsap.from('.result-panel', { y: 10, opacity: 0, duration: 0.4, stagger: 0.1, delay: 0.3, ease: 'power2.out' });
-    gsap.from('.actions-row', { y: 8, opacity: 0, duration: 0.35, delay: 0.25, ease: 'power2.out' });
 </script>
 </body>
 </html>

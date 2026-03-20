@@ -147,6 +147,7 @@ public class StreamAgendaService {
             sceneUnis.add(
                     fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
                             .map(songs -> {
+                                UUID traceId = UUID.randomUUID();
                                 LiveScene entry = new LiveScene(
                                         scene.getId(),
                                         scene.getTitle(),
@@ -168,6 +169,9 @@ public class StreamAgendaService {
                                         scene.getTalkativity(),
                                         scene.getIntroPrompts()
                                 );
+                                entry.setTraceId(traceId);
+                                LOGGER.infof("Created LiveScene for brand: %s, scene: %s, traceId: %s, scheduledStart: %s",
+                                        sourceBrand.getSlugName(), scene.getTitle(), traceId, capturedSceneStartTime);
                                 int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
                                     PendingSongEntry songEntry = new PendingSongEntry(song, sequenceNumber++);
@@ -224,7 +228,11 @@ public class StreamAgendaService {
             sceneUnis.add(
                     fetchSongsForScene(sourceBrand, scene, songSupplier)
                             .map(songs -> {
+                                UUID traceId = UUID.randomUUID();
                                 LiveScene entry = new LiveScene(scene, finalSceneStartTime);
+                                entry.setTraceId(traceId);
+                                LOGGER.infof("Created LiveScene for brand: %s, scene: %s, traceId: %s, scheduledStart: %s",
+                                        sourceBrand.getSlugName(), scene.getTitle(), traceId, finalSceneStartTime);
                                 int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
                                     PendingSongEntry songEntry = new PendingSongEntry(song, sequenceNumber++);

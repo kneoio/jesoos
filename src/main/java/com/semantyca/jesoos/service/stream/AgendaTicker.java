@@ -27,6 +27,9 @@ public class AgendaTicker {
     @Inject
     StaggeredSongScheduler staggeredSongScheduler;
 
+    @Inject
+    com.semantyca.jesoos.messaging.MetricPublisher metricPublisher;
+
     @Scheduled(every = "60s")
     void tick() {
         Map<String, StreamAgenda> agendas = brandPool.getAll();
@@ -88,14 +91,24 @@ public class AgendaTicker {
     }
 
     private void processScene(String brand, String agendaKey, LiveScene scene, FireReason reason) {
-        LOGGER.infof("Processing scene '%s' for brand: %s, agenda: %s, reason: %s",
-                scene.getSceneTitle(), brand, agendaKey, reason);
         scene.setSentToQueueAt(LocalDateTime.now());
         scene.setFireReason(reason);
 
+        LOGGER.infof("Processing scene '%s' for brand: %s, agenda: %s, reason: %s, traceId: {}",
+                scene.getSceneTitle(), brand, agendaKey, reason, scene.getTraceId());
+
+        metricPublisher.publishMetric(brand, com.semantyca.mixpla.dto.queue.metric.MetricEventType.INFORMATION, 
+                "scene_processing_started",
+                Map.of(
+                    "scene", scene.getSceneTitle(),
+                    "sceneId", scene.getSceneId().toString(),
+                    "fireReason", reason.toString(),
+                    "songCount", scene.getSongs().size()
+                ), scene.getTraceId());
+
         scenePool.addScene(brand, scene);
-        LOGGER.infof("Added scene '%s' to ScenePool for brand: %s (contains %d songs)",
-                scene.getSceneTitle(), brand, scene.getSongs().size());
+        LOGGER.infof("Added scene '%s' to ScenePool for brand: %s (contains %d songs), traceId: {}",
+                scene.getSceneTitle(), brand, scene.getSongs().size(), scene.getTraceId());
 
         staggeredSongScheduler.scheduleSceneSongs(brand, scene);
     }
