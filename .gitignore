@@ -33,3 +33,4 @@ src/main/resources/application-prod.properties
 /temp_soundfragments_storage/
 /controller-uploads/
 *.ps1
+/src/main/resources/prompts/

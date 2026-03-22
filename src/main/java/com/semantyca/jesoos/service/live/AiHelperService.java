@@ -13,6 +13,7 @@ import com.semantyca.jesoos.dto.radiostation.AiOverridingDTO;
 import com.semantyca.jesoos.dto.radiostation.BrandDTO;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
@@ -22,8 +23,7 @@ import com.semantyca.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperService.class);
+    private static final Logger LOGGER = Logger.getLogger(AiHelperService.class);
 
     public record DjRequestInfo(LocalDateTime requestTime, String djName) {
     }
@@ -48,6 +48,7 @@ public class AiHelperService {
     private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
 
+    private final SoundFragmentService soundFragmentService;
     private final BrandService brandService;
     private final AiAgentService aiAgentService;
     private final GenreService genreService;
@@ -58,11 +59,12 @@ public class AiHelperService {
 
     @Inject
     public AiHelperService(
-            AiAgentService aiAgentService,
+            SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
             BrandService brandService,
             GenreService genreService,
             LabelService labelService
     ) {
+        this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
         this.brandService = brandService;
         this.genreService = genreService;
@@ -118,6 +120,30 @@ public class AiHelperService {
                             });
                 });
     }
+
+    public Uni<List<BrandSoundFragmentAiDTO>> searchBrandSoundFragmentsForAi(
+            String brandName,
+            String keyword,
+            Integer limit,
+            Integer offset
+    ) {
+        int actualLimit = (limit != null && limit > 0) ? limit : 50;
+        int actualOffset = (offset != null && offset >= 0) ? offset : 0;
+
+        return soundFragmentService.getBrandSoundFragmentsBySimilarity(brandName, keyword, actualLimit, actualOffset)
+                .chain(brandFragments -> {
+                    if (brandFragments == null || brandFragments.isEmpty()) {
+                        return Uni.createFrom().item(Collections.<BrandSoundFragmentAiDTO>emptyList());
+                    }
+
+                    List<Uni<BrandSoundFragmentAiDTO>> aiDtoUnis = brandFragments.stream()
+                            .map(this::mapToBrandSoundFragmentAiDTO)
+                            .collect(Collectors.toList());
+
+                    return Uni.join().all(aiDtoUnis).andFailFast();
+                });
+    }
+
 
     private RadioStationAiDTO toRadioStationAiDTO(BrandDTO brandDTO, AiAgent agent) {
         RadioStationAiDTO b = new RadioStationAiDTO();

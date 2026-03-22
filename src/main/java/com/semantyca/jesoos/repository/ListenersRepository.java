@@ -7,6 +7,7 @@ import com.semantyca.core.model.embedded.DocumentAccessInfo;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
+import com.semantyca.core.repository.exception.DocumentModificationAccessException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.mixpla.model.BrandListener;
@@ -25,12 +26,16 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.semantyca.mixpla.repository.MixplaNameResolver.LISTENER;
 
@@ -170,27 +175,6 @@ public class ListenersRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived, ListenerFilter filter) {
-        String sql = "SELECT COUNT(l.id) " +
-                "FROM " + entityData.getTableName() + " l " +
-                "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
-                "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON l.id = rls.entity_id " +
-                "WHERE b.slug_name = $1 AND rls.reader = $2";
-
-        if (!includeArchived) {
-            sql += " AND l.archived = 0";
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql += buildFilterConditions(filter, "l");
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(slugName, user.getId()))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
     public Uni<List<UUID>> getBrandsForListener(UUID listenerId) {
         String sql = "SELECT lb.brand_id " +
                 "FROM kneobroadcaster__listener_brands lb " +
@@ -202,6 +186,140 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(row -> row.getUUID("brand_id"))
                 .collect().asList();
     }
+
+
+    public Uni<Void> addBrandToListener(UUID listenerId, UUID brandId) {
+        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        String sql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) " +
+                "VALUES ($1, $2, $3, $4) " +
+                "ON CONFLICT (listener_id, brand_id) DO NOTHING";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(listenerId, brandId, nowTime, 99))
+                .replaceWithVoid();
+    }
+
+    public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
+        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+
+        String sql = "INSERT INTO " + entityData.getTableName() +
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, user_data, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id";
+
+        JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
+        JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
+        JsonObject userDataJson = toUserDataJson(listener.getUserData());
+
+        Tuple params = Tuple.tuple()
+                .addLong(listener.getUserId())
+                .addLong(user.getId())
+                .addLocalDateTime(nowTime)
+                .addLong(user.getId())
+                .addLocalDateTime(nowTime)
+                .addJsonObject(localizedNameJson)
+                .addJsonObject(localizedNickNameJson)
+                .addJsonObject(userDataJson)
+                .addInteger(0);
+
+        return client.withTransaction(tx ->
+                tx.preparedQuery(sql)
+                        .execute(params)
+                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                        .onItem().transformToUni(id ->
+                                insertRLSPermissions(tx, id, entityData, user)
+                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
+                                        .onItem().transformToUni(ignored -> upsertLabels(tx, id, listener.getLabels()))
+                                        .onItem().transform(ignored -> id)
+                        )
+        ).onItem().transformToUni(id -> findById(id, user, true));
+    }
+
+    private Uni<Void> insertBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+        if (representedInBrands == null || representedInBrands.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+        List<Tuple> insertParams = representedInBrands.stream()
+                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                .collect(Collectors.toList());
+
+        return tx.preparedQuery(insertBrandsSql)
+                .executeBatch(insertParams)
+                .onItem().ignore().andContinueWithNull();
+    }
+
+    public Uni<Listener> update(UUID id, Listener doc, List<UUID> representedInBrands, IUser user) {
+        return Uni.createFrom().deferred(() -> {
+            try {
+                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update listener: {} by user: {}", id, user.getId(), throwable))
+                        .onItem().transformToUni(permissions -> {
+                            if (!permissions[0]) {
+                                return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                        "User does not have edit permission", user.getUserName(), id));
+                            }
+
+                            LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+                            JsonObject localizedNameJson = JsonObject.mapFrom(doc.getLocalizedName());
+                            JsonObject localizedNickNameJson = toNickNameJson(doc.getNickName());
+                            JsonObject userDataJson = toUserDataJson(doc.getUserData());
+
+                            return client.withTransaction(tx -> {
+                                String sql = "UPDATE " + entityData.getTableName() +
+                                        " SET loc_name=$1, nickname=$2, user_data=$3, last_mod_user=$4, last_mod_date=$5 " +
+                                        "WHERE id=$6";
+
+                                Tuple params = Tuple.tuple()
+                                        .addJsonObject(localizedNameJson)
+                                        .addJsonObject(localizedNickNameJson)
+                                        .addJsonObject(userDataJson)
+                                        .addLong(user.getId())
+                                        .addLocalDateTime(nowTime)
+                                        .addUUID(id);
+
+                                return tx.preparedQuery(sql)
+                                        .execute(params)
+                                        .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
+                                        .onItem().transformToUni(rowSet -> {
+                                            if (rowSet.rowCount() == 0) {
+                                                return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                            }
+                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime)
+                                                    .chain(() -> upsertLabels(tx, id, doc.getLabels()));
+                                        });
+                            }).onItem().transformToUni(ignored -> findById(id, user, true));
+                        });
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
+    }
+
+    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+        if (representedInBrands == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String deleteSql = "DELETE FROM kneobroadcaster__listener_brands WHERE listener_id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(listenerId))
+                .onItem().transformToUni(ignored -> {
+                    if (representedInBrands.isEmpty()) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    List<Tuple> insertParams = representedInBrands.stream()
+                            .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                            .collect(Collectors.toList());
+                    return tx.preparedQuery(insertSql)
+                            .executeBatch(insertParams)
+                            .onItem().ignore().andContinueWithNull();
+                });
+    }
+
 
     private Listener from(Row row) {
         Listener doc = new Listener();
