@@ -33,7 +33,7 @@ public class CommandService {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
 
-        return streamAgendaService.buildRadioLiveAgenda(brand)
+        return streamAgendaService.buildAgenda(brand)
                 .map(this::toResponse)
                 .invoke(response -> LOGGER.infof("Built agenda for brand %s", brand));
     }

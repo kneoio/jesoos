@@ -57,8 +57,8 @@ public class StreamAgendaService {
         this.brandPool = brandPool;
     }
 
-    public Uni<ILiveAgenda> buildRadioLiveAgenda(String brand) {
-        return brandPool.initializeRadio(brand)
+    public Uni<ILiveAgenda> buildAgenda(String brand) {
+        return brandPool.initializeRadioAgenda(brand)
                 .onFailure().invoke(f ->
                         brandPool.get(brand)
                                 .subscribe().with(s -> {
@@ -67,7 +67,7 @@ public class StreamAgendaService {
                 );
     }
 
-    public Uni<StreamAgenda> buildRadioLiveAgenda(UUID brandId, UUID scriptId, IUser user) {
+    public Uni<StreamAgenda> buildAgenda(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
@@ -80,12 +80,12 @@ public class StreamAgendaService {
                                                     addAll(list);
                                                 }})
                                                 .invoke(script::setScenes)
-                                                .chain(x -> buildRadioAgenda(script, sourceBrand, scheduleSongSupplier))
+                                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier))
                                 )
                 );
     }
 
-    public Uni<StreamAgenda> buildRadioAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+    public Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         ZoneId brandZone = sourceBrand.getTimeZone();
         LocalDateTime brandNow = LocalDateTime.now(brandZone);
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
@@ -304,7 +304,6 @@ public class StreamAgendaService {
                 totalTimeUsed += timeWithIntro;
             } else if (selectedSongs.isEmpty()) {
                 selectedSongs.add(song);
-                totalTimeUsed += timeWithIntro;
                 break;
             } else {
                 int gap = sceneDurationSeconds - totalTimeUsed;
@@ -314,8 +313,6 @@ public class StreamAgendaService {
                 }
             }
         }
-
-
         return selectedSongs;
     }
 

@@ -24,9 +24,7 @@ import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -53,8 +51,8 @@ public class BrandPool {
     @Inject
     private MetricPublisher metricPublisher;
 
-    public Uni<ILiveAgenda> initializeRadio(String brandName) {
-        LOGGER.infof("Attempting to initialize Radio Stream for brand: {}", brandName);
+    public Uni<ILiveAgenda> initializeRadioAgenda(String brandName) {
+        LOGGER.infof("Attempting to initialize agenda for brand: {}", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(bn -> {
@@ -62,41 +60,35 @@ public class BrandPool {
                     if (stationAlreadyActive != null &&
                             (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
                                     stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
-                        LOGGER.infof("Radio Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
+                        LOGGER.infof("Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
                     return brandService.getBySlugName(bn)
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
-                                    LOGGER.warnf("Brand with brandName {} not found in database. Cannot initialize.", bn);
+                                    LOGGER.warnf("Brand with brandName {} not found. Cannot initialize.", bn);
                                     pool.remove(bn);
-                                    return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
+                                    return Uni.createFrom().failure(new RuntimeException("Station not found: " + bn));
                                 }
 
                                 ILiveAgenda finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
                                     if (currentInPool != null &&
                                             (currentInPool.getStatus() == StreamStatus.ON_LINE ||
                                                     currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
-                                        LOGGER.infof("Radio stream {} was concurrently initialized and is active in pool. Using that instance.", key);
+                                        LOGGER.infof("Radio stream {} is active in pool. Using that instance.", key);
                                         return currentInPool;
                                     }
 
-                                    LOGGER.infof("RadioStationPool: Creating new StreamManager instance for brand {}.", key);
-                                    RadioStream radioStream = new RadioStream(brand);
-                                    LOGGER.infof("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP", key);
-                                    return radioStream;
+                                    return new RadioStream(brand);
                                 });
 
                                 if (finalStationToUse instanceof RadioStream radioStream && radioStream.getAgenda() == null) {
-                                    LOGGER.infof("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
-                                    return streamAgendaService.buildRadioLiveAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
+                                    return streamAgendaService.buildAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
                                                 radioStream.setAgenda(schedule);
-                                                LOGGER.infof("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
-                                                        radioStream.getSlugName(),
-                                                        schedule != null ? schedule.getTotalScenes() : 0,
-                                                        schedule != null ? schedule.getTotalSongs() : 0);
+                                                LOGGER.infof("BrandPool: Schedule set for '{}': {} scenes, {} songs",
+                                                        radioStream.getSlugName(),schedule.getTotalScenes(), schedule.getTotalSongs());
                                             })
                                             .map(schedule -> (ILiveAgenda) radioStream);
                                 }
@@ -155,7 +147,7 @@ public class BrandPool {
                                         return currentInPool;
                                     }
 
-                                    LOGGER.infof("RadioStationPool: Creating new StreamManager instance for stream {}.", key);
+                                    LOGGER.infof("BrandPool: Creating new StreamManager instance for stream {}.", key);
 
                                     return stream;
                                 });
@@ -175,8 +167,6 @@ public class BrandPool {
         ILiveAgenda liveAgenda = pool.remove(brandName);
 
         if (liveAgenda != null) {
-            LOGGER.infof("Station {} found in pool and removed. Shutting down StreamManager.", brandName);
-
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             
@@ -184,8 +174,7 @@ public class BrandPool {
                 return oneTimeStreamRepository.getBySlugName(brandName)
                         .onItem().invoke(repoStream -> {
                             if (repoStream != null) {
-                                // Preserve the current status if it's already FINISHED, otherwise set to OFF_LINE
-                                StreamStatus newStatus = oneTimeStream.getStatus() == StreamStatus.FINISHED 
+                                StreamStatus newStatus = oneTimeStream.getStatus() == StreamStatus.FINISHED
                                     ? StreamStatus.FINISHED 
                                     : StreamStatus.OFF_LINE;
                                 repoStream.setStatus(newStatus);
@@ -206,15 +195,7 @@ public class BrandPool {
         return new ArrayList<>(pool.values());
     }
 
-    public Set<String> getActiveSnapshot() {
-        return new HashSet<>(pool.keySet());
-    }
-
-    public ILiveAgenda getStation(String slugName) {
-        return pool.get(slugName);
-    }
-
-    public Uni<BroadcastingStats> getLiveStatus(String name) {
+   public Uni<BroadcastingStats> getLiveStatus(String name) {
         BroadcastingStats stats = new BroadcastingStats();
         ILiveAgenda brand = pool.get(name);
         if (brand != null) {

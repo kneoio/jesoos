@@ -43,13 +43,17 @@ public class QueueSupplier {
                 Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                 songEmitter.send(msg);
                 LOGGER.info("Sent to queue, brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId);
-                metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, "sound_fragment_stuff_sent",
-                        Map.of("merging_method", message.getMergingMethod(), "sceneId", message.getSceneId().toString()), traceId);
+                Map<String, Object> payload = Map.of(
+                        "scene", message.getSceneTitle(),
+                        "seq", message.getSequenceNumber(),
+                        "mixing", message.getMergingMethod()
+                );
+                metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, "songs_aivoxed", payload, traceId);
                 return null;
             } catch (Exception e) {
                 LOGGER.error("Failed to send - brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId, e);
-                metricPublisher.publishMetric(brandSlug, MetricEventType.ERROR, "sound_fragment_stuff_not_sent",
-                        Map.of("error", e.getMessage()), traceId);
+                metricPublisher.publishMetric(brandSlug, MetricEventType.ERROR, "not_aivoxed",
+                        Map.of( "scene", message.getSceneTitle(),"error", e.getMessage()), traceId);
                 throw new RuntimeException("Failed to send message", e);
             }
         });
