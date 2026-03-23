@@ -3,7 +3,6 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PendingSongEntry;
@@ -16,7 +15,6 @@ import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
-import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
@@ -25,7 +23,10 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
 import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
