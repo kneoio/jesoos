@@ -35,3 +35,5 @@ src/main/resources/application-prod.properties
 *.ps1
 /src/main/resources/prompts/
 /sessions_data/
+/C:/Users/justa/tmp/jesoos/intro-tts/temp/intro_074b68ae-843d-4a89-a82b-dc7588a612cb.mp3
+/C:/Users/justa/tmp/jesoos/intro-tts/temp/intro_86ec460a-84e7-461c-b06f-d1a662c4f075.mp3

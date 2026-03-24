@@ -1,5 +1,6 @@
 package com.semantyca.jesoos.service.stream;
 
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import io.quarkus.scheduler.Scheduled;
@@ -28,7 +29,7 @@ public class AgendaTicker {
     StaggeredSongScheduler staggeredSongScheduler;
 
     @Inject
-    com.semantyca.jesoos.messaging.MetricPublisher metricPublisher;
+    MetricPublisher metricPublisher;
 
     @Scheduled(every = "60s")
     void tick() {

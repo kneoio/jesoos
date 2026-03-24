@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PendingSongEntry;
@@ -13,6 +14,7 @@ import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.stream.IStream;
@@ -34,15 +36,17 @@ public class StaggeredSongScheduler {
     private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
 
     private static final int AIVOX_DELAY = 3;
+    private static final int DEADLINE_SAFETY_MARGIN_SEC = 2;
 
     @Inject Vertx vertx;
     @Inject BrandPool brandPool;
     @Inject IntroTtsGenerator introTtsGenerator;
     @Inject QueueSupplier queueSupplier;
     @Inject AiAgentService aiAgentService;
-    @Inject MixingTypeStrategy mixingTypeStrategy;
+    @Inject MixingTypeShuffeler mixingTypeShuffeler;
     @Inject JinglePlaybackHandler jinglePlaybackHandler;
     @Inject ScenePool scenePool;
+    @Inject MetricPublisher metricPublisher;
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
         if (scene.getSongs().isEmpty()) {
@@ -51,7 +55,6 @@ public class StaggeredSongScheduler {
         }
 
         long startTime = System.currentTimeMillis();
-        //scheduleNextBatch(brandName, scene, 0, startTime, 0);
         scheduleNextBatch(brandName, scene, 0, startTime, AIVOX_DELAY);
     }
 
@@ -63,45 +66,131 @@ public class StaggeredSongScheduler {
 
         List<PendingSongEntry> allSongs = scene.getSongs();
 
+        long deadline = scene.getScheduledEndTime()
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+
+        long now = System.currentTimeMillis();
+
+        long remainingMs = deadline - now;
+        long safetyMarginMs = DEADLINE_SAFETY_MARGIN_SEC * 1000L;
+
+       /* if (remainingMs <= safetyMarginMs) {
+            scenePool.removeScene(brandName);
+            jinglePlaybackHandler.clearScene(scene.getSceneId());
+            metricPublisher.publishMetric(
+                    brandName,
+                    MetricEventType.WARNING,
+                    "safety_margin_situation",
+                    Map.of(
+                            "sceneId", scene.getSceneId().toString(),
+                            "safety margin values", remainingMs + "<=" + safetyMarginMs
+                            ),
+                    scene.getTraceId()
+            );
+            return;
+        }*/
+
         if (startIndex >= allSongs.size()) {
+            scenePool.removeScene(brandName);
+            jinglePlaybackHandler.clearScene(scene.getSceneId());
+            metricPublisher.publishMetric(
+                    brandName,
+                    MetricEventType.WARNING,
+                    "songs_exhausted",
+                    Map.of(
+                            "sceneId", scene.getSceneId().toString(),
+                            "startIndex is more than songs count", startIndex + ">" + allSongs.size()
+                    ),
+                    scene.getTraceId()
+            );
+            return;
+        }
+
+        int maxPossibleDurationSec = (int) ((remainingMs - safetyMarginMs) / 1000L);
+
+        List<PendingSongEntry> remaining = allSongs.subList(startIndex, allSongs.size());
+
+        List<PendingSongEntry> filtered = new ArrayList<>();
+        int accumulated = 0;
+
+        for (PendingSongEntry s : remaining) {
+            if (accumulated + s.getDurationSeconds() > maxPossibleDurationSec) {
+                break;
+            }
+            filtered.add(s);
+            accumulated += s.getDurationSeconds();
+        }
+
+        if (filtered.isEmpty()) {
             scenePool.removeScene(brandName);
             jinglePlaybackHandler.clearScene(scene.getSceneId());
             return;
         }
 
-        List<PendingSongEntry> remaining = allSongs.subList(startIndex, allSongs.size());
         boolean hasIntros = scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
 
-        MixingTypeStrategy.MixingTypeConfig cfg =
-                mixingTypeStrategy.selectStrategy(remaining.size(), hasIntros);
+        MixingTypeShuffeler.MixingStrategy strategy =
+                mixingTypeShuffeler.selectStrategy(filtered.size(), hasIntros);
 
-        List<PendingSongEntry> batch = remaining.stream()
-                .limit(cfg.batchSize())
+        List<PendingSongEntry> batch = filtered.stream()
+                .limit(strategy.batchSize())
                 .toList();
 
-        long targetTime = startTime
-                + (timelineSeconds * 1000L)
-                - (AIVOX_DELAY * 1000L);
+        long targetTime = Math.min(
+                startTime + (timelineSeconds * 1000L) - (AIVOX_DELAY * 1000L),
+                deadline
+        );
 
         long delay = Math.max(1, targetTime - System.currentTimeMillis());
 
-        Runnable task = () -> sendBatch(brandName, scene, batch, startIndex, cfg)
-                .subscribe().with(
-                        v -> {
-                            int duration = batch.stream()
-                                    .mapToInt(PendingSongEntry::getDurationSeconds)
-                                    .sum();
+        metricPublisher.publishMetric(
+                brandName,
+                com.semantyca.mixpla.dto.queue.metric.MetricEventType.INFORMATION,
+                "next_song_batch_scheduled",
+                Map.of(
+                        "sceneId", scene.getSceneId().toString(),
+                        "startIndex", String.valueOf(startIndex),
+                        "targetTime", String.valueOf(targetTime),
+                        "delayMs", String.valueOf(delay),
+                        "timelineSeconds", String.valueOf(timelineSeconds)
+                ),
+                scene.getTraceId()
+        );
 
-                            scheduleNextBatch(
-                                    brandName,
-                                    scene,
-                                    startIndex + batch.size(),
-                                    startTime,
-                                    timelineSeconds + duration
-                            );
-                        },
-                        err -> LOGGER.errorf("Batch failed: %s", err.getMessage())
-                );
+        Runnable task = () -> {
+            long now1 = System.currentTimeMillis();
+
+            long deadline1 = scene.getScheduledEndTime()
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli();
+
+            if (now1 >= deadline1) {
+                scenePool.removeScene(brandName);
+                jinglePlaybackHandler.clearScene(scene.getSceneId());
+                return;
+            }
+
+            sendBatch(brandName, scene, batch, startIndex, strategy)
+                    .subscribe().with(
+                            v -> {
+                                int duration = batch.stream()
+                                        .mapToInt(PendingSongEntry::getDurationSeconds)
+                                        .sum();
+
+                                scheduleNextBatch(
+                                        brandName,
+                                        scene,
+                                        startIndex + batch.size(),
+                                        startTime,
+                                        timelineSeconds + duration
+                                );
+                            },
+                            err -> LOGGER.errorf("Batch failed: %s", err.getMessage())
+                    );
+        };
 
         vertx.setTimer(delay, id -> task.run());
     }
@@ -110,7 +199,7 @@ public class StaggeredSongScheduler {
                                 LiveScene scene,
                                 List<PendingSongEntry> songs,
                                 int startIndex,
-                                MixingTypeStrategy.MixingTypeConfig cfg) {
+                                MixingTypeShuffeler.MixingStrategy cfg) {
 
         return brandPool.get(brandName)
                 .chain(stream -> {
@@ -129,7 +218,7 @@ public class StaggeredSongScheduler {
                                 AiAgent agent,
                                 IStream stream,
                                 int startIndex,
-                                MixingTypeStrategy.MixingTypeConfig cfg) {
+                                MixingTypeShuffeler.MixingStrategy cfg) {
 
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
