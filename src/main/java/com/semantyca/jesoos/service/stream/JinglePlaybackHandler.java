@@ -117,4 +117,8 @@ public class JinglePlaybackHandler {
                 .onFailure().invoke(f ->
                         LOGGER.error("Jingle flow failed: {}", f.getMessage(), f));
     }
+
+    public void clearScene(UUID sceneId) {
+        scenePlayedSongs.remove(sceneId);
+    }
 }

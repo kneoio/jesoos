@@ -170,7 +170,7 @@ public class StreamAgendaService {
                                         scene.getIntroPrompts()
                                 );
                                 entry.setTraceId(traceId);
-                                LOGGER.infof("Created LiveScene for brand: %s, scene: %s, traceId: %s, scheduledStart: %s",
+                                LOGGER.infof("Created LiveScene- brand: %s, scene: %s, traceId: %s, start: %s",
                                         sourceBrand.getSlugName(), scene.getTitle(), traceId, capturedSceneStartTime);
                                 int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
@@ -231,7 +231,7 @@ public class StreamAgendaService {
                                 UUID traceId = UUID.randomUUID();
                                 LiveScene entry = new LiveScene(scene, finalSceneStartTime);
                                 entry.setTraceId(traceId);
-                                LOGGER.infof("Created LiveScene for brand: %s, scene: %s, traceId: %s, scheduledStart: %s",
+                                LOGGER.infof("Created LiveScene- brand: %s, scene: %s, traceId: %s, start: %s",
                                         sourceBrand.getSlugName(), scene.getTitle(), traceId, finalSceneStartTime);
                                 int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {

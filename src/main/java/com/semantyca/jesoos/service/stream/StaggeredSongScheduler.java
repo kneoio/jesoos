@@ -23,10 +23,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
 import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
@@ -36,7 +33,7 @@ public class StaggeredSongScheduler {
 
     private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
 
-    private static final int AIVOX_DELAY = 3; // seconds (empirical tuning)
+    private static final int AIVOX_DELAY = 3;
 
     @Inject Vertx vertx;
     @Inject BrandPool brandPool;
@@ -54,7 +51,8 @@ public class StaggeredSongScheduler {
         }
 
         long startTime = System.currentTimeMillis();
-        scheduleNextBatch(brandName, scene, 0, startTime, 0);
+        //scheduleNextBatch(brandName, scene, 0, startTime, 0);
+        scheduleNextBatch(brandName, scene, 0, startTime, AIVOX_DELAY);
     }
 
     private void scheduleNextBatch(String brandName,
@@ -67,6 +65,7 @@ public class StaggeredSongScheduler {
 
         if (startIndex >= allSongs.size()) {
             scenePool.removeScene(brandName);
+            jinglePlaybackHandler.clearScene(scene.getSceneId());
             return;
         }
 
@@ -84,27 +83,27 @@ public class StaggeredSongScheduler {
                 + (timelineSeconds * 1000L)
                 - (AIVOX_DELAY * 1000L);
 
-        long delay = Math.max(0, targetTime - System.currentTimeMillis());
+        long delay = Math.max(1, targetTime - System.currentTimeMillis());
 
-        vertx.setTimer(delay, id -> {
-            sendBatch(brandName, scene, batch, startIndex, cfg)
-                    .subscribe().with(
-                            v -> {
-                                int duration = batch.stream()
-                                        .mapToInt(PendingSongEntry::getDurationSeconds)
-                                        .sum();
+        Runnable task = () -> sendBatch(brandName, scene, batch, startIndex, cfg)
+                .subscribe().with(
+                        v -> {
+                            int duration = batch.stream()
+                                    .mapToInt(PendingSongEntry::getDurationSeconds)
+                                    .sum();
 
-                                scheduleNextBatch(
-                                        brandName,
-                                        scene,
-                                        startIndex + batch.size(),
-                                        startTime,
-                                        timelineSeconds + duration
-                                );
-                            },
-                            err -> LOGGER.errorf("Batch failed: %s", err.getMessage())
-                    );
-        });
+                            scheduleNextBatch(
+                                    brandName,
+                                    scene,
+                                    startIndex + batch.size(),
+                                    startTime,
+                                    timelineSeconds + duration
+                            );
+                        },
+                        err -> LOGGER.errorf("Batch failed: %s", err.getMessage())
+                );
+
+        vertx.setTimer(delay, id -> task.run());
     }
 
     private Uni<Void> sendBatch(String brandName,
@@ -162,7 +161,6 @@ public class StaggeredSongScheduler {
 
                     for (int i = 0; i < songs.size(); i++) {
                         PendingSongEntry s = songs.get(i);
-
                         IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
 
                         if (intro != null) {
