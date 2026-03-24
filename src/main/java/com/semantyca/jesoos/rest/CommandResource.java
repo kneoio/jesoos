@@ -25,6 +25,7 @@ public class CommandResource {
         String path = "/jesoos";
         
         router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
+        router.route(HttpMethod.POST, path + "/stop-all").handler(this::handleStopAllCommand);
         router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
     }
     
@@ -133,6 +134,29 @@ public class CommandResource {
                                     .end(response.encode());
                         },
                         failure -> handleCommandFailure(rc, brand, "disable DJ", failure)
+                );
+    }
+
+    private void handleStopAllCommand(RoutingContext rc) {
+        commandService.stopAllBrands()
+                .subscribe()
+                .with(
+                        response -> {
+                            LOGGER.infof("Stop-all command executed");
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        failure -> {
+                            LOGGER.error("Failed to execute stop-all command", failure);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject()
+                                            .put("error", "Failed to stop all brands: " + failure.getMessage())
+                                            .encode());
+                        }
                 );
     }
 

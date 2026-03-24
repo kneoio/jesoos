@@ -25,6 +25,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
@@ -153,6 +154,9 @@ public class StaggeredSongScheduler {
                         "sceneId", scene.getSceneId().toString(),
                         "startIndex", String.valueOf(startIndex),
                         "targetTime", String.valueOf(targetTime),
+                        "targetTimeReadable", DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+                                .format(java.time.Instant.ofEpochMilli(targetTime)
+                                        .atZone(ZoneId.systemDefault())),
                         "delayMs", String.valueOf(delay),
                         "timelineSeconds", String.valueOf(timelineSeconds)
                 ),

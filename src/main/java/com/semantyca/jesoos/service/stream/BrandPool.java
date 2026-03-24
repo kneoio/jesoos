@@ -56,14 +56,15 @@ public class BrandPool {
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(bn -> {
-                    ILiveAgenda stationAlreadyActive = pool.get(bn);
-                    if (stationAlreadyActive != null &&
-                            (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
-                                    stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
-                        LOGGER.infof("Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
-                        return Uni.createFrom().item(stationAlreadyActive);
+                    ILiveAgenda existingStation = pool.get(bn);
+                    if (existingStation != null) {
+                        // Station already exists - ignore duplicate request
+                        LOGGER.infof("Stream {} already exists in pool (status: {}). Ignoring duplicate start request.", 
+                            bn, existingStation.getStatus());
+                        return Uni.createFrom().item(existingStation);
                     }
 
+                    // No existing station - create new one
                     return brandService.getBySlugName(bn)
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
@@ -72,27 +73,17 @@ public class BrandPool {
                                     return Uni.createFrom().failure(new RuntimeException("Station not found: " + bn));
                                 }
 
-                                ILiveAgenda finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
-                                    if (currentInPool != null &&
-                                            (currentInPool.getStatus() == StreamStatus.ON_LINE ||
-                                                    currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
-                                        LOGGER.infof("Radio stream {} is active in pool. Using that instance.", key);
-                                        return currentInPool;
-                                    }
+                                RadioStream newStream = new RadioStream(brand);
+                                newStream.setStatus(StreamStatus.WARMING_UP);
+                                pool.put(bn, newStream);
 
-                                    return new RadioStream(brand);
-                                });
-
-                                if (finalStationToUse instanceof RadioStream radioStream && radioStream.getAgenda() == null) {
-                                    return streamAgendaService.buildAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
-                                            .invoke(schedule -> {
-                                                radioStream.setAgenda(schedule);
-                                                LOGGER.infof("BrandPool: Schedule set for '{}': {} scenes, {} songs",
-                                                        radioStream.getSlugName(),schedule.getTotalScenes(), schedule.getTotalSongs());
-                                            })
-                                            .map(schedule -> (ILiveAgenda) radioStream);
-                                }
-                                return Uni.createFrom().item(finalStationToUse);
+                                return streamAgendaService.buildAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
+                                        .invoke(schedule -> {
+                                            newStream.setAgenda(schedule);
+                                            LOGGER.infof("BrandPool: New station created for '{}': {} scenes, {} songs",
+                                                    newStream.getSlugName(),schedule.getTotalScenes(), schedule.getTotalSongs());
+                                        })
+                                        .map(schedule -> (ILiveAgenda) newStream);
                             });
                 })
                 .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_start", Map.of("status", agenda.getStatus().name())))
