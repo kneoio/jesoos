@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -36,10 +37,10 @@ public class StaggeredSongScheduler {
 
     private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
 
-    private static final int AIVOX_DELAY = 3;
     private static final int DEADLINE_SAFETY_MARGIN_SEC = 2;
 
     @Inject Vertx vertx;
+    @Inject JesoosConfig jesoosConfig;
     @Inject BrandPool brandPool;
     @Inject IntroTtsGenerator introTtsGenerator;
     @Inject QueueSupplier queueSupplier;
@@ -56,7 +57,7 @@ public class StaggeredSongScheduler {
         }
 
         long startTime = System.currentTimeMillis();
-        scheduleNextBatch(brandName, scene, 0, startTime, AIVOX_DELAY);
+        scheduleNextBatch(brandName, scene, 0, startTime, jesoosConfig.getAivoxDelaySeconds());
     }
 
     private void scheduleNextBatch(String brandName,
@@ -140,7 +141,7 @@ public class StaggeredSongScheduler {
                 .toList();
 
         long targetTime = Math.min(
-                startTime + (timelineSeconds * 1000L) - (AIVOX_DELAY * 1000L),
+                startTime + (timelineSeconds * 1000L) - (jesoosConfig.getAivoxDelaySeconds() * 1000L),
                 deadline
         );
 

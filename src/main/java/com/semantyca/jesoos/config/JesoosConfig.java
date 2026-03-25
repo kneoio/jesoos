@@ -116,4 +116,8 @@ public interface JesoosConfig {
     @WithDefault("noreply@mixpla.io")
     String getFromAddress();
 
+    @WithName("aivox-delay-seconds")
+    @WithDefault("3")
+    int getAivoxDelaySeconds();
+
 }
