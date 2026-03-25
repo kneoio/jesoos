@@ -159,7 +159,8 @@ public class StaggeredSongScheduler {
                                 .format(java.time.Instant.ofEpochMilli(targetTime)
                                         .atZone(ZoneId.systemDefault())),
                         "delayMs", String.valueOf(delay),
-                        "timelineSeconds", String.valueOf(timelineSeconds)
+                        "timelineSeconds", String.valueOf(timelineSeconds),
+                        "aivoxDelaySeconds", String.valueOf(jesoosConfig.getAivoxDelaySeconds())
                 ),
                 scene.getTraceId()
         );
