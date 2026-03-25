@@ -67,15 +67,9 @@ public abstract class ChatService {
     @Inject
     protected ChatRepository chatRepository;
     @Inject
-    protected ElevenLabsClient elevenLabsClient;
-    @Inject
     protected PerplexitySearchHelper perplexitySearchHelper;
     @Inject
     protected ChatSummaryService chatSummaryService;
-    @Inject
-    protected PromptService promptService;
-    @Inject
-    protected SoundFragmentService soundFragmentService;
 
     protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
@@ -106,7 +100,6 @@ public abstract class ChatService {
         }
     }
 
-    // Prompt getters to allow subclasses to override prompt sources
     protected String getMainPrompt() {
         return this.mainPrompt;
     }

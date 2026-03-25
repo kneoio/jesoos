@@ -41,11 +41,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     public void setupRoutes(Router router) {
-        String path = "/api/chat";
+        String path = "/jesoos/chat";
         router.route(path + "*").handler(BodyHandler.create());
         router.route(path + "*").handler(this::addHeaders);
         
-        router.route("/api/ws/public-chat").handler(rc -> {
+        router.route("/jesoos/ws/chat").handler(rc -> {
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
                 String token = rc.request().getParam("token");
                 LOG.info("WebSocket connection attempt with token: {}", token);
