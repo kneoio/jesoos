@@ -74,6 +74,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # TODO: replace with graceful rollout when stable
             kubectl rollout restart deployment/jesoos -n default
+            kubectl delete pod -n default -l app=jesoos --force --grace-period=0
             kubectl wait --for=condition=available deployment/jesoos -n default --timeout=120s
             sudo k3s crictl rmi --prune
