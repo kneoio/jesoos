@@ -76,4 +76,4 @@ jobs:
           script: |
             kubectl rollout restart deployment/jesoos -n default
             kubectl wait --for=condition=available deployment/jesoos -n default --timeout=120s
-            k3s crictl rmi --prune
+            sudo k3s crictl rmi --prune
