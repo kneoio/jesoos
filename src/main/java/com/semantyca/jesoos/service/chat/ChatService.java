@@ -4,27 +4,19 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.core.http.AsyncStreamResponse;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.RawContentBlockDelta;
-import com.anthropic.models.messages.RawMessageStreamEvent;
-import com.anthropic.models.messages.Tool;
-import com.anthropic.models.messages.ToolUseBlock;
+import com.anthropic.models.messages.*;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.agent.ElevenLabsClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
-import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
-import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.mixpla.model.brand.Brand;
@@ -32,6 +24,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,12 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -283,7 +271,7 @@ public abstract class ChatService {
                         }
 
                         @Override
-                        public void onComplete(Optional<Throwable> error) {
+                        public void onComplete(@NotNull Optional<Throwable> error) {
 
                             if (error.isPresent()) {
                                 completionHandler.accept(ChatMessageDTO.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());
@@ -399,7 +387,7 @@ public abstract class ChatService {
         
         MessageCreateParams.Builder builder = MessageCreateParams.builder()
                 .maxTokens(params.maxTokens())
-                .system(params.system().orElse(null))
+                .system(Objects.requireNonNull(params.system().orElse(null)))
                 .messages(params.messages())
                 .model(params.model());
         

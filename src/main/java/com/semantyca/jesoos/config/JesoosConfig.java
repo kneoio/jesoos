@@ -112,4 +112,8 @@ public interface JesoosConfig {
     @WithDefault("mp3_44100_128")
     String getElevenLabsOutputFormat();
 
+    @WithName("mailer.from-address")
+    @WithDefault("noreply@mixpla.io")
+    String getFromAddress();
+
 }

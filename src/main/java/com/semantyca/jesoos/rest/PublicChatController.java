@@ -5,6 +5,8 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.chat.AnonymousChatService;
+import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
@@ -26,18 +28,21 @@ import static java.util.UUID.randomUUID;
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
     private static final Logger LOG = LoggerFactory.getLogger(PublicChatController.class);
     private final PublicChatService publicChatService;
+    private final AnonymousChatService anonymousChatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
 
     public PublicChatController() {
         super(null);
         this.publicChatService = null;
+        this.anonymousChatService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, PublicChatService publicChatService) {
+    public PublicChatController(UserService userService, PublicChatService publicChatService, AnonymousChatService anonymousChatService) {
         super(userService);
         this.publicChatService = publicChatService;
+        this.anonymousChatService = anonymousChatService;
     }
 
     public void setupRoutes(Router router) {
@@ -136,12 +141,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             return;
         }
 
-        assert publicChatService != null;
+        ChatService chatService = getChatServiceForUser(user);
         
         Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
         
         Uni<Void> ensureRegistration;
-        if (!registeredStations.contains(brandSlug)) {
+        if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
             ensureRegistration = publicChatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
                     .invoke(() -> registeredStations.add(brandSlug));
         } else {
@@ -149,7 +154,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
         
         ensureRegistration
-                .chain(() -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
+                .chain(() -> chatService.processUserMessage(username, content, connectionId, brandSlug, user))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
@@ -164,8 +169,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
                                 String brandSlug, IUser user) {
-        assert publicChatService != null;
-        publicChatService.generateBotResponse(
+        ChatService chatService = getChatServiceForUser(user);
+        chatService.generateBotResponse(
                 userMessage,
                 webSocket::writeTextMessage,
                 webSocket::writeTextMessage,
@@ -185,8 +190,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         String brandSlug = msgJson.getString("brandSlug");
         Integer limit = msgJson.getInteger("limit", 50);
 
-        assert publicChatService != null;
-        publicChatService.getChatHistory(brandSlug, limit, user)
+        ChatService chatService = getChatServiceForUser(user);
+        chatService.getChatHistory(brandSlug, limit, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {
@@ -194,6 +199,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                             sendError(webSocket, err);
                         }
                 );
+    }
+
+    private ChatService getChatServiceForUser(IUser user) {
+        return isAnonymous(user) ? anonymousChatService : publicChatService;
+    }
+
+    private boolean isAnonymous(IUser user) {
+        return user instanceof AnonymousUser || user.getId() == 0;
     }
 
     private void sendError(ServerWebSocket webSocket, Throwable err) {

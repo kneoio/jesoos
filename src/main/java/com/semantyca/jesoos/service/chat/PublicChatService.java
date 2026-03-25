@@ -30,8 +30,11 @@ import com.semantyca.jesoos.service.chat.tools.PerplexitySearchTool;
 import com.semantyca.jesoos.service.chat.tools.PerplexitySearchToolHandler;
 import com.semantyca.jesoos.service.chat.tools.SearchBrandSoundFragments;
 import com.semantyca.jesoos.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
+import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerTool;
+import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerToolHandler;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.officeframe.service.LabelService;
+import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -76,6 +79,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     LabelService labelService;
+
+    @Inject
+    ReactiveMailer reactiveMailer;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String userName) {
 
@@ -176,7 +182,8 @@ public class PublicChatService extends ChatService {
                 AddToQueueTool.toTool(),
                 PerplexitySearchTool.toTool(),
                 AudienceTool.toTool(),
-                ListenerDataTool.toTool()
+                ListenerDataTool.toTool(),
+                SendEmailToOwnerTool.toTool()
         );
     }
 
@@ -216,11 +223,6 @@ public class PublicChatService extends ChatService {
             return SearchBrandSoundFragmentsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-     /*   } else if ("add_to_queue".equals(toolUse.name())) {
-            String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
-            return AddToQueueToolHandler.handle(
-                    toolUse, inputMap, queueService, aiHelperService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
-            );*/
         } else if ("perplexity_search".equals(toolUse.name())) {
             return PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
@@ -233,10 +235,10 @@ public class PublicChatService extends ChatService {
             return ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, labelService, brandName, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        /*} else if ("send_email_to_owner".equals(toolUse.name())) {
+        } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(
-                    toolUse, inputMap, brandService, userService, reactiveMailer, fromAddress, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
-            );*/
+                    toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         }
