@@ -1,5 +1,5 @@
 package com.semantyca.jesoos.service.stream;
 
-public enum FireReason {
-    ON_TIME, REBOOT;
+public enum TriggerContext {
+    ON_TIME, LATE;
 }

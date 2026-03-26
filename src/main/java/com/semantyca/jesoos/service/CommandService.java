@@ -1,9 +1,9 @@
 package com.semantyca.jesoos.service;
 
-import com.semantyca.jesoos.model.stream.ILiveAgenda;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.service.stream.BrandPool;
 import com.semantyca.jesoos.service.stream.DjStateService;
-import com.semantyca.jesoos.service.stream.StreamAgendaService;
+import com.semantyca.jesoos.service.stream.AgendaService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,7 +15,7 @@ public class CommandService {
 
     private static final Logger LOGGER = Logger.getLogger(CommandService.class);
 
-    private final StreamAgendaService streamAgendaService;
+    private final AgendaService agendaService;
     
     @Inject
     DjStateService djStateService;
@@ -24,8 +24,8 @@ public class CommandService {
     BrandPool brandPool;
 
     @Inject
-    public CommandService(StreamAgendaService streamAgendaService) {
-        this.streamAgendaService = streamAgendaService;
+    public CommandService(AgendaService agendaService) {
+        this.agendaService = agendaService;
     }
 
     public Uni<JsonObject> startBrand(String brand) {
@@ -33,9 +33,9 @@ public class CommandService {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
 
-        return streamAgendaService.buildAgenda(brand)
+        return brandPool.getRadioStream(brand)
                 .map(this::toResponse)
-                .invoke(response -> LOGGER.infof("Built agenda for brand %s", brand));
+                .invoke(response -> LOGGER.infof("Start brand %s", brand));
     }
 
     public Uni<JsonObject> enableDj(String brand) {
@@ -122,7 +122,7 @@ public class CommandService {
         });
     }
 
-    private JsonObject toResponse(ILiveAgenda agendaHolder) {
+    private JsonObject toResponse(ILiveStream agendaHolder) {
         if (agendaHolder == null || agendaHolder.getAgenda() == null) {
             throw new IllegalStateException("Agenda was not created");
         }

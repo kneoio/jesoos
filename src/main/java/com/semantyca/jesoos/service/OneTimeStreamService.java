@@ -14,7 +14,7 @@ import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.repository.ScriptRepository;
 import com.semantyca.jesoos.repository.brand.BrandRepository;
 import com.semantyca.jesoos.service.stream.BrandPool;
-import com.semantyca.jesoos.service.stream.StreamAgendaService;
+import com.semantyca.jesoos.service.stream.AgendaService;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
@@ -54,43 +54,7 @@ public class OneTimeStreamService {
     BrandService brandService;
 
     @Inject
-    StreamAgendaService streamAgendaService;
-
-
-    public Uni<OneTimeStreamRunReqDTO> populateFromSlugName(OneTimeStreamRunReqDTO dto, IUser user) {
-        if (dto.getSlugName() == null || dto.getSlugName().isEmpty()) {
-            return Uni.createFrom().item(dto);
-        }
-
-        return brandService.getBySlugName(dto.getSlugName())
-                .chain(brand -> {
-                    if (brand == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + dto.getSlugName()));
-                    }
-
-                    dto.setBaseBrandId(brand.getId());
-                    dto.setAiAgentId(brand.getAiAgentId());
-
-                    return scriptRepository.findById(dto.getScriptId(), user, false)
-                            .chain(script -> {
-                                if (script == null) {
-                                    return Uni.createFrom().failure(new IllegalArgumentException("Script not found"));
-                                }
-
-                                dto.setProfileId(script.getDefaultProfileId());
-
-                                if (dto.getSchedule() == null) {
-                                    return streamAgendaService.getStreamScheduleDTO(brand.getId(), script.getId(), user)
-                                            .map(schedule -> {
-                                                dto.setSchedule(schedule);
-                                                return dto;
-                                            });
-                                }
-
-                                return Uni.createFrom().item(dto);
-                            });
-                });
-    }
+    AgendaService agendaService;
 
     public Uni<List<OneTimeStreamDTO>> getAll(int limit, int offset) {
         return oneTimeStreamRepository.getAll(limit, offset)
@@ -136,7 +100,6 @@ public class OneTimeStreamService {
         dto.setLocalizedName(doc.getLocalizedName());
         dto.setTimeZone(doc.getTimeZone() != null ? doc.getTimeZone().getId() : null);
         dto.setBitRate(doc.getBitRate());
-        dto.setStreamSchedule(streamAgendaService.toScheduleDTO(doc.getAgenda()));
         dto.setCreatedAt(doc.getCreatedAt());
         dto.setExpiresAt(doc.getExpiresAt());
         try {
@@ -153,33 +116,6 @@ public class OneTimeStreamService {
                 .onItem().invoke(liveStatus -> dto.setStatus(liveStatus.getStatus()))
                 .replaceWith(dto);
     }
-
-    public Uni<OneTimeStream> start(OneTimeStream stream) {
-        LOGGER.info("OneTimeStream: Initializing stream slugName={}", stream.getSlugName());
-        String streamSlugName = stream.getSlugName();
-        return brandPool.initializeStream(stream)
-                .onFailure().invoke(failure -> {
-                    LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
-                    brandPool.get(streamSlugName)
-                            .subscribe().with(
-                                    station -> {
-                                        if (station != null) {
-                                            station.setStatus(StreamStatus.SYSTEM_ERROR);
-                                            LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
-                                        }
-                                    },
-                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
-                            );
-                })
-                .invoke(liveStream -> {
-                    if (liveStream != null) {
-                        stream.setStatus(liveStream.getStatus());
-                    }
-                })
-                .replaceWith(stream);
-    }
-
-
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {
         return oneTimeStreamRepository.getBySlugName(slugName);

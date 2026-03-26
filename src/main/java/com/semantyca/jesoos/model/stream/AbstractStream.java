@@ -27,7 +27,7 @@ import java.util.UUID;
 
 @Setter
 @Getter
-public abstract class AbstractStream implements IStream, ILiveAgenda {
+public abstract class AbstractStream implements IStream, ILiveStream {
     protected UUID id;
     protected Brand masterBrand;
     protected String slugName;

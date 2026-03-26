@@ -34,9 +34,7 @@ import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 
 @ApplicationScoped
 public class StaggeredSongScheduler {
-
     private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
-
     private static final int DEADLINE_SAFETY_MARGIN_SEC = 2;
 
     @Inject Vertx vertx;
@@ -77,22 +75,6 @@ public class StaggeredSongScheduler {
 
         long remainingMs = deadline - now;
         long safetyMarginMs = DEADLINE_SAFETY_MARGIN_SEC * 1000L;
-
-       /* if (remainingMs <= safetyMarginMs) {
-            scenePool.removeScene(brandName);
-            jinglePlaybackHandler.clearScene(scene.getSceneId());
-            metricPublisher.publishMetric(
-                    brandName,
-                    MetricEventType.WARNING,
-                    "safety_margin_situation",
-                    Map.of(
-                            "sceneId", scene.getSceneId().toString(),
-                            "safety margin values", remainingMs + "<=" + safetyMarginMs
-                            ),
-                    scene.getTraceId()
-            );
-            return;
-        }*/
 
         if (startIndex >= allSongs.size()) {
             scenePool.removeScene(brandName);

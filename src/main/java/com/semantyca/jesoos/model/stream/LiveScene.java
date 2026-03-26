@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.jesoos.service.stream.FireReason;
+import com.semantyca.jesoos.service.stream.TriggerContext;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
@@ -51,7 +51,7 @@ public class LiveScene {
     @Setter
     private LocalDateTime lastRunDate;
     @Setter
-    private FireReason fireReason;
+    private TriggerContext triggerContext;
     @Setter
     private UUID traceId;
 
