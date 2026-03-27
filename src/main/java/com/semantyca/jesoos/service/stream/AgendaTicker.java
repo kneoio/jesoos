@@ -45,10 +45,7 @@ public class AgendaTicker {
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
 
-                LocalTime nextSceneStartTime = null;
-                if (i < scenes.size() - 1) {
-                    nextSceneStartTime = scenes.get(i + 1).getOriginalStartTime();
-                }
+                LocalTime nextSceneStartTime = scenes.get((i + 1) % scenes.size()).getOriginalStartTime();
 
                 boolean isActive = scene.isActiveAt(nowTime, nextSceneStartTime);
 
