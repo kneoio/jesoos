@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -24,9 +25,8 @@ public class LiveScene {
     private final LocalDateTime scheduledStartTime;
     private final int durationSeconds;
     private final double dayPercentage;
-    private final List<PendingSongEntry> songs;
+    private final List<SongEntry> songs;
     private final LocalTime originalStartTime;
-    private final LocalTime originalEndTime;
     private final WayOfSourcing sourcing;
     private final String playlistTitle;
     private final String artist;
@@ -41,6 +41,10 @@ public class LiveScene {
     private final double talkativity;
     private final List<ScenePrompt> introPrompts;
     @Setter
+    private ZoneId timeZone;
+    @Setter
+    private UUID agentId;
+    @Setter
     private LocalDateTime sentToQueueAt;
     @Setter
     private GeneratedContentStatus generatedContentStatus;
@@ -54,6 +58,8 @@ public class LiveScene {
     private TriggerContext triggerContext;
     @Setter
     private UUID traceId;
+    @Setter
+    private List<TimelineEntry> timeline;
 
     public LiveScene(Scene scene, LocalDateTime scheduledStartTime) {
         this.sceneId = scene.getId();
@@ -63,7 +69,6 @@ public class LiveScene {
         this.dayPercentage = this.durationSeconds / 86400.0;
         this.songs = new ArrayList<>();
         this.originalStartTime = (scene.getStartTime() != null && !scene.getStartTime().isEmpty()) ? scene.getStartTime().get(0) : null;
-        this.originalEndTime = null;
 
         PlaylistRequest pr = scene.getPlaylistRequest();
         if (pr != null) {
@@ -97,7 +102,7 @@ public class LiveScene {
     }
 
     public LiveScene(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
-                     LocalTime originalStartTime, LocalTime originalEndTime,
+                     LocalTime originalStartTime,
                      WayOfSourcing sourcing, String playlistTitle, String artist,
                      List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
                      List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments,
@@ -110,7 +115,6 @@ public class LiveScene {
         this.dayPercentage = this.durationSeconds / 86400.0;
         this.songs = new ArrayList<>();
         this.originalStartTime = originalStartTime;
-        this.originalEndTime = originalEndTime;
         this.sourcing = sourcing;
         this.playlistTitle = playlistTitle;
         this.artist = artist;
@@ -126,7 +130,7 @@ public class LiveScene {
         this.introPrompts = introPrompts;
     }
 
-    public void addSong(PendingSongEntry song) {
+    public void addSong(SongEntry song) {
         this.songs.add(song);
     }
 
@@ -139,19 +143,14 @@ public class LiveScene {
             return false;
         }
         
-        LocalTime effectiveEndTime = originalEndTime;
-        if (effectiveEndTime == null) {
-            effectiveEndTime = nextSceneStartTime;
-        }
-        
-        if (effectiveEndTime == null) {
+        if (nextSceneStartTime == null) {
             return !time.isBefore(originalStartTime);
         }
         
-        if (effectiveEndTime.isAfter(originalStartTime)) {
-            return !time.isBefore(originalStartTime) && time.isBefore(effectiveEndTime);
+        if (nextSceneStartTime.isAfter(originalStartTime)) {
+            return !time.isBefore(originalStartTime) && time.isBefore(nextSceneStartTime);
         } else {
-            return !time.isBefore(originalStartTime) || time.isBefore(effectiveEndTime);
+            return !time.isBefore(originalStartTime) || time.isBefore(nextSceneStartTime);
         }
     }
 }

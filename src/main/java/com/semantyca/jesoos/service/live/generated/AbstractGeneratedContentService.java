@@ -18,7 +18,7 @@ import com.semantyca.jesoos.agent.TextToSpeechClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.model.stream.LiveScene;
-import com.semantyca.jesoos.model.stream.PendingSongEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.PromptService;
@@ -34,7 +34,6 @@ import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
-import com.semantyca.mixpla.service.exceptions.AudioMergeException;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logging.Logger;
 
@@ -117,7 +116,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         LOGGER.infof("Reusing existing fragment {} for prompt {}", existingFragment.getId(), promptId);
                         if (activeEntry != null) {
                             LocalDateTime scheduledTime = activeEntry.getScheduledStartTime();
-                            PendingSongEntry entry = new PendingSongEntry(existingFragment, 1);
+                            SongEntry entry = new SongEntry(existingFragment, 1);
                             activeEntry.addSong(entry);
                         }
                         return Uni.createFrom().item(existingFragment);
@@ -355,7 +354,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         fragment.setSlugName(savedDto.getSlugName());
 
                         if (activeEntry != null) {
-                            PendingSongEntry entry = new PendingSongEntry(fragment, 1);
+                            SongEntry entry = new SongEntry(fragment, 1);
                             activeEntry.addSong(entry);
                             activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
                         }

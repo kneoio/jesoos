@@ -2,16 +2,22 @@ package com.semantyca.jesoos.service.stream;
 
 import com.semantyca.mixpla.model.cnst.MergingType;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.Random;
 
 @ApplicationScoped
-public class MixingTypeShuffeler {
+public class MixingTypeShuffler {
 
-    public MixingStrategy selectStrategy(int availableSongCount, boolean hasIntros) {
-        if (availableSongCount == 0) {
-            throw new IllegalArgumentException("Cannot select merging type for 0 songs");
+    public record MixingStrategy(MergingType mergingType, int songsQuantity, boolean needsIntros) {
+    }
+
+    public MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity) {
+        boolean shouldPlayJingle = shouldPlayJingle(talkativity);
+
+        if (shouldPlayJingle) {
+            return new MixingStrategy(MergingType.FILLER_JINGLE, 1, false);
         }
 
-        if (!hasIntros) {
+        if (!allowIntros) {
             MergingType type = availableSongCount >= 2 ? MergingType.SONG_CROSSFADE_SONG : MergingType.SONG_ONLY;
             int batchSize = availableSongCount >= 2 ? 2 : 1;
             return new MixingStrategy(type, batchSize, false);
@@ -34,10 +40,13 @@ public class MixingTypeShuffeler {
         }
     }
 
-    private boolean needsIntros(MergingType mergingType) {
-        return mergingType != MergingType.SONG_ONLY && mergingType != MergingType.SONG_CROSSFADE_SONG;
+    private static boolean shouldPlayJingle(double talkativity) {
+        double jingleProbability = 1.0 - talkativity;
+        double randomValue = new Random().nextDouble();
+        return randomValue < jingleProbability;
     }
 
-    public record MixingStrategy(MergingType mergingType, int batchSize, boolean needsIntros) {
+    private boolean needsIntros(MergingType mergingType) {
+        return mergingType != MergingType.SONG_ONLY && mergingType != MergingType.SONG_CROSSFADE_SONG;
     }
 }

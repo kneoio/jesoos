@@ -41,44 +41,6 @@ public class RadioStream extends AbstractStream {
         this.scripts = brand.getScripts();
     }
 
-    public LiveScene findActiveScene(int prepareMinutesInAdvance) {
-        if (agenda == null) {
-            LOGGER.warn("Station '{}': No stream schedule available", slugName);
-            return null;
-        }
-
-        LocalTime now = LocalTime.now(timeZone);
-        LocalDateTime nowDateTime = LocalDateTime.now(timeZone);
-        List<LiveScene> scenes = agenda.getLiveScenes();
-        
-        LOGGER.debug("Station '{}': Checking {} scenes at time {}", slugName, scenes.size(), now);
-        
-        for (int i = 0; i < scenes.size(); i++) {
-            LiveScene entry = scenes.get(i);
-            LiveScene nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
-            
-            LOGGER.debug("Station '{}': Checking scene '{}' with originalStartTime={}, originalEndTime={}", 
-                    slugName, entry.getSceneTitle(), entry.getOriginalStartTime(), entry.getOriginalEndTime());
-            
-            if (entry.isOneTimeRun() && entry.getLastRunDate() != null) {
-                if (entry.getLastRunDate().toLocalDate().equals(nowDateTime.toLocalDate())) {
-                    LOGGER.debug("Station '{}': Skipping one-time scene '{}' - already ran today at {}",
-                            slugName, entry.getSceneTitle(), entry.getLastRunDate());
-                    continue;
-                }
-            }
-            
-            if (entry.isActiveAt(now, nextEntry != null ? nextEntry.getOriginalStartTime() : null)) {
-                LOGGER.debug("Station '{}': Scene '{}' is active at time {}",
-                        slugName, entry.getSceneTitle(), now);
-                return entry;
-            }
-        }
-
-        LOGGER.info("Station '{}': No active scene found at {}. Schedule may need refresh.", slugName, now);
-        return null;
-    }
-
     @Override
     public String toString() {
         return String.format("RadioStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, masterBrand.getSlugName());

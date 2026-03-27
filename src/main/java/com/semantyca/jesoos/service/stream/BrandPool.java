@@ -27,12 +27,15 @@ public class BrandPool {
     private final BrandService brandService;
     private final AgendaService agendaService;
     private final MetricPublisher metricPublisher;
+    private final StaggeredSongScheduler staggeredSongScheduler;
+
 
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher) {
+    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, StaggeredSongScheduler staggeredSongScheduler) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;
+        this.staggeredSongScheduler = staggeredSongScheduler;
     }
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
@@ -62,8 +65,7 @@ public class BrandPool {
                                 return agendaService.getStreamAgenda(brand, SuperUser.build())
                                         .invoke(schedule -> {
                                             newStream.setAgenda(schedule);
-                                            LOGGER.infof("BrandPool: New station created for '{}': {} scenes, {} songs",
-                                                    newStream.getSlugName(), schedule.getTotalScenes(), schedule.getTotalSongs());
+                                            LOGGER.infof("BrandPool: Station '{}' created with {} scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
                                         .map(schedule -> (ILiveStream) newStream);
                             });
@@ -104,6 +106,7 @@ public class BrandPool {
         ILiveStream liveAgenda = pool.remove(brandName);
 
         if (liveAgenda != null) {
+            staggeredSongScheduler.cancelAll(brandName);  // add this
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             return Uni.createFrom().item(liveAgenda);
@@ -112,6 +115,4 @@ public class BrandPool {
             return Uni.createFrom().nullItem();
         }
     }
-
-
 }

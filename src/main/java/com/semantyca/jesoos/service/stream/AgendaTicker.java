@@ -19,17 +19,14 @@ import java.util.Map;
 @ApplicationScoped
 public class AgendaTicker {
     private static final Logger LOGGER = Logger.getLogger(AgendaTicker.class);
-
     private final BrandPool brandPool;
     private final ScenePool scenePool;
-    private final StaggeredSongScheduler staggeredSongScheduler;
     private final MetricPublisher metricPublisher;
 
     @Inject
-    public AgendaTicker(BrandPool brandPool, ScenePool scenePool, StaggeredSongScheduler staggeredSongScheduler, MetricPublisher metricPublisher) {
+    public AgendaTicker(BrandPool brandPool, ScenePool scenePool, MetricPublisher metricPublisher) {
         this.brandPool = brandPool;
         this.scenePool = scenePool;
-        this.staggeredSongScheduler = staggeredSongScheduler;
         this.metricPublisher = metricPublisher;
     }
 
@@ -43,17 +40,10 @@ public class AgendaTicker {
             LocalTime nowTime = nowDateTime.toLocalTime();
 
             List<LiveScene> scenes = agenda.getLiveScenes();
+            LiveScene activeSceneFound = null;
+            
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
-
-                if (scene.getSentToQueueAt() != null) {
-                    if (scene.getSentToQueueAt().toLocalDate().equals(nowDateTime.toLocalDate())) {
-                        LOGGER.debugf("Skipping scene '%s' - already sent to queue today at %s",
-                                scene.getSceneTitle(), scene.getSentToQueueAt());
-                        continue;
-                    }
-                }
-
                 if (scene.isOneTimeRun() && scene.getLastRunDate() != null) {
                     if (scene.getLastRunDate().toLocalDate().equals(nowDateTime.toLocalDate())) {
                         LOGGER.debugf("Skipping one-time scene '%s' - already ran today at %s",
@@ -71,10 +61,30 @@ public class AgendaTicker {
 
                 if (!isActive) continue;
 
-                LOGGER.infof("Checking: %s, start: %s", scene.getSceneTitle(), scene.getOriginalStartTime());
+                activeSceneFound = scene;
+                
+                LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
+                if (currentActiveScene != null && currentActiveScene.getSceneId().equals(scene.getSceneId())) {
+                    LOGGER.debugf("Scene '%s' is already active for brand: %s",
+                            scene.getSceneTitle(), brandSlug);
+                    continue;
+                }
+
+                LOGGER.infof("Active scene found: %s, start: %s", scene.getSceneTitle(), scene.getOriginalStartTime());
                 long lagSeconds = calculateLagSeconds(nowTime, scene.getOriginalStartTime());
                 TriggerContext triggerContext = lagSeconds < 30 ? TriggerContext.ON_TIME : TriggerContext.LATE;
                 processScene(brandSlug, scene, triggerContext);
+            }
+            
+            LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
+            if (currentActiveScene != null && activeSceneFound == null) {
+                LOGGER.infof("No active scene found for brand: %s, removing scene '%s' from pool",
+                        brandSlug, currentActiveScene.getSceneTitle());
+                scenePool.removeActiveScene(brandSlug);
+            } else if (currentActiveScene != null && !currentActiveScene.getSceneId().equals(activeSceneFound.getSceneId())) {
+                LOGGER.infof("Active scene changed for brand: %s, removing old scene '%s' from pool",
+                        brandSlug, currentActiveScene.getSceneTitle());
+                scenePool.removeActiveScene(brandSlug);
             }
         });
     }
@@ -91,14 +101,13 @@ public class AgendaTicker {
     }
 
     private void processScene(String brand, LiveScene scene, TriggerContext triggerContext) {
-        scene.setSentToQueueAt(LocalDateTime.now());
         scene.setTriggerContext(triggerContext);
 
         LOGGER.infof("Processing scene '%s' for brand: %s, triggerContext: %s, traceId: {}",
                 scene.getSceneTitle(), brand, triggerContext, scene.getTraceId());
 
         metricPublisher.publishMetric(brand, MetricEventType.INFORMATION,
-                "scene_processing_started",
+                "scene_started",
                 Map.of(
                     "scene", scene.getSceneTitle(),
                     "sceneId", scene.getSceneId().toString(),
@@ -106,10 +115,8 @@ public class AgendaTicker {
                     "songCount", scene.getSongs().size()
                 ), scene.getTraceId());
 
-        scenePool.addScene(brand, scene);
-        LOGGER.infof("Added scene '%s' to ScenePool for brand: %s (contains %d songs), traceId: {}",
+        scenePool.setActiveScene(brand, scene);
+        LOGGER.infof("Set active scene '%s' for brand: %s (contains %d songs), traceId: {}",
                 scene.getSceneTitle(), brand, scene.getSongs().size(), scene.getTraceId());
-
-        staggeredSongScheduler.scheduleSceneSongs(brand, scene);
     }
 }

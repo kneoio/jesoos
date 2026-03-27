@@ -29,7 +29,6 @@ public class StreamScheduleDTO {
         private List<ScheduledSongDTO> songs;
 
         private LocalTime originalStartTime;
-        private LocalTime originalEndTime;
         private ScenePlaylistRequest playlistRequest;
         private String warning;
     }

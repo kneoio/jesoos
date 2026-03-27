@@ -3,7 +3,6 @@ package com.semantyca.jesoos.service;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.service.stream.BrandPool;
 import com.semantyca.jesoos.service.stream.DjStateService;
-import com.semantyca.jesoos.service.stream.AgendaService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,20 +11,14 @@ import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class CommandService {
-
     private static final Logger LOGGER = Logger.getLogger(CommandService.class);
-
-    private final AgendaService agendaService;
-    
-    @Inject
-    DjStateService djStateService;
+    private final DjStateService djStateService;
+    private final BrandPool brandPool;
 
     @Inject
-    BrandPool brandPool;
-
-    @Inject
-    public CommandService(AgendaService agendaService) {
-        this.agendaService = agendaService;
+    public CommandService(DjStateService djStateService, BrandPool brandPool) {
+        this.djStateService = djStateService;
+        this.brandPool = brandPool;
     }
 
     public Uni<JsonObject> startBrand(String brand) {

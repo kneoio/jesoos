@@ -3,12 +3,11 @@ package com.semantyca.jesoos.service;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.dto.radiostation.OneTimeStreamRunReqDTO;
 import com.semantyca.jesoos.dto.stream.OneTimeStreamDTO;
 import com.semantyca.jesoos.dto.stream.StreamScheduleDTO;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
-import com.semantyca.jesoos.model.stream.PendingSongEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.repository.ScriptRepository;
@@ -17,7 +16,6 @@ import com.semantyca.jesoos.service.stream.BrandPool;
 import com.semantyca.jesoos.service.stream.AgendaService;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
-import com.semantyca.mixpla.model.cnst.StreamStatus;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Uni;
@@ -155,7 +153,6 @@ public class OneTimeStreamService {
                 dto.getScheduledStartTime(),
                 dto.getDurationSeconds(),
                 dto.getOriginalStartTime(),
-                dto.getOriginalEndTime(),
                 request != null && request.getSourcing() != null ? WayOfSourcing.valueOf(request.getSourcing()) : null,
                 request != null ? request.getPlaylistTitle() : null,
                 request != null ? request.getArtist() : null,
@@ -178,12 +175,12 @@ public class OneTimeStreamService {
         return entry;
     }
 
-    private PendingSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
+    private SongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
         SoundFragment soundFragment = new SoundFragment();
         soundFragment.setId(UUID.fromString(dto.getSongId()));
         soundFragment.setTitle(dto.getTitle());
         soundFragment.setArtist(dto.getArtist());
-        return new PendingSongEntry(
+        return new SongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
                 dto.getSequenceNumber(),

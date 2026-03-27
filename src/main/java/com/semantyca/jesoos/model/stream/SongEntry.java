@@ -6,13 +6,13 @@ import lombok.Getter;
 import java.util.UUID;
 
 @Getter
-public class PendingSongEntry {
+public class SongEntry {
     private final UUID id;
     private final SoundFragment soundFragment;
     private final int sequenceNumber;
     private final int durationSeconds;
 
-    public PendingSongEntry(SoundFragment soundFragment, int sequenceNumber) {
+    public SongEntry(SoundFragment soundFragment, int sequenceNumber) {
         this.id = UUID.randomUUID();
         this.soundFragment = soundFragment;
         this.sequenceNumber = sequenceNumber;
@@ -21,7 +21,7 @@ public class PendingSongEntry {
             : 180;
     }
 
-    public PendingSongEntry(UUID id, SoundFragment soundFragment, int sequenceNumber, int durationSeconds) {
+    public SongEntry(UUID id, SoundFragment soundFragment, int sequenceNumber, int durationSeconds) {
         this.id = id;
         this.soundFragment = soundFragment;
         this.sequenceNumber = sequenceNumber;

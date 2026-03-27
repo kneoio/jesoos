@@ -2,8 +2,9 @@ package com.semantyca.jesoos.service.stream;
 
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.jesoos.model.stream.LiveScene;
-import com.semantyca.jesoos.model.stream.PendingSongEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
+import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.SceneService;
 import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.mixpla.model.PlaylistRequest;
@@ -38,14 +39,17 @@ public class AgendaService {
     private final ScriptService scriptService;
     private final  ScheduleSongSupplier scheduleSongSupplier;
     private final SceneService sceneService;
+    private final TimelineBuilder timelineBuilder;
 
     record SceneTimeSlot(Scene scene, LocalTime startTime) {}
 
     @Inject
-    public AgendaService(ScriptService scriptService, ScheduleSongSupplier scheduleSongSupplier, SceneService sceneService) {
+    public AgendaService(ScriptService scriptService, ScheduleSongSupplier scheduleSongSupplier, 
+                        SceneService sceneService, TimelineBuilder timelineBuilder) {
         this.scriptService = scriptService;
         this.scheduleSongSupplier = scheduleSongSupplier;
         this.sceneService = sceneService;
+        this.timelineBuilder = timelineBuilder;
     }
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, IUser user) {
@@ -91,7 +95,7 @@ public class AgendaService {
         }
 
         LocalDateTime todayAt6 = brandNow.toLocalDate().atTime(6, 0);
-        LocalDateTime broadcastDayStart = brandNow.isBefore(todayAt6) ? todayAt6 : todayAt6.plusDays(1);
+        LocalDateTime broadcastDayStart = brandNow.isBefore(todayAt6) ? todayAt6.minusDays(1) : todayAt6;
         LocalTime firstSceneTime = timeSlots.getFirst().startTime();
         LocalDateTime todayFirstScene = broadcastDayStart.toLocalDate().atTime(firstSceneTime);
         boolean nowIsBeforeFirstScene = brandNow.isBefore(todayFirstScene);
@@ -125,13 +129,12 @@ public class AgendaService {
                     fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
                             .map(songs -> {
                                 UUID traceId = UUID.randomUUID();
-                                LiveScene entry = new LiveScene(
+                                LiveScene liveScene = new LiveScene(
                                         scene.getId(),
                                         scene.getTitle(),
                                         capturedSceneStartTime,
                                         finalDurationSeconds,
                                         sceneOriginalStart,
-                                        sceneOriginalEnd,
                                         scene.getPlaylistRequest().getSourcing(),
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getTitle() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getArtist() : null,
@@ -146,22 +149,28 @@ public class AgendaService {
                                         scene.getTalkativity(),
                                         scene.getIntroPrompts()
                                 );
-                                entry.setTraceId(traceId);
+                                liveScene.setTraceId(traceId);
+                                liveScene.setTimeZone(brandZone);
+                                liveScene.setAgentId(sourceBrand.getAiAgentId());
                                 LOGGER.infof("Created LiveScene- brand: %s, scene: %s, traceId: %s, start: %s",
                                         sourceBrand.getSlugName(), scene.getTitle(), traceId, capturedSceneStartTime);
                                 int sequenceNumber = 0;
                                 for (SoundFragment song : songs) {
-                                    PendingSongEntry songEntry = new PendingSongEntry(song, sequenceNumber++);
-                                    entry.addSong(songEntry);
+                                    SongEntry songEntry = new SongEntry(song, sequenceNumber++);
+                                    liveScene.addSong(songEntry);
                                 }
-                                return entry;
+                                return liveScene;
                             })
             );
         }
 
         return Uni.join().all(sceneUnis).andFailFast()
                 .map(entries -> {
-                    entries.forEach(schedule::addScene);
+                    for (LiveScene entry : entries) {
+                        List<TimelineEntry> timeline = timelineBuilder.buildTimeline(entry);
+                        entry.setTimeline(timeline);
+                        schedule.addScene(entry);
+                    }
                     return schedule;
                 });
     }

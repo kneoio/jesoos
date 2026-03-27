@@ -1,7 +1,10 @@
 package com.semantyca.jesoos.rest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.service.CommandService;
-import com.semantyca.jesoos.service.stream.BrandPool;
+import com.semantyca.jesoos.service.stream.AgendaViewService;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -14,9 +17,11 @@ import org.jboss.logging.Logger;
 public class CommandResource {
     
     private static final Logger LOGGER = Logger.getLogger(CommandResource.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
 
     @Inject
-    BrandPool brandPool;
+    AgendaViewService agendaViewService;
 
     @Inject
     CommandService commandService;
@@ -31,31 +36,13 @@ public class CommandResource {
     
     private void getAgendas(RoutingContext rc) {
         rc.vertx().executeBlocking(() -> {
-            JsonObject agendasJson = new JsonObject();
-            brandPool.getOnlineStationsSnapshot().forEach(stream -> {
-                if (stream.getAgenda() != null) {
-                    String key = stream.getSlugName();
-                    var agenda = stream.getAgenda();
-                    JsonObject agendaJson = new JsonObject()
-                            .put("key", key)
-                            .put("createdAt", agenda.getCreatedAt().toString())
-                            .put("totalScenes", agenda.getLiveScenes().size())
-                            .put("scenes", agenda.getLiveScenes().stream().map(scene -> new JsonObject()
-                                    .put("id", scene.getSceneId().toString())
-                                    .put("title", scene.getSceneTitle())
-                                    .put("scheduledStartTime", scene.getScheduledStartTime().toString())
-                                    .put("durationSeconds", scene.getDurationSeconds())
-                                    .put("totalSongs", scene.getSongs().size())
-                            ).collect(java.util.stream.Collectors.toList()));
-                    agendasJson.put(key, agendaJson);
-                }
-            });
-            return agendasJson.encode();
-        }).onSuccess(encodedJson -> {
+            AgendasResponseDTO response = agendaViewService.getAllAgendas();
+            return OBJECT_MAPPER.writeValueAsString(response);
+        }).onSuccess(json -> {
             rc.response()
                     .setStatusCode(200)
                     .putHeader("Content-Type", "application/json")
-                    .end(encodedJson);
+                    .end(json);
         }).onFailure(err -> {
             LOGGER.error("Failed to get agendas", err);
             rc.response()
