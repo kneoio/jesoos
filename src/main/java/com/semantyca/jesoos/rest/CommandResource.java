@@ -29,9 +29,13 @@ public class CommandResource {
     public void setupRoutes(Router router) {
         String path = "/jesoos";
         
-        router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
+        router.route(HttpMethod.GET, path + "/:brand/dj-status").handler(this::getDjStatus);
         router.route(HttpMethod.POST, path + "/stop-all").handler(this::handleStopAllCommand);
         router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
+        router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
+        
+        LOGGER.infof("Registered Vert.x routes: GET %s/:brand/dj-status, POST %s/stop-all, GET %s/agendas, POST %s/:brand/:command", 
+                path, path, path, path);
     }
     
     private void getAgendas(RoutingContext rc) {
@@ -144,6 +148,22 @@ public class CommandResource {
                                             .put("error", "Failed to stop all brands: " + failure.getMessage())
                                             .encode());
                         }
+                );
+    }
+
+    private void getDjStatus(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        commandService.getDjStatus(brand)
+                .subscribe()
+                .with(
+                        djEnabled -> {
+                            LOGGER.infof("DJ status checked for brand: %s - %s", brand, djEnabled);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(String.valueOf(djEnabled));
+                        },
+                        failure -> handleCommandFailure(rc, brand, "get DJ status", failure)
                 );
     }
 

@@ -106,7 +106,7 @@ public class BrandPool {
         ILiveStream liveAgenda = pool.remove(brandName);
 
         if (liveAgenda != null) {
-            staggeredSongScheduler.cancelAll(brandName);  // add this
+            staggeredSongScheduler.cancelAll(brandName);
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             return Uni.createFrom().item(liveAgenda);

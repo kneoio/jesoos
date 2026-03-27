@@ -4,13 +4,12 @@ import com.semantyca.mixpla.model.cnst.MergingType;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Random;
 
-@ApplicationScoped
 public class MixingTypeShuffler {
 
     public record MixingStrategy(MergingType mergingType, int songsQuantity, boolean needsIntros) {
     }
 
-    public MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity) {
+    public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity) {
         boolean shouldPlayJingle = shouldPlayJingle(talkativity);
 
         if (shouldPlayJingle) {
@@ -46,7 +45,7 @@ public class MixingTypeShuffler {
         return randomValue < jingleProbability;
     }
 
-    private boolean needsIntros(MergingType mergingType) {
+    private static boolean needsIntros(MergingType mergingType) {
         return mergingType != MergingType.SONG_ONLY && mergingType != MergingType.SONG_CROSSFADE_SONG;
     }
 }

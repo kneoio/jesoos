@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TimelineEntryDTO {
-    
     private String id;
     private int sequenceNumber;
     private LocalDateTime scheduledEmissionTime;
@@ -34,5 +33,6 @@ public class TimelineEntryDTO {
         private String songTitle;
         private String artist;
         private int durationSeconds;
+        private String language;
     }
 }

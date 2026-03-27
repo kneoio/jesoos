@@ -36,15 +36,29 @@ public class CommandService {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
         
-        return Uni.createFrom().item(() -> {
-            djStateService.enableDj(brand);
-            LOGGER.infof("DJ enabled for brand: %s (listeners detected)", brand);
-            return new JsonObject()
-                    .put("success", true)
-                    .put("brand", brand)
-                    .put("djEnabled", true)
-                    .put("message", "DJ intros will be generated");
-        });
+        return brandPool.get(brand)
+                .chain(stream -> {
+                    if (stream == null) {
+                        LOGGER.infof("Brand %s not in pool, starting stream before enabling DJ", brand);
+                        return brandPool.getRadioStream(brand)
+                                .invoke(s -> {
+                                    djStateService.enableDj(brand);
+                                    LOGGER.infof("DJ enabled for brand: %s (stream started and DJ enabled)", brand);
+                                })
+                                .map(this::toResponse)
+                                .map(response -> response
+                                        .put("djEnabled", true)
+                                        .put("message", "Stream started and DJ intros will be generated"));
+                    } else {
+                        djStateService.enableDj(brand);
+                        LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
+                        return Uni.createFrom().item(new JsonObject()
+                                .put("success", true)
+                                .put("brand", brand)
+                                .put("djEnabled", true)
+                                .put("message", "DJ intros will be generated"));
+                    }
+                });
     }
 
     public Uni<JsonObject> disableDj(String brand) {
@@ -61,6 +75,14 @@ public class CommandService {
                     .put("djEnabled", false)
                     .put("message", "DJ intros disabled, songs only mode");
         });
+    }
+
+    public Uni<Boolean> getDjStatus(String brand) {
+        if (brand == null || brand.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
+        }
+        
+        return Uni.createFrom().item(() -> djStateService.isDjEnabled(brand));
     }
 
     public Uni<JsonObject> stopBrand(String brand) {

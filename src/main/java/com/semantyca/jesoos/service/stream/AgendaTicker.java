@@ -44,13 +44,6 @@ public class AgendaTicker {
             
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
-                if (scene.isOneTimeRun() && scene.getLastRunDate() != null) {
-                    if (scene.getLastRunDate().toLocalDate().equals(nowDateTime.toLocalDate())) {
-                        LOGGER.debugf("Skipping one-time scene '%s' - already ran today at %s",
-                                scene.getSceneTitle(), scene.getLastRunDate());
-                        continue;
-                    }
-                }
 
                 LocalTime nextSceneStartTime = null;
                 if (i < scenes.size() - 1) {
@@ -111,12 +104,12 @@ public class AgendaTicker {
                 Map.of(
                     "scene", scene.getSceneTitle(),
                     "sceneId", scene.getSceneId().toString(),
-                    "triggerContext", triggerContext.toString(),
-                    "songCount", scene.getSongs().size()
+                    "triggerContext", triggerContext.toString()
+
                 ), scene.getTraceId());
 
         scenePool.setActiveScene(brand, scene);
-        LOGGER.infof("Set active scene '%s' for brand: %s (contains %d songs), traceId: {}",
-                scene.getSceneTitle(), brand, scene.getSongs().size(), scene.getTraceId());
+        LOGGER.infof("Set active scene '%s' for brand: %s , traceId: {}",
+                scene.getSceneTitle(), brand, scene.getTraceId());
     }
 }

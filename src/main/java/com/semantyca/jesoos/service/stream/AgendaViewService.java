@@ -10,7 +10,7 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.util.Collections;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,7 +22,7 @@ public class AgendaViewService {
 
     public AgendasResponseDTO getAllAgendas() {
         AgendasResponseDTO response = new AgendasResponseDTO();
-        
+
         brandPool.getOnlineStationsSnapshot().forEach(stream -> {
             if (stream.getAgenda() != null) {
                 String key = stream.getSlugName();
@@ -31,7 +31,7 @@ public class AgendaViewService {
                 response.addAgenda(key, agendaDTO);
             }
         });
-        
+
         return response;
     }
 
@@ -39,7 +39,7 @@ public class AgendaViewService {
         List<SceneDTO> sceneDTOs = agenda.getLiveScenes().stream()
                 .map(this::buildSceneDTO)
                 .collect(Collectors.toList());
-        
+
         return AgendaDTO.builder()
                 .key(key)
                 .createdAt(agenda.getCreatedAt())
@@ -50,20 +50,24 @@ public class AgendaViewService {
 
     private SceneDTO buildSceneDTO(LiveScene scene) {
         List<TimelineEntryDTO> timelineDTOs = null;
-        
         if (scene.getTimeline() != null) {
             timelineDTOs = scene.getTimeline().stream()
                     .map(this::buildTimelineEntryDTO)
                     .collect(Collectors.toList());
         }
-        
+
+        LocalDateTime startTime = null;
+        LocalDateTime endTime = null;
+        if (timelineDTOs != null && !timelineDTOs.isEmpty()) {
+            startTime = timelineDTOs.getFirst().getScheduledEmissionTime();
+            endTime = timelineDTOs.getLast().getScheduledEmissionTime();
+        }
+
         return SceneDTO.builder()
                 .id(scene.getSceneId().toString())
                 .title(scene.getSceneTitle())
-                .scheduledStartTime(scene.getScheduledStartTime())
-                .scheduledEndTime(scene.getScheduledEndTime())
-                .durationSeconds(scene.getDurationSeconds())
-                .totalSongs(scene.getSongs().size())
+                .firstEmissionTime(startTime)
+                .lastEmissionTime(endTime)
                 .timeline(timelineDTOs)
                 .build();
     }
@@ -75,8 +79,16 @@ public class AgendaViewService {
                         .songTitle(songEntry.getSoundFragment().getTitle())
                         .artist(songEntry.getSoundFragment().getArtist())
                         .durationSeconds(songEntry.getDurationSeconds())
+                        .language(
+                                songEntry.getPromptEntry() != null &&
+                                        songEntry.getPromptEntry().getLanguage() != null
+                                        ? songEntry.getPromptEntry().getLanguage().name()
+                                        : null
+
+                        )
                         .build())
                 .collect(Collectors.toList());
+
 
         return TimelineEntryDTO.builder()
                 .id(entry.getId().toString())
@@ -87,7 +99,6 @@ public class AgendaViewService {
                 .mixingStrategy(entry.getMixingStrategy().name())
                 .hasIntro(entry.isHasIntro())
                 .hasJingle(entry.isHasJingle())
-                .batchId(entry.getBatchId())
                 .status(entry.getStatus().name())
                 .build();
     }

@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
@@ -51,7 +50,8 @@ public class StaggeredSongScheduler {
     private final MetricPublisher metricPublisher;
     private final BrandPool brandPool;
     private final SoundFragmentService soundFragmentService;
-    private final ConcurrentHashMap<String, List<Long>> brandTimers = new ConcurrentHashMap<>();
+    private final DjStateService djStateService;
+    private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> brandTimers = new ConcurrentHashMap<>();
 
     @Inject
     public StaggeredSongScheduler(Vertx vertx,
@@ -60,7 +60,8 @@ public class StaggeredSongScheduler {
                                   QueueSupplier queueSupplier,
                                   AiAgentService aiAgentService,
                                   MetricPublisher metricPublisher,
-                                  SoundFragmentService soundFragmentService) {
+                                  SoundFragmentService soundFragmentService,
+                                  DjStateService djStateService) {
         this.brandPool = brandPool;
         this.vertx = vertx;
         this.introTtsGenerator = introTtsGenerator;
@@ -68,12 +69,15 @@ public class StaggeredSongScheduler {
         this.aiAgentService = aiAgentService;
         this.metricPublisher = metricPublisher;
         this.soundFragmentService = soundFragmentService;
+        this.djStateService = djStateService;
     }
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
         List<TimelineEntry> timeline = scene.getTimeline();
         LOGGER.infof("Scheduling %d timeline entries for scene '%s' (brand: %s)",
                 timeline.size(), scene.getSceneTitle(), brandName);
+
+
 
         LocalDateTime now = LocalDateTime.now(scene.getTimeZone());
         int scheduledEntries = 0;
@@ -82,6 +86,9 @@ public class StaggeredSongScheduler {
         int skippedDurationSeconds = 0;
 
         for (TimelineEntry entry : timeline) {
+            if (entry.getStatus() != TimelineEntryStatus.PENDING) {
+                continue;
+            }
             if (entry.getScheduledEmissionTime().isBefore(now)) {
                 LOGGER.debugf("Skipping entry %d for scene '%s' - emission time %s already passed (now: %s)",
                         entry.getSequenceNumber(), scene.getSceneTitle(),
@@ -120,6 +127,12 @@ public class StaggeredSongScheduler {
 
 
     private void scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
+        if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
+            LOGGER.infof("Entry %d for scene '%s' already scheduled, ignoring duplicate request",
+                    entry.getSequenceNumber(), scene.getSceneTitle());
+            return;
+        }
+
         long emissionTime = entry.getScheduledEmissionTime()
                 .atZone(brandZone)
                 .toInstant()
@@ -141,7 +154,7 @@ public class StaggeredSongScheduler {
             LOGGER.infof("Timer fired for entry %d, scene '%s' (brand: %s)",
                     entry.getSequenceNumber(), scene.getSceneTitle(), brandName);
 
-            long deadline = scene.getScheduledEndTime()
+            long deadline = scene.getEndTime()
                     .atZone(brandZone)
                     .toInstant()
                     .toEpochMilli();
@@ -172,10 +185,12 @@ public class StaggeredSongScheduler {
         };
 
         long timerId = vertx.setTimer(delay, id -> {
-            brandTimers.getOrDefault(brandName, List.of()).remove(id);
+            brandTimers.getOrDefault(brandName, new ConcurrentHashMap<>()).remove(entry.getSequenceNumber());
             task.run();
         });
-        brandTimers.computeIfAbsent(brandName, k -> new CopyOnWriteArrayList<>()).add(timerId);
+        brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
+                .put(entry.getSequenceNumber(), timerId);
+
         LOGGER.debugf("Created timer %d for entry %d (delay: %dms)", timerId, entry.getSequenceNumber(), delay);
     }
 
@@ -201,22 +216,35 @@ public class StaggeredSongScheduler {
 
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
+        boolean djEnabled = djStateService.isDjEnabled(brandName);
+        MergingType effectiveMixingStrategy = entry.getMixingStrategy();
+        boolean shouldGenerateIntros = entry.isHasIntro() && djEnabled;
+
+        if (!djEnabled && entry.isHasIntro()) {
+            effectiveMixingStrategy = entry.getSongs().size() >= 2 
+                ? MergingType.SONG_CROSSFADE_SONG 
+                : MergingType.SONG_ONLY;
+            LOGGER.infof("DJ disabled for brand %s, overriding mixing strategy from %s to %s",
+                    brandName, entry.getMixingStrategy(), effectiveMixingStrategy);
+        }
+
         // Generate TTS for each song that needs intro (at last moment before emission)
         List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
-            if (entry.isHasIntro()) {
+            if (shouldGenerateIntros) {
                 introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                        scene, entry.getSongs().get(i).getSoundFragment(), agent, stream, lang));
+                        scene, entry.getSongs().get(i), agent, stream, lang));
             } else {
                 introUnis.add(Uni.createFrom().nullItem());
             }
         }
 
+        MergingType finalMixingStrategy = effectiveMixingStrategy;
         return Uni.join().all(introUnis).andCollectFailures()
                 .chain(intros -> {
                     // Build queue message from timeline data
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(entry.getMixingStrategy());  // From timeline
+                    dto.setMergingMethod(finalMixingStrategy);  // Use effective strategy
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());
@@ -243,7 +271,7 @@ public class StaggeredSongScheduler {
                     dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
 
-                    long deadline = scene.getScheduledEndTime()
+                    long deadline = scene.getEndTime()
                             .atZone(brandZone)
                             .toInstant()
                             .toEpochMilli();
@@ -274,7 +302,7 @@ public class StaggeredSongScheduler {
 
                     if (jingles.isEmpty()) {
                         dto.setMergingMethod(MergingType.SONG_ONLY);
-                        
+
                         for (int i = 0; i < entry.getSongs().size(); i++) {
                             songMap.put(getSongKeyByIndex(i),
                                     new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
@@ -298,7 +326,7 @@ public class StaggeredSongScheduler {
                         }
                     }
 
-                    long deadline = scene.getScheduledEndTime()
+                    long deadline = scene.getEndTime()
                             .atZone(brandZone)
                             .toInstant()
                             .toEpochMilli();
@@ -315,7 +343,16 @@ public class StaggeredSongScheduler {
     }
 
     public void cancelAll(String brandName) {
-        List<Long> timers = brandTimers.remove(brandName);
-        if (timers != null) timers.forEach(vertx::cancelTimer);
+        ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
+        if (timers != null) timers.values().forEach(vertx::cancelTimer);
+    }
+
+    public void cancelPending(String brandName, List<Integer> sequenceNumbers) {
+        ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+        if (timers == null) return;
+        for (Integer seq : sequenceNumbers) {
+            Long timerId = timers.remove(seq);
+            if (timerId != null) vertx.cancelTimer(timerId);
+        }
     }
 }

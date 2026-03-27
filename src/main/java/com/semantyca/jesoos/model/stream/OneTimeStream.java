@@ -28,7 +28,6 @@ public class OneTimeStream extends AbstractStream {
     private Script script;
     private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
-    private StreamDeliveryState deliveryState;
 
     private UUID currentSceneId;
     private LocalDateTime lastDeliveryAt;

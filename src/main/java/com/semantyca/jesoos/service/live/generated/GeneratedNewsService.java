@@ -41,15 +41,6 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
         super(null, null, null, null, null, null, null, null, null, null);
     }
 
-    @Override
-    protected String getIntroJingleResource() {
-        return "News_Intro_Jingle.wav";
-    }
-
-    @Override
-    protected String getBackgroundMusicResource() {
-        return "News_Cycle_Loop.wav";
-    }
 
     @Override
     protected PlaylistItemType getContentType() {

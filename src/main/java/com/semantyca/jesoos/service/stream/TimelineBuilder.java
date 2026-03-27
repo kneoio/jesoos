@@ -5,49 +5,42 @@ import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.MergingType;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@ApplicationScoped
+
 public class TimelineBuilder {
     private static final Logger LOGGER = Logger.getLogger(TimelineBuilder.class);
     private static final int AVG_INTRO_DURATION_SECONDS = 30;
 
-    private final MixingTypeShuffler mixingTypeShuffler;
+    public List<TimelineEntry> buildTimeline(LiveScene scene,
+                                             List<SongEntry> songs,
+                                             double talkativity,
+                                             List<ScenePrompt> introPrompts) {
 
-    @Inject
-    public TimelineBuilder(MixingTypeShuffler mixingTypeShuffler) {
-        this.mixingTypeShuffler = mixingTypeShuffler;
-    }
-
-    public List<TimelineEntry> buildTimeline(LiveScene scene) {
         List<TimelineEntry> timeline = new ArrayList<>();
-        List<SongEntry> songs = scene.getSongs();
 
-        if (songs.isEmpty()) {
+        if (songs == null || songs.isEmpty()) {
             LOGGER.warnf("Scene '%s' has no songs, timeline is empty", scene.getSceneTitle());
             return timeline;
         }
 
-        LocalDateTime currentTime = scene.getScheduledStartTime();
-        double talkativity = scene.getTalkativity();
-        boolean allowIntros = !scene.getIntroPrompts().isEmpty() &&
-                             scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
-
-        int songIndex = 0;
-        int batchId = 0;
+        LocalDateTime currentTime = LocalDate.now(scene.getTimeZone())
+                .atTime(scene.getOriginalStartTime());
+        boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
+                             introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
         LOGGER.infof("Building timeline for scene '%s' with talkativity=%.2f, allowIntros=%s",
                 scene.getSceneTitle(), talkativity, allowIntros);
 
+        int songIndex = 0;
         while (songIndex < songs.size()) {
             int remainingSongs = songs.size() - songIndex;
-            MixingTypeShuffler.MixingStrategy strategy = mixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
+            MixingTypeShuffler.MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
             
             List<TimelineEntry> batchEntries = new ArrayList<>();
             for (int i = 0; i < strategy.songsQuantity() && songIndex < songs.size(); i++) {
@@ -65,8 +58,7 @@ public class TimelineBuilder {
                     songList,
                     strategy.mergingType(),
                     strategy.needsIntros(),
-                    strategy.mergingType().equals(MergingType.FILLER_JINGLE),
-                    batchId
+                    strategy.mergingType().equals(MergingType.FILLER_JINGLE)
                 );
                 
                 batchEntries.add(entry);
@@ -76,13 +68,13 @@ public class TimelineBuilder {
             
             int batchDuration = calculateBatchDuration(batchEntries, strategy);
             currentTime = currentTime.plusSeconds(batchDuration);
-            batchId++;
         }
 
-        LOGGER.infof("Built timeline for scene '%s': %d entries, %d batches, duration: %d seconds, allowIntros: %s",
-                scene.getSceneTitle(), timeline.size(), batchId, 
+        LOGGER.infof("Built timeline for scene '%s': %d entries, duration: %d seconds, allowIntros: %s",
+                scene.getSceneTitle(), timeline.size(),
                 calculateTotalDuration(timeline), allowIntros);
 
+        scene.setTimelineBuild(true);
         return timeline;
     }
 
@@ -117,8 +109,8 @@ public class TimelineBuilder {
         if (timeline.isEmpty()) {
             return 0;
         }
-        LocalDateTime start = timeline.get(0).getScheduledEmissionTime();
-        LocalDateTime end = timeline.get(timeline.size() - 1).getScheduledEmissionTime();
+        LocalDateTime start = timeline.getFirst().getScheduledEmissionTime();
+        LocalDateTime end = timeline.getLast().getScheduledEmissionTime();
         return (int) java.time.Duration.between(start, end).getSeconds();
     }
 }

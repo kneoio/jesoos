@@ -16,8 +16,8 @@ public class SceneDTO {
     
     private String id;
     private String title;
-    private LocalDateTime scheduledStartTime;
-    private LocalDateTime scheduledEndTime;
+    private LocalDateTime firstEmissionTime;
+    private LocalDateTime lastEmissionTime;
     private int durationSeconds;
     private int totalSongs;
     private boolean timelineBuilt;

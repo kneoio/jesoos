@@ -15,6 +15,8 @@ import com.semantyca.jesoos.agent.TextToSpeechClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.PromptEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
@@ -52,29 +54,20 @@ public class IntroTtsGenerator {
 
     @Inject
     PromptService promptService;
-
     @Inject
     DraftFactory draftFactory;
-
     @Inject
     ElevenLabsClient elevenLabsClient;
-
     @Inject
     ModelslabClient modelslabClient;
-
     @Inject
     GCPTTSClient gcpttsClient;
-
     @Inject
     JesoosConfig config;
-
     @Inject
     FFmpegProvider ffmpegProvider;
-
     @Inject
     private MetricPublisher metricPublisher;
-
-    private final Random random = new Random();
     private AnthropicClient anthropicClient;
 
     @PostConstruct
@@ -87,18 +80,13 @@ public class IntroTtsGenerator {
 
     public Uni<IntroAudioResult> generateIntroAudioFile(
             LiveScene scene,
-            SoundFragment song,
+            SongEntry songEntry,
             AiAgent agent,
             IStream stream,
             LanguageTag broadcastingLanguage
     ) {
-        List<ScenePrompt> introPrompts = scene.getIntroPrompts();
-        List<UUID> enabledPromptIds = introPrompts.stream()
-                .filter(ScenePrompt::isActive)
-                .map(ScenePrompt::getPromptId)
-                .toList();
 
-        UUID selectedPromptId = enabledPromptIds.get(random.nextInt(enabledPromptIds.size()));
+        UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
 
         return promptService.getById(selectedPromptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
@@ -109,7 +97,7 @@ public class IntroTtsGenerator {
                             .findByMasterAndLanguage(selectedPromptId, broadcastingLanguage, false)
                             .map(p -> p != null ? p : masterPrompt);
                 })
-                .chain(prompt -> generateDraftText(prompt, song, agent, stream)
+                .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), scene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, broadcastingLanguage, scene.getSceneTitle(), scene.getTraceId(), stream.getSlugName()))

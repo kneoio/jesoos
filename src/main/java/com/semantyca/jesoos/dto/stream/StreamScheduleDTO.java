@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 
 @Setter
 @Getter
@@ -22,8 +23,6 @@ public class StreamScheduleDTO {
     public static class SceneScheduleDTO {
         private String sceneId;
         private String sceneTitle;
-        private LocalDateTime scheduledStartTime;
-        private LocalDateTime scheduledEndTime;
         private int durationSeconds;
         private double dayPercentage;
         private List<ScheduledSongDTO> songs;
@@ -39,12 +38,12 @@ public class StreamScheduleDTO {
         private String sourcing;
         private String playlistTitle;
         private String artist;
-        private List<java.util.UUID> genres;
-        private List<java.util.UUID> labels;
+        private List<UUID> genres;
+        private List<UUID> labels;
         private List<String> playlistItemTypes;
         private List<String> sourceTypes;
         private String searchTerm;
-        private List<java.util.UUID> soundFragments;
+        private List<UUID> soundFragments;
         private List<ScenePrompt> contentPrompts;
     }
 
