@@ -21,6 +21,7 @@ import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.mutiny.core.Vertx;
+import com.semantyca.jesoos.config.JesoosConfig;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -52,6 +53,7 @@ public class StaggeredSongScheduler {
     private final SoundFragmentService soundFragmentService;
     private final DjStateService djStateService;
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> brandTimers = new ConcurrentHashMap<>();
+    private final JesoosConfig config;
 
     @Inject
     public StaggeredSongScheduler(Vertx vertx,
@@ -61,7 +63,8 @@ public class StaggeredSongScheduler {
                                   AiAgentService aiAgentService,
                                   MetricPublisher metricPublisher,
                                   SoundFragmentService soundFragmentService,
-                                  DjStateService djStateService) {
+                                  DjStateService djStateService,
+                                  JesoosConfig config) {
         this.brandPool = brandPool;
         this.vertx = vertx;
         this.introTtsGenerator = introTtsGenerator;
@@ -70,6 +73,7 @@ public class StaggeredSongScheduler {
         this.metricPublisher = metricPublisher;
         this.soundFragmentService = soundFragmentService;
         this.djStateService = djStateService;
+        this.config = config;
     }
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
@@ -139,7 +143,8 @@ public class StaggeredSongScheduler {
                 .toEpochMilli();
 
         long now = System.currentTimeMillis();
-        long delay = Math.max(1, emissionTime - now);
+        long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
+        long delay = Math.max(1, emissionTime - leadTimeMs - now);
 
         String formattedEmissionTime = entry.getScheduledEmissionTime()
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));

@@ -117,7 +117,7 @@ public interface JesoosConfig {
     String getFromAddress();
 
     @WithName("aivox-delay-seconds")
-    @WithDefault("3")
+    @WithDefault("120")
     int getAivoxDelaySeconds();
 
 }
