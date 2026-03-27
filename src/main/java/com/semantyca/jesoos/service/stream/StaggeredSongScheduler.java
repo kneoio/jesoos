@@ -122,6 +122,7 @@ public class StaggeredSongScheduler {
                         "skippedEntries", skippedEntries,
                         "skippedSongsCount", skippedSongsCount,
                         "skippedDurationSeconds", skippedDurationSeconds,
+                        "scheduledAt", LocalDateTime.now(scene.getTimeZone()).toString(),
                         "firstEmission", timeline.getFirst().getScheduledEmissionTime().toString(),
                         "lastEmission", timeline.getLast().getScheduledEmissionTime().toString()
                 ),
