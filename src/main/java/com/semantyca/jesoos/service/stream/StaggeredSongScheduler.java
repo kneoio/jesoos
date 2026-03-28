@@ -12,7 +12,6 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
-import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
@@ -24,12 +23,8 @@ import io.vertx.mutiny.core.Vertx;
 import com.semantyca.jesoos.config.JesoosConfig;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
-
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +39,6 @@ import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 public class StaggeredSongScheduler {
     public static final int DEFAULT_JINGLE_DURATION = 10;
 
-    private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
     private final Vertx vertx;
     private final IntroTtsGenerator introTtsGenerator;
     private final QueueSupplier queueSupplier;
@@ -78,76 +72,22 @@ public class StaggeredSongScheduler {
     }
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
-        List<TimelineEntry> timeline = scene.getTimeline();
-        LOGGER.infof("Scheduling %d timeline entries for scene '%s' (brand: %s)",
-                timeline.size(), scene.getSceneTitle(), brandName);
-
-
-
         LocalDateTime now = LocalDateTime.now(scene.getTimeZone());
-        int scheduledEntries = 0;
-        int skippedEntries = 0;
-        int skippedSongsCount = 0;
-        int skippedDurationSeconds = 0;
-        LocalDateTime firstScheduledEmission = null;
-
-        for (TimelineEntry entry : timeline) {
+        for (TimelineEntry entry : scene.getTimeline()) {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
             }
             if (entry.getScheduledEmissionTime().isBefore(now)) {
-                LOGGER.debugf("Skipping entry %d for scene '%s' - emission time %s already passed (now: %s)",
-                        entry.getSequenceNumber(), scene.getSceneTitle(),
-                        entry.getScheduledEmissionTime(), now);
                 entry.setStatus(TimelineEntryStatus.SKIPPED);
-                skippedEntries++;
-                skippedSongsCount += entry.getSongs().size();
-                skippedDurationSeconds += entry.getEstimatedDurationSeconds();
                 continue;
             }
-
-            if (firstScheduledEmission == null) {
-                firstScheduledEmission = entry.getScheduledEmissionTime();
-            }
             scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone());
-            scheduledEntries++;
         }
-
-        LocalDateTime emitAt = firstScheduledEmission != null
-                ? firstScheduledEmission.minusSeconds(config.getAivoxDelaySeconds())
-                : null;
-        long emitInSeconds = emitAt != null
-                ? Duration.between(now, emitAt).getSeconds()
-                : -1;
-
-        LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds), emits in %ds",
-                scene.getSceneTitle(), scheduledEntries, skippedEntries, skippedSongsCount, skippedDurationSeconds, emitInSeconds);
-
-        long minutes = emitInSeconds / 60;
-        long seconds = emitInSeconds % 60;
-        String emitInMinutes = String.format("%d.%02d", minutes, seconds);
-
-        metricPublisher.publishMetric(
-                brandName,
-                MetricEventType.INFORMATION,
-                "timeline_scheduled",
-                Map.ofEntries(
-                        Map.entry("sceneTitle", scene.getSceneTitle()),
-                        Map.entry("scheduledEntries", scheduledEntries),
-                        Map.entry("skippedEntries", skippedEntries),
-                        Map.entry("scheduledAt", now.toString()),
-                        Map.entry("emitAt", emitAt != null ? emitAt.toString() : "none"),
-                        Map.entry("emitInMinutes", emitInMinutes)
-                ),
-                scene.getTraceId()
-        );
     }
 
 
     private void scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
-            LOGGER.infof("Entry %d for scene '%s' already scheduled, ignoring duplicate request",
-                    entry.getSequenceNumber(), scene.getSceneTitle());
             return;
         }
 
@@ -160,54 +100,25 @@ public class StaggeredSongScheduler {
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long delay = Math.max(1, emissionTime - leadTimeMs - now);
 
-        String formattedEmissionTime = entry.getScheduledEmissionTime()
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-
-        LOGGER.infof("Scheduling entry %d for scene '%s' (brand: %s): %d songs at %s (delay: %dms / %.1f minutes)",
-                entry.getSequenceNumber(), scene.getSceneTitle(), brandName, entry.getSongs().size(),
-                formattedEmissionTime, delay, delay / 60000.0);
-
         entry.setStatus(TimelineEntryStatus.SCHEDULED);
 
         Runnable task = () -> {
-            LOGGER.infof("Timer fired for entry %d, scene '%s' (brand: %s)",
-                    entry.getSequenceNumber(), scene.getSceneTitle(), brandName);
-
             long deadline = scene.getEndTime()
                     .atZone(brandZone)
                     .toInstant()
                     .toEpochMilli();
 
             if (System.currentTimeMillis() >= deadline) {
-                LOGGER.warnf("Scene '%s' deadline reached, skipping entry %d",
-                        scene.getSceneTitle(), entry.getSequenceNumber());
                 entry.setStatus(TimelineEntryStatus.SKIPPED);
                 return;
             }
 
-            LOGGER.infof("Emitting entry %d for scene '%s' (brand: %s)",
-                    entry.getSequenceNumber(), scene.getSceneTitle(), brandName);
             entry.setStatus(TimelineEntryStatus.EMITTING);
 
             emitTimelineEntry(brandName, scene, entry, brandZone)
                     .subscribe().with(
-                            v -> {
-                                entry.setStatus(TimelineEntryStatus.COMPLETED);
-                                LOGGER.infof("Completed entry %d for scene '%s'", entry.getSequenceNumber(), scene.getSceneTitle());
-                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "entry_emitted",
-                                        Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
-                                                "strategy", entry.getMixingStrategy().name()),
-                                        scene.getTraceId());
-                            },
-                            err -> {
-                                entry.setStatus(TimelineEntryStatus.FAILED);
-                                LOGGER.errorf(err, "Entry %d failed for scene '%s': %s",
-                                        entry.getSequenceNumber(), scene.getSceneTitle(), err.getMessage());
-                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "entry_failed",
-                                        Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
-                                                "error", err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName()),
-                                        scene.getTraceId());
-                            }
+                            v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
+                            err -> entry.setStatus(TimelineEntryStatus.FAILED)
                     );
         };
 
@@ -218,7 +129,6 @@ public class StaggeredSongScheduler {
         brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
                 .put(entry.getSequenceNumber(), timerId);
 
-        LOGGER.debugf("Created timer %d for entry %d (delay: %dms)", timerId, entry.getSequenceNumber(), delay);
     }
 
     private Uni<Void> emitTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
@@ -228,7 +138,6 @@ public class StaggeredSongScheduler {
                         return sendJingleWithEntry(brandName, scene, entry, stream, brandZone);
                     }
 
-                    // Get AI agent and send entry (TTS generated at last moment)
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                             .chain(agent -> sendTimelineEntry(brandName, scene, entry, agent, stream, brandZone));
                 });
@@ -251,11 +160,8 @@ public class StaggeredSongScheduler {
             effectiveMixingStrategy = entry.getSongs().size() >= 2 
                 ? MergingType.SONG_CROSSFADE_SONG 
                 : MergingType.SONG_ONLY;
-            LOGGER.infof("DJ disabled for brand %s, overriding mixing strategy from %s to %s",
-                    brandName, entry.getMixingStrategy(), effectiveMixingStrategy);
         }
 
-        // Generate TTS for each song that needs intro (at last moment before emission)
         List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
             if (shouldGenerateIntros) {
@@ -269,9 +175,8 @@ public class StaggeredSongScheduler {
         MergingType finalMixingStrategy = effectiveMixingStrategy;
         return Uni.join().all(introUnis).andCollectFailures()
                 .chain(intros -> {
-                    // Build queue message from timeline data
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(finalMixingStrategy);  // Use effective strategy
+                    dto.setMergingMethod(finalMixingStrategy);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());
@@ -283,13 +188,11 @@ public class StaggeredSongScheduler {
                     for (int i = 0; i < entry.getSongs().size(); i++) {
                         IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
 
-                        // Add intro if generated
                         if (intro != null) {
                             introMap.put(getIntroKeyByIndex(i),
                                     new IntroInfoDTO(intro.filePath(), intro.durationSeconds()));
                         }
 
-                        // Add song info
                         songMap.put(getSongKeyByIndex(i),
                                 new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
                                         entry.getSongs().get(i).getDurationSeconds()));
@@ -364,14 +267,18 @@ public class StaggeredSongScheduler {
 
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 })
-                .onFailure().invoke(f ->
-                        LOGGER.errorf(f, "Jingle flow failed for entry %d: %s",
-                                entry.getSequenceNumber(), f.getMessage()));
+                ;
     }
 
     public void cancelAll(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
         if (timers != null) timers.values().forEach(vertx::cancelTimer);
+    }
+
+    public Map<String, Map<Integer, Long>> getBrandTimers() {
+        Map<String, Map<Integer, Long>> result = new HashMap<>();
+        brandTimers.forEach((brand, timers) -> result.put(brand, new HashMap<>(timers)));
+        return result;
     }
 
     public void cancelPending(String brandName, List<Integer> sequenceNumbers) {

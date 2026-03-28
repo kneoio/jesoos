@@ -1,6 +1,7 @@
 package com.semantyca.jesoos;
 
 import com.semantyca.jesoos.rest.CommandResource;
+import com.semantyca.jesoos.rest.InfoResource;
 import com.semantyca.jesoos.rest.PublicChatController;
 import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,10 +16,14 @@ public class JesoosApplication {
     CommandResource commandResource;
 
     @Inject
+    InfoResource infoResource;
+
+    @Inject
     PublicChatController publicChatController;
 
     void setupRoutes(@Observes Router router) {
         commandResource.setupRoutes(router);
+        infoResource.setupRoutes(router);
         publicChatController.setupRoutes(router);
     }
 }

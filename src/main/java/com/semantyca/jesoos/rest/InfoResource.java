@@ -1,0 +1,45 @@
+package com.semantyca.jesoos.rest;
+
+import com.semantyca.jesoos.service.stream.StaggeredSongScheduler;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
+
+@ApplicationScoped
+public class InfoResource {
+
+    private static final Logger LOGGER = Logger.getLogger(InfoResource.class);
+
+    @Inject
+    StaggeredSongScheduler staggeredSongScheduler;
+
+    public void setupRoutes(Router router) {
+        router.route(HttpMethod.GET, "/jesoos/info/brand-timers").handler(this::getBrandTimers);
+    }
+
+    private void getBrandTimers(RoutingContext rc) {
+        try {
+            JsonObject result = new JsonObject();
+            staggeredSongScheduler.getBrandTimers()
+                    .forEach((brand, timers) -> {
+                        JsonObject brandTimers = new JsonObject();
+                        timers.forEach((seq, timerId) -> brandTimers.put(String.valueOf(seq), timerId));
+                        result.put(brand, brandTimers);
+                    });
+            rc.response()
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(result.encode());
+        } catch (Exception e) {
+            LOGGER.error("Failed to get brand timers", e);
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", e.getMessage()).encode());
+        }
+    }
+}
