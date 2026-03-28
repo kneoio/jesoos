@@ -112,15 +112,15 @@ public class StaggeredSongScheduler {
             scheduledEntries++;
         }
 
-        LocalDateTime firstEmitAt = firstScheduledEmission != null
+        LocalDateTime emitAt = firstScheduledEmission != null
                 ? firstScheduledEmission.minusSeconds(config.getAivoxDelaySeconds())
                 : null;
-        long firstEmitInSeconds = firstEmitAt != null
-                ? java.time.Duration.between(now, firstEmitAt).getSeconds()
+        long emitInSeconds = emitAt != null
+                ? java.time.Duration.between(now, emitAt).getSeconds()
                 : -1;
 
-        LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds), first emits in %ds",
-                scene.getSceneTitle(), scheduledEntries, skippedEntries, skippedSongsCount, skippedDurationSeconds, firstEmitInSeconds);
+        LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds), emits in %ds",
+                scene.getSceneTitle(), scheduledEntries, skippedEntries, skippedSongsCount, skippedDurationSeconds, emitInSeconds);
 
         metricPublisher.publishMetric(
                 brandName,
@@ -134,8 +134,8 @@ public class StaggeredSongScheduler {
                         "skippedSongsCount", skippedSongsCount,
                         "skippedDurationSeconds", skippedDurationSeconds,
                         "scheduledAt", now.toString(),
-                        "firstEmitAt", firstEmitAt != null ? firstEmitAt.toString() : "none",
-                        "firstEmitInSeconds", firstEmitInSeconds,
+                        "emitAt", emitAt != null ? emitAt.toString() : "none",
+                        "emitInSeconds", emitInSeconds,
                         "firstEmission", timeline.getFirst().getScheduledEmissionTime().toString(),
                         "lastEmission", timeline.getLast().getScheduledEmissionTime().toString()
                 ),
