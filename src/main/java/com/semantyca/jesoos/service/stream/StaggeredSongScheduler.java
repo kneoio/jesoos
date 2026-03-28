@@ -81,8 +81,12 @@ public class StaggeredSongScheduler {
                 continue;
             }
             if (entry.getScheduledEmissionTime().isBefore(now)) {
-                entry.setStatus(TimelineEntryStatus.SKIPPED);
-                continue;
+                LocalDateTime entryEnd = entry.getScheduledEmissionTime()
+                        .plusSeconds(entry.getEstimatedDurationSeconds());
+                if (entryEnd.isBefore(now)) {
+                    entry.setStatus(TimelineEntryStatus.SKIPPED);
+                    continue;
+                }
             }
             scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone());
         }
