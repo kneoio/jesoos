@@ -4,6 +4,7 @@ import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -115,7 +116,7 @@ public class AgendaTicker {
         LOGGER.infof("Processing scene '%s' for brand: %s, triggerContext: %s, traceId: {}",
                 scene.getSceneTitle(), brand, triggerContext, scene.getTraceId());
 
-        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION,
+        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW,
                 "scene_started",
                 Map.of(
                     "scene", scene.getSceneTitle(),

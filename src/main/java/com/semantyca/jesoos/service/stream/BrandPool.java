@@ -2,7 +2,6 @@ package com.semantyca.jesoos.service.stream;
 
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.jesoos.model.stats.BroadcastingStats;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.model.stream.StreamAgenda;

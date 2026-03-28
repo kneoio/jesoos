@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.EnvConst;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,15 +29,16 @@ public class MetricPublisher {
     Emitter<byte[]> metricsEmitter;
 
     public void publishMetric(String brandName, MetricEventType eventType, String code, Map<String, Object> payload) {
-        publishMetric(brandName, eventType, code, payload, UUID.randomUUID());
+        publishMetric(brandName, eventType, ProcessType.INDEPENDENT, code, payload, UUID.randomUUID());
     }
 
-    public void publishMetric(String brandName, MetricEventType eventType, String code, Map<String, Object> payload, UUID traceId) {
+    public void publishMetric(String brandName, MetricEventType eventType, ProcessType processType, String code, Map<String, Object> payload, UUID traceId) {
         try {
             MetricEventDTO event = MetricEventDTO.of(
                     EnvConst.APP_ID,
                     brandName,
                     eventType,
+                    processType,
                     traceId,
                     code,
                     payload

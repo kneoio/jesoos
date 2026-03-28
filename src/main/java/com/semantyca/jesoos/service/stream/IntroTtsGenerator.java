@@ -21,6 +21,7 @@ import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.Prompt;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
@@ -164,19 +165,19 @@ public class IntroTtsGenerator {
                 if (text.contains("technical difficulty")
                         || text.contains("technical error")
                         || text.contains("technical issue")) {
-                    metricPublisher.publishMetric(brandName, MetricEventType.WARNING, "intro_spoken_text_generation_failed",
+                    metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW,"intro_spoken_text_generation_failed",
                             Map.of("reason", "technical_difficulty_detected", "promptId", prompt.getId().toString()), traceId);
                     em.complete(null);
                 } else {
                     LOGGER.info("Generated text ({} tokens): {}", response.usage().outputTokens(), text);
-                    metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "intro_spoken_text_generated",
+                    metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.usage().inputTokens(), "outputTokens", response.usage().outputTokens(),
                                     "promptId", prompt.getId().toString()), traceId);
                     em.complete(text);
                 }
             } catch (Exception e) {
                 LOGGER.error("Anthropic API call failed - Type: {}, Message: {}", e.getClass().getSimpleName(), e.getMessage(), e);
-                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "intro_spoken_text_generation_failed",
+                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                         Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
                 em.fail(e);
             }
@@ -224,20 +225,20 @@ public class IntroTtsGenerator {
                         Files.write(audioFilePath, audioBytes);
 
                         LOGGER.info("Intro TTS audio saved: {} ({} bytes)", audioFilePath, audioBytes.length);
-                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "intro_tts_audio_generated",
+                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
                                 Map.of("engineType", engineType.toString(), "sceneTitle", sceneTitle,
                                         "audioSize", audioBytes.length, "textLength", text.length()), traceId);
                         return audioFilePath.toString();
                     } catch (IOException e) {
                         LOGGER.error("Failed to save TTS audio for scene '{}'", sceneTitle, e);
-                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "intro_tts_audio_save_failed",
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_save_failed",
                                 Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
                         throw new RuntimeException("Failed to save TTS audio", e);
                     }
                 })
                 .onFailure().invoke(e -> {
                     LOGGER.error("TTS generation failed for scene '{}'", sceneTitle, e);
-                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "intro_tts_audio_generation_failed",
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"intro_tts_audio_generation_failed",
                             Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
                 });
     }

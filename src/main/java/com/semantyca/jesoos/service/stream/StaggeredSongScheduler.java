@@ -13,6 +13,7 @@ import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
@@ -119,7 +120,7 @@ public class StaggeredSongScheduler {
                     .subscribe().with(
                             v -> {
                                 entry.setStatus(TimelineEntryStatus.COMPLETED);
-                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "entry_emitted",
+                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW,"entry_emitted",
                                         Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
                                                 "strategy", entry.getMixingStrategy().name()),
                                         scene.getTraceId());
@@ -130,7 +131,7 @@ public class StaggeredSongScheduler {
                                 if (errorMsg == null) {
                                     errorMsg = err.getClass().getSimpleName();
                                 }
-                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "entry_failed",
+                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"entry_failed",
                                         Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
                                                 "error", errorMsg),
                                         scene.getTraceId());
