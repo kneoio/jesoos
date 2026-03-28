@@ -9,6 +9,7 @@ import org.jboss.logging.Logger;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,8 +30,11 @@ public class TimelineBuilder {
             return timeline;
         }
 
-        LocalDateTime currentTime = LocalDate.now(scene.getTimeZone())
-                .atTime(scene.getOriginalStartTime());
+        LocalTime nowInZone = LocalTime.now(scene.getTimeZone());
+        LocalDate startDate = scene.getOriginalStartTime().isAfter(nowInZone)
+                ? LocalDate.now(scene.getTimeZone()).minusDays(1)
+                : LocalDate.now(scene.getTimeZone());
+        LocalDateTime currentTime = startDate.atTime(scene.getOriginalStartTime());
         boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
                              introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
