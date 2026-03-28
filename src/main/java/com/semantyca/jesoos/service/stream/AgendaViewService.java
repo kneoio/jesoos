@@ -23,7 +23,7 @@ public class AgendaViewService {
     public AgendasResponseDTO getAllAgendas() {
         AgendasResponseDTO response = new AgendasResponseDTO();
 
-        brandPool.getOnlineStationsSnapshot().forEach(stream -> {
+        brandPool.getStationsSnapshot().forEach(stream -> {
             if (stream.getAgenda() != null) {
                 String key = stream.getSlugName();
                 StreamAgenda agenda = stream.getAgenda();

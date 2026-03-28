@@ -81,7 +81,7 @@ public class BrandPool {
         return Uni.createFrom().item(stream);
     }
 
-    public Collection<ILiveStream> getOnlineStationsSnapshot() {
+    public Collection<ILiveStream> getStationsSnapshot() {
         return new ArrayList<>(pool.values());
     }
 

@@ -20,8 +20,6 @@ public class CommandResource {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
-    @Inject
-    AgendaViewService agendaViewService;
 
     @Inject
     CommandService commandService;
@@ -29,28 +27,9 @@ public class CommandResource {
     public void setupRoutes(Router router) {
         String path = "/jesoos";
         router.route(HttpMethod.POST, path + "/stop-all").handler(this::handleStopAllCommand);
-        router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
         router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
     }
-    
-    private void getAgendas(RoutingContext rc) {
-        rc.vertx().executeBlocking(() -> {
-            AgendasResponseDTO response = agendaViewService.getAllAgendas();
-            return OBJECT_MAPPER.writeValueAsString(response);
-        }).onSuccess(json -> {
-            rc.response()
-                    .setStatusCode(200)
-                    .putHeader("Content-Type", "application/json")
-                    .end(json);
-        }).onFailure(err -> {
-            LOGGER.error("Failed to get agendas", err);
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", err.getMessage()).encode());
-        });
-    }
-    
+
     private void handleCommand(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
         String command = rc.pathParam("command").toLowerCase();

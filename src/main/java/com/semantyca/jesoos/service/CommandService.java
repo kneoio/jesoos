@@ -111,7 +111,7 @@ public class CommandService {
 
     public Uni<JsonObject> stopAllBrands() {
         return Uni.createFrom().item(() -> {
-            var onlineStations = brandPool.getOnlineStationsSnapshot();
+            var onlineStations = brandPool.getStationsSnapshot();
             int stoppedCount = 0;
             var results = new JsonObject();
             

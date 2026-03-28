@@ -26,6 +26,8 @@ import com.semantyca.jesoos.config.JesoosConfig;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jetbrains.annotations.NotNull;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -157,86 +159,125 @@ public class StaggeredSongScheduler {
         return brandPool.get(brandName)
                 .chain(stream -> {
                     if (entry.isHasJingle()) {
-                        return sendJingleWithEntry(brandName, scene, entry, stream, brandZone);
+                        return sendJingle(brandName, scene, entry, stream, brandZone);
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> sendTimelineEntry(brandName, scene, entry, agent, stream, brandZone));
+                            .chain(agent -> send(brandName, scene, entry, agent, stream, brandZone));
                 });
     }
 
-    private Uni<Void> sendTimelineEntry(String brandName,
-                                        LiveScene scene,
-                                        TimelineEntry entry,
-                                        AiAgent agent,
-                                        IStream stream,
-                                        ZoneId brandZone) {
+    private Uni<Void> send(String brandName,
+                           LiveScene scene,
+                           TimelineEntry entry,
+                           AiAgent agent,
+                           IStream stream,
+                           ZoneId brandZone) {
 
-        LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
+        MergingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        boolean shouldGenerateIntros = entry.isHasIntro() && djEnabled;
-        MergingType effectiveMixingStrategy = entry.getMixingStrategy();
+        long deadline = scene.getEndTime()
+                .atZone(brandZone)
+                .toInstant()
+                .toEpochMilli();
 
-        List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
-        for (int i = 0; i < entry.getSongs().size(); i++) {
-            if (shouldGenerateIntros) {
-                introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                        scene, entry.getSongs().get(i), agent, stream, lang));
-            } else {
-                introUnis.add(Uni.createFrom().nullItem());
+        if (djEnabled){
+            LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
+            boolean shouldGenerateIntros = entry.isHasIntro();
+            List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
+            for (int i = 0; i < entry.getSongs().size(); i++) {
+                if (shouldGenerateIntros) {
+                    introUnis.add(introTtsGenerator.generateIntroAudioFile(
+                            scene, entry.getSongs().get(i), agent, stream, lang));
+                } else {
+                    introUnis.add(Uni.createFrom().nullItem());
+                }
             }
-        }
 
-        return Uni.join().all(introUnis).andCollectFailures()
-                .chain(intros -> {
-                    long now = System.currentTimeMillis();
-                    long deadline = scene.getEndTime()
-                            .atZone(brandZone)
-                            .toInstant()
-                            .toEpochMilli();
+            MergingType finalMixingStrategy = mixingStrategy;
+            return Uni.join().all(introUnis).andCollectFailures()
+                    .chain(intros -> {
+                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, deadline);
 
-                    if (now >= deadline) {
-                        entry.setStatus(TimelineEntryStatus.SKIPPED);
-                        return Uni.createFrom().voidItem();
-                    }
+                        Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+                        Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
-                    SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(effectiveMixingStrategy);
-                    dto.setSceneId(scene.getSceneId());
-                    dto.setSceneTitle(scene.getSceneTitle());
-                    dto.setSequenceNumber(entry.getSequenceNumber());
-                    dto.setPriority(9);
+                        for (int i = 0; i < entry.getSongs().size(); i++) {
+                            IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
 
-                    Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
-                    Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+                            if (intro != null) {
+                                introMap.put(getIntroKeyByIndex(i),
+                                        new IntroInfoDTO(intro.filePath(), intro.durationSeconds()));
+                            }
 
-                    for (int i = 0; i < entry.getSongs().size(); i++) {
-                        IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
-
-                        if (intro != null) {
-                            introMap.put(getIntroKeyByIndex(i),
-                                    new IntroInfoDTO(intro.filePath(), intro.durationSeconds()));
+                            songMap.put(getSongKeyByIndex(i),
+                                    new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
+                                            entry.getSongs().get(i).getDurationSeconds()));
                         }
 
-                        songMap.put(getSongKeyByIndex(i),
-                                new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
-                                        entry.getSongs().get(i).getDurationSeconds()));
-                    }
+                        dto.setFilePaths(introMap);
+                        dto.setSongs(songMap);
 
-                    dto.setFilePaths(introMap);
-                    dto.setSongs(songMap);
-                    dto.setSceneDeadlineTimestamp(deadline);
+                        return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                    });
+        } else {
+            MergingType[] availableTypes = getMergingTypes(entry);
+            mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
-                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
-                });
+            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, deadline);
+
+            Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+            Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+
+            for (int i = 0; i < entry.getSongs().size(); i++) {
+                songMap.put(getSongKeyByIndex(i),
+                        new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
+                                entry.getSongs().get(i).getDurationSeconds()));
+            }
+
+            dto.setFilePaths(introMap);
+            dto.setSongs(songMap);
+
+            return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+        }
+
+    }
+
+    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MergingType mixingStrategy, long deadline) {
+        SongQueueMessageDTO dto = new SongQueueMessageDTO();
+        dto.setMergingMethod(mixingStrategy);
+        dto.setSceneId(scene.getSceneId());
+        dto.setSceneTitle(scene.getSceneTitle());
+        dto.setSequenceNumber(entry.getSequenceNumber());
+        dto.setPriority(9);
+        dto.setSceneDeadlineTimestamp(deadline);
+        return dto;
+    }
+
+    private static MergingType @NotNull [] getMergingTypes(TimelineEntry entry) {
+        MergingType[] availableTypes;
+        if (entry.getSongs().size() == 2) {
+            availableTypes = new MergingType[]{
+                    MergingType.SONG_CROSSFADE_SONG,
+                    MergingType.SONG_INTRO_SONG,
+                    MergingType.INTRO_SONG_INTRO_SONG
+            };
+        } else {
+            availableTypes = new MergingType[]{
+                    MergingType.SONG_ONLY,
+                    MergingType.INTRO_SONG,
+                    MergingType.NOT_MIXED
+            };
+        }
+        return availableTypes;
     }
 
 
-    private Uni<Void> sendJingleWithEntry(String brandName,
-                                          LiveScene scene,
-                                          TimelineEntry entry,
-                                          IStream stream,
-                                          ZoneId brandZone) {
+    private Uni<Void> sendJingle(String brandName,
+                                 LiveScene scene,
+                                 TimelineEntry entry,
+                                 IStream stream,
+                                 ZoneId brandZone) {
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
