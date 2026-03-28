@@ -28,14 +28,9 @@ public class CommandResource {
 
     public void setupRoutes(Router router) {
         String path = "/jesoos";
-        
-        router.route(HttpMethod.GET, path + "/:brand/dj-status").handler(this::getDjStatus);
         router.route(HttpMethod.POST, path + "/stop-all").handler(this::handleStopAllCommand);
         router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
         router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
-        
-        LOGGER.infof("Registered Vert.x routes: GET %s/:brand/dj-status, POST %s/stop-all, GET %s/agendas, POST %s/:brand/:command", 
-                path, path, path, path);
     }
     
     private void getAgendas(RoutingContext rc) {
@@ -63,8 +58,9 @@ public class CommandResource {
         switch (command) {
             case "start" -> handleStartCommand(rc, slugName);
             case "stop" -> handleStopCommand(rc, slugName);
-            case "enabledj" -> handleEnableDjCommand(rc, slugName);
-            case "disabledj" -> handleDisableDjCommand(rc, slugName);
+            case "enable-dj" -> handleEnableDjCommand(rc, slugName);
+            case "disable-dj" -> handleDisableDjCommand(rc, slugName);
+            case "dj-status" -> getDjStatus(rc, slugName);
             default -> rc.response()
                     .setStatusCode(400)
                     .end(new JsonObject().put("error", "Unknown command: " + command).encode());
@@ -128,31 +124,7 @@ public class CommandResource {
                 );
     }
 
-    private void handleStopAllCommand(RoutingContext rc) {
-        commandService.stopAllBrands()
-                .subscribe()
-                .with(
-                        response -> {
-                            LOGGER.infof("Stop-all command executed");
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
-                        failure -> {
-                            LOGGER.error("Failed to execute stop-all command", failure);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(new JsonObject()
-                                            .put("error", "Failed to stop all brands: " + failure.getMessage())
-                                            .encode());
-                        }
-                );
-    }
-
-    private void getDjStatus(RoutingContext rc) {
-        String brand = rc.pathParam("brand").toLowerCase();
+   private void getDjStatus(RoutingContext rc, String brand) {
         commandService.getDjStatus(brand)
                 .subscribe()
                 .with(
@@ -183,5 +155,29 @@ public class CommandResource {
                             .encode());
         }
     }
+
+    private void handleStopAllCommand(RoutingContext rc) {
+        commandService.stopAllBrands()
+                .subscribe()
+                .with(
+                        response -> {
+                            LOGGER.infof("Stop-all command executed");
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        failure -> {
+                            LOGGER.error("Failed to execute stop-all command", failure);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject()
+                                            .put("error", "Failed to stop all brands: " + failure.getMessage())
+                                            .encode());
+                        }
+                );
+    }
+
 
 }

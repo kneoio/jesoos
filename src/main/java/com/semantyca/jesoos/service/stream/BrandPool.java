@@ -39,13 +39,13 @@ public class BrandPool {
     }
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
-        LOGGER.infof("Attempting to get brand: {}", brandName);
+        LOGGER.infof("Attempting to get (or start) brand: %s", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(name -> {
                     ILiveStream existing = pool.get(name);
                     if (existing != null) {
-                        LOGGER.infof("Stream {} already exists in pool (status: {}). Ignoring duplicate start request.",
+                        LOGGER.infof("Stream {} already exists in pool (status: %s). Ignoring duplicate start request.",
                                 name, existing.getStatus());
                         return Uni.createFrom().item(existing);
                     }
@@ -53,7 +53,7 @@ public class BrandPool {
                     return brandService.getBySlugName(name)
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
-                                    LOGGER.warnf("Brand with brandName {} not found. Cannot get.", name);
+                                    LOGGER.warnf("Brand with brandName %s not found. Cannot get.", name);
                                     pool.remove(name);
                                     return Uni.createFrom().failure(new RuntimeException("Station not found: " + name));
                                 }
@@ -65,7 +65,7 @@ public class BrandPool {
                                 return agendaService.getStreamAgenda(brand, SuperUser.build())
                                         .invoke(schedule -> {
                                             newStream.setAgenda(schedule);
-                                            LOGGER.infof("BrandPool: Station '{}' created with {} scenes", newStream.getSlugName(), schedule.getTotalScenes());
+                                            LOGGER.infof("BrandPool: Station '%s' created with %s scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
                                         .map(schedule -> (ILiveStream) newStream);
                             });
@@ -83,18 +83,6 @@ public class BrandPool {
         return new ArrayList<>(pool.values());
     }
 
-    public Uni<BroadcastingStats> getLiveStatus(String name) {
-        BroadcastingStats stats = new BroadcastingStats();
-        ILiveStream brand = pool.get(name);
-        if (brand != null) {
-            stats.setStatus(brand.getStatus());
-        } else {
-            stats.setStatus(StreamStatus.OFF_LINE);
-            stats.setAiControlAllowed(false);
-        }
-        return Uni.createFrom().item(stats);
-    }
-
     public Map<String, StreamAgenda> getAll() {
         return pool.entrySet().stream()
                 .filter(entry -> entry.getValue().getAgenda() != null)
@@ -102,7 +90,7 @@ public class BrandPool {
     }
 
     public Uni<ILiveStream> stopAndRemove(String brandName) {
-        LOGGER.infof("Attempting to stop and remove station: {}", brandName);
+        LOGGER.infof("Attempting to stop and remove station: %s", brandName);
         ILiveStream liveAgenda = pool.remove(brandName);
 
         if (liveAgenda != null) {

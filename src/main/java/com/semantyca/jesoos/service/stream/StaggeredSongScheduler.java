@@ -26,6 +26,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -116,7 +117,7 @@ public class StaggeredSongScheduler {
                 ? firstScheduledEmission.minusSeconds(config.getAivoxDelaySeconds())
                 : null;
         long emitInSeconds = emitAt != null
-                ? java.time.Duration.between(now, emitAt).getSeconds()
+                ? Duration.between(now, emitAt).getSeconds()
                 : -1;
 
         LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds), emits in %ds",
