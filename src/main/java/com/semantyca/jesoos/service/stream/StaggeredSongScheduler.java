@@ -138,7 +138,8 @@ public class StaggeredSongScheduler {
         };
 
         long timerId = vertx.setTimer(delay, id -> {
-            brandTimers.getOrDefault(brandName, new ConcurrentHashMap<>()).remove(entry.getSequenceNumber());
+            ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+            if (timers != null) timers.remove(entry.getSequenceNumber());
             task.run();
         });
         brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
