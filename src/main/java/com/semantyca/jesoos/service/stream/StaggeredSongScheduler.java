@@ -101,8 +101,6 @@ public class StaggeredSongScheduler {
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long delay = Math.max(1, emissionTime - leadTimeMs - now);
 
-        entry.setStatus(TimelineEntryStatus.SCHEDULED);
-
         Runnable task = () -> {
             long deadline = scene.getEndTime()
                     .atZone(brandZone)
@@ -127,9 +125,13 @@ public class StaggeredSongScheduler {
                             },
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
+                                String errorMsg = err.getMessage();
+                                if (errorMsg == null) {
+                                    errorMsg = err.getClass().getSimpleName();
+                                }
                                 metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "entry_failed",
                                         Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
-                                                "error", err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName()),
+                                                "error", errorMsg),
                                         scene.getTraceId());
                             }
                     );
@@ -164,16 +166,9 @@ public class StaggeredSongScheduler {
                                         ZoneId brandZone) {
 
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        MergingType effectiveMixingStrategy = entry.getMixingStrategy();
         boolean shouldGenerateIntros = entry.isHasIntro() && djEnabled;
-
-        if (!djEnabled && entry.isHasIntro()) {
-            effectiveMixingStrategy = entry.getSongs().size() >= 2 
-                ? MergingType.SONG_CROSSFADE_SONG 
-                : MergingType.SONG_ONLY;
-        }
+        MergingType effectiveMixingStrategy = entry.getMixingStrategy();
 
         List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
@@ -185,11 +180,10 @@ public class StaggeredSongScheduler {
             }
         }
 
-        MergingType finalMixingStrategy = effectiveMixingStrategy;
         return Uni.join().all(introUnis).andCollectFailures()
                 .chain(intros -> {
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(finalMixingStrategy);
+                    dto.setMergingMethod(effectiveMixingStrategy);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());
@@ -255,9 +249,10 @@ public class StaggeredSongScheduler {
                         SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
                         dto.setMergingMethod(MergingType.FILLER_JINGLE);
 
-                        int jingleDuration = jingle.getLength() != null
-                                ? (int) jingle.getLength().toSeconds()
-                                : DEFAULT_JINGLE_DURATION;
+                        int jingleDuration = DEFAULT_JINGLE_DURATION;
+                        if (jingle.getLength() != null) {
+                            jingleDuration = (int) jingle.getLength().toSeconds();
+                        }
 
                         songMap.put(getSongKeyByIndex(0),
                                 new SongInfoDTO(jingle.getId(), jingleDuration));
