@@ -266,8 +266,7 @@ public class StaggeredSongScheduler {
                     dto.setSongs(songMap);
 
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
-                })
-                ;
+                });
     }
 
     public void cancelAll(String brandName) {
