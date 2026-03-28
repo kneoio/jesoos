@@ -126,18 +126,18 @@ public class StaggeredSongScheduler {
                 brandName,
                 MetricEventType.INFORMATION,
                 "timeline_scheduled",
-                Map.of(
-                        "sceneId", scene.getSceneId().toString(),
-                        "totalEntries", timeline.size(),
-                        "scheduledEntries", scheduledEntries,
-                        "skippedEntries", skippedEntries,
-                        "skippedSongsCount", skippedSongsCount,
-                        "skippedDurationSeconds", skippedDurationSeconds,
-                        "scheduledAt", now.toString(),
-                        "emitAt", emitAt != null ? emitAt.toString() : "none",
-                        "emitInSeconds", emitInSeconds,
-                        "firstEmission", timeline.getFirst().getScheduledEmissionTime().toString(),
-                        "lastEmission", timeline.getLast().getScheduledEmissionTime().toString()
+                Map.ofEntries(
+                        Map.entry("sceneId", scene.getSceneId().toString()),
+                        Map.entry("totalEntries", timeline.size()),
+                        Map.entry("scheduledEntries", scheduledEntries),
+                        Map.entry("skippedEntries", skippedEntries),
+                        Map.entry("skippedSongsCount", skippedSongsCount),
+                        Map.entry("skippedDurationSeconds", skippedDurationSeconds),
+                        Map.entry("scheduledAt", now.toString()),
+                        Map.entry("emitAt", emitAt != null ? emitAt.toString() : "none"),
+                        Map.entry("emitInSeconds", emitInSeconds),
+                        Map.entry("firstEmission", timeline.getFirst().getScheduledEmissionTime().toString()),
+                        Map.entry("lastEmission", timeline.getLast().getScheduledEmissionTime().toString())
                 ),
                 scene.getTraceId()
         );
