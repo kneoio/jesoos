@@ -181,11 +181,19 @@ public class StaggeredSongScheduler {
                             v -> {
                                 entry.setStatus(TimelineEntryStatus.COMPLETED);
                                 LOGGER.infof("Completed entry %d for scene '%s'", entry.getSequenceNumber(), scene.getSceneTitle());
+                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "entry_emitted",
+                                        Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
+                                                "strategy", entry.getMixingStrategy().name()),
+                                        scene.getTraceId());
                             },
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
                                 LOGGER.errorf(err, "Entry %d failed for scene '%s': %s",
                                         entry.getSequenceNumber(), scene.getSceneTitle(), err.getMessage());
+                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, "entry_failed",
+                                        Map.of("seq", entry.getSequenceNumber(), "scene", scene.getSceneTitle(),
+                                                "error", err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName()),
+                                        scene.getTraceId());
                             }
                     );
         };
