@@ -41,7 +41,26 @@ public class AgendaTicker {
 
             List<LiveScene> scenes = agenda.getLiveScenes();
             LiveScene activeSceneFound = null;
-            
+
+            LiveScene currentActive = scenePool.getActiveScene(brandSlug);
+            if (currentActive != null && currentActive.isOneTimeRun() && currentActive.isFinished()) {
+                int currentIndex = -1;
+                for (int i = 0; i < scenes.size(); i++) {
+                    if (scenes.get(i).getSceneId().equals(currentActive.getSceneId())) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+                if (currentIndex >= 0) {
+                    LiveScene nextScene = scenes.get((currentIndex + 1) % scenes.size());
+                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, advancing to '%s'",
+                            currentActive.getSceneTitle(), brandSlug, nextScene.getSceneTitle());
+                    scenePool.removeActiveScene(brandSlug);
+                    processScene(brandSlug, nextScene, TriggerContext.ON_TIME);
+                }
+                return;
+            }
+
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
 

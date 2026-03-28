@@ -141,6 +141,7 @@ public class AgendaService {
                                 liveScene.setTimeZone(brandZone);
                                 liveScene.setAgentId(sourceBrand.getAiAgentId());
                                 liveScene.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
+                                liveScene.setOneTimeRun(scene.isOneTimeRun());
 
                                 List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
 

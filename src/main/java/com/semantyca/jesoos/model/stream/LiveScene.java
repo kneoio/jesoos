@@ -34,6 +34,7 @@ public class LiveScene {
     private UUID traceId;
     private List<TimelineEntry> timeline;
     private boolean timelineBuild;
+    private boolean oneTimeRun;
 
     public LocalDateTime getStartTime() {
         if (timeline == null || timeline.isEmpty()) return null;
@@ -50,6 +51,11 @@ public class LiveScene {
     public int getDurationSeconds() {
         if (timeline == null || timeline.isEmpty()) return 0;
         return timeline.stream().mapToInt(TimelineEntry::getEstimatedDurationSeconds).sum();
+    }
+
+    public boolean isFinished() {
+        if (timeline == null || timeline.isEmpty()) return false;
+        return timeline.stream().noneMatch(e -> e.getStatus() == TimelineEntryStatus.PENDING);
     }
 
     public boolean isActiveAt(LocalTime time, LocalTime nextSceneStartTime) {
