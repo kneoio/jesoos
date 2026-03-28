@@ -182,6 +182,17 @@ public class StaggeredSongScheduler {
 
         return Uni.join().all(introUnis).andCollectFailures()
                 .chain(intros -> {
+                    long now = System.currentTimeMillis();
+                    long deadline = scene.getEndTime()
+                            .atZone(brandZone)
+                            .toInstant()
+                            .toEpochMilli();
+
+                    if (now >= deadline) {
+                        entry.setStatus(TimelineEntryStatus.SKIPPED);
+                        return Uni.createFrom().voidItem();
+                    }
+
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
                     dto.setMergingMethod(effectiveMixingStrategy);
                     dto.setSceneId(scene.getSceneId());
@@ -207,12 +218,6 @@ public class StaggeredSongScheduler {
 
                     dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
-
-                    long deadline = scene.getEndTime()
-                            .atZone(brandZone)
-                            .toInstant()
-                            .toEpochMilli();
-
                     dto.setSceneDeadlineTimestamp(deadline);
 
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
@@ -228,6 +233,16 @@ public class StaggeredSongScheduler {
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
+                    long now = System.currentTimeMillis();
+                    long deadline = scene.getEndTime()
+                            .atZone(brandZone)
+                            .toInstant()
+                            .toEpochMilli();
+
+                    if (now >= deadline) {
+                        entry.setStatus(TimelineEntryStatus.SKIPPED);
+                        return Uni.createFrom().voidItem();
+                    }
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
@@ -263,16 +278,9 @@ public class StaggeredSongScheduler {
                                             entry.getSongs().get(i).getDurationSeconds()));
                         }
                     }
-
-                    long deadline = scene.getEndTime()
-                            .atZone(brandZone)
-                            .toInstant()
-                            .toEpochMilli();
-
                     dto.setSceneDeadlineTimestamp(deadline);
                     dto.setFilePaths(introMap);
                     dto.setSongs(songMap);
-
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
     }
