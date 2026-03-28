@@ -88,6 +88,7 @@ public class StaggeredSongScheduler {
         int skippedEntries = 0;
         int skippedSongsCount = 0;
         int skippedDurationSeconds = 0;
+        LocalDateTime firstScheduledEmission = null;
 
         for (TimelineEntry entry : timeline) {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
@@ -104,12 +105,22 @@ public class StaggeredSongScheduler {
                 continue;
             }
 
+            if (firstScheduledEmission == null) {
+                firstScheduledEmission = entry.getScheduledEmissionTime();
+            }
             scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone());
             scheduledEntries++;
         }
 
-        LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds)",
-                scene.getSceneTitle(), scheduledEntries, skippedEntries, skippedSongsCount, skippedDurationSeconds);
+        LocalDateTime firstFireAt = firstScheduledEmission != null
+                ? firstScheduledEmission.minusSeconds(config.getAivoxDelaySeconds())
+                : null;
+        long firstFiresInSeconds = firstFireAt != null
+                ? java.time.Duration.between(now, firstFireAt).getSeconds()
+                : -1;
+
+        LOGGER.infof("Scene '%s': scheduled %d entries, skipped %d entries (%d songs, %d seconds), first fires in %ds",
+                scene.getSceneTitle(), scheduledEntries, skippedEntries, skippedSongsCount, skippedDurationSeconds, firstFiresInSeconds);
 
         metricPublisher.publishMetric(
                 brandName,
@@ -122,7 +133,9 @@ public class StaggeredSongScheduler {
                         "skippedEntries", skippedEntries,
                         "skippedSongsCount", skippedSongsCount,
                         "skippedDurationSeconds", skippedDurationSeconds,
-                        "scheduledAt", LocalDateTime.now(scene.getTimeZone()).toString(),
+                        "scheduledAt", now.toString(),
+                        "firstFireAt", firstFireAt != null ? firstFireAt.toString() : "none",
+                        "firstFiresInSeconds", firstFiresInSeconds,
                         "firstEmission", timeline.getFirst().getScheduledEmissionTime().toString(),
                         "lastEmission", timeline.getLast().getScheduledEmissionTime().toString()
                 ),
