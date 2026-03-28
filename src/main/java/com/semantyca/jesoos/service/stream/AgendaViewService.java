@@ -63,11 +63,17 @@ public class AgendaViewService {
             endTime = timelineDTOs.getLast().getScheduledEmissionTime();
         }
 
+        int totalSongs = scene.getTimeline() == null ? 0 :
+                scene.getTimeline().stream().mapToInt(e -> e.getSongs().size()).sum();
+
         return SceneDTO.builder()
                 .id(scene.getSceneId().toString())
                 .title(scene.getSceneTitle())
                 .firstEmissionTime(startTime)
                 .lastEmissionTime(endTime)
+                .durationSeconds(scene.getDurationSeconds())
+                .totalSongs(totalSongs)
+                .timelineBuilt(scene.isTimelineBuild())
                 .timeline(timelineDTOs)
                 .build();
     }
