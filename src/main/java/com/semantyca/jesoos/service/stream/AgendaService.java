@@ -206,7 +206,7 @@ public class AgendaService {
             return songsPool;
         }
 
-        int effectiveMusicTime = (int) (sceneDurationSeconds * (1.0 - talkativity));
+        int effectiveMusicTime = sceneDurationSeconds;
 
         List<SoundFragment> selectedSongs = new ArrayList<>();
         Set<UUID> addedSongIds = new HashSet<>();
@@ -218,7 +218,7 @@ public class AgendaService {
             }
 
             int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
-            int introOverhead = (int) (AVG_DJ_INTRO_SECONDS * talkativity);
+            int introOverhead = AVG_DJ_INTRO_SECONDS;
             int timeWithIntro = songDurationSeconds + introOverhead;
 
             if (totalTimeUsed + timeWithIntro <= effectiveMusicTime) {

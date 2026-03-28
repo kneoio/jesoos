@@ -15,7 +15,6 @@ import java.util.List;
 
 public class TimelineBuilder {
     private static final Logger LOGGER = Logger.getLogger(TimelineBuilder.class);
-    private static final int AVG_INTRO_DURATION_SECONDS = 30;
 
     public List<TimelineEntry> buildTimeline(LiveScene scene,
                                              List<SongEntry> songs,
@@ -37,36 +36,37 @@ public class TimelineBuilder {
                 scene.getSceneTitle(), talkativity, allowIntros);
 
         int songIndex = 0;
+        int sequenceNumber = 0;
         while (songIndex < songs.size()) {
             int remainingSongs = songs.size() - songIndex;
             MixingTypeShuffler.MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
-            
-            List<TimelineEntry> batchEntries = new ArrayList<>();
-            for (int i = 0; i < strategy.songsQuantity() && songIndex < songs.size(); i++) {
-                List<SongEntry> songList;
-                if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
-                    songList = List.of(songs.get(songIndex), songs.get(songIndex + 1));
-                    songIndex++; // Skip the next song as it's already included
-                } else {
-                    songList = List.of(songs.get(songIndex));
-                }
 
-                TimelineEntry entry = new TimelineEntry(
-                    songIndex,
-                    currentTime,
-                    songList,
-                    strategy.mergingType(),
-                    strategy.needsIntros(),
-                    strategy.mergingType().equals(MergingType.FILLER_JINGLE)
-                );
-                
-                batchEntries.add(entry);
-                timeline.add(entry);
+            List<SongEntry> songList;
+            if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
+                songList = List.of(songs.get(songIndex), songs.get(songIndex + 1));
+                songIndex += 2;
+            } else {
+                songList = List.of(songs.get(songIndex));
                 songIndex++;
             }
-            
-            int batchDuration = calculateBatchDuration(batchEntries, strategy);
-            currentTime = currentTime.plusSeconds(batchDuration);
+
+            TimelineEntry entry = new TimelineEntry(
+                sequenceNumber,
+                currentTime,
+                songList,
+                strategy.mergingType(),
+                strategy.needsIntros(),
+                strategy.mergingType().equals(MergingType.FILLER_JINGLE)
+            );
+
+            timeline.add(entry);
+            sequenceNumber++;
+
+            int duration = entry.getEstimatedDurationSeconds();
+            if (strategy.mergingType() == MergingType.SONG_CROSSFADE_SONG && songList.size() == 2) {
+                duration -= 10;
+            }
+            currentTime = currentTime.plusSeconds(duration);
         }
 
         LOGGER.infof("Built timeline for scene '%s': %d entries, duration: %d seconds, allowIntros: %s",
@@ -75,33 +75,6 @@ public class TimelineBuilder {
 
         scene.setTimelineBuild(true);
         return timeline;
-    }
-
-    private int calculateBatchDuration(List<TimelineEntry> batchEntries, MixingTypeShuffler.MixingStrategy strategy) {
-        if (batchEntries.isEmpty()) {
-            return 0;
-        }
-
-        int totalSongDuration = batchEntries.stream()
-                .mapToInt(TimelineEntry::getEstimatedDurationSeconds)
-                .sum();
-
-        int introDuration = 0;
-        if (strategy.needsIntros()) {
-            introDuration = batchEntries.size() * AVG_INTRO_DURATION_SECONDS;
-        }
-
-        int jingleDuration = 0;
-        if (batchEntries.stream().anyMatch(TimelineEntry::isHasJingle)) {
-            jingleDuration = 10;
-        }
-
-        int crossfadeReduction = 0;
-        if (strategy.mergingType() == MergingType.SONG_CROSSFADE_SONG && batchEntries.size() == 2) {
-            crossfadeReduction = 10;
-        }
-
-        return totalSongDuration + introDuration + jingleDuration - crossfadeReduction;
     }
 
     private int calculateTotalDuration(List<TimelineEntry> timeline) {
