@@ -20,7 +20,7 @@ public class SceneTicker {
     @Inject
     StaggeredSongScheduler staggeredSongScheduler;
 
-    @Scheduled(every = "60s",  delay = 15, delayUnit = TimeUnit.SECONDS)
+    @Scheduled(every = "10s",  delay = 5, delayUnit = TimeUnit.SECONDS)
     void scheduleActiveScenes() {
         scenePool.getActiveScenes().forEach((brandName, scene) -> {
             if (scene != null && scene.getTimeline() != null && !scene.getTimeline().isEmpty()) {
@@ -35,6 +35,8 @@ public class SceneTicker {
                     staggeredSongScheduler.cancelPending(brandName, pendingSeqs);
                     staggeredSongScheduler.scheduleSceneSongs(brandName, scene);
                 }
+            } else {
+                LOGGER.infof("Scene %s for brand %s is not active. Skipping.", scene.getSceneTitle(), brandName);
             }
         });
     }

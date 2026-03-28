@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service.stream;
 
 import com.semantyca.jesoos.model.stream.LiveScene;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
 import org.slf4j.Logger;
@@ -31,4 +32,13 @@ public class ScenePool {
         }
     }
 
+    public void clear() {
+        activeScenes.clear();
+    }
+
+    @PreDestroy
+    void cleanup() {
+        LOGGER.info("ScenePool cleanup: clearing {} active scenes", activeScenes.size());
+        activeScenes.clear();
+    }
 }

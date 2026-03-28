@@ -22,6 +22,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.mutiny.core.Vertx;
 import com.semantyca.jesoos.config.JesoosConfig;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.LocalDateTime;
@@ -303,5 +304,13 @@ public class StaggeredSongScheduler {
             Long timerId = timers.remove(seq);
             if (timerId != null) vertx.cancelTimer(timerId);
         }
+    }
+
+    @PreDestroy
+    void cleanup() {
+        brandTimers.forEach((brand, timers) -> {
+            timers.values().forEach(vertx::cancelTimer);
+        });
+        brandTimers.clear();
     }
 }

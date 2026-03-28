@@ -10,6 +10,7 @@ import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -28,14 +29,16 @@ public class BrandPool {
     private final AgendaService agendaService;
     private final MetricPublisher metricPublisher;
     private final StaggeredSongScheduler staggeredSongScheduler;
+    private final ScenePool scenePool;
 
 
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, StaggeredSongScheduler staggeredSongScheduler) {
+    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, StaggeredSongScheduler staggeredSongScheduler, ScenePool scenePool) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;
         this.staggeredSongScheduler = staggeredSongScheduler;
+        this.scenePool = scenePool;
     }
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
@@ -95,6 +98,7 @@ public class BrandPool {
 
         if (liveAgenda != null) {
             staggeredSongScheduler.cancelAll(brandName);
+            scenePool.removeActiveScene(brandName);
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             return Uni.createFrom().item(liveAgenda);
@@ -102,5 +106,15 @@ public class BrandPool {
             LOGGER.warnf("Station {} not found in pool during stopAndRemove.", brandName);
             return Uni.createFrom().nullItem();
         }
+    }
+
+    @PreDestroy
+    void cleanup() {
+        LOGGER.info("BrandPool cleanup: stopping all brands and clearing resources");
+        pool.keySet().forEach(brandName -> {
+            staggeredSongScheduler.cancelAll(brandName);
+            scenePool.removeActiveScene(brandName);
+        });
+        pool.clear();
     }
 }
