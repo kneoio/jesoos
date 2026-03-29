@@ -20,19 +20,19 @@ public class SceneTicker {
     @Inject
     StaggeredSongScheduler staggeredSongScheduler;
 
-    @Scheduled(every = "10s",  delay = 5, delayUnit = TimeUnit.SECONDS)
+    @Scheduled(every = "15s",  delay = 5, delayUnit = TimeUnit.SECONDS)
     void scheduleActiveScenes() {
         scenePool.getActiveScenes().forEach((brandName, scene) -> {
-            if (scene != null && scene.getTimeline() != null && !scene.getTimeline().isEmpty()) {
+            if (!scene.getTimeline().isEmpty()) {
                 boolean hasUnscheduledEntries = scene.getTimeline().stream()
                         .anyMatch(entry -> entry.getStatus() == TimelineEntryStatus.PENDING);
 
-                if (hasUnscheduledEntries) {
+                if (hasUnscheduledEntries) {  //???  we do the check then we do something similar in StaggeredSondScheduler, perhaps some redundant ???
                     List<Integer> pendingSeqs = scene.getTimeline().stream()
                             .filter(e -> e.getStatus() == TimelineEntryStatus.PENDING)
                             .map(TimelineEntry::getSequenceNumber)
                             .toList();
-                    staggeredSongScheduler.cancelPending(brandName, pendingSeqs);
+                    staggeredSongScheduler.cancelPending(brandName, pendingSeqs); //??  is it ok, tha we make call ti scheduler sequentially ?
                     staggeredSongScheduler.scheduleSceneSongs(brandName, scene);
                 }
             } else {

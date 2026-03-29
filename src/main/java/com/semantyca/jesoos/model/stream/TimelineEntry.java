@@ -58,7 +58,7 @@ public class TimelineEntry {
         int totalDuration = songs.stream()
                 .mapToInt(SongEntry::getDurationSeconds)
                 .sum();
-        if (hasIntro) totalDuration += 30;
+        if (hasIntro) totalDuration += 15;
         if (hasJingle) totalDuration += StaggeredSongScheduler.DEFAULT_JINGLE_DURATION;
         return totalDuration;
     }

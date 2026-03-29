@@ -96,7 +96,7 @@ public class StaggeredSongScheduler {
 
 
     private void scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
-        if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
+        if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {  //???  why do we need the check ?
             return;
         }
 
@@ -176,7 +176,7 @@ public class StaggeredSongScheduler {
 
         MergingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        long deadline = scene.getEndTime()
+        long deadline = scene.getEndTime()   //???  in line 113 we did it , do we need it here ?
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
@@ -221,7 +221,7 @@ public class StaggeredSongScheduler {
                         return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                     });
         } else {
-            MergingType[] availableTypes = getMergingTypesNoIntro(entry);
+            MergingType[] availableTypes = getNoIntroMergingTypes(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
             SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, deadline);
@@ -254,7 +254,7 @@ public class StaggeredSongScheduler {
         return dto;
     }
 
-    private static MergingType @NotNull [] getMergingTypesNoIntro(TimelineEntry entry) {
+    private static MergingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
         MergingType[] availableTypes;
         if (entry.getSongs().size() == 2) {
             availableTypes = new MergingType[]{
@@ -279,7 +279,7 @@ public class StaggeredSongScheduler {
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
                     long now = System.currentTimeMillis();
-                    long deadline = scene.getEndTime()
+                    long deadline = scene.getEndTime()  //???  in line 113 we did it , do we need it here ?
                             .atZone(brandZone)
                             .toInstant()
                             .toEpochMilli();
@@ -288,7 +288,7 @@ public class StaggeredSongScheduler {
                         entry.setStatus(TimelineEntryStatus.SKIPPED);
                         return Uni.createFrom().voidItem();
                     }
-                    SongQueueMessageDTO dto = new SongQueueMessageDTO();
+                    SongQueueMessageDTO dto = new SongQueueMessageDTO();  //?? shou we use createBaseSongQueueMessage ?
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());
