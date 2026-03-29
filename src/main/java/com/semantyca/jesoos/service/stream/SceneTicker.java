@@ -1,13 +1,10 @@
 package com.semantyca.jesoos.service.stream;
 
-import com.semantyca.jesoos.model.stream.TimelineEntry;
-import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
@@ -24,11 +21,6 @@ public class SceneTicker {
     void scheduleActiveScenes() {
         scenePool.getActiveScenes().forEach((brandName, scene) -> {
             if (!scene.getTimeline().isEmpty()) {
-                List<Integer> pendingSeqs = scene.getTimeline().stream()
-                        .filter(e -> e.getStatus() == TimelineEntryStatus.PENDING)
-                        .map(TimelineEntry::getSequenceNumber)
-                        .toList();
-                staggeredSongScheduler.cancelPending(brandName, pendingSeqs);
                 staggeredSongScheduler.scheduleSceneSongs(brandName, scene);
             } else {
                 LOGGER.infof("Scene %s for brand %s has an empty timeline. Skipping.", scene.getSceneTitle(), brandName);
