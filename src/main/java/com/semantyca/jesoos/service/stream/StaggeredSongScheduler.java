@@ -176,7 +176,7 @@ public class StaggeredSongScheduler {
 
         MergingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        long deadline = scene.getEndTime()   //???  in line 113 we did it , do we need it here ?
+        long sceneDeadlineMs = scene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
@@ -197,7 +197,7 @@ public class StaggeredSongScheduler {
             MergingType finalMixingStrategy = mixingStrategy;
             return Uni.join().all(introUnis).andCollectFailures()
                     .chain(intros -> {
-                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, deadline);
+                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineMs);
 
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -224,7 +224,7 @@ public class StaggeredSongScheduler {
             MergingType[] availableTypes = getNoIntroMergingTypes(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
-            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, deadline);
+            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, sceneDeadlineMs);
 
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -278,28 +278,16 @@ public class StaggeredSongScheduler {
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
-                    long now = System.currentTimeMillis();
-                    long deadline = scene.getEndTime()  //???  in line 113 we did it , do we need it here ?
+                    long sceneDeadlineMs = scene.getEndTime()
                             .atZone(brandZone)
                             .toInstant()
                             .toEpochMilli();
 
-                    if (now >= deadline) {
-                        entry.setStatus(TimelineEntryStatus.SKIPPED);
-                        return Uni.createFrom().voidItem();
-                    }
-                    SongQueueMessageDTO dto = new SongQueueMessageDTO();  //?? shou we use createBaseSongQueueMessage ?
-                    dto.setSceneId(scene.getSceneId());
-                    dto.setSceneTitle(scene.getSceneTitle());
-                    dto.setSequenceNumber(entry.getSequenceNumber());
-                    dto.setPriority(9);
-
-                    Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+                    MergingType mergingType;
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
                     if (jingles.isEmpty()) {
-                        dto.setMergingMethod(MergingType.SONG_ONLY);
-
+                        mergingType = MergingType.SONG_ONLY;
                         for (int i = 0; i < entry.getSongs().size(); i++) {
                             songMap.put(getSongKeyByIndex(i),
                                     new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
@@ -307,7 +295,7 @@ public class StaggeredSongScheduler {
                         }
                     } else {
                         SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
-                        dto.setMergingMethod(MergingType.FILLER_JINGLE);
+                        mergingType = MergingType.FILLER_JINGLE;
 
                         int jingleDuration = DEFAULT_JINGLE_DURATION;
                         if (jingle.getLength() != null) {
@@ -323,14 +311,15 @@ public class StaggeredSongScheduler {
                                             entry.getSongs().get(i).getDurationSeconds()));
                         }
                     }
-                    dto.setSceneDeadlineTimestamp(deadline);
-                    dto.setFilePaths(introMap);
+
+                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineMs);
+                    dto.setFilePaths(new HashMap<>());
                     dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
     }
 
-    public void cancelAll(String brandName) {
+    public void cancelBrandTimers(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
         if (timers != null) timers.values().forEach(vertx::cancelTimer);
     }

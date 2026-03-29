@@ -71,9 +71,8 @@ public class AgendaTicker {
                 if (!isActive) continue;
 
                 activeSceneFound = scene;
-                
-                LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
-                if (currentActiveScene != null && currentActiveScene.getSceneId().equals(scene.getSceneId())) {
+
+                if (currentActive != null && currentActive.getSceneId().equals(scene.getSceneId())) {
                     LOGGER.debugf("Scene '%s' is already active for brand: %s",
                             scene.getSceneTitle(), brandSlug);
                     continue;

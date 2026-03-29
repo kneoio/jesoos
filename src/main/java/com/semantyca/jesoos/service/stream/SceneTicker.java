@@ -24,19 +24,14 @@ public class SceneTicker {
     void scheduleActiveScenes() {
         scenePool.getActiveScenes().forEach((brandName, scene) -> {
             if (!scene.getTimeline().isEmpty()) {
-                boolean hasUnscheduledEntries = scene.getTimeline().stream()
-                        .anyMatch(entry -> entry.getStatus() == TimelineEntryStatus.PENDING);
-
-                if (hasUnscheduledEntries) {  //???  we do the check then we do something similar in StaggeredSondScheduler, perhaps some redundant ???
-                    List<Integer> pendingSeqs = scene.getTimeline().stream()
-                            .filter(e -> e.getStatus() == TimelineEntryStatus.PENDING)
-                            .map(TimelineEntry::getSequenceNumber)
-                            .toList();
-                    staggeredSongScheduler.cancelPending(brandName, pendingSeqs); //??  is it ok, tha we make call ti scheduler sequentially ?
-                    staggeredSongScheduler.scheduleSceneSongs(brandName, scene);
-                }
+                List<Integer> pendingSeqs = scene.getTimeline().stream()
+                        .filter(e -> e.getStatus() == TimelineEntryStatus.PENDING)
+                        .map(TimelineEntry::getSequenceNumber)
+                        .toList();
+                staggeredSongScheduler.cancelPending(brandName, pendingSeqs);
+                staggeredSongScheduler.scheduleSceneSongs(brandName, scene);
             } else {
-                LOGGER.infof("Scene %s for brand %s is not active. Skipping.", scene.getSceneTitle(), brandName);
+                LOGGER.infof("Scene %s for brand %s has an empty timeline. Skipping.", scene.getSceneTitle(), brandName);
             }
         });
     }

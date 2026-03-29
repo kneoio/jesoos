@@ -27,16 +27,13 @@ public class BrandPool {
     private final BrandService brandService;
     private final AgendaService agendaService;
     private final MetricPublisher metricPublisher;
-    private final StaggeredSongScheduler staggeredSongScheduler;
     private final ScenePool scenePool;
 
-
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, StaggeredSongScheduler staggeredSongScheduler, ScenePool scenePool) {
+    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;
-        this.staggeredSongScheduler = staggeredSongScheduler;
         this.scenePool = scenePool;
     }
 
@@ -96,7 +93,6 @@ public class BrandPool {
         ILiveStream liveAgenda = pool.remove(brandName);
 
         if (liveAgenda != null) {
-            staggeredSongScheduler.cancelAll(brandName);
             scenePool.removeActiveScene(brandName);
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
@@ -110,10 +106,7 @@ public class BrandPool {
     @PreDestroy
     void cleanup() {
         LOGGER.info("BrandPool cleanup: stopping all brands and clearing resources");
-        pool.keySet().forEach(brandName -> {
-            staggeredSongScheduler.cancelAll(brandName);
-            scenePool.removeActiveScene(brandName);
-        });
+        pool.keySet().forEach(brandName -> scenePool.removeActiveScene(brandName));
         pool.clear();
     }
 }
