@@ -221,7 +221,7 @@ public class StaggeredSongScheduler {
                         return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                     });
         } else {
-            MergingType[] availableTypes = getMergingTypes(entry);
+            MergingType[] availableTypes = getMergingTypesNoIntro(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
             SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, deadline);
@@ -254,19 +254,16 @@ public class StaggeredSongScheduler {
         return dto;
     }
 
-    private static MergingType @NotNull [] getMergingTypes(TimelineEntry entry) {
+    private static MergingType @NotNull [] getMergingTypesNoIntro(TimelineEntry entry) {
         MergingType[] availableTypes;
         if (entry.getSongs().size() == 2) {
             availableTypes = new MergingType[]{
                     MergingType.SONG_CROSSFADE_SONG,
-                    MergingType.SONG_INTRO_SONG,
-                    MergingType.INTRO_SONG_INTRO_SONG
+                    MergingType.NOT_MIXED
             };
         } else {
             availableTypes = new MergingType[]{
-                    MergingType.SONG_ONLY,
-                    MergingType.INTRO_SONG,
-                    MergingType.NOT_MIXED
+                    MergingType.SONG_ONLY
             };
         }
         return availableTypes;
