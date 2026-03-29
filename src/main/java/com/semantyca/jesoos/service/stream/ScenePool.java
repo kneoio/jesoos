@@ -6,15 +6,14 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.AccessLevel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 @ApplicationScoped
 public class ScenePool {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ScenePool.class);
+    private static final Logger LOGGER = Logger.getLogger(ScenePool.class);
 
     private final ConcurrentHashMap<String, LiveScene> activeScenes = new ConcurrentHashMap<>();
 
@@ -34,7 +33,7 @@ public class ScenePool {
         LiveScene removed = activeScenes.remove(brandName);
         if (removed != null) {
             staggeredSongScheduler.cancelBrandTimers(brandName);
-            LOGGER.info("Removed active scene '{}' for brand: {}",
+            LOGGER.infof("Removed active scene '%s' for brand: {}",
                     removed.getSceneTitle(), brandName);
         }
     }
@@ -45,7 +44,7 @@ public class ScenePool {
 
     @PreDestroy
     void cleanup() {
-        LOGGER.info("ScenePool cleanup: clearing {} active scenes", activeScenes.size());
+        LOGGER.infof("ScenePool cleanup: clearing %s active scenes", activeScenes.size());
         activeScenes.clear();
     }
 }

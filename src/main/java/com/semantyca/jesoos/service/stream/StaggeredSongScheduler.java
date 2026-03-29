@@ -176,7 +176,7 @@ public class StaggeredSongScheduler {
 
         MergingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        long sceneDeadlineMs = scene.getEndTime()
+        long sceneDeadlineForAivoxAwareness = scene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
@@ -197,7 +197,7 @@ public class StaggeredSongScheduler {
             MergingType finalMixingStrategy = mixingStrategy;
             return Uni.join().all(introUnis).andCollectFailures()
                     .chain(intros -> {
-                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineMs);
+                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
 
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -224,7 +224,7 @@ public class StaggeredSongScheduler {
             MergingType[] availableTypes = getNoIntroMergingTypes(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
-            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, sceneDeadlineMs);
+            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, sceneDeadlineForAivoxAwareness);
 
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -278,7 +278,7 @@ public class StaggeredSongScheduler {
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
-                    long sceneDeadlineMs = scene.getEndTime()
+                    long sceneDeadlineForAivoxAwareness = scene.getEndTime()
                             .atZone(brandZone)
                             .toInstant()
                             .toEpochMilli();
@@ -312,7 +312,7 @@ public class StaggeredSongScheduler {
                         }
                     }
 
-                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineMs);
+                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineForAivoxAwareness);
                     dto.setFilePaths(new HashMap<>());
                     dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
