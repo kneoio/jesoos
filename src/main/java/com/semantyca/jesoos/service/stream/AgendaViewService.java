@@ -20,19 +20,13 @@ public class AgendaViewService {
     @Inject
     BrandPool brandPool;
 
-    public AgendasResponseDTO getAllAgendas() {
-        AgendasResponseDTO response = new AgendasResponseDTO();
-
-        brandPool.getStationsSnapshot().forEach(stream -> {
-            if (stream.getAgenda() != null) {
-                String key = stream.getSlugName();
-                StreamAgenda agenda = stream.getAgenda();
-                AgendaDTO agendaDTO = buildAgendaDTO(key, agenda);
-                response.addAgenda(key, agendaDTO);
-            }
-        });
-
-        return response;
+    public AgendaDTO getAgendaByBrand(String brand) {
+        return brandPool.getStationsSnapshot().stream()
+                .filter(stream -> stream.getSlugName().equals(brand))
+                .filter(stream -> stream.getAgenda() != null)
+                .findFirst()
+                .map(stream -> buildAgendaDTO(stream.getSlugName(), stream.getAgenda()))
+                .orElse(null);
     }
 
     private AgendaDTO buildAgendaDTO(String key, StreamAgenda agenda) {

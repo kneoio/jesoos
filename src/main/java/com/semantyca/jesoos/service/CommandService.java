@@ -43,7 +43,6 @@ public class CommandService {
                         return brandPool.getRadioStream(brand)
                                 .invoke(s -> {
                                     djStateService.enableDj(brand);
-                                    LOGGER.infof("DJ enabled for brand: %s (stream started and DJ enabled)", brand);
                                 })
                                 .map(this::toResponse)
                                 .map(response -> response
@@ -68,7 +67,6 @@ public class CommandService {
         
         return Uni.createFrom().item(() -> {
             djStateService.disableDj(brand);
-            LOGGER.infof("DJ disabled for brand: %s (no listeners, saving TTS costs)", brand);
             return new JsonObject()
                     .put("success", true)
                     .put("brand", brand)

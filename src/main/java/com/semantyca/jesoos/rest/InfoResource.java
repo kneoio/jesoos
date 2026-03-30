@@ -28,7 +28,7 @@ public class InfoResource {
     public void setupRoutes(Router router) {
         String path = "/jesoos";
         router.route(HttpMethod.GET, path + "/info/brand-timers").handler(this::getBrandTimers);
-        router.route(HttpMethod.GET, path + "/agendas").handler(this::getAgendas);
+        router.route(HttpMethod.GET, path + "/agendas/:brand").handler(this::getAgendas);
     }
 
     private void getBrandTimers(RoutingContext rc) {
@@ -55,18 +55,23 @@ public class InfoResource {
 
 
     private void getAgendas(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
         rc.vertx().executeBlocking(() -> {
-            AgendasResponseDTO response = agendaViewService.getAllAgendas();
-            return OBJECT_MAPPER.writeValueAsString(response);
+            var agenda = agendaViewService.getAgendaByBrand(brand);
+            if (agenda == null) {
+                throw new IllegalArgumentException("Agenda not found for brand: " + brand);
+            }
+            return OBJECT_MAPPER.writeValueAsString(agenda);
         }).onSuccess(json -> {
             rc.response()
                     .setStatusCode(200)
                     .putHeader("Content-Type", "application/json")
                     .end(json);
         }).onFailure(err -> {
-            LOGGER.error("Failed to get agendas", err);
+            LOGGER.error("Failed to get agenda for brand: " + brand, err);
+            int statusCode = err instanceof IllegalArgumentException ? 404 : 500;
             rc.response()
-                    .setStatusCode(500)
+                    .setStatusCode(statusCode)
                     .putHeader("Content-Type", "application/json")
                     .end(new JsonObject().put("error", err.getMessage()).encode());
         });

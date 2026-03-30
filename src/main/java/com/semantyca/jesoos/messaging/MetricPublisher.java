@@ -18,8 +18,6 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class MetricPublisher {
-
-
     private static final Logger LOGGER = Logger.getLogger(MetricPublisher.class);
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
@@ -28,8 +26,8 @@ public class MetricPublisher {
     @Channel("metrics")
     Emitter<byte[]> metricsEmitter;
 
-    public void publishMetric(String brandName, MetricEventType eventType, String code, Map<String, Object> payload) {
-        publishMetric(brandName, eventType, ProcessType.INDEPENDENT, code, payload, UUID.randomUUID());
+    public void publishMetric(String brandName, MetricEventType eventType, ProcessType processType, String code, Map<String, Object> payload) {
+        publishMetric(brandName, eventType, processType, code, payload, UUID.randomUUID());
     }
 
     public void publishMetric(String brandName, MetricEventType eventType, ProcessType processType, String code, Map<String, Object> payload, UUID traceId) {

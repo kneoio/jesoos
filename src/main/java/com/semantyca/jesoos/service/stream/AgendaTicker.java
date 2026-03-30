@@ -111,10 +111,10 @@ public class AgendaTicker {
     private void processScene(String brand, LiveScene scene, TriggerContext triggerContext) {
         scene.setTriggerContext(triggerContext);
 
-        LOGGER.infof("Processing scene '%s' for brand: %s, triggerContext: %s, traceId: {}",
+        LOGGER.infof("Processing scene '%s' for brand: %s, triggerContext: %s, traceId: %s",
                 scene.getSceneTitle(), brand, triggerContext, scene.getTraceId());
 
-        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW,
+        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.CRON,
                 "scene_started",
                 Map.of(
                     "scene", scene.getSceneTitle(),
@@ -124,7 +124,7 @@ public class AgendaTicker {
                 ), scene.getTraceId());
 
         scenePool.setActiveScene(brand, scene);
-        LOGGER.infof("Set active scene '%s' for brand: %s , traceId: {}",
+        LOGGER.infof("Set active scene '%s' for brand: %s , traceId: %s",
                 scene.getSceneTitle(), brand, scene.getTraceId());
     }
 }

@@ -7,6 +7,7 @@ import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.PreDestroy;
@@ -69,7 +70,7 @@ public class BrandPool {
                                         .map(schedule -> (ILiveStream) newStream);
                             });
                 })
-                .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "agenda_created", Map.of("status", agenda.getStatus().name())))
+                .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", agenda.getStatus().name())))
                 .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
@@ -95,7 +96,7 @@ public class BrandPool {
         if (liveAgenda != null) {
             scenePool.removeActiveScene(brandName);
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
-            metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
+            metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             return Uni.createFrom().item(liveAgenda);
         } else {
             LOGGER.warnf("Station {} not found in pool during stopAndRemove.", brandName);
@@ -106,7 +107,7 @@ public class BrandPool {
     @PreDestroy
     void cleanup() {
         LOGGER.info("BrandPool cleanup: stopping all brands and clearing resources");
-        pool.keySet().forEach(brandName -> scenePool.removeActiveScene(brandName));
+        pool.keySet().forEach(scenePool::removeActiveScene);
         pool.clear();
     }
 }

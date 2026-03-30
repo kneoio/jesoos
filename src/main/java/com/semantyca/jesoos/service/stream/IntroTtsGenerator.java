@@ -15,7 +15,6 @@ import com.semantyca.jesoos.agent.TextToSpeechClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
-import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
@@ -23,7 +22,6 @@ import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.Prompt;
-import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -33,21 +31,18 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 
 @ApplicationScoped
 public class IntroTtsGenerator {
-    private static final Logger LOGGER = LoggerFactory.getLogger(IntroTtsGenerator.class);
+    private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
 
     public record IntroAudioResult(String filePath, int durationSeconds) {}
 
@@ -114,7 +109,7 @@ public class IntroTtsGenerator {
                 LanguageTag.EN_US,
                 new HashMap<>()
         ).map(draft -> {
-            LOGGER.info("Draft content received: {}", draft);
+            LOGGER.infof("Draft content received: %s", draft);
             return draft;
         });
     }
@@ -122,7 +117,7 @@ public class IntroTtsGenerator {
     private Uni<String> generateSpokenText(Prompt prompt, String draftContent, UUID traceId, String brandName) {
         return Uni.createFrom().<String>emitter(em -> {
             if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
-                LOGGER.error("Draft content contains error, skipping generation: {}", draftContent);
+                LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
                 em.complete(null);
                 return;
             }
@@ -146,7 +141,7 @@ public class IntroTtsGenerator {
             try {
                 Message response = anthropicClient.messages().create(params);
 
-                LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}",
+                LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
                         response.usage().inputTokens(), response.usage().outputTokens());
 
                 String text = response.content().stream()
@@ -156,7 +151,7 @@ public class IntroTtsGenerator {
                         .orElseThrow(() -> new RuntimeException("No text generated from AI"));
 
                 if (response.usage().outputTokens() >= maxTokens * 0.95) {
-                    LOGGER.warn("Content generation used {} tokens ({}% of max {}). Response may be truncated.",
+                    LOGGER.warnf("Content generation used %s tokens (%s% of max %s). Response may be truncated.",
                             response.usage().outputTokens(),
                             Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
                             maxTokens);
@@ -169,14 +164,14 @@ public class IntroTtsGenerator {
                             Map.of("reason", "technical_difficulty_detected", "promptId", prompt.getId().toString()), traceId);
                     em.complete(null);
                 } else {
-                    LOGGER.info("Generated text ({} tokens): {}", response.usage().outputTokens(), text);
+                    LOGGER.infof("Generated text (%s tokens): %s", response.usage().outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.usage().inputTokens(), "outputTokens", response.usage().outputTokens(),
                                     "promptId", prompt.getId().toString()), traceId);
                     em.complete(text);
                 }
             } catch (Exception e) {
-                LOGGER.error("Anthropic API call failed - Type: {}, Message: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+                LOGGER.errorf("Anthropic API call failed - Type: %s, Message: %s", e.getClass().getSimpleName(), e.getMessage(), e);
                 metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                         Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
                 em.fail(e);
@@ -202,16 +197,16 @@ public class IntroTtsGenerator {
             ttsClient = modelslabClient;
             modelId = null;
             finalText = trimmed;
-            LOGGER.info("Using Modelslab TTS for scene '{}' (cleaned tags)", sceneTitle);
+            LOGGER.infof("Using Modelslab TTS for scene '%s' (cleaned tags)", sceneTitle);
         } else if (engineType == TTSEngineType.GOOGLE) {
             ttsClient = gcpttsClient;
             modelId = null;
             finalText = trimmed;
-            LOGGER.info("Using GCP TTS for scene '{}' (cleaned tags)", sceneTitle);
+            LOGGER.infof("Using GCP TTS for scene '%s' (cleaned tags)", sceneTitle);
         } else {
             ttsClient = elevenLabsClient;
             modelId = config.getElevenLabsModelId();
-            LOGGER.info("Using ElevenLabs TTS for scene '{}' with model: {}", sceneTitle, modelId);
+            LOGGER.infof("Using ElevenLabs TTS for scene '%s' with model: %s", sceneTitle, modelId);
         }
 
         return ttsClient.textToSpeech(finalText, voiceId, modelId, language)
@@ -224,7 +219,7 @@ public class IntroTtsGenerator {
                         Path audioFilePath = uploadsDir.resolve(fileName);
                         Files.write(audioFilePath, audioBytes);
 
-                        LOGGER.info("Intro TTS audio saved: {} ({} bytes)", audioFilePath, audioBytes.length);
+                        LOGGER.infof("Intro TTS audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
                         metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
                                 Map.of("engineType", engineType.toString(), "sceneTitle", sceneTitle,
                                         "audioSize", audioBytes.length, "textLength", text.length()), traceId);
@@ -250,10 +245,10 @@ public class IntroTtsGenerator {
                         ffmpegProvider.getFFprobe().probe(filePath);
                 double durationSeconds = probeResult.getFormat().duration;
                 int roundedDuration = (int) Math.ceil(durationSeconds);
-                LOGGER.info("Intro audio duration: {} seconds (file: {})", roundedDuration, filePath);
+                LOGGER.infof("Intro audio duration: %s seconds (file: %s)", roundedDuration, filePath);
                 return new IntroAudioResult(filePath, roundedDuration);
             } catch (Exception e) {
-                LOGGER.warn("Failed to probe intro audio duration for {}, using default 10s", filePath, e);
+                LOGGER.warnf("Failed to probe intro audio duration for %s, using default 10s", filePath, e);
                 return new IntroAudioResult(filePath, 10);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
