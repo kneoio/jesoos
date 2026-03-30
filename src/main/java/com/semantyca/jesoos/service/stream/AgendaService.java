@@ -206,36 +206,41 @@ public class AgendaService {
             return songsPool;
         }
 
-        int effectiveMusicTime = sceneDurationSeconds;
-
+        final int MAX_PASSES = 2;
+        int overhead = (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity));
         List<SoundFragment> selectedSongs = new ArrayList<>();
-        Set<UUID> addedSongIds = new HashSet<>();
         int totalTimeUsed = 0;
+        int pass = 0;
 
-        for (SoundFragment song : songsPool) {
-            if (addedSongIds.contains(song.getId())) {
-                continue;
+        outer:
+        while (totalTimeUsed < sceneDurationSeconds && pass < MAX_PASSES) {
+            boolean addedAny = false;
+            for (SoundFragment song : songsPool) {
+                int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
+                int timePerSong = songDurationSeconds + overhead;
+
+                if (totalTimeUsed + timePerSong <= sceneDurationSeconds) {
+                    selectedSongs.add(song);
+                    totalTimeUsed += timePerSong;
+                    addedAny = true;
+                } else if (selectedSongs.isEmpty()) {
+                    selectedSongs.add(song);
+                    break outer;
+                } else {
+                    break outer;
+                }
             }
-
-            int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
-            int overhead = (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity));
-            int timePerSong = songDurationSeconds + overhead;
-
-            if (totalTimeUsed + timePerSong <= effectiveMusicTime) {
-                selectedSongs.add(song);
-                addedSongIds.add(song.getId());
-                totalTimeUsed += timePerSong;
-            } else if (selectedSongs.isEmpty()) {
-                selectedSongs.add(song);
-                addedSongIds.add(song.getId());
-                break;
-            } else {
-                break;
-            }
+            pass++;
+            if (!addedAny) break;
         }
 
-        LOGGER.debugf("RadioStream scene duration: %ss, overhead/song: %ss (talkativity: %.2f), selected %d songs, total budgeted: %ss",
-                sceneDurationSeconds, (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity)), talkativity, selectedSongs.size(), totalTimeUsed);
+        if (totalTimeUsed < sceneDurationSeconds) {
+            LOGGER.warnf("Too few songs to fill scene duration: pool has %d songs covering %ss, scene needs %ss — consider adding more content",
+                    songsPool.size(), totalTimeUsed, sceneDurationSeconds);
+        }
+
+        LOGGER.debugf("RadioStream scene duration: %ss, overhead/song: %ss (talkativity: %.2f), selected %d songs over %d pass(es), total budgeted: %ss",
+                sceneDurationSeconds, overhead, talkativity, selectedSongs.size(), pass, totalTimeUsed);
 
         return selectedSongs;
     }
