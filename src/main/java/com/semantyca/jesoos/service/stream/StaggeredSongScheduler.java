@@ -266,7 +266,7 @@ public class StaggeredSongScheduler {
         dto.setSceneId(scene.getSceneId());
         dto.setSceneTitle(scene.getSceneTitle());
         dto.setSequenceNumber(entry.getSequenceNumber());
-        dto.setPriority(9);
+        dto.setPriority(entry.isHasIntro() ? 9 : 10);
         dto.setSceneDeadlineTimestamp(deadline);
         return dto;
     }
