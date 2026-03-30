@@ -3,6 +3,7 @@ package com.semantyca.jesoos.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
+import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.stream.AgendaViewService;
 import com.semantyca.jesoos.service.stream.StaggeredSongScheduler;
 import io.vertx.core.http.HttpMethod;
@@ -14,7 +15,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 @ApplicationScoped
-public class InfoResource {
+public class InfoResource extends AbstractResource {
 
     private static final Logger LOGGER = Logger.getLogger(InfoResource.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
@@ -23,36 +24,16 @@ public class InfoResource {
     AgendaViewService agendaViewService;
 
     @Inject
+    CommandService commandService;
+
+    @Inject
     StaggeredSongScheduler staggeredSongScheduler;
 
     public void setupRoutes(Router router) {
-        String path = "/jesoos";
-        router.route(HttpMethod.GET, path + "/info/brand-timers").handler(this::getBrandTimers);
-        router.route(HttpMethod.GET, path + "/agendas/:brand").handler(this::getAgendas);
+        String path = "/jesoos/info";
+        router.route(HttpMethod.GET, path + "/:brand/dj-status").handler(this::getDjStatus);
+        router.route(HttpMethod.GET, path + "/:brand/agendas").handler(this::getAgendas);
     }
-
-    private void getBrandTimers(RoutingContext rc) {
-        try {
-            JsonObject result = new JsonObject();
-            staggeredSongScheduler.getBrandTimers()
-                    .forEach((brand, timers) -> {
-                        JsonObject brandTimers = new JsonObject();
-                        timers.forEach((seq, timerId) -> brandTimers.put(String.valueOf(seq), timerId));
-                        result.put(brand, brandTimers);
-                    });
-            rc.response()
-                    .setStatusCode(200)
-                    .putHeader("Content-Type", "application/json")
-                    .end(result.encode());
-        } catch (Exception e) {
-            LOGGER.error("Failed to get brand timers", e);
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", e.getMessage()).encode());
-        }
-    }
-
 
     private void getAgendas(RoutingContext rc) {
         String brand = rc.pathParam("brand");
@@ -76,4 +57,21 @@ public class InfoResource {
                     .end(new JsonObject().put("error", err.getMessage()).encode());
         });
     }
+
+    private void getDjStatus(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        commandService.getDjStatus(brand)
+                .subscribe()
+                .with(
+                        djEnabled -> {
+                            LOGGER.infof("DJ status checked for brand: %s - %s", brand, djEnabled);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(String.valueOf(djEnabled));
+                        },
+                        failure -> handleCommandFailure(rc, brand, "get DJ status", failure)
+                );
+    }
+
 }

@@ -1,10 +1,6 @@
 package com.semantyca.jesoos.rest;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.service.CommandService;
-import com.semantyca.jesoos.service.stream.AgendaViewService;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -14,149 +10,108 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 @ApplicationScoped
-public class CommandResource {
-    
+public class CommandResource extends AbstractResource {
     private static final Logger LOGGER = Logger.getLogger(CommandResource.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
-
 
     @Inject
     CommandService commandService;
 
     public void setupRoutes(Router router) {
-        String path = "/jesoos";
-        router.route(HttpMethod.POST, path + "/stop-all").handler(this::handleStopAllCommand);
-        router.route(HttpMethod.POST, path + "/:brand/:command").handler(this::handleCommand);
+        String path = "/jesoos/command";
+        router.route(HttpMethod.POST, path + "/:brand/start").handler(this::handleStart);
+        router.route(HttpMethod.POST, path + "/:brand/stop").handler(this::handleStop);
+        router.route(HttpMethod.POST, path + "/:brand/enable-dj").handler(this::handleEnableDj);
+        router.route(HttpMethod.POST, path + "/:brand/disable-dj").handler(this::handleDisableDj);
     }
 
-    private void handleCommand(RoutingContext rc) {
+    private void handleStart(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        String command = rc.pathParam("command").toLowerCase();
+        rc.vertx().executeBlocking(() -> handleStartCommand(slugName))
+                .onSuccess(response -> {
+                    rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(response.encode());
+                })
+                .onFailure(failure -> handleCommandFailure(rc, slugName, "start", failure));
+    }
 
-        switch (command) {
-            case "start" -> handleStartCommand(rc, slugName);
-            case "stop" -> handleStopCommand(rc, slugName);
-            case "enable-dj" -> handleEnableDjCommand(rc, slugName);
-            case "disable-dj" -> handleDisableDjCommand(rc, slugName);
-            case "dj-status" -> getDjStatus(rc, slugName);
-            default -> rc.response()
-                    .setStatusCode(400)
-                    .end(new JsonObject().put("error", "Unknown command: " + command).encode());
+    private void handleStop(RoutingContext rc) {
+        String slugName = rc.pathParam("brand").toLowerCase();
+        rc.vertx().executeBlocking(() -> handleStopCommand(slugName))
+                .onSuccess(response -> {
+                    rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(response.encode());
+                })
+                .onFailure(failure -> handleCommandFailure(rc, slugName, "stop", failure));
+    }
+
+    private void handleEnableDj(RoutingContext rc) {
+        String slugName = rc.pathParam("brand").toLowerCase();
+        rc.vertx().executeBlocking(() -> handleEnableDjCommand(slugName))
+                .onSuccess(response -> {
+                    rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(response.encode());
+                })
+                .onFailure(failure -> handleCommandFailure(rc, slugName, "enable-dj", failure));
+    }
+
+    private void handleDisableDj(RoutingContext rc) {
+        String slugName = rc.pathParam("brand").toLowerCase();
+        rc.vertx().executeBlocking(() -> handleDisableDjCommand(slugName))
+                .onSuccess(response -> {
+                    rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(response.encode());
+                })
+                .onFailure(failure -> handleCommandFailure(rc, slugName, "disable-dj", failure));
+    }
+
+    private JsonObject handleStartCommand(String brand) {
+        try {
+            return commandService.startBrand(brand)
+                    .await().indefinitely();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private void handleStartCommand(RoutingContext rc, String brand) {
-        commandService.startBrand(brand)
-                .subscribe()
-                .with(
-                        response -> rc.response()
-                                .setStatusCode(200)
-                                .putHeader("Content-Type", "application/json")
-                                .end(response.encode()),
-                        failure -> handleCommandFailure(rc, brand, "build agenda", failure)
-                );
-    }
-
-    private void handleStopCommand(RoutingContext rc, String brand) {
-        commandService.stopBrand(brand)
-                .subscribe()
-                .with(
-                        response -> {
-                            LOGGER.infof("Stop command executed for brand: %s", brand);
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
-                        failure -> handleCommandFailure(rc, brand, "stop brand", failure)
-                );
-    }
-
-    private void handleEnableDjCommand(RoutingContext rc, String brand) {
-        commandService.enableDj(brand)
-                .subscribe()
-                .with(
-                        response -> {
-                            LOGGER.infof("DJ enabled via command for brand: %s", brand);
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
-                        failure -> handleCommandFailure(rc, brand, "enable DJ", failure)
-                );
-    }
-
-    private void handleDisableDjCommand(RoutingContext rc, String brand) {
-        commandService.disableDj(brand)
-                .subscribe()
-                .with(
-                        response -> {
-                            LOGGER.infof("DJ disabled via command for brand: %s", brand);
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
-                        failure -> handleCommandFailure(rc, brand, "disable DJ", failure)
-                );
-    }
-
-   private void getDjStatus(RoutingContext rc, String brand) {
-        commandService.getDjStatus(brand)
-                .subscribe()
-                .with(
-                        djEnabled -> {
-                            LOGGER.infof("DJ status checked for brand: %s - %s", brand, djEnabled);
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(String.valueOf(djEnabled));
-                        },
-                        failure -> handleCommandFailure(rc, brand, "get DJ status", failure)
-                );
-    }
-
-    private void handleCommandFailure(RoutingContext rc, String brand, String action, Throwable failure) {
-        if (failure instanceof IllegalArgumentException) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", failure.getMessage()).encode());
-        } else {
-            LOGGER.errorf(failure, "Failed to %s for brand: %s", action, brand);
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject()
-                            .put("error", "Failed to " + action + ": " + failure.getMessage())
-                            .encode());
+    private JsonObject handleStopCommand(String brand) {
+        try {
+            JsonObject response = commandService.stopBrand(brand)
+                    .await().indefinitely();
+            LOGGER.infof("Stop command executed for brand: %s", brand);
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private void handleStopAllCommand(RoutingContext rc) {
-        commandService.stopAllBrands()
-                .subscribe()
-                .with(
-                        response -> {
-                            LOGGER.infof("Stop-all command executed");
-                            rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(response.encode());
-                        },
-                        failure -> {
-                            LOGGER.error("Failed to execute stop-all command", failure);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(new JsonObject()
-                                            .put("error", "Failed to stop all brands: " + failure.getMessage())
-                                            .encode());
-                        }
-                );
+    private JsonObject handleEnableDjCommand(String brand) {
+        try {
+            JsonObject response = commandService.enableDj(brand)
+                    .await().indefinitely();
+            LOGGER.infof("DJ enabled via command for brand: %s", brand);
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
+    private JsonObject handleDisableDjCommand(String brand) {
+        try {
+            JsonObject response = commandService.disableDj(brand)
+                    .await().indefinitely();
+            LOGGER.infof("DJ disabled via command for brand: %s", brand);
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 }

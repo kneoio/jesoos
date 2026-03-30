@@ -107,34 +107,6 @@ public class CommandService {
                 });
     }
 
-    public Uni<JsonObject> stopAllBrands() {
-        return Uni.createFrom().item(() -> {
-            var onlineStations = brandPool.getStationsSnapshot();
-            int stoppedCount = 0;
-            var results = new JsonObject();
-            
-            for (var station : onlineStations) {
-                String brand = station.getSlugName();
-                try {
-                    brandPool.stopAndRemove(brand).await().indefinitely();
-                    stoppedCount++;
-                    results.put(brand, "stopped");
-                    LOGGER.infof("Stopped brand: %s", brand);
-                } catch (Exception e) {
-                    results.put(brand, "failed: " + e.getMessage());
-                    LOGGER.errorf(e, "Failed to stop brand: %s", brand);
-                }
-            }
-            
-            return new JsonObject()
-                    .put("success", true)
-                    .put("stoppedCount", stoppedCount)
-                    .put("totalBrands", onlineStations.size())
-                    .put("results", results)
-                    .put("message", String.format("Stopped %d out of %d brands", stoppedCount, onlineStations.size()));
-        });
-    }
-
     private JsonObject toResponse(ILiveStream agendaHolder) {
         if (agendaHolder == null || agendaHolder.getAgenda() == null) {
             throw new IllegalStateException("Agenda was not created");

@@ -109,6 +109,26 @@ public class StaggeredSongScheduler {
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long delay = Math.max(1, emissionTime - leadTimeMs - now);
 
+        long seconds = delay / 1000;
+        long minutes = seconds / 60;
+        long remainingSeconds = seconds % 60;
+
+        metricPublisher.publishMetric(
+                brandName,
+                MetricEventType.INFORMATION,
+                ProcessType.FLOW,
+                "entry_scheduled",
+                Map.of(
+                        "seq", entry.getSequenceNumber(),
+                        "scene", scene.getSceneTitle(),
+                        "scheduledAt", entry.getScheduledEmissionTime().toString(),
+                        "delayMs", delay,
+                        "delayMin", minutes,
+                        "delaySec", remainingSeconds
+                ),
+                scene.getTraceId()
+        );
+
         Runnable task = () -> {
             long deadline = scene.getEndTime()
                     .atZone(brandZone)
@@ -258,8 +278,8 @@ public class StaggeredSongScheduler {
         MergingType[] availableTypes;
         if (entry.getSongs().size() == 2) {
             availableTypes = new MergingType[]{
-                    MergingType.SONG_CROSSFADE_SONG,
-                    MergingType.NOT_MIXED
+                    MergingType.SONG_CROSSFADE_SONG
+                    //MergingType.NOT_MIXED // Not working yet
             };
         } else {
             availableTypes = new MergingType[]{
@@ -322,21 +342,6 @@ public class StaggeredSongScheduler {
     public void cancelBrandTimers(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
         if (timers != null) timers.values().forEach(vertx::cancelTimer);
-    }
-
-    public Map<String, Map<Integer, Long>> getBrandTimers() {
-        Map<String, Map<Integer, Long>> result = new HashMap<>();
-        brandTimers.forEach((brand, timers) -> result.put(brand, new HashMap<>(timers)));
-        return result;
-    }
-
-    public void cancelPending(String brandName, List<Integer> sequenceNumbers) {
-        ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
-        if (timers == null) return;
-        for (Integer seq : sequenceNumbers) {
-            Long timerId = timers.remove(seq);
-            if (timerId != null) vertx.cancelTimer(timerId);
-        }
     }
 
     @PreDestroy
