@@ -1,5 +1,6 @@
 package com.semantyca.jesoos.service.stream;
 
+import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
@@ -62,11 +63,9 @@ public class TimelineBuilder {
             timeline.add(entry);
             sequenceNumber++;
 
-            int duration = entry.getEstimatedDurationSeconds();
-            if (strategy.mergingType() == MergingType.SONG_CROSSFADE_SONG && songList.size() == 2) {
-                duration -= 10;
-            }
-            currentTime = currentTime.plusSeconds(duration);
+            int stride = entry.getEstimatedDurationSeconds()
+                    - MergingTypeMeta.of(strategy.mergingType()).crossfadeOverlapSeconds();
+            currentTime = currentTime.plusSeconds(stride);
         }
 
         LOGGER.infof("Built timeline for scene '%s': %d entries, duration: %d seconds, allowIntros: %s",

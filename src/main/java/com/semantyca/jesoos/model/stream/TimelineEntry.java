@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.jesoos.service.stream.StaggeredSongScheduler;
+import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,7 +40,7 @@ public class TimelineEntry {
         this.mixingStrategy = mixingStrategy;
         this.hasIntro = hasIntro;
         this.hasJingle = hasJingle;
-        this.estimatedDurationSeconds = calculateEstimatedDuration(songs, hasIntro, hasJingle);
+        this.estimatedDurationSeconds = calculateEstimatedDuration(songs);
     }
 
     public boolean compareAndSetStatus(TimelineEntryStatus expected, TimelineEntryStatus update) {
@@ -54,12 +54,10 @@ public class TimelineEntry {
         status.set(s);
     }
 
-    private int calculateEstimatedDuration(List<SongEntry> songs, boolean hasIntro, boolean hasJingle) {
+    private int calculateEstimatedDuration(List<SongEntry> songs) {
         int totalDuration = songs.stream()
                 .mapToInt(SongEntry::getDurationSeconds)
                 .sum();
-        if (hasIntro) totalDuration += 15;
-        if (hasJingle) totalDuration += StaggeredSongScheduler.DEFAULT_JINGLE_DURATION;
-        return totalDuration;
+        return totalDuration + MergingTypeMeta.of(this.mixingStrategy).audioOverheadSeconds();
     }
 }

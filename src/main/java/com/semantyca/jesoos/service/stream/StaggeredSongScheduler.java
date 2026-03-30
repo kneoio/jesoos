@@ -78,6 +78,8 @@ public class StaggeredSongScheduler {
 
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
         LocalDateTime now = LocalDateTime.now(scene.getTimeZone());
+        List<String> scheduledTimes = new ArrayList<>();
+
         for (TimelineEntry entry : scene.getTimeline()) {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
@@ -91,6 +93,21 @@ public class StaggeredSongScheduler {
                 }
             }
             scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone());
+            scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime());
+        }
+
+        if (!scheduledTimes.isEmpty()) {
+            metricPublisher.publishMetric(
+                    brandName,
+                    MetricEventType.INFORMATION,
+                    ProcessType.FLOW,
+                    "entries_scheduled",
+                    Map.of(
+                            "scene", scene.getSceneTitle(),
+                            "entries", scheduledTimes
+                    ),
+                    scene.getTraceId()
+            );
         }
     }
 
@@ -108,26 +125,6 @@ public class StaggeredSongScheduler {
         long now = System.currentTimeMillis();
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long delay = Math.max(1, emissionTime - leadTimeMs - now);
-
-        long seconds = delay / 1000;
-        long minutes = seconds / 60;
-        long remainingSeconds = seconds % 60;
-
-        metricPublisher.publishMetric(
-                brandName,
-                MetricEventType.INFORMATION,
-                ProcessType.FLOW,
-                "entry_scheduled",
-                Map.of(
-                        "seq", entry.getSequenceNumber(),
-                        "scene", scene.getSceneTitle(),
-                        "scheduledAt", entry.getScheduledEmissionTime().toString(),
-                        "delayMs", delay,
-                        "delayMin", minutes,
-                        "delaySec", remainingSeconds
-                ),
-                scene.getTraceId()
-        );
 
         Runnable task = () -> {
             long deadline = scene.getEndTime()

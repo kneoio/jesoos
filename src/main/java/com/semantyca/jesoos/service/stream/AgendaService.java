@@ -14,6 +14,7 @@ import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
+import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.mixpla.model.cnst.GeneratedContentStatus;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
@@ -31,7 +32,6 @@ import java.util.*;
 @ApplicationScoped
 public class AgendaService {
     private static final Logger LOGGER = Logger.getLogger(AgendaService.class);
-    private static final int AVG_DJ_INTRO_SECONDS = 15;
 
     private final ScriptService scriptService;
     private final AiAgentService aiAgentService;
@@ -218,13 +218,13 @@ public class AgendaService {
             }
 
             int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
-            int introOverhead = AVG_DJ_INTRO_SECONDS;
-            int timeWithIntro = songDurationSeconds + introOverhead;
+            int overhead = (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity));
+            int timePerSong = songDurationSeconds + overhead;
 
-            if (totalTimeUsed + timeWithIntro <= effectiveMusicTime) {
+            if (totalTimeUsed + timePerSong <= effectiveMusicTime) {
                 selectedSongs.add(song);
                 addedSongIds.add(song.getId());
-                totalTimeUsed += timeWithIntro;
+                totalTimeUsed += timePerSong;
             } else if (selectedSongs.isEmpty()) {
                 selectedSongs.add(song);
                 addedSongIds.add(song.getId());
@@ -234,8 +234,8 @@ public class AgendaService {
             }
         }
 
-        LOGGER.debugf("RadioStream scene duration: {}s, effective music time: {}s (talkativity: {}), Selected {} songs with total time: {}s",
-                sceneDurationSeconds, effectiveMusicTime, talkativity, selectedSongs.size(), totalTimeUsed);
+        LOGGER.debugf("RadioStream scene duration: %ss, overhead/song: %ss (talkativity: %.2f), selected %d songs, total budgeted: %ss",
+                sceneDurationSeconds, (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity)), talkativity, selectedSongs.size(), totalTimeUsed);
 
         return selectedSongs;
     }
