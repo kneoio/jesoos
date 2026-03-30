@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.stream.AgendaViewService;
+import com.semantyca.jesoos.service.stream.ScenePool;
 import com.semantyca.jesoos.service.stream.StaggeredSongScheduler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -29,10 +30,23 @@ public class InfoResource extends AbstractResource {
     @Inject
     StaggeredSongScheduler staggeredSongScheduler;
 
+    @Inject
+    ScenePool scenePool;
+
     public void setupRoutes(Router router) {
         String path = "/jesoos/info";
+        router.route(HttpMethod.GET, path + "/:brand/live").handler(this::getLiveStatus);
         router.route(HttpMethod.GET, path + "/:brand/dj-status").handler(this::getDjStatus);
         router.route(HttpMethod.GET, path + "/:brand/agendas").handler(this::getAgendas);
+    }
+
+    private void getLiveStatus(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        boolean live = scenePool.getActiveScene(brand) != null;
+        rc.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(String.valueOf(live));
     }
 
     private void getAgendas(RoutingContext rc) {

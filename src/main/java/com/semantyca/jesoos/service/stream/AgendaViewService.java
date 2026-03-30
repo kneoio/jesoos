@@ -4,6 +4,7 @@ import com.semantyca.jesoos.dto.agenda.AgendaDTO;
 import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.dto.agenda.SceneDTO;
 import com.semantyca.jesoos.dto.agenda.TimelineEntryDTO;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
@@ -25,17 +26,20 @@ public class AgendaViewService {
                 .filter(stream -> stream.getSlugName().equals(brand))
                 .filter(stream -> stream.getAgenda() != null)
                 .findFirst()
-                .map(stream -> buildAgendaDTO(stream.getSlugName(), stream.getAgenda()))
+                .map(stream -> buildAgendaDTO(stream))
                 .orElse(null);
     }
 
-    private AgendaDTO buildAgendaDTO(String key, StreamAgenda agenda) {
+    private AgendaDTO buildAgendaDTO(ILiveStream stream) {
+        StreamAgenda agenda = stream.getAgenda();
         List<SceneDTO> sceneDTOs = agenda.getLiveScenes().stream()
                 .map(this::buildSceneDTO)
                 .collect(Collectors.toList());
 
         return AgendaDTO.builder()
-                .key(key)
+                .key(stream.getSlugName())
+                .timezone(stream.getTimeZone() != null ? stream.getTimeZone().getId() : null)
+                .country(stream.getCountry() != null ? stream.getCountry().name() : null)
                 .createdAt(agenda.getCreatedAt())
                 .totalScenes(agenda.getLiveScenes().size())
                 .scenes(sceneDTOs)

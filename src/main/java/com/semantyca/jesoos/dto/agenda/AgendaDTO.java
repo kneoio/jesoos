@@ -15,6 +15,8 @@ import java.util.List;
 public class AgendaDTO {
     
     private String key;
+    private String timezone;
+    private String country;
     private LocalDateTime createdAt;
     private int totalScenes;
     private List<SceneDTO> scenes;
