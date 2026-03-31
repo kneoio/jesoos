@@ -22,6 +22,13 @@ import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 public final class AiHelperUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperUtils.class);
 
+    // Semantic slot names for JINGLE_GENERATED_JINGLE_WITH_BACKGROUND payload
+    public static final SongKey  JINGLE_INTRO      = SONG_1;
+    public static final SongKey  JINGLE_OUTRO      = SONG_2;
+    public static final SongKey  BACKGROUND        = SONG_3;
+    public static final IntroKey NEWS_BLOCK        = INTRO_1;
+    public static final IntroKey WEATHER_BLOCK     = INTRO_2;
+
     private AiHelperUtils() {
     }
 

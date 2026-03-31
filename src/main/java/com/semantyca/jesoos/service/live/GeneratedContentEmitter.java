@@ -28,8 +28,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
-import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
+import static com.semantyca.jesoos.util.AiHelperUtils.BACKGROUND;
+import static com.semantyca.jesoos.util.AiHelperUtils.JINGLE_INTRO;
+import static com.semantyca.jesoos.util.AiHelperUtils.JINGLE_OUTRO;
+import static com.semantyca.jesoos.util.AiHelperUtils.NEWS_BLOCK;
 
 @ApplicationScoped
 public class GeneratedContentEmitter {
@@ -106,12 +108,12 @@ public class GeneratedContentEmitter {
                     dto.setSceneDeadlineTimestamp(deadline);
 
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
-                    songMap.put(getSongKeyByIndex(0), new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
-                    songMap.put(getSongKeyByIndex(1), new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
-                    songMap.put(getSongKeyByIndex(2), new SongInfoDTO(background.getId(), songDuration(background)));
+                    songMap.put(JINGLE_INTRO, new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
+                    songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
+                    songMap.put(BACKGROUND,   new SongInfoDTO(background.getId(), songDuration(background)));
 
                     Map<IntroKey, IntroInfoDTO> filePaths = new HashMap<>();
-                    filePaths.put(getIntroKeyByIndex(0), new IntroInfoDTO(tts.filePath(), tts.durationSeconds()));
+                    filePaths.put(NEWS_BLOCK, new IntroInfoDTO(tts.filePath(), tts.durationSeconds()));
 
                     dto.setSongs(songMap);
                     dto.setFilePaths(filePaths);
