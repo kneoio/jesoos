@@ -33,27 +33,6 @@ public class AgentClient {
         this.webClient = WebClient.create(vertx);
     }
 
-    public Uni<String> callRadioDjAgent(String provider, String template, Map<String, String> variables) {
-        String endpoint = config.getAgentUrl() + "/radio_dj/test/" + provider;
-
-        JsonObject payload = new JsonObject();
-        payload.put("template", template);
-        payload.put("variables", variables != null ? variables : new HashMap<>());
-
-        return webClient
-                .postAbs(endpoint)
-                .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", config.getAgentApiKey())
-                .sendJsonObject(payload)
-                .map(response -> {
-                    if (response.statusCode() == 200) {
-                        return response.bodyAsString();
-                    } else {
-                        throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
-                    }
-                });
-    }
-
     public Uni<AgentRespDTO> testPrompt(String prompt, String draft, LlmType llmType) {
         String endpoint = config.getAgentUrl() + "/prompt/test";
 
@@ -65,7 +44,6 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", config.getAgentApiKey())
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
@@ -92,7 +70,6 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", config.getAgentApiKey())
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {

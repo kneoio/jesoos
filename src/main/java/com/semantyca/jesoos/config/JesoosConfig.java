@@ -46,9 +46,6 @@ public interface JesoosConfig {
     @WithDefault("ffprobe")
     String getFfprobePath();
 
-    @WithName("agent.api-key")
-    String getAgentApiKey();
-
     @WithName("anthropic.api-key")
     String getAnthropicApiKey();
 
