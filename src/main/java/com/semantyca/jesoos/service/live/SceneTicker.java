@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.live;
 
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;

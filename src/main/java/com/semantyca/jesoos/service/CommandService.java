@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.jesoos.model.stream.ILiveStream;
-import com.semantyca.jesoos.service.stream.BrandPool;
-import com.semantyca.jesoos.service.stream.DjStateService;
+import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.DjStateService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;

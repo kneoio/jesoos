@@ -1,11 +1,8 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.mixpla.model.cnst.MergingType;
 
 public class MixingTypeShuffler {
-
-    public record MixingStrategy(MergingType mergingType, int songsQuantity, boolean needsIntros) {
-    }
 
     public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity) {
         if (allowIntros && Math.random() < talkativity) {

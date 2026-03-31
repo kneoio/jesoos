@@ -1,8 +1,9 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.live;
 
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
+import com.semantyca.jesoos.service.agenda.TriggerContext;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.scheduler.Scheduled;

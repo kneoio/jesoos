@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.live;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;

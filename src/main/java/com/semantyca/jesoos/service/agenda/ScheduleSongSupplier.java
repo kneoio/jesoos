@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.mixpla.model.PlaylistRequest;

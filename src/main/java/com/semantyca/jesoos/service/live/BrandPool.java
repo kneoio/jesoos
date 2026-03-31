@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
@@ -6,6 +6,7 @@ import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;

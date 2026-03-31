@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -40,7 +40,7 @@ public class TimelineBuilder {
         int sequenceNumber = 0;
         while (songIndex < songs.size()) {
             int remainingSongs = songs.size() - songIndex;
-            MixingTypeShuffler.MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
+            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {

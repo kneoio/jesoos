@@ -27,6 +27,8 @@ public class TimelineEntry {
     @Setter
     private boolean hasJingle;
     @Setter
+    private boolean generated;
+    @Setter
     private int estimatedDurationSeconds;
     private final AtomicReference<TimelineEntryStatus> status = new AtomicReference<>(TimelineEntryStatus.PENDING);
 

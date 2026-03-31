@@ -2,11 +2,10 @@ package com.semantyca.jesoos.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.service.CommandService;
-import com.semantyca.jesoos.service.stream.AgendaViewService;
-import com.semantyca.jesoos.service.stream.ScenePool;
-import com.semantyca.jesoos.service.stream.StaggeredSongScheduler;
+import com.semantyca.jesoos.service.agenda.AgendaViewService;
+import com.semantyca.jesoos.service.live.ScenePool;
+import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;

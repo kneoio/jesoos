@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;

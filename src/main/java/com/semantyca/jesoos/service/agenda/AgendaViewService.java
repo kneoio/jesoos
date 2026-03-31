@@ -1,13 +1,13 @@
-package com.semantyca.jesoos.service.stream;
+package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.jesoos.dto.agenda.AgendaDTO;
-import com.semantyca.jesoos.dto.agenda.AgendasResponseDTO;
 import com.semantyca.jesoos.dto.agenda.SceneDTO;
 import com.semantyca.jesoos.dto.agenda.TimelineEntryDTO;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.live.BrandPool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -26,7 +26,7 @@ public class AgendaViewService {
                 .filter(stream -> stream.getSlugName().equals(brand))
                 .filter(stream -> stream.getAgenda() != null)
                 .findFirst()
-                .map(stream -> buildAgendaDTO(stream))
+                .map(this::buildAgendaDTO)
                 .orElse(null);
     }
 

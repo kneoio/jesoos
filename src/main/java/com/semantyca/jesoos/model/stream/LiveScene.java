@@ -1,21 +1,13 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.jesoos.service.stream.TriggerContext;
-import com.semantyca.mixpla.model.PlaylistRequest;
-import com.semantyca.mixpla.model.Scene;
-import com.semantyca.mixpla.model.ScenePrompt;
+import com.semantyca.jesoos.service.agenda.TriggerContext;
 import com.semantyca.mixpla.model.cnst.GeneratedContentStatus;
-import com.semantyca.mixpla.model.cnst.PlaylistItemType;
-import com.semantyca.mixpla.model.cnst.SourceType;
-import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
