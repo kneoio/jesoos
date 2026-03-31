@@ -29,13 +29,15 @@ public class BrandPool {
     private final AgendaService agendaService;
     private final MetricPublisher metricPublisher;
     private final ScenePool scenePool;
+    private final DjStateService djStateService;
 
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool) {
+    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool, DjStateService djStateService) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;
         this.scenePool = scenePool;
+        this.djStateService = djStateService;
     }
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
@@ -95,6 +97,7 @@ public class BrandPool {
 
         if (liveAgenda != null) {
             scenePool.removeActiveScene(brandName);
+            djStateService.remove(brandName);
             liveAgenda.setStatus(StreamStatus.OFF_LINE);
             metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
             return Uni.createFrom().item(liveAgenda);
@@ -107,7 +110,10 @@ public class BrandPool {
     @PreDestroy
     void cleanup() {
         LOGGER.info("BrandPool cleanup: stopping all brands and clearing resources");
-        pool.keySet().forEach(scenePool::removeActiveScene);
+        pool.keySet().forEach(brandName -> {
+            scenePool.removeActiveScene(brandName);
+            djStateService.remove(brandName);
+        });
         pool.clear();
     }
 }
