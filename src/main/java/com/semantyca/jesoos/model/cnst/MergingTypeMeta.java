@@ -46,14 +46,15 @@ public final class MergingTypeMeta {
     }
 
     private static final Map<MergingType, Info> META = Map.of(
-            MergingType.INTRO_SONG,            new Info(1, 1, false, false),
-            MergingType.LISTENER_INTRO_SONG,   new Info(1, 1, false, false),
-            MergingType.NOT_MIXED,             new Info(1, 0, false, false),
-            MergingType.SONG_ONLY,             new Info(1, 0, false, false),
-            MergingType.SONG_INTRO_SONG,       new Info(2, 1, false, false),
-            MergingType.FILLER_JINGLE,         new Info(1, 0, true,  false),
-            MergingType.INTRO_SONG_INTRO_SONG, new Info(2, 2, false, false),
-            MergingType.SONG_CROSSFADE_SONG,   new Info(2, 0, false, true)
+            MergingType.INTRO_SONG,                            new Info(1, 1, false, false),
+            MergingType.LISTENER_INTRO_SONG,                   new Info(1, 1, false, false),
+            MergingType.NOT_MIXED,                             new Info(1, 0, false, false),
+            MergingType.SONG_ONLY,                             new Info(1, 0, false, false),
+            MergingType.SONG_INTRO_SONG,                       new Info(2, 1, false, false),
+            MergingType.FILLER_JINGLE,                         new Info(1, 0, true,  false),
+            MergingType.INTRO_SONG_INTRO_SONG,                 new Info(2, 2, false, false),
+            MergingType.SONG_CROSSFADE_SONG,                   new Info(2, 0, false, true),
+            MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND, new Info(1, 0, true, false)
     );
 
     public static Info of(MergingType type) {

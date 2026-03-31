@@ -13,6 +13,7 @@ import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -37,10 +38,16 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
                 ffmpegProvider);
     }
 
-    public GeneratedNewsService() {
+    GeneratedNewsService() {
         super(null, null, null, null, null, null, null, null, null, null);
     }
 
+    @PostConstruct
+    void init() {
+        if (config != null) {
+            initAnthropicClient();
+        }
+    }
 
     @Override
     protected PlaylistItemType getContentType() {

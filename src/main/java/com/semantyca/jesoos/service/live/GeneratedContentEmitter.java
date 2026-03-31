@@ -1,38 +1,51 @@
 package com.semantyca.jesoos.service.live;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
+import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
-import com.semantyca.mixpla.dto.queue.livestream.SongKey;
-import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
+import com.semantyca.jesoos.util.AiHelperUtils;
+import com.semantyca.mixpla.dto.queue.livestream.*;
+import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MergingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.jesoos.service.live.StaggeredSongScheduler.DEFAULT_JINGLE_DURATION;
+import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
 import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 
 @ApplicationScoped
 public class GeneratedContentEmitter {
+    private static final Logger LOGGER = Logger.getLogger(GeneratedContentEmitter.class);
+    private static final int DEFAULT_JINGLE_DURATION = 10;
+    private static final int DEFAULT_BACKGROUND_DURATION = 180;
 
+    private final GeneratedNewsService generatedNewsService;
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
 
     @Inject
-    public GeneratedContentEmitter(SoundFragmentService soundFragmentService,
+    public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
+                                   SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier) {
+        this.generatedNewsService = generatedNewsService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
     }
@@ -40,60 +53,78 @@ public class GeneratedContentEmitter {
     public Uni<Void> send(String brandName,
                           LiveScene scene,
                           TimelineEntry entry,
+                          AiAgent agent,
                           IStream stream,
                           ZoneId brandZone) {
-        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .chain(jingles -> {
-                    long sceneDeadlineForAivoxAwareness = scene.getEndTime()
-                            .atZone(brandZone)
-                            .toInstant()
-                            .toEpochMilli();
 
-                    MergingType mergingType;
-                    Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+        List<ScenePrompt> contentPrompts = scene.getContentPrompts();
+        if (contentPrompts == null || contentPrompts.isEmpty()) {
+            return Uni.createFrom().failure(
+                    new IllegalStateException("No content prompts configured for scene: " + scene.getSceneTitle()));
+        }
+        UUID promptId = contentPrompts.getFirst().getPromptId();
+        LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
+
+        Uni<List<SoundFragment>> jinglesUni = soundFragmentService
+                .getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+
+        Uni<List<SoundFragment>> songsUni = soundFragmentService
+                .getByTypeAndBrand(PlaylistItemType.SONG, stream.getId())
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+
+        Uni<AbstractGeneratedContentService.AudioGenerationResult> ttsUni =
+                generatedNewsService.generateAudio(promptId, agent, stream, lang, scene.getSceneTitle(), scene.getTraceId());
+
+        return Uni.combine().all().unis(jinglesUni, songsUni, ttsUni).asTuple()
+                .chain(tuple -> {
+                    List<SoundFragment> jingles = tuple.getItem1();
+                    List<SoundFragment> songs = tuple.getItem2();
+                    AbstractGeneratedContentService.AudioGenerationResult tts = tuple.getItem3();
 
                     if (jingles.isEmpty()) {
-                        mergingType = MergingType.SONG_ONLY;
-                        for (int i = 0; i < entry.getSongs().size(); i++) {
-                            songMap.put(getSongKeyByIndex(i),
-                                    new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
-                                            entry.getSongs().get(i).getDurationSeconds()));
-                        }
-                    } else {
-                        SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
-                        mergingType = MergingType.FILLER_JINGLE;
-
-                        int jingleDuration = DEFAULT_JINGLE_DURATION;
-                        if (jingle.getLength() != null) {
-                            jingleDuration = (int) jingle.getLength().toSeconds();
-                        }
-
-                        songMap.put(getSongKeyByIndex(0),
-                                new SongInfoDTO(jingle.getId(), jingleDuration));
-
-                        for (int i = 0; i < entry.getSongs().size(); i++) {
-                            songMap.put(getSongKeyByIndex(i + 1),
-                                    new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
-                                            entry.getSongs().get(i).getDurationSeconds()));
-                        }
+                        LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);
+                        return Uni.createFrom().voidItem();
+                    }
+                    if (songs.isEmpty()) {
+                        LOGGER.warnf("No songs available for background for brand '%s', skipping generated content", brandName);
+                        return Uni.createFrom().voidItem();
                     }
 
-                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineForAivoxAwareness);
-                    dto.setFilePaths(new HashMap<>());
+                    SoundFragment jingle1 = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
+                    SoundFragment jingle2 = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
+                    SoundFragment background = songs.get(ThreadLocalRandom.current().nextInt(songs.size()));
+
+                    long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
+
+                    SongQueueMessageDTO dto = new SongQueueMessageDTO();
+                    dto.setMergingMethod(MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND);
+                    dto.setSceneId(scene.getSceneId());
+                    dto.setSceneTitle(scene.getSceneTitle());
+                    dto.setSequenceNumber(entry.getSequenceNumber());
+                    dto.setPriority(9);
+                    dto.setSceneDeadlineTimestamp(deadline);
+
+                    Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+                    songMap.put(getSongKeyByIndex(0), new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
+                    songMap.put(getSongKeyByIndex(1), new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
+                    songMap.put(getSongKeyByIndex(2), new SongInfoDTO(background.getId(), songDuration(background)));
+
+                    Map<IntroKey, IntroInfoDTO> filePaths = new HashMap<>();
+                    filePaths.put(getIntroKeyByIndex(0), new IntroInfoDTO(tts.filePath(), tts.durationSeconds()));
+
                     dto.setSongs(songMap);
+                    dto.setFilePaths(filePaths);
+
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
     }
 
-    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MergingType mixingStrategy, long deadline) {
-        SongQueueMessageDTO dto = new SongQueueMessageDTO();
-        dto.setMergingMethod(mixingStrategy);
-        dto.setSceneId(scene.getSceneId());
-        dto.setSceneTitle(scene.getSceneTitle());
-        dto.setSequenceNumber(entry.getSequenceNumber());
-        dto.setPriority(entry.isHasIntro() ? 9 : 10);
-        dto.setSceneDeadlineTimestamp(deadline);
-        return dto;
+    private int jingleDuration(SoundFragment jingle) {
+        return jingle.getLength() != null ? (int) jingle.getLength().toSeconds() : DEFAULT_JINGLE_DURATION;
+    }
+
+    private int songDuration(SoundFragment song) {
+        return song.getLength() != null ? (int) song.getLength().toSeconds() : DEFAULT_BACKGROUND_DURATION;
     }
 }

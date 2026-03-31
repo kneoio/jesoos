@@ -161,7 +161,8 @@ public class StaggeredSongScheduler {
                 .chain(stream -> {
 
                     if (entry.isGenerated()) {
-                         return generatedContentEmitter.send(brandName, scene, entry, stream, brandZone);
+                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                                .chain(agent -> generatedContentEmitter.send(brandName, scene, entry, agent, stream, brandZone));
                     }
 
                     if (entry.isHasJingle()) {

@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.model.stream;
 
 import com.semantyca.jesoos.service.agenda.TriggerContext;
+import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.GeneratedContentStatus;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,6 +23,7 @@ public class LiveScene {
     private ZoneId timeZone;
     private UUID agentId;
     private GeneratedContentStatus generatedContentStatus;
+    private List<ScenePrompt> contentPrompts;
     private TriggerContext triggerContext;
     private UUID traceId;
     private List<TimelineEntry> timeline;
