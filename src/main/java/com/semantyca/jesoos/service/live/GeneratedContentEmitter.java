@@ -28,10 +28,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.jesoos.util.AiHelperUtils.BACKGROUND;
-import static com.semantyca.jesoos.util.AiHelperUtils.JINGLE_INTRO;
-import static com.semantyca.jesoos.util.AiHelperUtils.JINGLE_OUTRO;
-import static com.semantyca.jesoos.util.AiHelperUtils.NEWS_BLOCK;
+import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.NEWS_BLOCK;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.*;
 
 @ApplicationScoped
 public class GeneratedContentEmitter {
@@ -68,11 +66,11 @@ public class GeneratedContentEmitter {
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
         Uni<List<SoundFragment>> jinglesUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
+                .getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         Uni<List<SoundFragment>> songsUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.SONG, stream.getId())
+                .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         Uni<AbstractGeneratedContentService.AudioGenerationResult> ttsUni =
@@ -110,7 +108,7 @@ public class GeneratedContentEmitter {
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                     songMap.put(JINGLE_INTRO, new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
                     songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
-                    songMap.put(BACKGROUND,   new SongInfoDTO(background.getId(), songDuration(background)));
+                    songMap.put(BACKGROUND_MUSIC,   new SongInfoDTO(background.getId(), songDuration(background)));
 
                     Map<IntroKey, IntroInfoDTO> filePaths = new HashMap<>();
                     filePaths.put(NEWS_BLOCK, new IntroInfoDTO(tts.filePath(), tts.durationSeconds()));

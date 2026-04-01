@@ -5,10 +5,8 @@ import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
-import com.semantyca.mixpla.model.brand.AiOverriding;
-import com.semantyca.mixpla.model.stream.IStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
+
 
 import java.util.List;
 import java.util.Random;
@@ -20,28 +18,12 @@ import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_2;
 import static com.semantyca.mixpla.dto.queue.livestream.SongKey.SONG_3;
 
 public final class AiHelperUtils {
-    private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperUtils.class);
-
-    // Semantic slot names for JINGLE_GENERATED_JINGLE_WITH_BACKGROUND payload
-    public static final SongKey  JINGLE_INTRO      = SONG_1;
-    public static final SongKey  JINGLE_OUTRO      = SONG_2;
-    public static final SongKey  BACKGROUND        = SONG_3;
-    public static final IntroKey NEWS_BLOCK        = INTRO_1;
-    public static final IntroKey WEATHER_BLOCK     = INTRO_2;
-
-    private AiHelperUtils() {
-    }
-
-    public static boolean shouldPlayJingle(double talkativity) {
-        double jingleProbability = 1.0 - talkativity;
-        double randomValue = new Random().nextDouble();
-        return randomValue < jingleProbability;
-    }
+    private static final Logger LOGGER = Logger.getLogger(AiHelperUtils.class);
 
     public static LanguageTag selectLanguageByWeight(AiAgent agent) {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
-            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
+            LOGGER.warnf("Agent %s has no language preferences, defaulting to English", agent.getName());
             return LanguageTag.EN_GB;
         }
 
@@ -54,7 +36,7 @@ public final class AiHelperUtils {
                 .sum();
 
         if (totalWeight <= 0) {
-            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
+            LOGGER.warnf("Agent %s has invalid weights (total <= 0), using first language", agent.getName());
             return preferences.getFirst().getLanguageTag();
         }
 
