@@ -27,6 +27,7 @@ import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
@@ -196,7 +197,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         LOGGER.infof("Generated content TTS saved: %s (%d bytes)", filePath, audioBytes.length);
 
                         try {
-                            net.bramp.ffmpeg.probe.FFmpegProbeResult probe =
+                            FFmpegProbeResult probe =
                                     ffmpegProvider.getFFprobe().probe(filePath.toString());
                             int duration = (int) Math.ceil(probe.getFormat().duration);
                             return new AudioGenerationResult(filePath.toString(), duration);
