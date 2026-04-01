@@ -1,8 +1,11 @@
 package com.semantyca.jesoos.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.jesoos.util.TimeContextUtil;
+import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.rabbitmq.OutgoingRabbitMQMetadata;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -32,7 +35,8 @@ public class QueueSupplier {
         message.setBrandSlug(brandSlug);
         message.setMessageId(UUID.randomUUID());
         message.setTraceId(traceId);
-        message.setTimestamp(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        message.setTimestamp(now);
 
         return Uni.createFrom().item(() -> {
             try {
@@ -42,6 +46,12 @@ public class QueueSupplier {
                         .build();
                 Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                 songEmitter.send(msg);
+                metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
+                        Map.of(
+                                "message", message,
+                                "supplied", TimeFormatUtil.formatEpochMillis(now)
+                        ),
+                        traceId);
                 return null;
             } catch (Exception e) {
                 LOGGER.error("Failed to send - brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId, e);

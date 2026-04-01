@@ -123,12 +123,12 @@ public class StaggeredSongScheduler {
                     .subscribe().with(
                             v -> {
                                 entry.setStatus(TimelineEntryStatus.COMPLETED);
-                                metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW,"entry_emitted",
+                            /*    metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
                                                 "strategy", entry.getMixingStrategy().name()),
-                                        scene.getTraceId());
+                                        scene.getTraceId());*/
                             },
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
@@ -136,7 +136,7 @@ public class StaggeredSongScheduler {
                                 if (errorMsg == null) {
                                     errorMsg = err.getClass().getSimpleName();
                                 }
-                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"entry_failed",
+                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "entry_failed",
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
@@ -148,7 +148,9 @@ public class StaggeredSongScheduler {
 
         long timerId = vertx.setTimer(delay, id -> {
             ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
-            if (timers != null) timers.remove(entry.getSequenceNumber());
+            if (timers != null) {
+                timers.remove(entry.getSequenceNumber());
+            }
             task.run();
         });
         brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
@@ -175,11 +177,11 @@ public class StaggeredSongScheduler {
     }
 
 
-
-
     public void cancelBrandTimers(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
-        if (timers != null) timers.values().forEach(vertx::cancelTimer);
+        if (timers != null) {
+            timers.values().forEach(vertx::cancelTimer);
+        }
     }
 
     @PreDestroy
