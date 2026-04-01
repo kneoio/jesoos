@@ -49,7 +49,10 @@ public class LiveScene {
 
     public boolean isFinished() {
         if (timeline == null || timeline.isEmpty()) return false;
-        return timeline.stream().noneMatch(e -> e.getStatus() == TimelineEntryStatus.PENDING);
+        return timeline.stream().allMatch(e ->
+                e.getStatus() == TimelineEntryStatus.COMPLETED ||
+                e.getStatus() == TimelineEntryStatus.FAILED ||
+                e.getStatus() == TimelineEntryStatus.SKIPPED);
     }
 
     public boolean isActiveAt(LocalTime time, LocalTime nextSceneStartTime) {
