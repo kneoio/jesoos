@@ -60,6 +60,12 @@ public class StaggeredSongScheduler {
         List<String> scheduledTimes = new ArrayList<>();
 
         for (TimelineEntry entry : scene.getTimeline()) {
+            if (entry.getStatus() == TimelineEntryStatus.SCHEDULED) {
+                ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+                if (timers == null || !timers.containsKey(entry.getSequenceNumber())) {
+                    entry.setStatus(TimelineEntryStatus.PENDING);
+                }
+            }
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
             }
