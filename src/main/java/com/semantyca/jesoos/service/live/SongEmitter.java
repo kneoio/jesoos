@@ -59,7 +59,8 @@ public class SongEmitter {
             boolean shouldGenerateIntros = entry.isHasIntro();
             List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
             for (int i = 0; i < entry.getSongs().size(); i++) {
-                if (shouldGenerateIntros) {
+                boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
+                if (needsIntro) {
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
                             scene, entry.getSongs().get(i), agent, stream, lang));
                 } else {
@@ -124,6 +125,14 @@ public class SongEmitter {
         dto.setPriority(entry.isHasIntro() ? 9 : 10);
         dto.setSceneDeadlineTimestamp(deadline);
         return dto;
+    }
+
+    private static boolean needsIntroAtIndex(MergingType type, int index) {
+        // SONG_INTRO_SONG: only the second song (index 1) gets an intro
+        if (type == MergingType.SONG_INTRO_SONG) {
+            return index == 1;
+        }
+        return true;
     }
 
     private static MergingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
