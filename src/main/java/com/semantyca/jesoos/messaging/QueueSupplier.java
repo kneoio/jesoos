@@ -42,7 +42,7 @@ public class QueueSupplier {
             try {
                 byte[] bytes = objectMapper.writeValueAsBytes(message);
                 OutgoingRabbitMQMetadata metadata = new OutgoingRabbitMQMetadata.Builder()
-                        .withRoutingKey("streaming.event")
+                        .withRoutingKey(brandSlug)
                         .build();
                 Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                 songEmitter.send(msg);
