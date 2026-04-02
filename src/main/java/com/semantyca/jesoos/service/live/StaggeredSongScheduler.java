@@ -77,8 +77,9 @@ public class StaggeredSongScheduler {
                     continue;
                 }
             }
-            scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone());
-            scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime());
+            if (scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone())) {
+                scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime() + "[" + entry.getStatus() + "]");
+            }
         }
 
         if (!scheduledTimes.isEmpty()) {
@@ -98,9 +99,9 @@ public class StaggeredSongScheduler {
     }
 
 
-    private void scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
+    private boolean scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
-            return;
+            return false;
         }
 
         long emissionTime = entry.getScheduledEmissionTime()
@@ -162,6 +163,7 @@ public class StaggeredSongScheduler {
         brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
                 .put(entry.getSequenceNumber(), timerId);
 
+        return true;
     }
 
     private Uni<Void> emitTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
