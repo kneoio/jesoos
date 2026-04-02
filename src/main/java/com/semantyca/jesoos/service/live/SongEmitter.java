@@ -89,6 +89,10 @@ public class SongEmitter {
                                             entry.getSongs().get(i).getDurationSeconds()));
                         }
 
+                        MergingType effectiveStrategy = introMap.isEmpty()
+                                ? getNoIntroMergingTypes(entry)[0]
+                                : finalMixingStrategy;
+                        dto.setMergingMethod(effectiveStrategy);
                         dto.setFilePaths(introMap);
                         dto.setSongs(songMap);
 
