@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.live;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
@@ -91,7 +92,7 @@ public class StaggeredSongScheduler {
                     Map.of(
                             "scene", scene.getSceneTitle(),
                             "entries", scheduledTimes,
-                            "currentTime", now.toLocalTime()
+                            "currentTime", TimeFormatUtil.formatTime(now)
                     ),
                     scene.getTraceId()
             );
