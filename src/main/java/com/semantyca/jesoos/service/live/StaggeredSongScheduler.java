@@ -193,6 +193,23 @@ public class StaggeredSongScheduler {
         }
     }
 
+    public void publishSceneSummary(String brandName, LiveScene scene) {
+        List<String> summary = scene.getTimeline().stream()
+                .map(e -> "#" + e.getSequenceNumber() + "@" + TimeFormatUtil.formatTime(e.getScheduledEmissionTime()) + "[" + e.getStatus() + "]")
+                .toList();
+        metricPublisher.publishMetric(
+                brandName,
+                MetricEventType.INFORMATION,
+                ProcessType.FLOW,
+                "scene_summary",
+                Map.of(
+                        "scene", scene.getSceneTitle(),
+                        "entries", summary
+                ),
+                scene.getTraceId()
+        );
+    }
+
     @PreDestroy
     void cleanup() {
         brandTimers.forEach((brand, timers) -> {

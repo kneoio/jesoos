@@ -33,6 +33,7 @@ public class ScenePool {
         LiveScene removed = activeScenes.remove(brandName);
         if (removed != null) {
             staggeredSongScheduler.cancelBrandTimers(brandName);
+            staggeredSongScheduler.publishSceneSummary(brandName, removed);
             LOGGER.infof("Removed active scene '%s' for brand: {}",
                     removed.getSceneTitle(), brandName);
         }
