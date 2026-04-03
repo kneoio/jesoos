@@ -151,6 +151,7 @@ public class AgendaService {
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
                                         liveScene,
                                         songEntries,
+                                        durationSeconds,
                                         scene.getTalkativity(),
                                         scene.getIntroPrompts()
                                 );

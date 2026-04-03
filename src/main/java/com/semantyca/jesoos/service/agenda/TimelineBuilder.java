@@ -12,13 +12,28 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 
 public class TimelineBuilder {
     private static final Logger LOGGER = Logger.getLogger(TimelineBuilder.class);
 
+    /**
+     * If the timeline overshoots the scene budget by more than this many seconds,
+     * the last entry's intro is stripped to reduce TTS load.
+     */
+    public static final int INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS = 30;
+
+    private static final Map<MergingType, MergingType> INTRO_DOWNGRADE = Map.of(
+            MergingType.INTRO_SONG,             MergingType.SONG_ONLY,
+            MergingType.LISTENER_INTRO_SONG,    MergingType.SONG_ONLY,
+            MergingType.INTRO_SONG_INTRO_SONG,  MergingType.SONG_CROSSFADE_SONG,
+            MergingType.SONG_INTRO_SONG,        MergingType.SONG_CROSSFADE_SONG
+    );
+
     public List<TimelineEntry> buildTimeline(LiveScene scene,
                                              List<SongEntry> songs,
+                                             int sceneDurationSeconds,
                                              double talkativity,
                                              List<ScenePrompt> introPrompts) {
 
@@ -68,12 +83,47 @@ public class TimelineBuilder {
             currentTime = currentTime.plusSeconds(stride);
         }
 
-        LOGGER.infof("Built timeline for scene '%s': %d entries, duration: %d seconds, allowIntros: %s",
+        int contentDurationSeconds = calculateContentDurationSeconds(timeline);
+        int fitSeconds = sceneDurationSeconds - contentDurationSeconds;
+
+        if (-fitSeconds > INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS && !timeline.isEmpty()) {
+            TimelineEntry last = timeline.getLast();
+            MergingType downgraded = INTRO_DOWNGRADE.get(last.getMixingStrategy());
+            if (downgraded != null) {
+                int savedSeconds = MergingTypeMeta.of(last.getMixingStrategy()).audioOverheadSeconds()
+                        - MergingTypeMeta.of(downgraded).audioOverheadSeconds();
+                last.setMixingStrategy(downgraded);
+                last.setHasIntro(false);
+                last.setEstimatedDurationSeconds(last.getEstimatedDurationSeconds() - savedSeconds);
+                fitSeconds += savedSeconds;
+                LOGGER.infof("Scene '%s': overshoot %ds exceeded threshold %ds — stripped intro from last entry (saved %ds, new fit %ds)",
+                        scene.getSceneTitle(), -fitSeconds + savedSeconds,
+                        INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS, savedSeconds, fitSeconds);
+            }
+        }
+
+        if (fitSeconds > 0) {
+            LOGGER.warnf("Scene '%s': gap of %ds at end of window — not enough content",
+                    scene.getSceneTitle(), fitSeconds);
+        }
+
+        scene.setFitSeconds(fitSeconds);
+
+        LOGGER.infof("Built timeline for scene '%s': %d entries, content %ds, budget %ds, fit %ds, allowIntros: %s",
                 scene.getSceneTitle(), timeline.size(),
-                calculateTotalDuration(timeline), allowIntros);
+                contentDurationSeconds, sceneDurationSeconds, fitSeconds, allowIntros);
 
         scene.setTimelineBuild(true);
         return timeline;
+    }
+
+    private int calculateContentDurationSeconds(List<TimelineEntry> timeline) {
+        if (timeline.isEmpty()) return 0;
+        TimelineEntry last = timeline.getLast();
+        LocalDateTime contentEnd = last.getScheduledEmissionTime()
+                .plusSeconds(last.getEstimatedDurationSeconds());
+        return (int) java.time.Duration.between(
+                timeline.getFirst().getScheduledEmissionTime(), contentEnd).getSeconds();
     }
 
     private int calculateTotalDuration(List<TimelineEntry> timeline) {
