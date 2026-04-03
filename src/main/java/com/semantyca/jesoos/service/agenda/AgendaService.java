@@ -218,7 +218,6 @@ public class AgendaService {
         int totalTimeUsed = 0;
         int pass = 0;
 
-        outer:
         while (totalTimeUsed < sceneDurationSeconds && pass < MAX_PASSES) {
             boolean addedAny = false;
 
@@ -238,7 +237,8 @@ public class AgendaService {
                     addedAny = true;
                 } else {
                     selectedSongs.add(song);
-                    break outer;
+                    totalTimeUsed += timePerSong;
+                    break;
                 }
             }
 
