@@ -235,10 +235,8 @@ public class AgendaService {
                     selectedSongs.add(song);
                     totalTimeUsed += timePerSong;
                     addedAny = true;
-                } else if (selectedSongs.isEmpty()) {
-                    selectedSongs.add(song);
-                    break outer;
                 } else {
+                    selectedSongs.add(song);
                     break outer;
                 }
             }
