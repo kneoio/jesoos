@@ -44,7 +44,12 @@ public class TimelineBuilder {
             return timeline;
         }
 
-        LocalDateTime currentTime = LocalDate.now(scene.getTimeZone()).atTime(scene.getOriginalStartTime());
+        LocalTime nowTime = LocalTime.now(scene.getTimeZone());
+        LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
+        if (scene.getOriginalStartTime().isAfter(nowTime)) {
+            sceneDate = sceneDate.minusDays(1);
+        }
+        LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
         boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
                              introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
