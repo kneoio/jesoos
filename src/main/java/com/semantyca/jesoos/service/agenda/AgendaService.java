@@ -210,7 +210,9 @@ public class AgendaService {
         }
 
         final int MAX_PASSES = 2;
-        int overhead = (int) Math.round(MergingTypeMeta.averageOverheadPerSong(talkativity));
+        final int introSec = MergingTypeMeta.AVERAGE_INTRO_DURATION_SECONDS;
+        final int jingleSec = MergingTypeMeta.AVERAGE_JINGLE_DURATION_SECONDS;
+
         List<SoundFragment> selectedSongs = new ArrayList<>();
         int totalTimeUsed = 0;
         int pass = 0;
@@ -218,8 +220,15 @@ public class AgendaService {
         outer:
         while (totalTimeUsed < sceneDurationSeconds && pass < MAX_PASSES) {
             boolean addedAny = false;
+
             for (SoundFragment song : songsPool) {
-                int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
+                int songDurationSeconds = song.getLength() != null
+                        ? (int) song.getLength().toSeconds()
+                        : 180;
+
+                boolean hasIntro = random.nextDouble() < talkativity;
+                int overhead = hasIntro ? introSec : jingleSec;
+
                 int timePerSong = songDurationSeconds + overhead;
 
                 if (totalTimeUsed + timePerSong <= sceneDurationSeconds) {
@@ -233,20 +242,26 @@ public class AgendaService {
                     break outer;
                 }
             }
+
             pass++;
             if (!addedAny) break;
         }
 
         if (totalTimeUsed < sceneDurationSeconds) {
-            LOGGER.warnf("Too few songs to fill scene duration: pool has %d songs covering %ss, scene needs %ss — consider adding more content",
-                    songsPool.size(), totalTimeUsed, sceneDurationSeconds);
+            LOGGER.warnf(
+                    "Too few songs to fill scene duration: pool has %d songs covering %ss, scene needs %ss",
+                    songsPool.size(), totalTimeUsed, sceneDurationSeconds
+            );
         }
 
-        LOGGER.debugf("RadioStream scene duration: %ss, overhead/song: %ss (talkativity: %.2f), selected %d songs over %d pass(es), total budgeted: %ss",
-                sceneDurationSeconds, overhead, talkativity, selectedSongs.size(), pass, totalTimeUsed);
+        LOGGER.debugf(
+                "Scene duration: %ss, talkativity: %.2f, selected %d songs, total used: %ss",
+                sceneDurationSeconds, talkativity, selectedSongs.size(), totalTimeUsed
+        );
 
         return selectedSongs;
     }
+
 
     private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent) {
         List<SongEntry> songEntries = new ArrayList<>();

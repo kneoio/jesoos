@@ -13,8 +13,8 @@ import java.util.Map;
  */
 public final class MergingTypeMeta {
 
-    public static final int INTRO_DURATION_SECONDS   = 10;
-    public static final int JINGLE_DURATION_SECONDS  = 5;
+    public static final int AVERAGE_INTRO_DURATION_SECONDS = 10;
+    public static final int AVERAGE_JINGLE_DURATION_SECONDS = 5;
     public static final int CROSSFADE_OVERLAP_SECONDS = 0;
 
     /**
@@ -34,8 +34,8 @@ public final class MergingTypeMeta {
          * is kept separate because it affects scheduling stride, not audio length.
          */
         public int audioOverheadSeconds() {
-            int overhead = introCount * INTRO_DURATION_SECONDS;
-            if (hasJingle) overhead += JINGLE_DURATION_SECONDS;
+            int overhead = introCount * AVERAGE_INTRO_DURATION_SECONDS;
+            if (hasJingle) overhead += AVERAGE_JINGLE_DURATION_SECONDS;
             return overhead;
         }
 
