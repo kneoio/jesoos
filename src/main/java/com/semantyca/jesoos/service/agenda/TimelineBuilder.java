@@ -20,8 +20,7 @@ public class TimelineBuilder {
     public List<TimelineEntry> buildTimeline(LiveScene scene,
                                              List<SongEntry> songs,
                                              double talkativity,
-                                             List<ScenePrompt> introPrompts,
-                                             int targetDurationSeconds) {
+                                             List<ScenePrompt> introPrompts) {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
@@ -31,7 +30,6 @@ public class TimelineBuilder {
         }
 
         LocalDateTime currentTime = LocalDate.now(scene.getTimeZone()).atTime(scene.getOriginalStartTime());
-        LocalDateTime targetEndTime = currentTime.plusSeconds(targetDurationSeconds);
         boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
                              introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
@@ -68,31 +66,6 @@ public class TimelineBuilder {
             int stride = entry.getEstimatedDurationSeconds()
                     - MergingTypeMeta.of(strategy.mergingType()).crossfadeOverlapSeconds();
             currentTime = currentTime.plusSeconds(stride);
-        }
-
-        // Change 2: ensure last entry uses a single-song strategy
-        if (!timeline.isEmpty() && timeline.getLast().getSongs().size() > 1) {
-            TimelineEntry last = timeline.remove(timeline.size() - 1);
-            LocalDateTime entryTime = last.getScheduledEmissionTime();
-            for (SongEntry song : last.getSongs()) {
-                TimelineEntry single = new TimelineEntry(sequenceNumber, entryTime,
-                        List.of(song), MergingType.SONG_ONLY, false, false);
-                timeline.add(single);
-                sequenceNumber++;
-                entryTime = entryTime.plusSeconds(single.getEstimatedDurationSeconds());
-            }
-            currentTime = entryTime;
-        }
-
-        // Change 1: if timeline ends before next scene start, add a SONG_ONLY filler
-        if (currentTime.isBefore(targetEndTime)) {
-            SongEntry fillerSong = songs.get(songs.size() - 1);
-            TimelineEntry filler = new TimelineEntry(sequenceNumber, currentTime,
-                    List.of(fillerSong), MergingType.SONG_ONLY, false, false);
-            timeline.add(filler);
-            LOGGER.infof("Added filler SONG_ONLY entry for scene '%s' to cover %ds gap to next scene",
-                    scene.getSceneTitle(),
-                    (int) java.time.Duration.between(currentTime, targetEndTime).getSeconds());
         }
 
         LOGGER.infof("Built timeline for scene '%s': %d entries, duration: %d seconds, allowIntros: %s",
