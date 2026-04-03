@@ -13,9 +13,9 @@ import java.util.Map;
  */
 public final class MergingTypeMeta {
 
-    public static final int INTRO_DURATION_SECONDS   = 15;
-    public static final int JINGLE_DURATION_SECONDS  = 10;
-    public static final int CROSSFADE_OVERLAP_SECONDS = 10;
+    public static final int INTRO_DURATION_SECONDS   = 10;
+    public static final int JINGLE_DURATION_SECONDS  = 5;
+    public static final int CROSSFADE_OVERLAP_SECONDS = 0;
 
     /**
      * Per-type descriptor.
