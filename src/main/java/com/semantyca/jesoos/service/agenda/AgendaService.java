@@ -152,7 +152,8 @@ public class AgendaService {
                                         liveScene,
                                         songEntries,
                                         scene.getTalkativity(),
-                                        scene.getIntroPrompts()
+                                        scene.getIntroPrompts(),
+                                        durationSeconds
                                 );
 
                                 liveScene.setTimeline(timeline);

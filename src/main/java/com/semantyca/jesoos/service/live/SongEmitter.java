@@ -76,11 +76,12 @@ public class SongEmitter {
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
+                        int introIndex = 0;
                         for (int i = 0; i < entry.getSongs().size(); i++) {
                             IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
 
                             if (intro != null) {
-                                introMap.put(getIntroKeyByIndex(i),
+                                introMap.put(getIntroKeyByIndex(introIndex++),
                                         new IntroInfoDTO(intro.filePath(), intro.durationSeconds()));
                             }
 
