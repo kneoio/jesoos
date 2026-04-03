@@ -21,5 +21,6 @@ public class SceneDTO {
     private int durationSeconds;
     private int totalSongs;
     private boolean timelineBuilt;
+    private int fitSeconds;
     private List<TimelineEntryDTO> timeline;
 }

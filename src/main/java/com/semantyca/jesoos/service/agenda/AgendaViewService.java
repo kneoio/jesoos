@@ -72,6 +72,7 @@ public class AgendaViewService {
                 .durationSeconds(scene.getDurationSeconds())
                 .totalSongs(totalSongs)
                 .timelineBuilt(scene.isTimelineBuild())
+                .fitSeconds(scene.getFitSeconds())
                 .timeline(timelineDTOs)
                 .build();
     }
