@@ -13,6 +13,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -37,7 +38,7 @@ public class ChatRepository extends AsyncRepository {
     private final ConcurrentHashMap<String, List<MessageParam>> conversationHistoryCache = new ConcurrentHashMap<>();
 
     @Inject
-    public ChatRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public ChatRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 

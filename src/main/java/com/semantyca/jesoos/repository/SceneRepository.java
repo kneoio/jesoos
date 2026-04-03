@@ -17,6 +17,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -37,7 +38,7 @@ public class SceneRepository extends AsyncRepository {
     private final PromptRepository promptRepository;
 
     @Inject
-    public SceneRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptRepository promptRepository) {
+    public SceneRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptRepository promptRepository) {
         super(client, mapper, rlsRepository);
         this.promptRepository = promptRepository;
     }

@@ -18,6 +18,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -39,7 +40,7 @@ public class AiAgentRepository extends AsyncRepository {
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(AI_AGENT);
 
     @Inject
-    public AiAgentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public AiAgentRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 

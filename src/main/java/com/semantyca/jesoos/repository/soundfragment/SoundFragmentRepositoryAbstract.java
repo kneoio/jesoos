@@ -16,12 +16,11 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -36,13 +35,13 @@ import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
 public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     protected static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SOUND_FRAGMENT);
-    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepositoryAbstract.class);
+    private static final Logger LOGGER = Logger.getLogger(SoundFragmentRepositoryAbstract.class);
 
     public SoundFragmentRepositoryAbstract() {
         super();
     }
 
-    public SoundFragmentRepositoryAbstract(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public SoundFragmentRepositoryAbstract(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 

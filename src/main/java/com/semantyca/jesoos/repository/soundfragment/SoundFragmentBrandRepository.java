@@ -15,6 +15,7 @@ import com.semantyca.officeframe.dto.LabelDTO;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -31,7 +32,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentBrandRepository.class);
 
     @Inject
-    public SoundFragmentBrandRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public SoundFragmentBrandRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 

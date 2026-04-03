@@ -2,6 +2,7 @@ package com.semantyca.jesoos.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.live.ScenePool;
@@ -41,11 +42,24 @@ public class InfoResource extends AbstractResource {
 
     private void getLiveStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        boolean live = scenePool.getActiveScene(brand) != null;
-        rc.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(String.valueOf(live));
+        LiveScene activeScene = scenePool.getActiveScene(brand);
+        rc.vertx().executeBlocking(() -> {
+            if (activeScene == null) {
+                return new JsonObject().put("live", false).encode();
+            }
+            return OBJECT_MAPPER.writeValueAsString(activeScene);
+        }).onSuccess(json -> {
+            rc.response()
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(json);
+        }).onFailure(err -> {
+            LOGGER.error("Failed to serialize live status for brand: " + brand, err);
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", err.getMessage()).encode());
+        });
     }
 
     private void getAgendas(RoutingContext rc) {

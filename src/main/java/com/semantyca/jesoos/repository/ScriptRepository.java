@@ -22,10 +22,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
-import io.vertx.mutiny.sqlclient.Row;
-import io.vertx.mutiny.sqlclient.RowSet;
-import io.vertx.mutiny.sqlclient.SqlClient;
-import io.vertx.mutiny.sqlclient.Tuple;
+import io.vertx.mutiny.sqlclient.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -43,7 +40,7 @@ public class ScriptRepository extends AsyncRepository {
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SCRIPT);
 
     @Inject
-    public ScriptRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public ScriptRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 

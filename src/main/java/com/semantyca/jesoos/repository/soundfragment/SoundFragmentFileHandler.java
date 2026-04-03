@@ -10,14 +10,13 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.UUID;
 
 @ApplicationScoped
 public class SoundFragmentFileHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentFileHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(SoundFragmentFileHandler.class);
 
     private final PgPool client;
     private final IFileStorage fileStorage;
@@ -40,17 +39,15 @@ public class SoundFragmentFileHandler {
                 .onFailure().invoke(failure -> LOGGER.error("Database query failed for ID: {}", id, failure))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
-                        LOGGER.warn("No file record found for ID: {}", id);
+                        LOGGER.warnf("No file record found for ID: %s", id);
                         return Uni.createFrom().failure(new MissingFileRecordException("File not found: " + id));
                     }
 
                     String fileKey = rows.iterator().next().getString("file_key");
-                    LOGGER.debug("Retrieving file with key: {} for ID: {}", fileKey, id);
-
                     return fileStorage.getFileStream(fileKey)
-                            .onItem().invoke(file -> LOGGER.debug("File retrieval successful for ID: {}", id))
+                            .onItem().invoke(file -> LOGGER.debugf("File retrieval successful for ID: %s", id))
                             .onFailure().recoverWithUni(ex -> {
-                                LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, fileKey, ex.getMessage());
+                                LOGGER.errorf("File retrieval failed - ID: %s, Key: %s, Error: %s", id, fileKey, ex.getMessage());
                                 String errorMsg = String.format("File retrieval failed - ID: %s, Key: %s, Error: %s",
                                         id, fileKey, ex.getClass().getSimpleName());
                                 FileRetrievalFailureException fnf = new FileRetrievalFailureException(errorMsg);

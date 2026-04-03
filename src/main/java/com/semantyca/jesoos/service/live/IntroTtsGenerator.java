@@ -72,6 +72,15 @@ public class IntroTtsGenerator {
                 .apiKey(config.getAnthropicApiKey())
                 .timeout(java.time.Duration.ofSeconds(60))
                 .build();
+        
+        try {
+            Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
+            Files.createDirectories(uploadsDir);
+            LOGGER.infof("Intro TTS temp directory initialized: %s", uploadsDir);
+        } catch (IOException e) {
+            LOGGER.error("Failed to create intro-tts temp directory", e);
+            throw new RuntimeException("Failed to initialize intro-tts temp directory", e);
+        }
     }
 
     public Uni<IntroAudioResult> generateIntroAudioFile(

@@ -22,10 +22,6 @@ public class CommandService {
     }
 
     public Uni<JsonObject> startBrand(String brand) {
-        if (brand == null || brand.isEmpty()) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
-        }
-
         return brandPool.getRadioStream(brand)
                 .map(this::toResponse)
                 .invoke(response -> LOGGER.infof("Start brand %s", brand));
@@ -88,6 +84,7 @@ public class CommandService {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
 
+        djStateService.disableDj(brand);
         return brandPool.stopAndRemove(brand)
                 .map(stoppedAgenda -> {
                     if (stoppedAgenda != null) {

@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentBrandAssociationHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentBrandAssociationHandler.class);
 
     public Uni<Void> updateBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
         if (representedInBrands == null) {

@@ -5,6 +5,7 @@ import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -20,7 +21,7 @@ public class SoundFragmentFileRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentFileRepository.class);
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SOUND_FRAGMENT);
 
-    private final PgPool client;
+    private final Pool client;
     private final IFileStorage fileStorage;
     private final SoundFragmentFileHandler fileHandler;
     private final RLSRepository rlsRepository;

@@ -10,6 +10,7 @@ import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -30,7 +31,7 @@ public class ChatSummaryRepository extends AsyncRepository {
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(CHAT_SUMMARY);
 
     @Inject
-    public ChatSummaryRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public ChatSummaryRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 
