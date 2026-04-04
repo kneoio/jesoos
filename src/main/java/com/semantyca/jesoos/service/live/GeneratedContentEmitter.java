@@ -73,14 +73,14 @@ public class GeneratedContentEmitter {
                 .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
-        Uni<AbstractGeneratedContentService.AudioGenerationResult> ttsUni =
-                generatedNewsService.generateAudio(promptId, agent, stream, lang, scene.getSceneTitle(), scene.getTraceId());
+        Uni<IntroAudioResult> ttsUni =
+                generatedNewsService.generateAudio(promptId, agent, stream, lang, scene);
 
         return Uni.combine().all().unis(jinglesUni, songsUni, ttsUni).asTuple()
                 .chain(tuple -> {
                     List<SoundFragment> jingles = tuple.getItem1();
                     List<SoundFragment> songs = tuple.getItem2();
-                    AbstractGeneratedContentService.AudioGenerationResult tts = tuple.getItem3();
+                    IntroAudioResult tts = tuple.getItem3();
 
                     if (jingles.isEmpty()) {
                         LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);

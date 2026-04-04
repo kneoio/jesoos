@@ -41,7 +41,7 @@ public class SongEmitter {
     }
 
     public Uni<Void> send(String brandName,
-                          LiveScene scene,
+                          LiveScene liveScene,
                           TimelineEntry entry,
                           AiAgent agent,
                           IStream stream,
@@ -49,7 +49,7 @@ public class SongEmitter {
 
         MergingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
-        long sceneDeadlineForAivoxAwareness = scene.getEndTime()
+        long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
@@ -62,7 +62,7 @@ public class SongEmitter {
                 boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
                 if (needsIntro) {
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                            scene, entry.getSongs().get(i), agent, stream, lang));
+                            liveScene, entry.getSongs().get(i), agent, stream, lang));
                 } else {
                     introUnis.add(Uni.createFrom().nullItem());
                 }
@@ -71,7 +71,7 @@ public class SongEmitter {
             MergingType finalMixingStrategy = mixingStrategy;
             return Uni.join().all(introUnis).andCollectFailures()
                     .chain(intros -> {
-                        SongQueueMessageDTO message = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
+                        SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
 
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -97,13 +97,13 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        return queueSupplier.sendSongsToQueue(brandName, message, scene.getTraceId());
+                        return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
                     });
         } else {
             MergingType[] availableTypes = getNoIntroMergingTypes(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
-            SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mixingStrategy, sceneDeadlineForAivoxAwareness);
+            SongQueueMessageDTO dto = createBaseSongQueueMessage(liveScene, entry, mixingStrategy, sceneDeadlineForAivoxAwareness);
 
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -117,7 +117,7 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
-            return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+            return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId());
         }
     }
 

@@ -83,7 +83,7 @@ public class IntroTtsGenerator {
     }
 
     public Uni<IntroAudioResult> generateIntroAudioFile(
-            LiveScene scene,
+            LiveScene liveScene,
             SongEntry songEntry,
             AiAgent agent,
             IStream stream,
@@ -111,9 +111,63 @@ public class IntroTtsGenerator {
                 })
                 .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
-                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), scene.getTraceId(), stream.getSlugName()))
-                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, scene.getSceneTitle(), scene.getTraceId(), stream.getSlugName()))
+                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), liveScene.getTraceId(), stream.getSlugName()))
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, fallBacked.get()));
+    }
+
+    public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
+        String voiceId = agent.getTtsSetting().getDj().getId();
+        TTSEngineType engineType = agent.getTtsSetting().getDj().getEngineType();
+
+        TextToSpeechClient ttsClient;
+        String modelId;
+        String finalText = text;
+
+        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
+        if (engineType == TTSEngineType.MODELSLAB) {
+            ttsClient = modelslabClient;
+            modelId = null;
+            finalText = trimmed;
+            LOGGER.infof("Using Modelslab TTS for scene '%s' (cleaned tags)", sceneTitle);
+        } else if (engineType == TTSEngineType.GOOGLE) {
+            ttsClient = gcpttsClient;
+            modelId = null;
+            finalText = trimmed;
+            LOGGER.infof("Using GCP TTS for scene '%s' (cleaned tags)", sceneTitle);
+        } else {
+            ttsClient = elevenLabsClient;
+            modelId = config.getElevenLabsModelId();
+            LOGGER.infof("Using ElevenLabs TTS for scene '%s' with model: %s", sceneTitle, modelId);
+        }
+
+        return ttsClient.textToSpeech(finalText, voiceId, modelId, language)
+                .map(audioBytes -> {
+                    try {
+                        Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
+                        Files.createDirectories(uploadsDir);
+
+                        String fileName = "intro_" + UUID.randomUUID() + ".mp3";
+                        Path audioFilePath = uploadsDir.resolve(fileName);
+                        Files.write(audioFilePath, audioBytes);
+
+                        LOGGER.infof("Intro TTS audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
+                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
+                                Map.of("engineType", engineType.toString(), "sceneTitle", sceneTitle,
+                                        "audioSize", audioBytes.length, "textLength", text.length()), traceId);
+                        return audioFilePath.toString();
+                    } catch (IOException e) {
+                        LOGGER.error("Failed to save TTS audio for scene '{}'", sceneTitle, e);
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_save_failed",
+                                Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
+                        throw new RuntimeException("Failed to save TTS audio", e);
+                    }
+                })
+                .onFailure().invoke(e -> {
+                    LOGGER.error("TTS generation failed for scene '{}'", sceneTitle, e);
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"intro_tts_audio_generation_failed",
+                            Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
+                });
     }
 
     private Uni<String> generateDraftText(Prompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
@@ -198,60 +252,6 @@ public class IntroTtsGenerator {
     private String getSystemPrompt() {
         return "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'. " +
                 "NEVER use song names from PAST CONTEXT.";
-    }
-
-    private Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
-        String voiceId = agent.getTtsSetting().getDj().getId();
-        TTSEngineType engineType = agent.getTtsSetting().getDj().getEngineType();
-
-        TextToSpeechClient ttsClient;
-        String modelId;
-        String finalText = text;
-
-        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
-        if (engineType == TTSEngineType.MODELSLAB) {
-            ttsClient = modelslabClient;
-            modelId = null;
-            finalText = trimmed;
-            LOGGER.infof("Using Modelslab TTS for scene '%s' (cleaned tags)", sceneTitle);
-        } else if (engineType == TTSEngineType.GOOGLE) {
-            ttsClient = gcpttsClient;
-            modelId = null;
-            finalText = trimmed;
-            LOGGER.infof("Using GCP TTS for scene '%s' (cleaned tags)", sceneTitle);
-        } else {
-            ttsClient = elevenLabsClient;
-            modelId = config.getElevenLabsModelId();
-            LOGGER.infof("Using ElevenLabs TTS for scene '%s' with model: %s", sceneTitle, modelId);
-        }
-
-        return ttsClient.textToSpeech(finalText, voiceId, modelId, language)
-                .map(audioBytes -> {
-                    try {
-                        Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
-                        Files.createDirectories(uploadsDir);
-
-                        String fileName = "intro_" + UUID.randomUUID() + ".mp3";
-                        Path audioFilePath = uploadsDir.resolve(fileName);
-                        Files.write(audioFilePath, audioBytes);
-
-                        LOGGER.infof("Intro TTS audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
-                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
-                                Map.of("engineType", engineType.toString(), "sceneTitle", sceneTitle,
-                                        "audioSize", audioBytes.length, "textLength", text.length()), traceId);
-                        return audioFilePath.toString();
-                    } catch (IOException e) {
-                        LOGGER.error("Failed to save TTS audio for scene '{}'", sceneTitle, e);
-                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_save_failed",
-                                Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
-                        throw new RuntimeException("Failed to save TTS audio", e);
-                    }
-                })
-                .onFailure().invoke(e -> {
-                    LOGGER.error("TTS generation failed for scene '{}'", sceneTitle, e);
-                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"intro_tts_audio_generation_failed",
-                            Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
-                });
     }
 
     private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked) {
