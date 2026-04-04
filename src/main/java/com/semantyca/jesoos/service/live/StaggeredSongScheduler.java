@@ -131,12 +131,6 @@ public class StaggeredSongScheduler {
                     .subscribe().with(
                             v -> {
                                 entry.setStatus(TimelineEntryStatus.COMPLETED);
-                            /*    metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
-                                        Map.of(
-                                                "seq", entry.getSequenceNumber(),
-                                                "scene", scene.getSceneTitle(),
-                                                "strategy", entry.getMixingStrategy().name()),
-                                        scene.getTraceId());*/
                             },
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);

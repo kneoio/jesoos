@@ -101,7 +101,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                     if (masterPrompt.getLanguageTag() == airLanguage) {
                         return Uni.createFrom().item(masterPrompt);
                     }
-                    return promptService.findByMasterAndLanguage(promptId, airLanguage, false)
+                    return promptService.findByLanguage(promptId, airLanguage)
                             .map(p -> p != null ? p : masterPrompt);
                 })
                 .chain(prompt -> generateText(prompt, agent, stream))

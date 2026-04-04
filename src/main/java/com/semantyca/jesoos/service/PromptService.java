@@ -37,8 +37,8 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         return repository.findById(id, user, false);
     }
 
-   public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageCode, boolean includeArchived) {
-        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
+   public Uni<Prompt> findByLanguage(UUID masterId, LanguageTag languageCode) {
+        return repository.findByMasterAndLanguage(masterId, languageCode);
     }
 
 }

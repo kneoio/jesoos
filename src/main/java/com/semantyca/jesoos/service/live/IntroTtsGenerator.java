@@ -31,6 +31,7 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
@@ -39,14 +40,12 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
-
-    public record IntroAudioResult(String filePath, int durationSeconds) {}
-
-    private record PromptAndDraft(Prompt prompt, String draftContent) {}
 
     @Inject
     PromptService promptService;
@@ -88,25 +87,33 @@ public class IntroTtsGenerator {
             SongEntry songEntry,
             AiAgent agent,
             IStream stream,
-            LanguageTag broadcastingLanguage
+            LanguageTag language
     ) {
 
         UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
-
+        AtomicBoolean fallBacked = new AtomicBoolean(false);
+        
         return promptService.getById(selectedPromptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
-                    if (masterPrompt.getLanguageTag() == broadcastingLanguage) {
+                    if (masterPrompt.getLanguageTag() == language) { //if it is ENG
                         return Uni.createFrom().item(masterPrompt);
                     }
                     return promptService
-                            .findByMasterAndLanguage(selectedPromptId, broadcastingLanguage, false)
-                            .map(p -> p != null ? p : masterPrompt);
+                            .findByLanguage(selectedPromptId, language)
+                            .map(p -> {
+                                if (p != null) {
+                                    return p;
+                                } else {
+                                    fallBacked.set(true);
+                                    return masterPrompt;
+                                }
+                            });
                 })
                 .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), scene.getTraceId(), stream.getSlugName()))
-                .chain(spokenText -> generateTtsAudio(spokenText, agent, broadcastingLanguage, scene.getSceneTitle(), scene.getTraceId(), stream.getSlugName()))
-                .chain(this::calculateDuration);
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, scene.getSceneTitle(), scene.getTraceId(), stream.getSlugName()))
+                .chain(v -> calculateDuration(v, language, fallBacked.get()));
     }
 
     private Uni<String> generateDraftText(Prompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
@@ -247,18 +254,18 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<IntroAudioResult> calculateDuration(String filePath) {
+    private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked) {
         return Uni.createFrom().item(() -> {
             try {
-                net.bramp.ffmpeg.probe.FFmpegProbeResult probeResult =
+                FFmpegProbeResult probeResult =
                         ffmpegProvider.getFFprobe().probe(filePath);
                 double durationSeconds = probeResult.getFormat().duration;
                 int roundedDuration = (int) Math.ceil(durationSeconds);
                 LOGGER.infof("Intro audio duration: %s seconds (file: %s)", roundedDuration, filePath);
-                return new IntroAudioResult(filePath, roundedDuration);
+                return new IntroAudioResult(filePath, roundedDuration, languageTag, fallBacked);
             } catch (Exception e) {
                 LOGGER.warnf("Failed to probe intro audio duration for %s, using default 10s", filePath, e);
-                return new IntroAudioResult(filePath, 10);
+                return new IntroAudioResult(filePath, 10, languageTag, fallBacked);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }

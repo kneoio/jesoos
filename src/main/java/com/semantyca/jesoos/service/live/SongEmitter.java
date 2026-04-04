@@ -57,7 +57,7 @@ public class SongEmitter {
         if (djEnabled) {
             LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
             boolean shouldGenerateIntros = entry.isHasIntro();
-            List<Uni<IntroTtsGenerator.IntroAudioResult>> introUnis = new ArrayList<>();
+            List<Uni<IntroAudioResult>> introUnis = new ArrayList<>();
             for (int i = 0; i < entry.getSongs().size(); i++) {
                 boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
                 if (needsIntro) {
@@ -71,14 +71,14 @@ public class SongEmitter {
             MergingType finalMixingStrategy = mixingStrategy;
             return Uni.join().all(introUnis).andCollectFailures()
                     .chain(intros -> {
-                        SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
+                        SongQueueMessageDTO message = createBaseSongQueueMessage(scene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
 
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
                         int introIndex = 0;
                         for (int i = 0; i < entry.getSongs().size(); i++) {
-                            IntroTtsGenerator.IntroAudioResult intro = intros.get(i);
+                            IntroAudioResult intro = intros.get(i);
 
                             if (intro != null) {
                                 introMap.put(getIntroKeyByIndex(introIndex++),
@@ -93,11 +93,11 @@ public class SongEmitter {
                         MergingType effectiveStrategy = introMap.isEmpty()
                                 ? getNoIntroMergingTypes(entry)[0]
                                 : finalMixingStrategy;
-                        dto.setMergingMethod(effectiveStrategy);
-                        dto.setFilePaths(introMap);
-                        dto.setSongs(songMap);
+                        message.setMergingMethod(effectiveStrategy);
+                        message.setFilePaths(introMap);
+                        message.setSongs(songMap);
 
-                        return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                        return queueSupplier.sendSongsToQueue(brandName, message, scene.getTraceId());
                     });
         } else {
             MergingType[] availableTypes = getNoIntroMergingTypes(entry);

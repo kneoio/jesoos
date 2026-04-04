@@ -129,14 +129,10 @@ public class PromptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE master_id = $1 AND language_tag = $2";
+                " WHERE master_id = $1 AND language_tag = $2 AND archived = 0";
 
-
-        if (!includeArchived) {
-            sql += " AND archived = 0";
-        }
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(masterId, languageTag.tag()))
