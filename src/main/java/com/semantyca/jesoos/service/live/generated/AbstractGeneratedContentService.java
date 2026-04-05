@@ -176,7 +176,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 int durationSeconds = probeDuration(ttsFilePath);
 
                 SoundFragmentDTO dto = new SoundFragmentDTO();
-                dto.setType(PlaylistItemType.GENERATED_CONTENT);
+                dto.setType(PlaylistItemType.NEWS);
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                 dto.setTitle(prompt.getTitle() + " " + currentDate);
                 dto.setArtist(promptId.toString());
