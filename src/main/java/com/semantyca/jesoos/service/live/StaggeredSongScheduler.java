@@ -18,6 +18,8 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.jboss.logging.Logger;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class StaggeredSongScheduler {
+    private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
     public static final int DEFAULT_JINGLE_DURATION = 10;
 
     private final Vertx vertx;
@@ -139,10 +142,14 @@ public class StaggeredSongScheduler {
                                 if (errorMsg == null) {
                                     errorMsg = err.getClass().getSimpleName();
                                 }
+                                LOGGER.errorf("Entry #%d FAILED for scene '%s' brand '%s' — %s: %s",
+                                        entry.getSequenceNumber(), scene.getSceneTitle(), brandName,
+                                        err.getClass().getSimpleName(), errorMsg, err);
                                 metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "entry_failed",
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
+                                                "errorType", err.getClass().getSimpleName(),
                                                 "error", errorMsg),
                                         scene.getTraceId());
                             }
@@ -163,6 +170,9 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
+        LOGGER.infof("Emitting entry #%d for scene '%s' brand '%s' (generated=%s, jingle=%s)",
+                entry.getSequenceNumber(), liveScene.getSceneTitle(), brandName,
+                entry.isGenerated(), entry.isHasJingle());
         return brandPool.get(brandName)
                 .chain(stream -> {
 
@@ -175,15 +185,24 @@ public class StaggeredSongScheduler {
                                                     : Uni.createFrom().item(mainAgent);
                                     return agentUni.chain(agent ->
                                             generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
-                                });
+                                })
+                                .onFailure().invoke(err -> LOGGER.errorf(
+                                        "Generated content emitter failed for entry #%d scene '%s': %s",
+                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
                     }
 
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone);
+                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone)
+                                .onFailure().invoke(err -> LOGGER.errorf(
+                                        "Jingle emitter failed for entry #%d scene '%s': %s",
+                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
+                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone))
+                            .onFailure().invoke(err -> LOGGER.errorf(
+                                    "Song emitter failed for entry #%d scene '%s': %s",
+                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
                 });
     }
 
