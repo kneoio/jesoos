@@ -41,7 +41,8 @@ public class JingleSongEmitter {
                           LiveScene scene,
                           TimelineEntry entry,
                           IStream stream,
-                          ZoneId brandZone) {
+                          ZoneId brandZone,
+                          int priority) {
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
@@ -79,20 +80,20 @@ public class JingleSongEmitter {
                         }
                     }
 
-                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineForAivoxAwareness);
+                    SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, mergingType, sceneDeadlineForAivoxAwareness, priority);
                     dto.setFilePaths(new HashMap<>());
                     dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
     }
 
-    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline) {
+    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline, int priority) {
         SongQueueMessageDTO dto = new SongQueueMessageDTO();
         dto.setMergingMethod(mixingStrategy);
         dto.setSceneId(scene.getSceneId());
         dto.setSceneTitle(scene.getSceneTitle());
         dto.setSequenceNumber(entry.getSequenceNumber());
-        dto.setPriority(entry.isHasIntro() ? 9 : 10);
+        dto.setPriority(priority);
         dto.setSceneDeadlineTimestamp(deadline);
         return dto;
     }

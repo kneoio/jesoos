@@ -45,7 +45,8 @@ public class SongEmitter {
                           TimelineEntry entry,
                           AiAgent agent,
                           IStream stream,
-                          ZoneId brandZone) {
+                          ZoneId brandZone,
+                          int priority) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
         boolean djEnabled = djStateService.isDjEnabled(brandName);
@@ -71,7 +72,7 @@ public class SongEmitter {
             MixingType finalMixingStrategy = mixingStrategy;
             return Uni.join().all(introUnis).andCollectFailures()
                     .chain(intros -> {
-                        SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness);
+                        SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, finalMixingStrategy, sceneDeadlineForAivoxAwareness, priority);
 
                         Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                         Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -103,7 +104,7 @@ public class SongEmitter {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
             mixingStrategy = availableTypes[ThreadLocalRandom.current().nextInt(availableTypes.length)];
 
-            SongQueueMessageDTO dto = createBaseSongQueueMessage(liveScene, entry, mixingStrategy, sceneDeadlineForAivoxAwareness);
+            SongQueueMessageDTO dto = createBaseSongQueueMessage(liveScene, entry, mixingStrategy, sceneDeadlineForAivoxAwareness, priority);
 
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
@@ -121,13 +122,13 @@ public class SongEmitter {
         }
     }
 
-    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline) {
+    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline, int priority) {
         SongQueueMessageDTO dto = new SongQueueMessageDTO();
         dto.setMergingMethod(mixingStrategy);
         dto.setSceneId(scene.getSceneId());
         dto.setSceneTitle(scene.getSceneTitle());
         dto.setSequenceNumber(entry.getSequenceNumber());
-        dto.setPriority(entry.isHasIntro() ? 9 : 10);
+        dto.setPriority(priority);
         dto.setSceneDeadlineTimestamp(deadline);
         return dto;
     }

@@ -172,6 +172,10 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, 9);
+    }
+
+    public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
         LOGGER.infof("Emitting entry #%d for scene '%s' brand '%s' (generated=%s, jingle=%s)",
                 entry.getSequenceNumber(), liveScene.getSceneTitle(), brandName,
                 entry.isGenerated(), entry.isHasJingle());
@@ -186,7 +190,7 @@ public class StaggeredSongScheduler {
                                                     ? aiAgentService.getById(mainAgent.getCopilot(), SuperUser.build(), LanguageCode.en)
                                                     : Uni.createFrom().item(mainAgent);
                                     return agentUni.chain(agent ->
-                                            generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
+                                            generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority));
                                 })
                                 .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Generated content emitter failed for entry #%d scene '%s': %s",
@@ -194,14 +198,14 @@ public class StaggeredSongScheduler {
                     }
 
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone)
+                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone, priority)
                                 .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Jingle emitter failed for entry #%d scene '%s': %s",
                                         entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone))
+                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority))
                             .onFailure().invoke(err -> LOGGER.error(String.format(
                                     "Song emitter failed for entry #%d scene '%s': %s",
                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));

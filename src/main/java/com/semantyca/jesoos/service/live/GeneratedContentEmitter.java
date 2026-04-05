@@ -53,7 +53,8 @@ public class GeneratedContentEmitter {
                           TimelineEntry entry,
                           AiAgent agent,
                           IStream stream,
-                          ZoneId brandZone) {
+                          ZoneId brandZone,
+                          int priority) {
 
         List<ScenePrompt> contentPrompts = scene.getContentPrompts();
         if (contentPrompts == null || contentPrompts.isEmpty()) {
@@ -100,7 +101,7 @@ public class GeneratedContentEmitter {
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());
-                    dto.setPriority(9);
+                    dto.setPriority(priority);
                     dto.setSceneDeadlineTimestamp(deadline);
 
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();

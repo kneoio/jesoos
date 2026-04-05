@@ -174,7 +174,7 @@ public class CommandService {
                             scene.getTraceId()
                     );
                     
-                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone())
+                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), 8)
                             .map(v -> new JsonObject()
                                     .put("success", true)
                                     .put("brand", brand)
