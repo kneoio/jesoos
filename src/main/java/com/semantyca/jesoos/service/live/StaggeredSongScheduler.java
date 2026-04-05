@@ -203,7 +203,7 @@ public class StaggeredSongScheduler {
                 brandName,
                 MetricEventType.INFORMATION,
                 ProcessType.FLOW,
-                "scene_summary",
+                "scene_stopped",
                 Map.of(
                         "scene", scene.getSceneTitle(),
                         "entries", summary
