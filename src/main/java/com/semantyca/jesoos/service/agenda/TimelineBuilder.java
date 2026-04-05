@@ -33,8 +33,12 @@ public class TimelineBuilder {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
-        if (songs == null || songs.isEmpty()) {
-            LOGGER.warnf("Scene '%s' has no songs, timeline is empty", scene.getSceneTitle());
+        List<ScenePrompt> contentPrompts = scene.getContentPrompts();
+        boolean hasGeneratedContent = contentPrompts != null && !contentPrompts.isEmpty()
+                && contentPrompts.stream().anyMatch(ScenePrompt::isActive);
+
+        if ((songs == null || songs.isEmpty()) && !hasGeneratedContent) {
+            LOGGER.warnf("Scene '%s' has no songs and no generated content, timeline is empty", scene.getSceneTitle());
             return timeline;
         }
 
@@ -52,10 +56,6 @@ public class TimelineBuilder {
 
         int songIndex = 0;
         int sequenceNumber = 0;
-
-        List<ScenePrompt> contentPrompts = scene.getContentPrompts();
-        boolean hasGeneratedContent = contentPrompts != null && !contentPrompts.isEmpty()
-                && contentPrompts.stream().anyMatch(ScenePrompt::isActive);
 
         if (hasGeneratedContent) {
             TimelineEntry generatedEntry = new TimelineEntry(
