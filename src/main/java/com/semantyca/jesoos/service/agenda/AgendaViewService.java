@@ -58,7 +58,9 @@ public class AgendaViewService {
         LocalDateTime endTime = null;
         if (timelineDTOs != null && !timelineDTOs.isEmpty()) {
             startTime = timelineDTOs.getFirst().getScheduledEmissionTime();
-            endTime = timelineDTOs.getLast().getScheduledEmissionTime();
+            TimelineEntryDTO lastEntry = timelineDTOs.getLast();
+            endTime = lastEntry.getScheduledEmissionTime()
+                    .plusSeconds(lastEntry.getDurationSeconds());
         }
 
         int totalSongs = scene.getTimeline() == null ? 0 :

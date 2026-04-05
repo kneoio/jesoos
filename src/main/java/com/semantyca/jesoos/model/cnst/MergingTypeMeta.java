@@ -16,7 +16,7 @@ public final class MergingTypeMeta {
     public static final int AVERAGE_INTRO_DURATION_SECONDS = 10;
     public static final int AVERAGE_JINGLE_DURATION_SECONDS = 5;
     public static final int CROSSFADE_OVERLAP_SECONDS = 0;
-    public static final int AVERAGE_GENERATED_CONTENT_DURATION_SECONDS = 90;
+    public static final int AVERAGE_GENERATED_CONTENT_DURATION_SECONDS = 180;
 
     /**
      * Per-type descriptor.
