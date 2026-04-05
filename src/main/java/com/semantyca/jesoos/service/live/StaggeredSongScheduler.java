@@ -138,19 +138,20 @@ public class StaggeredSongScheduler {
                             },
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
-                                String errorMsg = err.getMessage();
-                                if (errorMsg == null) {
-                                    errorMsg = err.getClass().getSimpleName();
-                                }
-                                LOGGER.errorf("Entry #%d FAILED for scene '%s' brand '%s' — %s: %s",
+                                String errorMsg = err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName();
+                                Throwable rootCause = rootCause(err);
+                                String rootMsg = rootCause.getMessage() != null ? rootCause.getMessage() : rootCause.getClass().getSimpleName();
+                                LOGGER.error(String.format("Entry #%d FAILED for scene '%s' brand '%s' — %s: %s (root: %s: %s)",
                                         entry.getSequenceNumber(), scene.getSceneTitle(), brandName,
-                                        err.getClass().getSimpleName(), errorMsg, err);
+                                        err.getClass().getSimpleName(), errorMsg,
+                                        rootCause.getClass().getSimpleName(), rootMsg), err);
                                 metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "entry_failed",
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
                                                 "errorType", err.getClass().getSimpleName(),
-                                                "error", errorMsg),
+                                                "error", errorMsg,
+                                                "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg),
                                         scene.getTraceId());
                             }
                     );
@@ -186,23 +187,23 @@ public class StaggeredSongScheduler {
                                     return agentUni.chain(agent ->
                                             generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
                                 })
-                                .onFailure().invoke(err -> LOGGER.errorf(
+                                .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Generated content emitter failed for entry #%d scene '%s': %s",
-                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
+                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                     }
 
                     if (entry.isHasJingle()) {
                         return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone)
-                                .onFailure().invoke(err -> LOGGER.errorf(
+                                .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Jingle emitter failed for entry #%d scene '%s': %s",
-                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
+                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                             .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone))
-                            .onFailure().invoke(err -> LOGGER.errorf(
+                            .onFailure().invoke(err -> LOGGER.error(String.format(
                                     "Song emitter failed for entry #%d scene '%s': %s",
-                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage(), err));
+                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                 });
     }
 
@@ -229,6 +230,14 @@ public class StaggeredSongScheduler {
                 ),
                 scene.getTraceId()
         );
+    }
+
+    private Throwable rootCause(Throwable t) {
+        Throwable cause = t;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 
     @PreDestroy

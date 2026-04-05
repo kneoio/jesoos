@@ -184,6 +184,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 dto.setSource(SourceType.TEMPORARY_MIX);
                 dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
                 dto.setLength(Duration.ofSeconds(durationSeconds));
+                LOGGER.infof("saveSoundFragment: brandId=%s, promptId=%s", brandId, promptId);
+                if (brandId == null) {
+                    throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
+                }
                 dto.setRepresentedInBrands(List.of(brandId));
                 dto.setNewlyUploaded(List.of(fileName));
                 dto.setSlugName(WebHelper.generateSlug(dto.getArtist(), dto.getTitle()));

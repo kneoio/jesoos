@@ -48,7 +48,7 @@ public class RadioStream extends AbstractStream {
 
     @Override
     public UUID getMasterBrandId() {
-        return null;
+        return id;
     }
 
     @Override
