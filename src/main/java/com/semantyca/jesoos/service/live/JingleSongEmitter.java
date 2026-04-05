@@ -4,8 +4,10 @@ import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import com.semantyca.mixpla.dto.queue.livestream.*;
-import com.semantyca.mixpla.model.cnst.MergingType;
+import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.SongKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
@@ -48,11 +50,11 @@ public class JingleSongEmitter {
                             .toInstant()
                             .toEpochMilli();
 
-                    MergingType mergingType;
+                    MixingType mergingType;
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
                     if (jingles.isEmpty()) {
-                        mergingType = MergingType.SONG_ONLY;
+                        mergingType = MixingType.SONG_ONLY;
                         for (int i = 0; i < entry.getSongs().size(); i++) {
                             songMap.put(getSongKeyByIndex(i),
                                     new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
@@ -60,7 +62,7 @@ public class JingleSongEmitter {
                         }
                     } else {
                         SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
-                        mergingType = MergingType.FILLER_JINGLE;
+                        mergingType = MixingType.FILLER_JINGLE;
 
                         int jingleDuration = DEFAULT_JINGLE_DURATION;
                         if (jingle.getLength() != null) {
@@ -84,7 +86,7 @@ public class JingleSongEmitter {
                 });
     }
 
-    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MergingType mixingStrategy, long deadline) {
+    private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline) {
         SongQueueMessageDTO dto = new SongQueueMessageDTO();
         dto.setMergingMethod(mixingStrategy);
         dto.setSceneId(scene.getSceneId());

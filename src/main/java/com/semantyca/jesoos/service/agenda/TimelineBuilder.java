@@ -5,7 +5,7 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.mixpla.model.ScenePrompt;
-import com.semantyca.mixpla.model.cnst.MergingType;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import org.jboss.logging.Logger;
 
 import java.time.LocalDate;
@@ -65,7 +65,7 @@ public class TimelineBuilder {
                     sequenceNumber,
                     currentTime,
                     List.of(),
-                    MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND,
+                    MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND,
                     false,
                     true
             );
@@ -77,7 +77,9 @@ public class TimelineBuilder {
             LOGGER.infof("Scene '%s': inserted generated content slot (%ds) at position 0",
                     scene.getSceneTitle(), MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS);
         }
-        while (songIndex < songs.size()) {
+        while (true) {
+            assert songs != null;
+            if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
             MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
 
@@ -96,7 +98,7 @@ public class TimelineBuilder {
                 songList,
                 strategy.mergingType(),
                 strategy.needsIntros(),
-                strategy.mergingType().equals(MergingType.FILLER_JINGLE)
+                strategy.mergingType().equals(MixingType.FILLER_JINGLE)
             );
 
             timeline.add(entry);
@@ -112,7 +114,7 @@ public class TimelineBuilder {
 
         if (-fitSeconds > INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS && !timeline.isEmpty()) {
             TimelineEntry last = timeline.getLast();
-            MergingType downgraded = INTRO_DOWNGRADE.get(last.getMixingStrategy());
+            MixingType downgraded = INTRO_DOWNGRADE.get(last.getMixingStrategy());
             if (downgraded != null) {
                 int savedSeconds = MergingTypeMeta.of(last.getMixingStrategy()).audioOverheadSeconds()
                         - MergingTypeMeta.of(downgraded).audioOverheadSeconds();
@@ -150,11 +152,11 @@ public class TimelineBuilder {
                 timeline.getFirst().getScheduledEmissionTime(), contentEnd).getSeconds();
     }
 
-    private static final Map<MergingType, MergingType> INTRO_DOWNGRADE = Map.of(
-            MergingType.INTRO_SONG,             MergingType.SONG_ONLY,
-            MergingType.LISTENER_INTRO_SONG,    MergingType.SONG_ONLY,
-            MergingType.INTRO_SONG_INTRO_SONG,  MergingType.SONG_CROSSFADE_SONG,
-            MergingType.SONG_INTRO_SONG,        MergingType.SONG_CROSSFADE_SONG
+    private static final Map<MixingType, MixingType> INTRO_DOWNGRADE = Map.of(
+            MixingType.INTRO_SONG,             MixingType.SONG_ONLY,
+            MixingType.LISTENER_INTRO_SONG,    MixingType.SONG_ONLY,
+            MixingType.INTRO_SONG_INTRO_SONG,  MixingType.SONG_CROSSFADE_SONG,
+            MixingType.SONG_INTRO_SONG,        MixingType.SONG_CROSSFADE_SONG
     );
 
 }

@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.agenda;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.*;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.SceneService;
@@ -14,8 +15,7 @@ import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
-import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
-import com.semantyca.mixpla.model.cnst.GeneratedContentStatus;
+import com.semantyca.mixpla.model.cnst.ContentStatus;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -140,7 +140,7 @@ public class AgendaService {
                                 liveScene.setTraceId(traceId);
                                 liveScene.setTimeZone(brandZone);
                                 liveScene.setAgentId(sourceBrand.getAiAgentId());
-                                liveScene.setContentStatus(GeneratedContentStatus.PENDING);
+                                liveScene.setContentStatus(ContentStatus.PENDING);
                                 liveScene.setOneTimeRun(scene.isOneTimeRun());
                                 if (scene.getPlaylistRequest() != null
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {

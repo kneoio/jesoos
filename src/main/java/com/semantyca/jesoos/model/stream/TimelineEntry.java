@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.model.stream;
 
 import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
-import com.semantyca.mixpla.model.cnst.MergingType;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,7 +21,7 @@ public class TimelineEntry {
     @Setter
     private List<SongEntry> songs;
     @Setter
-    private MergingType mixingStrategy;
+    private MixingType mixingStrategy;
     @Setter
     private boolean hasIntro;
     @Setter
@@ -33,7 +33,7 @@ public class TimelineEntry {
     private final AtomicReference<TimelineEntryStatus> status = new AtomicReference<>(TimelineEntryStatus.PENDING);
 
     public TimelineEntry(int sequenceNumber, LocalDateTime scheduledEmissionTime,
-                         List<SongEntry> songs, MergingType mixingStrategy,
+                         List<SongEntry> songs, MixingType mixingStrategy,
                          boolean hasIntro, boolean hasJingle) {
         this.id = UUID.randomUUID();
         this.sequenceNumber = sequenceNumber;

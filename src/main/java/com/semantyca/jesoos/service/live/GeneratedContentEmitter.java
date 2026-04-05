@@ -4,15 +4,14 @@ import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
-import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
-import com.semantyca.mixpla.model.aiagent.AiAgent;
-import com.semantyca.mixpla.model.cnst.MergingType;
-import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.ScenePrompt;
+import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
@@ -98,7 +97,7 @@ public class GeneratedContentEmitter {
                     long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
 
                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND);
+                    dto.setMergingMethod(MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND);
                     dto.setSceneId(scene.getSceneId());
                     dto.setSceneTitle(scene.getSceneTitle());
                     dto.setSequenceNumber(entry.getSequenceNumber());

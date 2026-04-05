@@ -1,11 +1,11 @@
 package com.semantyca.jesoos.model.cnst;
 
-import com.semantyca.mixpla.model.cnst.MergingType;
+import com.semantyca.mixpla.model.cnst.MixingType;
 
 import java.util.Map;
 
 /**
- * Static metadata companion for {@link MergingType}.
+ * Static metadata companion for {@link com.semantyca.mixpla.model.cnst.MixingType}.
  *
  * <p>Centralises timing constants so that duration estimates in
  * {@code TimelineEntry}, {@code TimelineBuilder}, and song-selection
@@ -46,19 +46,19 @@ public final class MergingTypeMeta {
         }
     }
 
-    private static final Map<MergingType, Info> META = Map.of(
-            MergingType.INTRO_SONG,                            new Info(1, 1, false, false),
-            MergingType.LISTENER_INTRO_SONG,                   new Info(1, 1, false, false),
-            MergingType.NOT_MIXED,                             new Info(1, 0, false, false),
-            MergingType.SONG_ONLY,                             new Info(1, 0, false, false),
-            MergingType.SONG_INTRO_SONG,                       new Info(2, 1, false, false),
-            MergingType.FILLER_JINGLE,                         new Info(1, 0, true,  false),
-            MergingType.INTRO_SONG_INTRO_SONG,                 new Info(2, 2, false, false),
-            MergingType.SONG_CROSSFADE_SONG,                   new Info(2, 0, false, true),
-            MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND, new Info(1, 0, true, false)
+    private static final Map<MixingType, Info> META = Map.of(
+            MixingType.INTRO_SONG,                            new Info(1, 1, false, false),
+            MixingType.LISTENER_INTRO_SONG,                   new Info(1, 1, false, false),
+            MixingType.NOT_MIXED,                             new Info(1, 0, false, false),
+            MixingType.SONG_ONLY,                             new Info(1, 0, false, false),
+            MixingType.SONG_INTRO_SONG,                       new Info(2, 1, false, false),
+            MixingType.FILLER_JINGLE,                         new Info(1, 0, true,  false),
+            MixingType.INTRO_SONG_INTRO_SONG,                 new Info(2, 2, false, false),
+            MixingType.SONG_CROSSFADE_SONG,                   new Info(2, 0, false, true),
+            MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND, new Info(1, 0, true, false)
     );
 
-    public static Info of(MergingType type) {
+    public static Info of(MixingType type) {
         return META.getOrDefault(type, new Info(1, 0, false, false));
     }
 

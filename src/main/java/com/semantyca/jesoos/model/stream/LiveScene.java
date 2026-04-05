@@ -2,7 +2,7 @@ package com.semantyca.jesoos.model.stream;
 
 import com.semantyca.jesoos.service.agenda.TriggerContext;
 import com.semantyca.mixpla.model.ScenePrompt;
-import com.semantyca.mixpla.model.cnst.GeneratedContentStatus;
+import com.semantyca.mixpla.model.cnst.ContentStatus;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,7 +22,7 @@ public class LiveScene {
     private LocalDateTime actualEndTime; //the actual time when the scene stopped emit TimelineEntries
     private ZoneId timeZone;
     private UUID agentId;
-    private GeneratedContentStatus contentStatus;
+    private ContentStatus contentStatus;
     private List<ScenePrompt> contentPrompts;
     private TriggerContext triggerContext;
     private UUID traceId;
