@@ -9,6 +9,7 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import com.semantyca.jesoos.service.AiAgentService;
+import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
@@ -167,7 +168,14 @@ public class StaggeredSongScheduler {
 
                     if (entry.isGenerated()) {
                         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                .chain(agent -> generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
+                                .chain(mainAgent -> {
+                                    Uni<AiAgent> agentUni =
+                                            (mainAgent.getCopilot() != null)
+                                                    ? aiAgentService.getById(mainAgent.getCopilot(), SuperUser.build(), LanguageCode.en)
+                                                    : Uni.createFrom().item(mainAgent);
+                                    return agentUni.chain(agent ->
+                                            generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
+                                });
                     }
 
                     if (entry.isHasJingle()) {
