@@ -52,6 +52,28 @@ public class TimelineBuilder {
 
         int songIndex = 0;
         int sequenceNumber = 0;
+
+        List<ScenePrompt> contentPrompts = scene.getContentPrompts();
+        boolean hasGeneratedContent = contentPrompts != null && !contentPrompts.isEmpty()
+                && contentPrompts.stream().anyMatch(ScenePrompt::isActive);
+
+        if (hasGeneratedContent) {
+            TimelineEntry generatedEntry = new TimelineEntry(
+                    sequenceNumber,
+                    currentTime,
+                    List.of(),
+                    MergingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND,
+                    false,
+                    true
+            );
+            generatedEntry.setGenerated(true);
+            generatedEntry.setEstimatedDurationSeconds(MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS);
+            timeline.add(generatedEntry);
+            sequenceNumber++;
+            currentTime = currentTime.plusSeconds(MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS);
+            LOGGER.infof("Scene '%s': inserted generated content slot (%ds) at position 0",
+                    scene.getSceneTitle(), MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS);
+        }
         while (songIndex < songs.size()) {
             int remainingSongs = songs.size() - songIndex;
             MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);

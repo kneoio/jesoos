@@ -142,7 +142,8 @@ public class AgendaService {
                                 liveScene.setAgentId(sourceBrand.getAiAgentId());
                                 liveScene.setContentStatus(GeneratedContentStatus.PENDING);
                                 liveScene.setOneTimeRun(scene.isOneTimeRun());
-                                if (scene.getPlaylistRequest() != null) {
+                                if (scene.getPlaylistRequest() != null
+                                        && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
                                 }
 
@@ -186,6 +187,7 @@ public class AgendaService {
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
         Uni<List<SoundFragment>> songsPoolUni = switch (sourcing) {
+            case GENERATED -> Uni.createFrom().item(List.of());
             case QUERY -> {
                 PlaylistRequest req = new PlaylistRequest();
                 req.setSearchTerm(playlistRequest.getSearchTerm());
@@ -201,8 +203,12 @@ public class AgendaService {
                     songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds);
         };
 
+        int effectiveDuration = isGeneratedContentScene(playlistRequest)
+                ? maxDurationSeconds - MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS
+                : maxDurationSeconds;
+
         return songsPoolUni.map(songsPool ->
-                stripSongsToFitDurationWithTalkativity(songsPool, maxDurationSeconds, scene.getTalkativity()));
+                stripSongsToFitDurationWithTalkativity(songsPool, effectiveDuration, scene.getTalkativity()));
     }
 
     private List<SoundFragment> stripSongsToFitDurationWithTalkativity(List<SoundFragment> songsPool, int sceneDurationSeconds, double talkativity) {
@@ -282,5 +288,9 @@ public class AgendaService {
             songEntries.add(new SongEntry(soundFragments.get(i), promptEntry, i));
         }
         return songEntries;
+    }
+
+    static boolean isGeneratedContentScene(PlaylistRequest req) {
+        return req != null && req.getSourcing() == WayOfSourcing.GENERATED;
     }
 }
