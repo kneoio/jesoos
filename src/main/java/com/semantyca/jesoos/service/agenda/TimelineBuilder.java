@@ -77,11 +77,13 @@ public class TimelineBuilder {
             LOGGER.infof("Scene '%s': inserted generated content slot (%ds) at position 0",
                     scene.getSceneTitle(), MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS);
         }
+        MixingType lastMixingType = null;
+        int consecutiveMixingCount = 0;
         while (true) {
             assert songs != null;
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
-            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity);
+            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
@@ -103,6 +105,13 @@ public class TimelineBuilder {
 
             timeline.add(entry);
             sequenceNumber++;
+
+            if (strategy.mergingType() == lastMixingType) {
+                consecutiveMixingCount++;
+            } else {
+                lastMixingType = strategy.mergingType();
+                consecutiveMixingCount = 1;
+            }
 
             int stride = entry.getEstimatedDurationSeconds()
                     - MergingTypeMeta.of(strategy.mergingType()).crossfadeOverlapSeconds();
