@@ -13,7 +13,6 @@ import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.agent.ElevenLabsClient;
 import com.semantyca.jesoos.agent.GCPTTSClient;
 import com.semantyca.jesoos.agent.ModelslabClient;
-import com.semantyca.jesoos.agent.TextToSpeechClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -28,7 +27,6 @@ import com.semantyca.mixpla.model.Prompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
-import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
@@ -166,12 +164,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     ) {
         return Uni.createFrom().item(() -> {
             try {
-                String fileName = Path.of(ttsFilePath).getFileName().toString();
+                Path path = Path.of(ttsFilePath);
+                String fileName = path.getFileName().toString();
 
                 Path targetDir = Paths.get(config.getPathUploads(), "sound-fragments-controller", "supervisor", "temp");
                 Files.createDirectories(targetDir);
                 Path targetFile = targetDir.resolve(fileName);
-                Files.copy(Path.of(ttsFilePath), targetFile, StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(path, targetFile, StandardCopyOption.REPLACE_EXISTING);
 
                 int durationSeconds = probeDuration(ttsFilePath);
 
