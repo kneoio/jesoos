@@ -104,6 +104,7 @@ public class AgendaViewService {
                 .mixingStrategy(entry.getMixingStrategy().name())
                 .hasIntro(entry.isHasIntro())
                 .hasJingle(entry.isHasJingle())
+                .generated(entry.isGenerated())
                 .status(entry.getStatus().name())
                 .build();
     }

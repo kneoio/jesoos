@@ -21,6 +21,7 @@ public class TimelineEntryDTO {
     private String mixingStrategy;
     private boolean hasIntro;
     private boolean hasJingle;
+    private boolean generated;
     private int batchId;
     private String status;
 
