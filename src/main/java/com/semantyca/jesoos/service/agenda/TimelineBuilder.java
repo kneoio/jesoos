@@ -45,7 +45,10 @@ public class TimelineBuilder {
         LocalTime nowTime = LocalTime.now(scene.getTimeZone());
         LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
         if (scene.getOriginalStartTime().isAfter(nowTime)) {
-            sceneDate = sceneDate.minusDays(1);
+            long minutesUntilStart = java.time.Duration.between(nowTime, scene.getOriginalStartTime()).toMinutes();
+            if (minutesUntilStart > 12 * 60) {
+                sceneDate = sceneDate.minusDays(1);
+            }
         }
         LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
         boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
