@@ -1,24 +1,39 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
+import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.StreamAgenda;
+import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.DjStateService;
+import com.semantyca.jesoos.service.live.ScenePool;
+import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.util.Map;
+import java.util.UUID;
+
 @ApplicationScoped
 public class CommandService {
     private static final Logger LOGGER = Logger.getLogger(CommandService.class);
     private final DjStateService djStateService;
     private final BrandPool brandPool;
+    private final StaggeredSongScheduler staggeredSongScheduler;
+    private final MetricPublisher metricPublisher;
 
     @Inject
-    public CommandService(DjStateService djStateService, BrandPool brandPool) {
+    public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool, StaggeredSongScheduler staggeredSongScheduler, MetricPublisher metricPublisher) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
+        this.staggeredSongScheduler = staggeredSongScheduler;
+        this.metricPublisher = metricPublisher;
     }
 
     public Uni<JsonObject> startBrand(String brand) {
@@ -101,6 +116,81 @@ public class CommandService {
                                 .put("brand", brand)
                                 .put("message", "Brand not found in pool");
                     }
+                });
+    }
+
+    public Uni<JsonObject> emitTimelineEntry(String brand, UUID sceneId, int sequenceNumber) {
+        if (brand == null || brand.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
+        }
+        if (sceneId == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Missing sceneId parameter"));
+        }
+
+        return brandPool.get(brand)
+                .chain(stream -> {
+                    if (stream == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not in pool: " + brand));
+                    }
+
+                    StreamAgenda agenda = stream.getAgenda();
+                    if (agenda == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("No agenda found for brand: " + brand));
+                    }
+
+                    LiveScene scene = agenda.getLiveScenes().stream()
+                            .filter(s -> s.getSceneId().equals(sceneId))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (scene == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException(
+                                "Scene with ID " + sceneId + " not found in agenda for brand: " + brand));
+                    }
+
+                    TimelineEntry entry = scene.getTimeline().stream()
+                            .filter(e -> e.getSequenceNumber() == sequenceNumber)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (entry == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException(
+                                "Timeline entry with sequence number " + sequenceNumber + " not found in scene " + sceneId));
+                    }
+
+                    LOGGER.infof("Manually emitting timeline entry #%d from scene %s ('%s') for brand: %s", 
+                            sequenceNumber, sceneId, scene.getSceneTitle(), brand);
+                    
+                    metricPublisher.publishMetric(
+                            brand,
+                            MetricEventType.COMMAND,
+                            ProcessType.INDEPENDENT,
+                            "command_emit_timeline_entry",
+                            Map.of(
+                                    "sceneId", sceneId.toString(),
+                                    "sceneTitle", scene.getSceneTitle(),
+                                    "sequenceNumber", sequenceNumber
+                            ),
+                            scene.getTraceId()
+                    );
+                    
+                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone())
+                            .map(v -> new JsonObject()
+                                    .put("success", true)
+                                    .put("brand", brand)
+                                    .put("sceneId", sceneId.toString())
+                                    .put("sceneTitle", scene.getSceneTitle())
+                                    .put("sequenceNumber", sequenceNumber)
+                                    .put("message", "Timeline entry emitted"));
+                })
+                .onFailure().recoverWithItem(failure -> {
+                    LOGGER.errorf(failure, "Failed to emit timeline entry #%d from scene %s for brand: %s", sequenceNumber, sceneId, brand);
+                    return new JsonObject()
+                            .put("success", false)
+                            .put("brand", brand)
+                            .put("sceneId", sceneId.toString())
+                            .put("sequenceNumber", sequenceNumber)
+                            .put("error", failure.getMessage());
                 });
     }
 

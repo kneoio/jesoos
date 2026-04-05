@@ -20,7 +20,6 @@ import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
-import org.jboss.logging.Logger;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -35,7 +34,6 @@ import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
 public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     protected static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SOUND_FRAGMENT);
-    private static final Logger LOGGER = Logger.getLogger(SoundFragmentRepositoryAbstract.class);
 
     public SoundFragmentRepositoryAbstract() {
         super();

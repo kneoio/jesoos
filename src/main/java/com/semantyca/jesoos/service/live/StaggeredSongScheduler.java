@@ -161,21 +161,21 @@ public class StaggeredSongScheduler {
         return true;
     }
 
-    private Uni<Void> emitTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
+    public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
         return brandPool.get(brandName)
                 .chain(stream -> {
 
                     if (entry.isGenerated()) {
                         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                .chain(agent -> generatedContentEmitter.send(brandName, scene, entry, agent, stream, brandZone));
+                                .chain(agent -> generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
                     }
 
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(brandName, scene, entry, stream, brandZone);
+                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone);
                     }
 
                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                            .chain(agent -> songEmitter.send(brandName, scene, entry, agent, stream, brandZone));
+                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone));
                 });
     }
 

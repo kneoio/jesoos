@@ -25,13 +25,6 @@ public class TimelineBuilder {
      */
     public static final int INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS = 30;
 
-    private static final Map<MergingType, MergingType> INTRO_DOWNGRADE = Map.of(
-            MergingType.INTRO_SONG,             MergingType.SONG_ONLY,
-            MergingType.LISTENER_INTRO_SONG,    MergingType.SONG_ONLY,
-            MergingType.INTRO_SONG_INTRO_SONG,  MergingType.SONG_CROSSFADE_SONG,
-            MergingType.SONG_INTRO_SONG,        MergingType.SONG_CROSSFADE_SONG
-    );
-
     public List<TimelineEntry> buildTimeline(LiveScene scene,
                                              List<SongEntry> songs,
                                              int sceneDurationSeconds,
@@ -132,12 +125,11 @@ public class TimelineBuilder {
                 timeline.getFirst().getScheduledEmissionTime(), contentEnd).getSeconds();
     }
 
-    private int calculateTotalDuration(List<TimelineEntry> timeline) {
-        if (timeline.isEmpty()) {
-            return 0;
-        }
-        LocalDateTime start = timeline.getFirst().getScheduledEmissionTime();
-        LocalDateTime end = timeline.getLast().getScheduledEmissionTime();
-        return (int) java.time.Duration.between(start, end).getSeconds();
-    }
+    private static final Map<MergingType, MergingType> INTRO_DOWNGRADE = Map.of(
+            MergingType.INTRO_SONG,             MergingType.SONG_ONLY,
+            MergingType.LISTENER_INTRO_SONG,    MergingType.SONG_ONLY,
+            MergingType.INTRO_SONG_INTRO_SONG,  MergingType.SONG_CROSSFADE_SONG,
+            MergingType.SONG_INTRO_SONG,        MergingType.SONG_CROSSFADE_SONG
+    );
+
 }

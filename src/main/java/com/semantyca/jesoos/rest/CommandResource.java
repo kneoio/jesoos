@@ -9,6 +9,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.util.UUID;
+
 @ApplicationScoped
 public class CommandResource extends AbstractResource {
     private static final Logger LOGGER = Logger.getLogger(CommandResource.class);
@@ -22,6 +24,7 @@ public class CommandResource extends AbstractResource {
         router.route(HttpMethod.POST, path + "/:brand/stop").handler(this::handleStop);
         router.route(HttpMethod.POST, path + "/:brand/enable-dj").handler(this::handleEnableDj);
         router.route(HttpMethod.POST, path + "/:brand/disable-dj").handler(this::handleDisableDj);
+        router.route(HttpMethod.POST, path + "/:brand/emit-timeline-entry/:sceneId/:sequenceNumber").handler(this::handleEmitTimelineEntry);
     }
 
     private void handleStart(RoutingContext rc) {
@@ -72,6 +75,32 @@ public class CommandResource extends AbstractResource {
                 .onFailure(failure -> handleCommandFailure(rc, slugName, "disable-dj", failure));
     }
 
+    private void handleEmitTimelineEntry(RoutingContext rc) {
+        String slugName = rc.pathParam("brand").toLowerCase();
+        String sceneIdParam = rc.pathParam("sceneId");
+        String seqNumParam = rc.pathParam("sequenceNumber");
+        
+        try {
+            UUID sceneId = UUID.fromString(sceneIdParam);
+            int sequenceNumber = Integer.parseInt(seqNumParam);
+            rc.vertx().executeBlocking(() -> handleEmitTimelineEntryCommand(slugName, sceneId, sequenceNumber))
+                    .onSuccess(response -> {
+                        rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode());
+                    })
+                    .onFailure(failure -> handleCommandFailure(rc, slugName, "emit-timeline-entry", failure));
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject()
+                            .put("error", "Invalid sceneId or sequence number: " + e.getMessage())
+                            .encode());
+        }
+    }
+
     private JsonObject handleStartCommand(String brand) {
         try {
             return commandService.startBrand(brand)
@@ -108,6 +137,17 @@ public class CommandResource extends AbstractResource {
             JsonObject response = commandService.disableDj(brand)
                     .await().indefinitely();
             LOGGER.infof("DJ disabled via command for brand: %s", brand);
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private JsonObject handleEmitTimelineEntryCommand(String brand, UUID sceneId, int sequenceNumber) {
+        try {
+            JsonObject response = commandService.emitTimelineEntry(brand, sceneId, sequenceNumber)
+                    .await().indefinitely();
+            LOGGER.infof("Timeline entry #%d from scene %s emitted via command for brand: %s", sequenceNumber, sceneId, brand);
             return response;
         } catch (Exception e) {
             throw new RuntimeException(e);

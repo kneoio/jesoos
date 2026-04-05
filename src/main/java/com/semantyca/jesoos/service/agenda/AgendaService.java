@@ -140,7 +140,7 @@ public class AgendaService {
                                 liveScene.setTraceId(traceId);
                                 liveScene.setTimeZone(brandZone);
                                 liveScene.setAgentId(sourceBrand.getAiAgentId());
-                                liveScene.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
+                                liveScene.setContentStatus(GeneratedContentStatus.PENDING);
                                 liveScene.setOneTimeRun(scene.isOneTimeRun());
                                 if (scene.getPlaylistRequest() != null) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());

@@ -5,8 +5,6 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +13,29 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentBrandAssociationHandler {
+
+    public Uni<Void> insertBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
+        if (representedInBrands == null || representedInBrands.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        return addBrands(tx, soundFragmentId, representedInBrands);
+    }
+
+    private Uni<Void> addBrands(SqlClient tx, UUID soundFragmentId, List<UUID> brandsToAdd) {
+        if (brandsToAdd.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
+        List<Tuple> insertParams = brandsToAdd.stream()
+                .map(brandId -> Tuple.of(brandId, soundFragmentId))
+                .collect(Collectors.toList());
+
+        return tx.preparedQuery(insertBrandsSql)
+                .executeBatch(insertParams)
+                .onItem().ignore().andContinueWithNull();
+    }
 
     public Uni<Void> updateBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
         if (representedInBrands == null) {
@@ -44,14 +65,6 @@ public class SoundFragmentBrandAssociationHandler {
                 });
     }
 
-    public Uni<Void> insertBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
-        if (representedInBrands == null || representedInBrands.isEmpty()) {
-            return Uni.createFrom().voidItem();
-        }
-
-        return addBrands(tx, soundFragmentId, representedInBrands);
-    }
-
     private Uni<Void> removeBrands(SqlClient tx, UUID soundFragmentId, List<UUID> brandsToRemove) {
         if (brandsToRemove.isEmpty()) {
             return Uni.createFrom().voidItem();
@@ -64,18 +77,4 @@ public class SoundFragmentBrandAssociationHandler {
                 .onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<Void> addBrands(SqlClient tx, UUID soundFragmentId, List<UUID> brandsToAdd) {
-        if (brandsToAdd.isEmpty()) {
-            return Uni.createFrom().voidItem();
-        }
-
-        String insertBrandsSql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
-        List<Tuple> insertParams = brandsToAdd.stream()
-                .map(brandId -> Tuple.of(brandId, soundFragmentId))
-                .collect(Collectors.toList());
-
-        return tx.preparedQuery(insertBrandsSql)
-                .executeBatch(insertParams)
-                .onItem().ignore().andContinueWithNull();
-    }
 }

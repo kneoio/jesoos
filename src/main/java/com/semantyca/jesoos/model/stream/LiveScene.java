@@ -22,7 +22,7 @@ public class LiveScene {
     private LocalDateTime actualEndTime; //the actual time when the scene stopped emit TimelineEntries
     private ZoneId timeZone;
     private UUID agentId;
-    private GeneratedContentStatus generatedContentStatus;
+    private GeneratedContentStatus contentStatus;
     private List<ScenePrompt> contentPrompts;
     private TriggerContext triggerContext;
     private UUID traceId;
@@ -30,11 +30,6 @@ public class LiveScene {
     private boolean timelineBuild;
     private boolean oneTimeRun;
     private int fitSeconds;
-
-    public LocalDateTime getStartTime() {
-        if (timeline == null || timeline.isEmpty()) return null;
-        return timeline.getFirst().getScheduledEmissionTime();
-    }
 
     public LocalDateTime getEndTime() {
         if (timeline == null || timeline.isEmpty()) return null;

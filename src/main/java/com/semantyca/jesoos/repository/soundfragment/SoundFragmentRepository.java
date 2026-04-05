@@ -1,10 +1,16 @@
 package com.semantyca.jesoos.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.FileMetadata;
+import com.semantyca.core.model.cnst.FileStorageType;
 import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.repository.IFileStorage;
 import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
+import com.semantyca.core.repository.exception.DocumentModificationAccessException;
+import com.semantyca.core.repository.exception.UploadAbsenceException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
+import com.semantyca.core.util.WebHelper;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
@@ -12,17 +18,20 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.sqlclient.Pool;
-import io.vertx.mutiny.sqlclient.Row;
-import io.vertx.mutiny.sqlclient.RowSet;
-import io.vertx.mutiny.sqlclient.Tuple;
+import io.vertx.mutiny.sqlclient.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 
-import java.security.SecureRandom;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 
@@ -31,18 +40,23 @@ import static com.semantyca.mixpla.repository.MixplaNameResolver.SOUND_FRAGMENT;
 public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(SOUND_FRAGMENT);
     private final SoundFragmentQueryBuilder queryBuilder;
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final IFileStorage fileStorage;
+    private final SoundFragmentBrandAssociationHandler brandHandler;
 
     public SoundFragmentRepository() {
         super();
+        this.brandHandler = null;
+        this.fileStorage = null;
         this.queryBuilder = null;
     }
 
     @Inject
     public SoundFragmentRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository,
-                                   SoundFragmentQueryBuilder queryBuilder) {
+                                   SoundFragmentQueryBuilder queryBuilder, @Named("hetzner") IFileStorage fileStorage, SoundFragmentBrandAssociationHandler brandHandler) {
         super(client, mapper, rlsRepository);
         this.queryBuilder = queryBuilder;
+        this.fileStorage = fileStorage;
+        this.brandHandler = brandHandler;
     }
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset,
@@ -140,10 +154,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 });
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
-                                                                 boolean includeArchived, IUser user) {
+    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset, IUser user) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, includeArchived, user);
+        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, user);
     }
 
 
@@ -174,19 +187,285 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .collect().asList();
     }
 
-    public Uni<List<SoundFragment>> getBrandSongsRandomPage(UUID brandId, PlaylistItemType type) {
-        int limit = 200;
-        int offset = secureRandom.nextInt(20) * limit;
-        SoundFragmentBrandRepository brandRepository =
-                new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+    public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
+        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
-        return brandRepository.getBrandSongs(brandId, type, limit, offset);
+        final List<FileMetadata> filesToProcess = (originalFiles != null && !originalFiles.isEmpty())
+                ? List.of(originalFiles.getFirst())
+                : null;
+
+        if (filesToProcess != null) {
+            FileMetadata meta = filesToProcess.getFirst();
+            Path filePath = meta.getFilePath();
+            if (filePath == null) {
+                throw new IllegalArgumentException("File metadata contains an entry with a null file path.");
+            }
+            if (!Files.exists(filePath)) {
+                throw new UploadAbsenceException("Upload file not found at path: " + filePath);
+            }
+            meta.setFileOriginalName(filePath.getFileName().toString());
+            meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
+            String doKey = WebHelper.generateSlugPath("music", doc.getArtist(), String.valueOf(UUID.randomUUID()));
+            meta.setFileKey(doKey);
+            meta.setMimeType(detectMimeType(filePath.toString()));
+            doc.setFileMetadataList(filesToProcess);
+        }
+
+        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem(), representedInBrands)
+                .onItem().transformToUni(insertedDoc -> {
+                    if (filesToProcess != null) {
+                        FileMetadata meta = filesToProcess.getFirst();
+                        assert fileStorage != null;
+                        return fileStorage.uploadFile(
+                                        meta.getFileKey(),
+                                        meta.getFilePath().toString(),
+                                        meta.getMimeType()
+                                )
+                                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, insertedDoc.getId()))
+                                .onItem().transform(ignored -> insertedDoc)
+                                .onFailure().recoverWithUni(ex -> {
+                                    LOGGER.error("File failed to store for doc ID: {}. DB record was created.", insertedDoc.getId(), ex);
+                                    return Uni.createFrom().failure(new RuntimeException("File storage failed after sound fragment creation", ex));
+                                });
+                    }
+                    return Uni.createFrom().item(insertedDoc);
+                });
+    }
+
+    private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
+                                                        Uni<Void> fileUploadCompletionUni, List<UUID> representedInBrands) {
+        return fileUploadCompletionUni.onItem().transformToUni(v -> {
+            String sql = String.format(
+                    "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
+                            "title, artist, album, length, description, slug_name, expires_at) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
+                    entityData.getTableName()
+            );
+
+            Long lengthMillis = doc.getLength() != null ? doc.getLength().toMillis() : null;
+
+            Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
+                    .addString(doc.getSource().name())
+                    .addInteger(doc.getStatus())
+                    .addString(doc.getType().name())
+                    .addString(doc.getTitle())
+                    .addString(doc.getArtist())
+                    .addString(doc.getAlbum())
+                    .addLong(lengthMillis)
+                    .addString(doc.getDescription())
+                    .addString(doc.getSlugName())
+                    .addLocalDateTime(doc.getExpiresAt());
+
+            return client.withTransaction(tx -> tx.preparedQuery(sql)
+                    .execute(params)
+                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                    .onItem().transformToUni(id -> {
+                        Uni<Void> fileMetadataUni = insertFileMetadata(tx, id, doc);
+                        return fileMetadataUni
+                                .onItem().transformToUni(ignored -> insertGenreAssociations(tx, id, doc.getGenres()))
+                                .onItem().transformToUni(ignored -> upsertLabels(tx, id, doc.getLabels()))
+                                .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
+                                .onItem().transformToUni(ignored -> {
+                                    assert brandHandler != null;
+                                    return brandHandler.insertBrandAssociations(tx, id, representedInBrands, user);
+                                })
+                                .onItem().transform(ignored -> id);
+                    })
+            );
+        }).onItem().transformToUni(id -> findById(id, user.getId(), true, true));
+    }
+
+    private Uni<Void> insertGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
+        if (genreIds == null || genreIds.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
+        List<Tuple> params = genreIds.stream()
+                .map(id -> Tuple.of(soundFragmentId, id))
+                .collect(Collectors.toList());
+
+        return tx.preparedQuery(insertSql)
+                .executeBatch(params)
+                .onItem().ignore().andContinueWithNull();
+    }
+
+    private Uni<Void> insertFileMetadata(SqlClient tx, UUID id, SoundFragment doc) {
+        if (doc.getFileMetadataList() == null || doc.getFileMetadataList().isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
+                "mime_type, file_original_name, file_key, file_bin, slug_name) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+        List<Tuple> filesParams = doc.getFileMetadataList().stream()
+                .map(meta -> Tuple.of(
+                                        entityData.getTableName(),
+                                        id,
+                                        FileStorageType.HETZNER,
+                                        meta.getMimeType(),
+                                        meta.getFileOriginalName(),
+                                        meta.getFileKey()
+                                )
+                                .addValue(meta.getFileBin())
+                                .addValue(meta.getSlugName())
+                ).collect(Collectors.toList());
+
+        return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
+    }
+
+    private Uni<Void> upsertLabels(SqlClient tx, UUID fragmentId, List<UUID> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return tx.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")
+                    .execute(Tuple.of(fragmentId))
+                    .replaceWithVoid();
+        }
+
+        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_labels (id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(fragmentId))
+                .chain(() -> Multi.createFrom().iterable(labels)
+                        .onItem().transformToUni(labelId ->
+                                tx.preparedQuery(insertSql).execute(Tuple.of(fragmentId, labelId))
+                        )
+                        .merge()
+                        .collect().asList()
+                        .replaceWithVoid());
+    }
+
+    public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<UUID> representedInBrands, IUser user) {
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
+                    }
+
+                    return findById(id, user.getId(), true,  true)
+                            .onItem().transformToUni(existingDoc -> {
+                                final List<FileMetadata> originalFiles = doc.getFileMetadataList();
+                                final List<FileMetadata> newFiles = (originalFiles != null && !originalFiles.isEmpty())
+                                        ? List.of(originalFiles.getFirst())
+                                        : null;
+
+                                Uni<Void> fileStoredUni = handleFileUpdate(id, doc, newFiles);
+
+                                return fileStoredUni.onItem().transformToUni(ignored -> {
+                                    LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+
+                                    return client.withTransaction(tx -> {
+                                        Uni<Void> chain = Uni.createFrom().voidItem();
+                                        if (newFiles != null) {
+                                            chain = deleteExistingFiles(tx, id)
+                                                    .onItem().transformToUni(v -> insertNewFiles(tx, id, newFiles));
+                                        }
+                                        return chain
+                                                .onItem().transformToUni(v -> updateGenreAssociations(tx, id, doc.getGenres()))
+                                                .onItem().transformToUni(v -> upsertLabels(tx, id, doc.getLabels()))
+                                                .onItem().transformToUni(v -> {
+                                                    assert brandHandler != null;
+                                                    return brandHandler.updateBrandAssociations(tx, id, representedInBrands, user);
+                                                })
+                                                .onItem().transformToUni(v -> updateSoundFragmentRecord(tx, id, doc, user, nowTime));
+                                    }).onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user.getId(), true,  true);
+                                    });
+                                });
+                            });
+                });
+    }
+
+    private Uni<Void> handleFileUpdate(UUID id, SoundFragment doc, List<FileMetadata> newFiles) {
+        if (newFiles == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        FileMetadata meta = newFiles.getFirst();
+        if (meta.getFilePath() == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String localPath = meta.getFilePath().toString();
+        Path path = Paths.get(localPath);
+        if (!Files.exists(path)) {
+            return Uni.createFrom().failure(new UploadAbsenceException("Upload file not found at path: " + localPath));
+        }
+
+        String doKey = WebHelper.generateSlugPath("music", doc.getArtist(), String.valueOf(UUID.randomUUID()));
+        meta.setFileKey(doKey);
+        meta.setMimeType(detectMimeType(localPath));
+        meta.setFileOriginalName(path.getFileName().toString());
+        meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
+
+        LOGGER.debug("Storing file - Key: {}, Path: {}, Artist: {}, Title: {}", doKey, localPath, doc.getArtist(), doc.getTitle());
+
+        assert fileStorage != null;
+        return fileStorage.uploadFile(doKey, localPath, meta.getMimeType())
+                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
+                .onFailure().invoke(ex -> LOGGER.error("Failed to store file with key: {}", doKey, ex))
+                .onItem().ignore().andContinueWithNull();
     }
 
 
-    public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.getBrandSongs(brandId, fragmentType, 200, 0);
+    private Uni<Void> deleteExistingFiles(SqlClient tx, UUID id) {
+        String deleteSql = String.format("DELETE FROM _files WHERE parent_id = $1 AND parent_table = '%s'", entityData.getTableName());
+        return tx.preparedQuery(deleteSql).execute(Tuple.of(id)).onItem().ignore().andContinueWithNull();
+    }
+
+    private Uni<Void> insertNewFiles(SqlClient tx, UUID id, List<FileMetadata> newFiles) {
+        if (newFiles == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
+                "mime_type, file_original_name, file_key, file_bin, slug_name) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+        FileMetadata meta = newFiles.getFirst();
+        Tuple fileParams = Tuple.of(
+                        entityData.getTableName(),
+                        id,
+                        FileStorageType.HETZNER,
+                        meta.getMimeType(),
+                        meta.getFileOriginalName(),
+                        meta.getFileKey()
+                )
+                .addValue(meta.getFileBin())
+                .addValue(meta.getSlugName());
+
+        return tx.preparedQuery(filesSql).execute(fileParams).onItem().ignore().andContinueWithNull();
+    }
+
+    private Uni<Void> updateGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
+        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(soundFragmentId))
+                .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIds));
+    }
+
+    private Uni<RowSet<Row>> updateSoundFragmentRecord(SqlClient tx, UUID id, SoundFragment doc, IUser user, LocalDateTime nowTime) {
+        String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
+                        "status=$3, type=$4, title=$5, " +
+                        "artist=$6, album=$7, length=$8, description=$9, slug_name=$10, expires_at=$11 WHERE id=$12;",
+                entityData.getTableName());
+
+        Tuple params = Tuple.of(user.getId(), nowTime)
+                .addInteger(doc.getStatus())
+                .addString(doc.getType().name())
+                .addString(doc.getTitle())
+                .addString(doc.getArtist())
+                .addString(doc.getAlbum())
+                .addLong(doc.getLength() != null ? doc.getLength().toMillis() : null)
+                .addString(doc.getDescription())
+                .addString(doc.getSlugName())
+                .addLocalDateTime(doc.getExpiresAt())
+                .addUUID(id);
+
+        return tx.preparedQuery(updateSql).execute(params);
     }
 
 }
