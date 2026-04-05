@@ -184,14 +184,8 @@ public class StaggeredSongScheduler {
 
                     if (entry.isGenerated()) {
                         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                .chain(mainAgent -> {
-                                    Uni<AiAgent> agentUni =
-                                            (mainAgent.getCopilot() != null)
-                                                    ? aiAgentService.getById(mainAgent.getCopilot(), SuperUser.build(), LanguageCode.en)
-                                                    : Uni.createFrom().item(mainAgent);
-                                    return agentUni.chain(agent ->
-                                            generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority));
-                                })
+                                .chain(mainAgent ->
+                                        generatedContentEmitter.send(brandName, liveScene, entry, mainAgent, stream, brandZone, priority))
                                 .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Generated content emitter failed for entry #%d scene '%s': %s",
                                         entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));

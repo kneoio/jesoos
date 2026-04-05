@@ -37,6 +37,7 @@ import org.jboss.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import com.semantyca.mixpla.model.aiagent.Voice;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -116,8 +117,12 @@ public class IntroTtsGenerator {
     }
 
     public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
-        String voiceId = agent.getTtsSetting().getDj().getId();
-        TTSEngineType engineType = agent.getTtsSetting().getDj().getEngineType();
+        return generateTtsAudio(text, agent.getTtsSetting().getDj(), language, sceneTitle, traceId, brandName);
+    }
+
+    public Uni<String> generateTtsAudio(String text, Voice voice, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
+        String voiceId = voice.getId();
+        TTSEngineType engineType = voice.getEngineType();
 
         TextToSpeechClient ttsClient;
         String modelId;
