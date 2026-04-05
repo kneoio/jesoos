@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.mixpla.dto.queue.livestream.IntroKey.NEWS_BLOCK;
 import static com.semantyca.mixpla.dto.queue.livestream.SongKey.*;
 
 @ApplicationScoped
@@ -72,14 +71,14 @@ public class GeneratedContentEmitter {
                 .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
-        Uni<IntroAudioResult> ttsUni =
+        Uni<SoundFragment> generatedUni =
                 generatedNewsService.generateAudio(promptId, agent, stream, lang, scene);
 
-        return Uni.combine().all().unis(jinglesUni, songsUni, ttsUni).asTuple()
+        return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()
                 .chain(tuple -> {
                     List<SoundFragment> jingles = tuple.getItem1();
                     List<SoundFragment> songs = tuple.getItem2();
-                    IntroAudioResult tts = tuple.getItem3();
+                    SoundFragment generated = tuple.getItem3();
 
                     if (jingles.isEmpty()) {
                         LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);
@@ -107,13 +106,10 @@ public class GeneratedContentEmitter {
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                     songMap.put(JINGLE_INTRO, new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
                     songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
-                    songMap.put(BACKGROUND_MUSIC,   new SongInfoDTO(background.getId(), songDuration(background)));
-
-                    Map<IntroKey, IntroInfoDTO> filePaths = new HashMap<>();
-                    filePaths.put(NEWS_BLOCK, new IntroInfoDTO(tts.filePath(), tts.durationSeconds()));
+                    songMap.put(BACKGROUND_MUSIC, new SongInfoDTO(background.getId(), songDuration(background)));
+                    songMap.put(GENERATED_CONTENT, new SongInfoDTO(generated.getId(), songDuration(generated)));
 
                     dto.setSongs(songMap);
-                    dto.setFilePaths(filePaths);
 
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
