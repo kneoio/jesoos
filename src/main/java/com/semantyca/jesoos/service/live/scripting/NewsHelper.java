@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.live.scripting;
 
-import com.semantyca.jesoos.agent.WorldNewsApiClient;
+import com.semantyca.jesoos.external.WorldNewsApiClient;
 import com.semantyca.jesoos.util.NewsMapper;
 import com.semantyca.mixpla.model.news.NewsArticle;
 import com.semantyca.mixpla.model.news.NewsResponse;

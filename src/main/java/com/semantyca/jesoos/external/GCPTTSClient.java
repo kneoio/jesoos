@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.agent;
+package com.semantyca.jesoos.external;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -20,6 +20,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+
+import static com.semantyca.core.model.cnst.LanguageTag.JA_JP;
 
 @ApplicationScoped
 public class GCPTTSClient implements TextToSpeechClient {
@@ -99,6 +101,7 @@ public class GCPTTSClient implements TextToSpeechClient {
             case ZH_CN -> "zh-CN";
             case FR_FR -> "fr-FR";
             case PT_BR -> "pt-BR";
+            case PT_PT -> "pt-PT";
             case HI_IN -> "hi-IN";
             case IT_IT -> "it-IT";
             case UK_UA -> "uk-UA";

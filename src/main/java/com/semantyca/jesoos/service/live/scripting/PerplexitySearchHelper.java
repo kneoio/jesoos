@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.service.live.scripting;
 
 import com.semantyca.core.model.cnst.LanguageCode;
-import com.semantyca.jesoos.agent.PerplexityApiClient;
+import com.semantyca.jesoos.external.PerplexityApiClient;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;

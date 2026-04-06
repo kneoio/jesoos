@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.live.scripting;
 
-import com.semantyca.jesoos.agent.WeatherApiClient;
+import com.semantyca.jesoos.external.WeatherApiClient;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 

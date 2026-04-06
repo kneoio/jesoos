@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.agent;
+package com.semantyca.jesoos.external;
 
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.jesoos.config.PerplexityApiConfig;

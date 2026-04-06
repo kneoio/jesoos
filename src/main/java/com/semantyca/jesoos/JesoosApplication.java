@@ -2,7 +2,7 @@ package com.semantyca.jesoos;
 
 import com.semantyca.jesoos.rest.CommandResource;
 import com.semantyca.jesoos.rest.InfoResource;
-import com.semantyca.jesoos.rest.PublicChatController;
+import com.semantyca.jesoos.ws.PublicChatController;
 import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;

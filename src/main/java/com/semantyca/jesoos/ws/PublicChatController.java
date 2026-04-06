@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.rest;
+package com.semantyca.jesoos.ws;
 
 import com.semantyca.core.controller.AbstractSecuredController;
 import com.semantyca.core.model.user.AnonymousUser;

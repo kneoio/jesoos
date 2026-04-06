@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.service.live.generated;
 
-import com.semantyca.jesoos.agent.ElevenLabsClient;
-import com.semantyca.jesoos.agent.GCPTTSClient;
-import com.semantyca.jesoos.agent.ModelslabClient;
+import com.semantyca.jesoos.external.ElevenLabsClient;
+import com.semantyca.jesoos.external.GCPTTSClient;
+import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;

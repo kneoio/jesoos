@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.agent;
+package com.semantyca.jesoos.external;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.cnst.TranslationType;
@@ -13,9 +13,6 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @ApplicationScoped
 public class AgentClient {
