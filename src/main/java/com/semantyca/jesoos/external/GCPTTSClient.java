@@ -27,6 +27,7 @@ import static com.semantyca.core.model.cnst.LanguageTag.JA_JP;
 public class GCPTTSClient implements TextToSpeechClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(GCPTTSClient.class);
     private static final int MAX_TEXT_LENGTH = 3000;
+    private static final double VOLUME_GAIN_DB = 3.0;
 
     @Inject
     JesoosConfig config;
@@ -67,6 +68,7 @@ public class GCPTTSClient implements TextToSpeechClient {
 
             AudioConfig audioConfig = AudioConfig.newBuilder()
                     .setAudioEncoding(AudioEncoding.MP3)
+                    .setVolumeGainDb(VOLUME_GAIN_DB)
                     .build();
 
             String truncatedText = text.length() > MAX_TEXT_LENGTH
