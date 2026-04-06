@@ -108,12 +108,12 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     ) {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
-        String lookupKey = promptId.toString();
+        String lookupKey = stream.getSlugName() + "_" + promptId;
 
         return soundFragmentRepository.findByArtistAndDate(lookupKey, startOfDay, endOfDay)
                 .chain(existing -> {
                     if (existing != null) {
-                        LOGGER.infof("Reusing existing generated fragment %s for prompt %s", existing.getId(), promptId);
+                        LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
                         return Uni.createFrom().item(existing);
                     }
                     return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
@@ -151,7 +151,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                         new RuntimeException("Text generation failed for scene: " + sceneTitle));
                             }
                             return introTtsGenerator.generateTtsAudio(text, agent.getTtsSetting().getNewsReporter(), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId));
+                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()));
                         })
                 );
     }
@@ -160,7 +160,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             String ttsFilePath,
             Prompt prompt,
             UUID brandId,
-            UUID promptId
+            UUID promptId,
+            String brandSlug
     ) {
         return Uni.createFrom().item(() -> {
             try {
@@ -178,7 +179,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 dto.setType(PlaylistItemType.NEWS);
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                 dto.setTitle(prompt.getTitle() + " " + currentDate);
-                dto.setArtist(promptId.toString());
+                dto.setArtist(brandSlug + "_" + promptId);
                 dto.setGenres(List.of());
                 dto.setLabels(List.of());
                 dto.setSource(SourceType.TEMPORARY_MIX);
