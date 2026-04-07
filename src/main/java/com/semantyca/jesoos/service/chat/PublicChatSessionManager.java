@@ -12,25 +12,36 @@ import org.mapdb.Serializer;
 import java.io.File;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Persistent session store (MapDB) for authenticated public chat sessions.
+ * OTP generation and code verification are fully delegated to Keycloak.
+ * This manager only stores the session token after successful Keycloak authentication.
+ */
 @ApplicationScoped
 public class PublicChatSessionManager {
-    private static final String HARDCODED_CODE = "1234";
-    private static final long SESSION_EXPIRY_SECONDS = 86400;  //24 hours
+
+    private static final long SESSION_EXPIRY_SECONDS = 86400 * 30; // 30 days
+    private static final long OTP_EXPIRY_SECONDS = 600; // 10 minutes
+
     private DB db;
     private HTreeMap<String, PublicChatSession> sessions;
+    private final ConcurrentHashMap<String, PendingOtp> pendingOtps = new ConcurrentHashMap<>();
+
+    public record PendingOtp(String code, Instant expiresAt) {
+        boolean isExpired() { return Instant.now().isAfter(expiresAt); }
+    }
 
     @SuppressWarnings("unchecked")
     @PostConstruct
     void init() {
         new File("sessions_data").mkdirs();
-
         this.db = DBMaker
                 .fileDB("sessions_data/chat-sessions.db")
                 .transactionEnable()
                 .make();
-
         this.sessions = db
                 .hashMap("sessions", Serializer.STRING, Serializer.JAVA)
                 .expireAfterCreate(SESSION_EXPIRY_SECONDS, TimeUnit.SECONDS)
@@ -48,52 +59,57 @@ public class PublicChatSessionManager {
         db.commit();
     }
 
-    //@Scheduled(every = "30s")
-    void debugSessions() {
-        System.out.println("=== MapDB Sessions Debug ===");
-        System.out.println("Total sessions: " + sessions.size());
-        sessions.forEach((token, session) -> {
-            System.out.println("Token: " + token);
-            System.out.println("  Email: " + session.email());
-            System.out.println("  Expires: " + session.expiresAt());
-            System.out.println("  Expired: " + session.isExpired());
-        });
-        System.out.println("===========================");
+    public void storePendingOtp(String email, String code) {
+        pendingOtps.put(email.toLowerCase(),
+                new PendingOtp(code, Instant.now().plusSeconds(OTP_EXPIRY_SECONDS)));
     }
 
-    public String generateAndStoreCode(String email) {
-        return HARDCODED_CODE;
-    }
-
-    public VerificationResult verifyCode(String code, String email) {
-        if (!HARDCODED_CODE.equals(code)) {
-            return new VerificationResult(false, "Invalid verification code", null);
+    public boolean verifyAndConsumePendingOtp(String email, String code) {
+        PendingOtp otp = pendingOtps.get(email.toLowerCase());
+        if (otp == null || otp.isExpired() || !otp.code().equals(code)) {
+            return false;
         }
-
-        String sessionToken = createSession(email.toLowerCase());
-        return new VerificationResult(true, "Verification successful", sessionToken);
+        pendingOtps.remove(email.toLowerCase());
+        return true;
     }
 
-    private String createSession(String email) {
-        // Remove existing sessions for this email
-        sessions.entrySet().removeIf(entry -> entry.getValue().email().equals(email));
-
-        String token = UUID.randomUUID().toString();
-        sessions.put(token, new PublicChatSession(email, Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
+    /**
+     * Stores a session token after successful OTP verification.
+     */
+    public void storeUserToken(String token, String email) {
+        // Remove any existing sessions for this email first
+        sessions.entrySet().removeIf(e -> e.getValue().email().equals(email.toLowerCase()));
+        sessions.put(token, new PublicChatSession(email.toLowerCase(), Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
         db.commit();
-        return token;
     }
 
+    /**
+     * Validates a session token and returns the associated email, or null if invalid/expired.
+     */
     public String validateSessionAndGetEmail(String token) {
         PublicChatSession session = sessions.get(token);
-        return session != null ? session.email() : null;
+        if (session == null || session.isExpired()) {
+            if (session != null) {
+                sessions.remove(token);
+                db.commit();
+            }
+            return null;
+        }
+        return session.email();
     }
 
-    public void storeUserToken(String userToken, String email) {
-        sessions.put(userToken, new PublicChatSession(email, Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
+    /**
+     * Generates a fresh token for an existing session (e.g. for token rotation).
+     */
+    public String rotateToken(String oldToken) {
+        String email = validateSessionAndGetEmail(oldToken);
+        if (email == null) {
+            throw new IllegalArgumentException("Invalid or expired token");
+        }
+        String newToken = UUID.randomUUID().toString();
+        storeUserToken(newToken, email);
+        sessions.remove(oldToken);
         db.commit();
+        return newToken;
     }
-
-
-    public record VerificationResult(boolean success, String message, String sessionToken) {}
 }

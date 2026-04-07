@@ -77,16 +77,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private Uni<IUser> authenticateUserFromToken(String token) {
-        if ("test-token".equals(token)) {
-            return getUserService().findByEmail("test@example.com")
-                    .onItem().transform(user -> {
-                        if (user == null || user.getId() == 0) {
-                            return AnonymousUser.build();
-                        }
-                        return user;
-                    });
+        if (token == null || token.isBlank()) {
+            return Uni.createFrom().item(AnonymousUser.build());
         }
-        return Uni.createFrom().failure(new IllegalArgumentException("Invalid token"));
+        return publicChatService.authenticateUserFromToken(token)
+                .onFailure().recoverWithItem(err -> {
+                    LOG.warn("Token authentication failed, treating as anonymous: {}", err.getMessage());
+                    return AnonymousUser.build();
+                });
     }
 
     private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user) {

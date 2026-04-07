@@ -1,5 +1,6 @@
 package com.semantyca.jesoos;
 
+import com.semantyca.jesoos.rest.AuthResource;
 import com.semantyca.jesoos.rest.CommandResource;
 import com.semantyca.jesoos.rest.InfoResource;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -13,6 +14,9 @@ public class JesoosApplication {
 
 
     @Inject
+    AuthResource authResource;
+
+    @Inject
     CommandResource commandResource;
 
     @Inject
@@ -22,6 +26,7 @@ public class JesoosApplication {
     PublicChatController publicChatController;
 
     void setupRoutes(@Observes Router router) {
+        authResource.setupRoutes(router);
         commandResource.setupRoutes(router);
         infoResource.setupRoutes(router);
         publicChatController.setupRoutes(router);

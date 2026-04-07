@@ -75,9 +75,6 @@ public class PublicChatService extends ChatService {
     UserService userService;
 
     @Inject
-    PublicChatTokenService tokenService;
-
-    @Inject
     LabelService labelService;
 
     @Inject
