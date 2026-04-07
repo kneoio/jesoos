@@ -2,12 +2,7 @@ package com.semantyca.jesoos.external;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.texttospeech.v1beta1.AudioConfig;
-import com.google.cloud.texttospeech.v1beta1.AudioEncoding;
-import com.google.cloud.texttospeech.v1beta1.SynthesisInput;
-import com.google.cloud.texttospeech.v1beta1.SynthesizeSpeechResponse;
-import com.google.cloud.texttospeech.v1beta1.TextToSpeechSettings;
-import com.google.cloud.texttospeech.v1beta1.VoiceSelectionParams;
+import com.google.cloud.texttospeech.v1beta1.*;
 import com.google.protobuf.ByteString;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.config.JesoosConfig;
@@ -15,17 +10,14 @@ import io.smallrye.mutiny.Uni;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 
-import static com.semantyca.core.model.cnst.LanguageTag.JA_JP;
-
 @ApplicationScoped
 public class GCPTTSClient implements TextToSpeechClient {
-    private static final Logger LOGGER = LoggerFactory.getLogger(GCPTTSClient.class);
+    private static final Logger LOGGER = Logger.getLogger(GCPTTSClient.class);
     private static final int MAX_TEXT_LENGTH = 3000;
     private static final double VOLUME_GAIN_DB = 3.0;
 
@@ -64,7 +56,7 @@ public class GCPTTSClient implements TextToSpeechClient {
                     .setName(voiceId)
                     .build();
 
-            LOGGER.info("GCP TTS using voice={} lang={}", voiceId, langCode);
+            LOGGER.infof("GCP TTS using voice=%s lang=%s", voiceId, langCode);
 
             AudioConfig audioConfig = AudioConfig.newBuilder()
                     .setAudioEncoding(AudioEncoding.MP3)
@@ -89,7 +81,7 @@ public class GCPTTSClient implements TextToSpeechClient {
                 return audioContent.toByteArray();
 
             } catch (Exception e) {
-                LOGGER.error("GCP TTS generation failed: {}", e.getMessage());
+                LOGGER.errorf("GCP TTS generation failed: %s", e.getMessage());
                 throw new RuntimeException("GCP TTS generation failed: " + e.getMessage(), e);
             }
         });

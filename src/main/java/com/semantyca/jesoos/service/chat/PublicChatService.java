@@ -110,23 +110,6 @@ public class PublicChatService extends ChatService {
                 });
     }
 
-    public Uni<String> refreshToken(String oldToken) {
-        String email = sessionManager.validateSessionAndGetEmail(oldToken);
-        if (email == null) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
-        }
-
-        return userService.findByEmail(email)
-                .onItem().transformToUni(user -> {
-                    if (user == null || user.getId() == 0) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
-                    }
-                    String newToken = UUID.randomUUID().toString();
-                    sessionManager.storeUserToken(newToken, email);
-                    return Uni.createFrom().item(newToken);
-                });
-    }
-
     public Uni<IUser> authenticateUserFromToken(String token) {
         if (token == null || token.isBlank()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));

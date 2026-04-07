@@ -66,6 +66,7 @@ public interface JesoosConfig {
 
     JesoosConfig.Segmentation segmentation();
 
+    JesoosConfig.Keycloak keycloak();
 
     interface Path {
         @WithDefault("uploads")
@@ -116,5 +117,19 @@ public interface JesoosConfig {
     @WithName("aivox-delay-seconds")
     @WithDefault("60")
     int getAivoxDelaySeconds();
+
+    interface Keycloak {
+        @WithName("keycloak.url")
+        String getUrl();
+
+        @WithName("keycloak.realm")
+        String getRealm();
+
+        @WithName("keycloak.client-id")
+        String getClientId();
+
+        @WithName("keycloak.client-secret")
+        String getClientSecret();
+    }
 
 }

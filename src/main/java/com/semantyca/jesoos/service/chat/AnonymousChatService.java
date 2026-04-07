@@ -1,25 +1,14 @@
 package com.semantyca.jesoos.service.chat;
 
 import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.Tool;
-import com.anthropic.models.messages.ToolUseBlock;
+import com.anthropic.models.messages.*;
 import com.semantyca.core.service.UserService;
 import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.BrandService;
-import com.semantyca.jesoos.service.chat.tools.GetStations;
-import com.semantyca.jesoos.service.chat.tools.GetStationsToolHandler;
-import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerTool;
-import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerToolHandler;
-import com.semantyca.jesoos.service.chat.tools.StartAuthTool;
-import com.semantyca.jesoos.service.chat.tools.StartAuthToolHandler;
-import com.semantyca.jesoos.service.chat.tools.VerifyCode;
-import com.semantyca.jesoos.service.chat.tools.VerifyCodeToolHandler;
+import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -101,11 +90,7 @@ public class AnonymousChatService extends ChatService {
         Function<MessageCreateParams, Uni<Void>> streamFn =
                 createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
-        if ("get_stations".equals(toolUse.name())) {
-            return GetStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
-            );
-        } else if ("send_email_to_owner".equals(toolUse.name())) {
+        if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(
                     toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );

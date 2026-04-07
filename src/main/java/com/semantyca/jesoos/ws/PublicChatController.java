@@ -15,8 +15,8 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
+
 
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +26,7 @@ import static java.util.UUID.randomUUID;
 
 @ApplicationScoped
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
-    private static final Logger LOG = LoggerFactory.getLogger(PublicChatController.class);
+    private static final Logger LOG = Logger.getLogger(PublicChatController.class);
     private final PublicChatService publicChatService;
     private final AnonymousChatService anonymousChatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
@@ -53,12 +53,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         router.route("/jesoos/ws/chat").handler(rc -> {
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
                 String token = rc.request().getParam("token");
-                LOG.info("WebSocket connection attempt with token: {}", token);
+                LOG.infof("WebSocket connection attempt with token: %s", token);
                 
                 authenticateUserFromToken(token)
                         .subscribe().with(
                                 user -> {
-                                    LOG.info("User authenticated: {}", user.getUserName());
+                                    LOG.infof("User authenticated: %s", user.getUserName());
                                     rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user))
                                             .onFailure(err -> {
                                                 LOG.error("WebSocket connection failed", err);
@@ -66,7 +66,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                                             });
                                 },
                                 err -> {
-                                    LOG.warn("Authentication failed for token: {}", token);
+                                    LOG.warnf("Authentication failed for token: %s", token);
                                     rc.response().setStatusCode(401).end("Invalid or expired token");
                                 }
                         );
@@ -80,9 +80,10 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         if (token == null || token.isBlank()) {
             return Uni.createFrom().item(AnonymousUser.build());
         }
+        assert publicChatService != null;
         return publicChatService.authenticateUserFromToken(token)
                 .onFailure().recoverWithItem(err -> {
-                    LOG.warn("Token authentication failed, treating as anonymous: {}", err.getMessage());
+                    LOG.warnf("Token authentication failed, treating as anonymous: %s", err.getMessage());
                     return AnonymousUser.build();
                 });
     }
@@ -92,7 +93,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         
         String connectionId = randomUUID().toString();
         activeConnections.put(connectionId, webSocket);
-        LOG.info("Public chat WebSocket connected: {} for user: {}", connectionId, user.getUserName());
+        LOG.infof("Public chat WebSocket connected: %s for user: %s", connectionId, user.getUserName());
 
         webSocket.textMessageHandler(message -> {
             try {
@@ -119,11 +120,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         webSocket.closeHandler(v -> {
             activeConnections.remove(connectionId);
             userStationRegistrations.remove(connectionId);
-            LOG.info("Public chat WebSocket closed: {}", connectionId);
+            LOG.infof("Public chat WebSocket closed: %s", connectionId);
         });
 
         webSocket.exceptionHandler(err -> {
-            LOG.error("WebSocket error for {}", connectionId, err);
+            LOG.error("WebSocket error for %s", connectionId, err);
             activeConnections.remove(connectionId);
             userStationRegistrations.remove(connectionId);
         });
@@ -145,6 +146,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         
         Uni<Void> ensureRegistration;
         if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
+            assert publicChatService != null;
             ensureRegistration = publicChatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
                     .invoke(() -> registeredStations.add(brandSlug));
         } else {

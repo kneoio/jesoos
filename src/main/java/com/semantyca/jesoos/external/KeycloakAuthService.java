@@ -1,36 +1,23 @@
 package com.semantyca.jesoos.external;
 
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.core.MultiMap;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.MultiMap;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 
-/**
- * Keycloak integration for email-based OTP authentication.
- *
- * Required Keycloak setup (realm: configured via keycloak.realm):
- *   - Client "jesoos-app": Direct Access Grants enabled, Service Accounts enabled
- *   - Service account roles: realm-management -> view-users, manage-users
- *   - Direct Grant authentication flow: Username -> Email OTP Form
- *   - SMTP configured in realm settings
- *
- * Flow:
- *   startAuth(email) -> Admin API creates user if needed -> execute-actions-email sends OTP
- *   verifyAuth(email, code) -> token endpoint with email + OTP code -> access_token returned
- */
 @ApplicationScoped
 public class KeycloakAuthService {
 
@@ -45,23 +32,10 @@ public class KeycloakAuthService {
     @Inject
     PublicChatSessionManager sessionManager;
 
-    @ConfigProperty(name = "jesoos.from-address", defaultValue = "noreply@jesoos.app")
-    String fromAddress;
+    @Inject
+    JesoosConfig config;
 
     private static final SecureRandom RANDOM = new SecureRandom();
-
-    @ConfigProperty(name = "keycloak.url")
-    String keycloakUrl;
-
-    @ConfigProperty(name = "keycloak.realm")
-    String realm;
-
-    @ConfigProperty(name = "keycloak.client-id")
-    String clientId;
-
-    @ConfigProperty(name = "keycloak.client-secret")
-    String clientSecret;
-
     private WebClient webClient;
 
     @PostConstruct
@@ -69,16 +43,12 @@ public class KeycloakAuthService {
         this.webClient = WebClient.create(vertx);
     }
 
-    // -------------------------------------------------------------------------
-    // Admin token via service account client credentials
-    // -------------------------------------------------------------------------
-
     private Uni<String> getAdminToken() {
-        String url = keycloakUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+        String url = config.keycloak().getUrl() + "/realms/" + config.keycloak().getRealm() + "/protocol/openid-connect/token";
         MultiMap form = MultiMap.caseInsensitiveMultiMap()
                 .add("grant_type", "client_credentials")
-                .add("client_id", clientId)
-                .add("client_secret", clientSecret);
+                .add("client_id", config.keycloak().getClientId())
+                .add("client_secret", config.keycloak().getClientSecret());
 
         return webClient.postAbs(url)
                 .sendForm(form)
@@ -90,12 +60,8 @@ public class KeycloakAuthService {
                 });
     }
 
-    // -------------------------------------------------------------------------
-    // Find or create user in Keycloak, return Keycloak user ID
-    // -------------------------------------------------------------------------
-
     private Uni<String> findOrCreateUser(String email, String adminToken) {
-        String searchUrl = keycloakUrl + "/admin/realms/" + realm
+        String searchUrl = config.keycloak().getUrl() + "/admin/realms/" + config.keycloak().getRealm()
                 + "/users?email=" + email + "&exact=true";
 
         return webClient.getAbs(searchUrl)
@@ -114,7 +80,7 @@ public class KeycloakAuthService {
                     } catch (Exception e) {
                         throw new RuntimeException("User search returned non-array: " + rawBody, e);
                     }
-                    if (users != null && !users.isEmpty()) {
+                    if (!users.isEmpty()) {
                         String userId = users.getJsonObject(0).getString("id");
                         LOG.info("Found existing Keycloak user {} for email {}", userId, email);
                         return Uni.createFrom().item(userId);
@@ -127,7 +93,7 @@ public class KeycloakAuthService {
                             .put("emailVerified", false)
                             .put("enabled", true);
 
-                    String createUrl = keycloakUrl + "/admin/realms/" + realm + "/users";
+                    String createUrl = config.keycloak().getUrl() + "/admin/realms/" + config.keycloak().getRealm() + "/users";
                     return webClient.postAbs(createUrl)
                             .putHeader("Authorization", "Bearer " + adminToken)
                             .putHeader("Content-Type", "application/json")
@@ -138,7 +104,6 @@ public class KeycloakAuthService {
                                             "Failed to create user: HTTP " + createResp.statusCode()
                                             + " " + createResp.bodyAsString());
                                 }
-                                // Keycloak returns the new user URL in the Location header
                                 String location = createResp.getHeader("Location");
                                 String userId = location.substring(location.lastIndexOf('/') + 1);
                                 LOG.info("Created Keycloak user {} for email {}", userId, email);
@@ -147,18 +112,6 @@ public class KeycloakAuthService {
                 });
     }
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
-
-    public record KeycloakAuthResult(boolean success, String message) {}
-
-    /**
-     * Verifies the OTP code for the given email.
-     *
-     * @return KeycloakAuthResult with success=true and the access token on success,
-     *         or success=false with an error message on failure
-     */
     public Uni<KeycloakAuthResult> verifyAuth(String email, String code) {
         return Uni.createFrom().item(() -> {
             boolean valid = sessionManager.verifyAndConsumePendingOtp(email, code);
@@ -171,13 +124,6 @@ public class KeycloakAuthService {
         });
     }
 
-    /**
-     * Initiates passwordless authentication:
-     *   1. Ensures user exists in Keycloak (creates if needed)
-     *   2. Generates a 6-digit OTP, stores it locally, and sends it via email
-     *
-     * @return true if the email was dispatched successfully
-     */
     public Uni<Boolean> startAuth(String email) {
         return getAdminToken()
                 .flatMap(adminToken -> findOrCreateUser(email, adminToken))
@@ -186,11 +132,42 @@ public class KeycloakAuthService {
                     sessionManager.storePendingOtp(email, code);
                     LOG.info("OTP generated and stored for {}", email);
 
-                    Mail mail = Mail.withText(
+                    String htmlBody = "<!DOCTYPE html>"
+                            + "<html><head><style>"
+                            + "body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }"
+                            + ".container { max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }"
+                            + ".header { text-align: center; margin-bottom: 30px; }"
+                            + ".logo { font-size: 28px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }"
+                            + ".code-box { background-color: #f8f9fa; border: 2px dashed #007bff; padding: 20px; text-align: center; margin: 30px 0; border-radius: 8px; }"
+                            + ".code { font-size: 32px; font-weight: bold; color: #007bff; letter-spacing: 5px; font-family: 'Courier New', monospace; }"
+                            + ".info { color: #6c757d; font-size: 14px; text-align: center; margin-top: 20px; }"
+                            + ".footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d; text-align: center; }"
+                            + "</style></head><body>"
+                            + "<div class='container'>"
+                            + "<div class='header'>"
+                            + "<div class='logo'>Mixpla</div>"
+                            + "<h2>Verification Code</h2>"
+                            + "</div>"
+                            + "<p>Hello,</p>"
+                            + "<p>Please use the following verification code to complete your authentication:</p>"
+                            + "<div class='code-box'>"
+                            + "<div class='code'>" + code + "</div>"
+                            + "</div>"
+                            + "<div class='info'>"
+                            + "<p>This code will expire in 10 minutes.</p>"
+                            + "<p>For your security, please do not share this code with anyone.</p>"
+                            + "</div>"
+                            + "<div class='footer'>"
+                            + "<p>If you didn't request this code, you can safely ignore this email.</p>"
+                            + "<p>&copy; 2024 Mixpla. All rights reserved.</p>"
+                            + "</div>"
+                            + "</div></body></html>";
+
+                    Mail mail = Mail.withHtml(
                             email,
-                            "Your Jesoos verification code",
-                            "Your verification code is: " + code + "\n\nValid for 10 minutes.\n\nDo not share this code."
-                    ).setFrom(fromAddress);
+                            "Your Mixpla verification code",
+                            htmlBody
+                    ).setFrom(config.getFromAddress());
 
                     return mailer.send(mail)
                             .map(v -> {
