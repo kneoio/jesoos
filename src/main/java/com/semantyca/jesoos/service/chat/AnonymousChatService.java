@@ -9,12 +9,17 @@ import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.service.UserService;
 import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.chat.tools.GetStations;
 import com.semantyca.jesoos.service.chat.tools.GetStationsToolHandler;
 import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerTool;
 import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerToolHandler;
+import com.semantyca.jesoos.service.chat.tools.StartAuthTool;
+import com.semantyca.jesoos.service.chat.tools.StartAuthToolHandler;
+import com.semantyca.jesoos.service.chat.tools.VerifyCode;
+import com.semantyca.jesoos.service.chat.tools.VerifyCodeToolHandler;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -38,6 +43,12 @@ public class AnonymousChatService extends ChatService {
     @Inject
     ReactiveMailer reactiveMailer;
 
+    @Inject
+    KeycloakAuthService keycloakAuthService;
+
+    @Inject
+    PublicChatSessionManager sessionManager;
+
     protected AnonymousChatService() {
         super(null, null);
     }
@@ -56,7 +67,9 @@ public class AnonymousChatService extends ChatService {
     protected List<Tool> getAvailableTools() {
         return List.of(
                 GetStations.toTool(),
-                SendEmailToOwnerTool.toTool()
+                SendEmailToOwnerTool.toTool(),
+                StartAuthTool.toTool(),
+                VerifyCode.toTool()
         );
     }
 
@@ -95,6 +108,14 @@ public class AnonymousChatService extends ChatService {
         } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(
                     toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("start_auth".equals(toolUse.name())) {
+            return StartAuthToolHandler.handle(
+                    toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("verify_code".equals(toolUse.name())) {
+            return VerifyCodeToolHandler.handle(
+                    toolUse, inputMap, sessionManager, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
