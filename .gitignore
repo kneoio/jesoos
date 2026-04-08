@@ -31,3 +31,4 @@ src/main/resources/application-prod.properties
 *.ps1
 /sessions_data/
 /.claude/
+CLAUDE.md
