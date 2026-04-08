@@ -372,7 +372,7 @@ public class PublicChatService extends ChatService {
     @Override
     protected String getMainPrompt() {
         try {
-            String custom = ResourceUtil.loadResourceAsString("/prompts/publicMainPrompt.hbs");
+            String custom = ResourceUtil.loadResourceAsString("/prompts/mainPrompt.hbs");
             return !custom.isBlank() ? custom : super.getMainPrompt();
         } catch (Exception ignored) {
             return super.getMainPrompt();
@@ -382,7 +382,7 @@ public class PublicChatService extends ChatService {
     @Override
     protected String getFollowUpPrompt() {
         try {
-            String custom = ResourceUtil.loadResourceAsString("/prompts/publicFollowUpPrompt.hbs");
+            String custom = ResourceUtil.loadResourceAsString("/prompts/followUpPrompt.hbs");
             return !custom.isBlank() ? custom : super.getFollowUpPrompt();
         } catch (Exception ignored) {
             return super.getFollowUpPrompt();

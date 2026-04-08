@@ -28,11 +28,6 @@ target/
 src/main/resources/application-dev.properties
 src/main/resources/application-prod.properties
 .env
-/src/main/resources/application-dev.properties
-/temp/
-/temp_soundfragments_storage/
-/controller-uploads/
 *.ps1
-/src/main/resources/prompts/
 /sessions_data/
 /.claude/
