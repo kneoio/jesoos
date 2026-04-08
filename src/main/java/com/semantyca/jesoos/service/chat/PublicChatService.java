@@ -19,28 +19,20 @@ import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
-import com.semantyca.jesoos.service.chat.tools.AddToQueueTool;
-import com.semantyca.jesoos.service.chat.tools.AudienceTool;
-import com.semantyca.jesoos.service.chat.tools.AudienceToolHandler;
-import com.semantyca.jesoos.service.chat.tools.GetStations;
-import com.semantyca.jesoos.service.chat.tools.GetStationsToolHandler;
-import com.semantyca.jesoos.service.chat.tools.ListenerDataTool;
-import com.semantyca.jesoos.service.chat.tools.ListenerDataToolHandler;
-import com.semantyca.jesoos.service.chat.tools.PerplexitySearchTool;
-import com.semantyca.jesoos.service.chat.tools.PerplexitySearchToolHandler;
-import com.semantyca.jesoos.service.chat.tools.SearchBrandSoundFragments;
-import com.semantyca.jesoos.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
-import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerTool;
-import com.semantyca.jesoos.service.chat.tools.SendEmailToOwnerToolHandler;
+import com.semantyca.jesoos.external.KeycloakAuthService;
+import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.officeframe.service.LabelService;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -79,6 +71,12 @@ public class PublicChatService extends ChatService {
 
     @Inject
     ReactiveMailer reactiveMailer;
+
+    @Inject
+    KeycloakAuthService keycloakAuthService;
+
+    @Setter
+    private com.semantyca.jesoos.ws.PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String userName) {
 
@@ -156,30 +154,177 @@ public class PublicChatService extends ChatService {
 
     @Override
     protected List<Tool> getAvailableTools() {
-        return List.of(
-                GetStations.toTool(),
-                SearchBrandSoundFragments.toTool(),
-                AddToQueueTool.toTool(),
-                PerplexitySearchTool.toTool(),
-                AudienceTool.toTool(),
-                ListenerDataTool.toTool(),
-                SendEmailToOwnerTool.toTool()
-        );
+        return getToolsForUser(true);
+    }
+
+    protected List<Tool> getToolsForUser(boolean isAuthenticated) {
+        List<Tool> tools = new ArrayList<>();
+        tools.add(GetStations.toTool());
+        tools.add(SendEmailToOwnerTool.toTool());
+        
+        if (isAuthenticated) {
+            tools.add(SearchBrandSoundFragments.toTool());
+            tools.add(AddToQueueTool.toTool());
+            tools.add(PerplexitySearchTool.toTool());
+            tools.add(AudienceTool.toTool());
+            tools.add(ListenerDataTool.toTool());
+        } else {
+            tools.add(StartAuthTool.toTool());
+            tools.add(VerifyCode.toTool());
+        }
+        
+        return tools;
     }
 
     @Override
     protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history) {
+        return buildMessageCreateParamsForUser(renderedPrompt, history, true);
+    }
+
+    protected MessageCreateParams buildMessageCreateParamsForUser(String renderedPrompt, List<MessageParam> history, boolean isAuthenticated) {
         MessageCreateParams.Builder builder = MessageCreateParams.builder()
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
                 .model(Model.CLAUDE_HAIKU_4_5_20251001);
 
-        for (Tool tool : getAvailableTools()) {
+        for (Tool tool : getToolsForUser(isAuthenticated)) {
             builder.addTool(tool);
         }
 
         return builder.build();
+    }
+    
+    @Override
+    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
+        boolean isAuthenticated = !(user instanceof AnonymousUser) && user.getId() != 0;
+        
+        MessageParam userMsg = MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(MessageParam.Content.ofString(userMessage))
+                .build();
+
+        chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
+
+        Uni<com.semantyca.mixpla.model.brand.Brand> stationUni = brandService.getBySlugName(slugName);
+
+        return stationUni.flatMap(station -> {
+            String radioStationName = station != null && station.getLocalizedName() != null
+                    ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
+                    : slugName;
+
+            Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni;
+            if (station != null && station.getAiAgentId() != null) {
+                agentUni = aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en);
+            } else {
+                agentUni = Uni.createFrom().item(() -> null);
+            }
+
+            return agentUni.onItem().transform(agent -> {
+                String djName = agent.getName();
+
+                assert station != null;
+                String stationSlug = station.getSlugName();
+                String stationCountry = station.getCountry().getCountryName();
+                String stationBitRate = Long.toString(station.getBitRate());
+                String stationStatus = "unknown";
+                String stationTz = station.getTimeZone().getId();
+                String stationDesc = station.getDescription();
+                String hlsUrl = config.getHost() + "/" + stationSlug + "/radio/stream.m3u8";
+                String mixplaUrl = "https://player.mixpla.io/?radio=" + stationSlug;
+
+                String djLanguages, djPrimaryVoices;
+                String djCopilotName = "";
+                djLanguages = agent.getPreferredLang().stream()
+                        .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
+                        .map(lp -> lp.getLanguageTag().name())
+                        .reduce((a, b) -> a + "," + b).orElse("");
+                djPrimaryVoices = agent.getTtsSetting().getDj().getId();
+
+                String renderedPrompt = getMainPrompt()
+                        .replace("{{djName}}", djName)
+                        .replace("{{radioStationName}}", radioStationName)
+                        .replace("{{radioStationSlug}}", stationSlug)
+                        .replace("{{radioStationCountry}}", stationCountry)
+                        .replace("{{radioStationBitRate}}", stationBitRate)
+                        .replace("{{radioStationStatus}}", stationStatus)
+                        .replace("{{radioStationTimeZone}}", stationTz)
+                        .replace("{{radioStationDescription}}", stationDesc)
+                        .replace("{{radioStationHlsUrl}}", hlsUrl)
+                        .replace("{{radioStationMixplaUrl}}", mixplaUrl)
+                        .replace("{{djLanguages}}", djLanguages)
+                        .replace("{{djCopilotName}}", djCopilotName)
+                        .replace("{{userName}}", user.getUserName());
+
+                assistantNameByConnectionId.put(connectionId, djName);
+                assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
+
+                return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
+                        .map(history -> buildMessageCreateParamsForUser(renderedPrompt, history, isAuthenticated));
+            });
+        }).flatMap(paramsUni -> paramsUni).flatMap(params ->
+                Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
+                        .flatMap(message -> {
+                            Optional<ToolUseBlock> toolUse = message.content().stream()
+                                    .flatMap(block -> block.toolUse().stream())
+                                    .findFirst();
+
+                            if (toolUse.isPresent()) {
+                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
+                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
+                            } else {
+                                return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                            }
+                        })
+        ).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
+    }
+
+    @Override
+    protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
+            Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
+            String connectionId,
+            String brandName,
+            long userId) {
+        return params -> handleFollowUpWithToolDetection(params, chunkHandler, completionHandler, connectionId, brandName, userId);
+    }
+    
+    @Override
+    protected Uni<Void> handleFollowUpWithToolDetection(
+            MessageCreateParams params,
+            Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
+            String connectionId,
+            String brandName,
+            long userId) {
+        
+        boolean isAuthenticated = userId != 0;
+        
+        MessageCreateParams.Builder builder = MessageCreateParams.builder()
+                .maxTokens(params.maxTokens())
+                .system(java.util.Objects.requireNonNull(params.system().orElse(null)))
+                .messages(params.messages())
+                .model(params.model());
+        
+        for (Tool tool : getToolsForUser(isAuthenticated)) {
+            builder.addTool(tool);
+        }
+        
+        MessageCreateParams paramsWithTools = builder.build();
+        
+        return Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(paramsWithTools))
+                .flatMap(message -> {
+                    Optional<ToolUseBlock> toolUse = message.content().stream()
+                            .flatMap(block -> block.toolUse().stream())
+                            .findFirst();
+
+                    if (toolUse.isPresent()) {
+                        List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
+                        return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
+                    } else {
+                        return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);
+                    }
+                }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
 
     @Override
@@ -195,33 +340,33 @@ public class PublicChatService extends ChatService {
         Function<MessageCreateParams, Uni<Void>> streamFn =
                 createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
-        if ("get_stations".equals(toolUse.name())) {
-            return GetStationsToolHandler.handle(
+        return switch (toolUse.name()) {
+            case "get_stations" -> GetStationsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
-            return SearchBrandSoundFragmentsToolHandler.handle(
+            case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else if ("perplexity_search".equals(toolUse.name())) {
-            return PerplexitySearchToolHandler.handle(
+            case "perplexity_search" -> PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else if ("listener".equals(toolUse.name())) {
-            return AudienceToolHandler.handle(
+            case "listener" -> AudienceToolHandler.handle(
                     toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else if ("listener_data".equals(toolUse.name())) {
-            return ListenerDataToolHandler.handle(
+            case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, labelService, brandName, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else if ("send_email_to_owner".equals(toolUse.name())) {
-            return SendEmailToOwnerToolHandler.handle(
+            case "send_email_to_owner" -> SendEmailToOwnerToolHandler.handle(
                     toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
-        } else {
-            return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
-        }
+            case "start_auth" -> StartAuthToolHandler.handle(
+                    toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+            case "verify_code" -> VerifyCodeToolHandler.handle(
+                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+            default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
+        };
     }
 
     @Override

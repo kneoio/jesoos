@@ -31,7 +31,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     @Builder.Default
     private Map<String, String> userData = new HashMap<>();
-    private Integer archived;
     private List<UUID> listenerOf;
     private List<UUID> labels;
 }

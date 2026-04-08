@@ -4,7 +4,11 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.service.chat.PublicChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
+import com.semantyca.jesoos.ws.PublicChatController;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -24,6 +28,10 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             PublicChatSessionManager sessionManager,
+            UserService userService,
+            PublicChatController controller,
+            PublicChatService chatService,
+            String brandSlug,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
@@ -51,29 +59,54 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        String sessionToken = UUID.randomUUID().toString();
-        sessionManager.storeUserToken(sessionToken, email);
-        LOG.info("[VerifyCode] Authentication complete for {}, session created", email);
+        LOG.info("[VerifyCode] Code verified for {}, upgrading user session", email);
 
-        JsonObject authTokenMsg = new JsonObject()
-                .put("type", "AUTH_TOKEN")
-                .put("token", sessionToken)
-                .put("email", email);
-        chunkHandler.accept(authTokenMsg.encode());
+        return userService.findByEmail(email)
+                .onItem().transformToUni(user -> {
+                    if (user == null || user.getId() == 0) {
+                        LOG.warn("[VerifyCode] User not found for email {}", email);
+                        return handleError(toolUse, "User account not found. Please contact support.",
+                                handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                    }
 
-        JsonObject payload = new JsonObject()
-                .put("ok", true)
-                .put("email", email)
-                .put("message", "Authentication successful");
+                    controller.upgradeUserSession(connectionId, user);
+                    LOG.info("[VerifyCode] User session upgraded in-place for {} (userId={})", email, user.getId());
 
-        handler.addToolUseToHistory(toolUse, conversationHistory);
-        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                    return chatService.registerListener(email, brandSlug, user.getUserName())
+                            .onItem().transformToUni(registrationResult -> {
+                                LOG.info("[VerifyCode] User registered as listener for station {} (userId={})", brandSlug, user.getId());
 
-        MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-        return streamFn.apply(params);
+                                JsonObject payload = new JsonObject()
+                                        .put("ok", true)
+                                        .put("email", email)
+                                        .put("userId", user.getId())
+                                        .put("message", "Authentication successful! You now have access to all features and personalization.");
+
+                                handler.addToolUseToHistory(toolUse, conversationHistory);
+                                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                return streamFn.apply(params);
+                            })
+                            .onFailure().recoverWithUni(err -> {
+                                LOG.warn("[VerifyCode] Listener registration failed for {}, continuing anyway: {}", email, err.getMessage());
+                                
+                                JsonObject payload = new JsonObject()
+                                        .put("ok", true)
+                                        .put("email", email)
+                                        .put("userId", user.getId())
+                                        .put("message", "Authentication successful! You now have access to all features.");
+
+                                handler.addToolUseToHistory(toolUse, conversationHistory);
+                                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                return streamFn.apply(params);
+                            });
+                });
     }
 
-    private static Uni<Void> handleError(
+    static Uni<Void> handleError(
             ToolUseBlock toolUse,
             String errorMessage,
             VerifyCodeToolHandler handler,

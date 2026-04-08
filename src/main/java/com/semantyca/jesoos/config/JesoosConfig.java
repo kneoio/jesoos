@@ -119,16 +119,16 @@ public interface JesoosConfig {
     int getAivoxDelaySeconds();
 
     interface Keycloak {
-        @WithName("keycloak.url")
+        @WithName("url")
         String getUrl();
 
-        @WithName("keycloak.realm")
+        @WithName("realm")
         String getRealm();
 
-        @WithName("keycloak.client-id")
+        @WithName("client-id")
         String getClientId();
 
-        @WithName("keycloak.client-secret")
+        @WithName("client-secret")
         String getClientSecret();
     }
 

@@ -148,7 +148,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Listener buildEntity(ListenerDTO dto) {
         Listener doc = new Listener();
-        doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setNickName(dto.getNickName());
         if (dto.getUserData() != null && !dto.getUserData().isEmpty()) {
@@ -196,7 +195,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
-            dto.setArchived(doc.getArchived());
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setNickName(doc.getNickName());
             if (doc.getUserData() != null) {

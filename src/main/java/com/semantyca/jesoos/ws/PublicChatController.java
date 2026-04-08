@@ -5,8 +5,6 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
-import com.semantyca.jesoos.service.chat.AnonymousChatService;
-import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
@@ -28,21 +26,38 @@ import static java.util.UUID.randomUUID;
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
     private static final Logger LOG = Logger.getLogger(PublicChatController.class);
     private final PublicChatService publicChatService;
-    private final AnonymousChatService anonymousChatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
+    private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
+
+    public static class UserHolder {
+        private volatile IUser user;
+        
+        public UserHolder(IUser user) {
+            this.user = user;
+        }
+        
+        public IUser getUser() {
+            return user;
+        }
+        
+        public void setUser(IUser user) {
+            this.user = user;
+        }
+    }
 
     public PublicChatController() {
         super(null);
         this.publicChatService = null;
-        this.anonymousChatService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, PublicChatService publicChatService, AnonymousChatService anonymousChatService) {
+    public PublicChatController(UserService userService, PublicChatService publicChatService) {
         super(userService);
         this.publicChatService = publicChatService;
-        this.anonymousChatService = anonymousChatService;
+        if (publicChatService != null) {
+            publicChatService.setController(this);
+        }
     }
 
     public void setupRoutes(Router router) {
@@ -93,6 +108,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         
         String connectionId = randomUUID().toString();
         activeConnections.put(connectionId, webSocket);
+        UserHolder userHolder = new UserHolder(user);
+        connectionUsers.put(connectionId, userHolder);
         LOG.infof("Public chat WebSocket connected: %s for user: %s", connectionId, user.getUserName());
 
         webSocket.textMessageHandler(message -> {
@@ -103,10 +120,10 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 
                 switch (action) {
                     case "sendMessage":
-                        handleUserMessage(webSocket, msgJson, connectionId, brandSlug, user);
+                        handleUserMessage(webSocket, msgJson, connectionId, brandSlug, userHolder);
                         break;
                     case "getHistory":
-                        handleGetHistory(webSocket, msgJson, user);
+                        handleGetHistory(webSocket, msgJson, userHolder);
                         break;
                     default:
                         sendError(webSocket, "Unknown action: " + action);
@@ -120,6 +137,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         webSocket.closeHandler(v -> {
             activeConnections.remove(connectionId);
             userStationRegistrations.remove(connectionId);
+            connectionUsers.remove(connectionId);
             LOG.infof("Public chat WebSocket closed: %s", connectionId);
         });
 
@@ -127,11 +145,13 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             LOG.error("WebSocket error for %s", connectionId, err);
             activeConnections.remove(connectionId);
             userStationRegistrations.remove(connectionId);
+            connectionUsers.remove(connectionId);
         });
     }
 
     private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, 
-                                  String brandSlug, IUser user) {
+                                  String brandSlug, UserHolder userHolder) {
+        IUser user = userHolder.getUser();
         String username = msgJson.getString("username", user.getUserName());
         String content = msgJson.getString("content");
 
@@ -139,8 +159,6 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             sendError(webSocket, "Message content cannot be empty");
             return;
         }
-
-        ChatService chatService = getChatServiceForUser(user);
         
         Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
         
@@ -154,11 +172,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
         
         ensureRegistration
-                .chain(() -> chatService.processUserMessage(username, content, connectionId, brandSlug, user))
+                .chain(() -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
-                            sendBotResponse(webSocket, content, connectionId, brandSlug, user);
+                            sendBotResponse(webSocket, content, connectionId, brandSlug, userHolder);
                         },
                         err -> {
                             LOG.error("Error processing user message", err);
@@ -168,9 +186,9 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
-                                String brandSlug, IUser user) {
-        ChatService chatService = getChatServiceForUser(user);
-        chatService.generateBotResponse(
+                                String brandSlug, UserHolder userHolder) {
+        IUser user = userHolder.getUser();
+        publicChatService.generateBotResponse(
                 userMessage,
                 webSocket::writeTextMessage,
                 webSocket::writeTextMessage,
@@ -186,12 +204,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         );
     }
 
-    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, IUser user) {
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, UserHolder userHolder) {
         String brandSlug = msgJson.getString("brandSlug");
         Integer limit = msgJson.getInteger("limit", 50);
 
-        ChatService chatService = getChatServiceForUser(user);
-        chatService.getChatHistory(brandSlug, limit, user)
+        IUser user = userHolder.getUser();
+        publicChatService.getChatHistory(brandSlug, limit, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {
@@ -201,12 +219,16 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 );
     }
 
-    private ChatService getChatServiceForUser(IUser user) {
-        return isAnonymous(user) ? anonymousChatService : publicChatService;
-    }
-
     private boolean isAnonymous(IUser user) {
         return user instanceof AnonymousUser || user.getId() == 0;
+    }
+
+    public void upgradeUserSession(String connectionId, IUser newUser) {
+        UserHolder holder = connectionUsers.get(connectionId);
+        if (holder != null) {
+            holder.setUser(newUser);
+            LOG.infof("Upgraded user session for connection %s to user %s", connectionId, newUser.getUserName());
+        }
     }
 
     private void sendError(ServerWebSocket webSocket, Throwable err) {
