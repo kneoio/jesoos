@@ -465,8 +465,12 @@ public class ListenersRepository extends AsyncRepository {
 
     public Uni<Void> updateUserData(UUID id, UserData userData) {
         JsonObject userDataJson = toUserDataJson(userData);
+        Tuple params = Tuple.tuple()
+                .addJsonObject(userDataJson)
+                .addUUID(id);
         return client.preparedQuery("UPDATE " + entityData.getTableName() + " SET user_data=$1 WHERE id=$2")
-                .execute(Tuple.of(userDataJson, id))
+                .execute(params)
+                .onFailure().invoke(err -> LOGGER.error("Failed to update user_data for listener {}: {}", id, err.getMessage()))
                 .replaceWithVoid();
     }
 
