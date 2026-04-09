@@ -108,9 +108,12 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
 
         if (listener.getUserData() == null) {
+            LOGGER.info("[ListenerData] userData was null, creating new for listener {}", listener.getId());
             listener.setUserData(new UserData(new HashMap<>()));
         }
-        listener.getUserData().getData().put(fieldName, fieldValue);
+        LOGGER.info("[ListenerData] userData before set: {}", listener.getUserData().getData());
+        listener.getUserData().put(fieldName, fieldValue);
+        LOGGER.info("[ListenerData] userData after set: {}", listener.getUserData().getData());
 
         return listenerService.updateUserData(listener.getId(), listener.getUserData())
                 .flatMap(ignored -> {
