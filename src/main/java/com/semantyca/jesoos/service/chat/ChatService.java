@@ -141,6 +141,7 @@ public abstract class ChatService {
                 .build();
 
         chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
+        chunkHandler.accept(ChatMessageDTO.processing("...", connectionId).build().toJson());
 
         Uni<Brand> stationUni = brandService.getBySlugName(slugName);
 
