@@ -79,32 +79,29 @@ public class PublicChatService extends ChatService {
     private com.semantyca.jesoos.ws.PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug) {
-        String slugName = WebHelper.generateSlug(email);
-
-        ListenerDTO dto = new ListenerDTO();
-        dto.setEmail(email);
-        dto.getLocalizedName().put(LanguageCode.en, slugName);
-
-        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
-                .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
-                    return userService.findByLogin(slugName)
-                            .onItem().transformToUni(existingUser -> {
-                                if (existingUser.getId() == 0) {
-                                    return Uni.createFrom().failure(throwable);
-                                }
-                                ListenerDTO existingDto = new ListenerDTO();
-                                existingDto.setUserId(existingUser.getId());
-                                existingDto.setSlugName(slugName);
-                                return Uni.createFrom().item(existingDto);
-                            });
-                })
-                .onItem().transformToUni(listenerDTO -> {
+        return userService.findByEmail(email)
+                .chain(user -> {
                     String userToken = UUID.randomUUID().toString();
                     sessionManager.storeUserToken(userToken, email);
-                    return Uni.createFrom().item(new RegistrationResult(
-                            listenerDTO.getUserId(),
-                            userToken
-                    ));
+
+                    if (user == null || user.getId() == 0) {
+                        ListenerDTO dto = new ListenerDTO();
+                        dto.setEmail(email);
+                        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                                .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
+                    }
+
+                    return listenerService.getByUserId(user.getId())
+                            .chain(listener -> {
+                                if (listener != null) {
+                                    return ensureUserIsListenerOfStation(user.getId(), stationSlug)
+                                            .replaceWith(new RegistrationResult(user.getId(), userToken));
+                                }
+                                ListenerDTO dto = new ListenerDTO();
+                                dto.setEmail(email);
+                                return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                                        .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
+                            });
                 });
     }
 

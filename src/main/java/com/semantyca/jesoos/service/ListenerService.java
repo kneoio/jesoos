@@ -143,6 +143,10 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         String name = listener.getLocalizedName().get(LanguageCode.en);
                         if (name != null && !name.isBlank()) return name;
                     }
+                    if (listener.getUserData() != null) {
+                        String name = (String) listener.getUserData().getData().get("name");
+                        if (name != null && !name.isBlank()) return name;
+                    }
                     if (listener.getNickName() != null) {
                         Set<String> nicks = listener.getNickName().get(LanguageCode.en);
                         if (nicks != null && !nicks.isEmpty()) return nicks.iterator().next();
@@ -198,7 +202,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Uni<Long> createNewUser(Listener listener, String email) {
         UserDTO userDTO = new UserDTO();
-        String slugName = WebHelper.generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
+        String slugName = WebHelper.generateSlug(email);
         userDTO.setLogin(slugName);
         userDTO.setEmail(email);
         return userService.add(userDTO, true);
