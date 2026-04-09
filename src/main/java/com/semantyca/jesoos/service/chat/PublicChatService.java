@@ -364,7 +364,7 @@ public class PublicChatService extends ChatService {
                 createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
         String djName = assistantNameByConnectionId.getOrDefault(connectionId, "");
-        String resolvedFollowUpPrompt = resolvedFollowUpPrompt.replace("{{djName}}", djName);
+        String resolvedFollowUpPrompt = getFollowUpPrompt().replace("{{djName}}", djName);
 
         return switch (toolUse.name()) {
             case "get_stations" -> GetStationsToolHandler.handle(
