@@ -83,6 +83,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                                 controller.sendToConnection(connectionId, new JsonObject()
                                         .put("type", "session_token")
                                         .put("token", registrationResult.userToken())
+                                        .put("email", email)
                                         .encode());
 
                                 JsonObject payload = new JsonObject()
