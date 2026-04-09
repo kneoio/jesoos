@@ -22,6 +22,7 @@ import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -132,6 +133,23 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         .chain(this::mapToDTO);
             }
         }
+    }
+
+    public Uni<String> resolveDisplayName(long userId, String fallback) {
+        return getByUserId(userId)
+                .map(listener -> {
+                    if (listener == null) return fallback;
+                    if (listener.getLocalizedName() != null) {
+                        String name = listener.getLocalizedName().get(LanguageCode.en);
+                        if (name != null && !name.isBlank()) return name;
+                    }
+                    if (listener.getNickName() != null) {
+                        Set<String> nicks = listener.getNickName().get(LanguageCode.en);
+                        if (nicks != null && !nicks.isEmpty()) return nicks.iterator().next();
+                    }
+                    return fallback;
+                })
+                .onFailure().recoverWithItem(fallback);
     }
 
     public Uni<Listener> update(UUID id, Listener listener, String stationSlug) {

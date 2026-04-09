@@ -152,16 +152,15 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, 
                                   String brandSlug, UserHolder userHolder) {
         IUser user = userHolder.getUser();
-        String username = msgJson.getString("username", user.getUserName());
         String content = msgJson.getString("content");
 
         if (content == null || content.trim().isEmpty()) {
             sendError(webSocket, "Message content cannot be empty");
             return;
         }
-        
+
         Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
-        
+
         Uni<Void> ensureRegistration;
         if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
             assert publicChatService != null;
@@ -170,9 +169,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         } else {
             ensureRegistration = Uni.createFrom().voidItem();
         }
-        
+
+        Uni<String> resolvedUsername = isAnonymous(user)
+                ? Uni.createFrom().item(msgJson.getString("username", "anonymous"))
+                : publicChatService.resolveDisplayName(user.getId(), user.getUserName());
+
         ensureRegistration
-                .chain(() -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
+                .chain(() -> resolvedUsername)
+                .chain(username -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);

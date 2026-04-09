@@ -67,9 +67,9 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     }
 
                     controller.upgradeUserSession(connectionId, user);
-                    LOG.infof("[VerifyCode] User session upgraded in-place for % (userId=%)", email, user.getId());
+                    LOG.infof("[VerifyCode] User session upgraded in-place for %s (userId=%s)", email, user.getId());
 
-                    return chatService.registerListener(email, brandSlug, user.getUserName())
+                    return chatService.registerListener(email, brandSlug)
                             .onItem().transformToUni(registrationResult -> {
                                 LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
 

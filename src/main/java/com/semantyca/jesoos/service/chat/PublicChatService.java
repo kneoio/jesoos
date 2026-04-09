@@ -78,15 +78,15 @@ public class PublicChatService extends ChatService {
     @Setter
     private com.semantyca.jesoos.ws.PublicChatController controller;
 
-    public Uni<RegistrationResult> registerListener(String email, String stationSlug, String userName) {
+    public Uni<RegistrationResult> registerListener(String email, String stationSlug) {
+        String slugName = WebHelper.generateSlug(email);
 
         ListenerDTO dto = new ListenerDTO();
         dto.setEmail(email);
-        dto.getLocalizedName().put(LanguageCode.en, userName);
+        dto.getLocalizedName().put(LanguageCode.en, slugName);
 
-        return listenerService.upsert(null,dto, stationSlug, SuperUser.build())
+        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
-                    String slugName = WebHelper.generateSlug(userName != null && !userName.isBlank() ? userName : email);
                     return userService.findByLogin(slugName)
                             .onItem().transformToUni(existingUser -> {
                                 if (existingUser.getId() == 0) {
@@ -125,6 +125,10 @@ public class PublicChatService extends ChatService {
                     }
                     return Uni.createFrom().item(user);
                 });
+    }
+
+    public Uni<String> resolveDisplayName(long userId, String fallback) {
+        return listenerService.resolveDisplayName(userId, fallback);
     }
 
     public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
