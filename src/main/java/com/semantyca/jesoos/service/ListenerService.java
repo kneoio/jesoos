@@ -156,6 +156,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .onFailure().recoverWithItem(fallback);
     }
 
+    public Uni<Void> updateUserData(UUID listenerId, UserData userData) {
+        assert repository != null;
+        return repository.updateUserData(listenerId, userData);
+    }
+
     public Uni<Listener> update(UUID id, Listener listener, String stationSlug) {
         assert repository != null;
         return repository.getBrandsForListener(id)

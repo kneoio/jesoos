@@ -27,7 +27,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
-            String stationSlug,
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -53,9 +52,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                         case "get" ->
                                 handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "set" ->
-                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "remove" ->
-                                handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                handleRemove(toolUse, listener, fieldName, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         default ->
                                 handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
                     };
@@ -95,7 +94,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String fieldName,
             String fieldValue,
             ListenerService listenerService,
-            String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -114,8 +112,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         }
         listener.getUserData().getData().put(fieldName, fieldValue);
 
-        return listenerService.update(listener.getId(), listener, stationSlug)
-                .flatMap(updatedListener -> {
+        return listenerService.updateUserData(listener.getId(), listener.getUserData())
+                .flatMap(ignored -> {
                     LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listener.getId());
 
                     JsonObject payload = new JsonObject()
@@ -142,7 +140,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             Listener listener,
             String fieldName,
             ListenerService listenerService,
-            String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -176,8 +173,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return streamFn.apply(secondCallParams);
         }
 
-        return listenerService.update(listener.getId(), listener, stationSlug)
-                .flatMap(updatedListener -> {
+        return listenerService.updateUserData(listener.getId(), listener.getUserData())
+                .flatMap(ignored -> {
                     LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listener.getId());
 
                     JsonObject payload = new JsonObject()

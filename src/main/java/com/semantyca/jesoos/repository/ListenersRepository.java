@@ -463,6 +463,13 @@ public class ListenersRepository extends AsyncRepository {
         return conditions.toString();
     }
 
+    public Uni<Void> updateUserData(UUID id, UserData userData) {
+        JsonObject userDataJson = toUserDataJson(userData);
+        return client.preparedQuery("UPDATE " + entityData.getTableName() + " SET user_data=$1 WHERE id=$2")
+                .execute(Tuple.of(userDataJson, id))
+                .replaceWithVoid();
+    }
+
     private JsonObject toUserDataJson(UserData userData) {
         JsonObject json = new JsonObject();
         if (userData == null || userData.getData() == null || userData.getData().isEmpty()) {
