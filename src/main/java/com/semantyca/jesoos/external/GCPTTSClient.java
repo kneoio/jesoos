@@ -19,7 +19,7 @@ import java.io.IOException;
 public class GCPTTSClient implements TextToSpeechClient {
     private static final Logger LOGGER = Logger.getLogger(GCPTTSClient.class);
     private static final int MAX_TEXT_LENGTH = 3000;
-    private static final double VOLUME_GAIN_DB = 3.0;
+    private static final double VOLUME_GAIN_DB = 6.0;
 
     @Inject
     JesoosConfig config;
