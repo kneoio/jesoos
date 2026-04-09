@@ -235,6 +235,13 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
     }
 
+    public void sendToConnection(String connectionId, String message) {
+        ServerWebSocket ws = activeConnections.get(connectionId);
+        if (ws != null && !ws.isClosed()) {
+            ws.writeTextMessage(message);
+        }
+    }
+
     private void sendError(ServerWebSocket webSocket, Throwable err) {
         sendError(webSocket, err.getMessage());
     }

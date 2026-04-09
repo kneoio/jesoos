@@ -72,14 +72,18 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     controller.upgradeUserSession(connectionId, user);
                     LOG.infof("[VerifyCode] User session upgraded in-place for %s (userId=%s)", email, user.getId());
 
-                    // Create an authenticated streamFn with the real userId so the follow-up
-                    // AI call has access to listener_data and other authenticated tools
                     Function<MessageCreateParams, Uni<Void>> authStreamFn =
                             chatService.createAuthStreamFn(chunkHandler, completionHandler, connectionId, brandSlug, user.getId());
 
                     return chatService.registerListener(email, brandSlug, preferredName)
                             .onItem().transformToUni(registrationResult -> {
                                 LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
+
+                                // Send session token directly to frontend for persistent reconnect
+                                controller.sendToConnection(connectionId, new JsonObject()
+                                        .put("type", "session_token")
+                                        .put("token", registrationResult.userToken())
+                                        .encode());
 
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true)
