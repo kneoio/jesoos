@@ -189,7 +189,7 @@ public abstract class ChatService {
                         .replace("{{radioStationMixplaUrl}}", mixplaUrl)
                         .replace("{{djLanguages}}", djLanguages)
                         .replace("{{djCopilotName}}", djCopilotName)
-                        .replace("{{userName}}", user.getUserName());
+                        .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName());
 
                 assistantNameByConnectionId.put(connectionId, djName);
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);

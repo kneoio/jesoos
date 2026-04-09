@@ -172,7 +172,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Uni<String> resolvedUsername = isAnonymous(user)
                 ? Uni.createFrom().item(msgJson.getString("username", "anonymous"))
-                : publicChatService.resolveDisplayName(user.getId(), user.getUserName());
+                : publicChatService.resolveDisplayName(user.getId(), user.getEmail());
 
         ensureRegistration
                 .chain(() -> resolvedUsername)
