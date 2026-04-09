@@ -169,7 +169,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                                 .collect(Collectors.toList());
 
                         listener.setLabels(labelIds);
-                        return listenerService.upsert(listener.getId(), listener, stationSlug);
+                        return listenerService.update(listener.getId(), listener, stationSlug);
                     })
                     .flatMap(updatedListener -> {
                         LOGGER.info("[ListenerData] Set labels '{}' for listener {}", fieldValue, listener.getId());

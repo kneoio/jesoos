@@ -71,54 +71,12 @@ public class AiHelperService {
         this.labelService = labelService;
     }
 
+    // TODO: jesoos should not know about stations directly — must contact aivox via RabbitMQ
     public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {
-        return brandService.getAllDTO(1000, 0, SuperUser.build(), country, query)
-                .flatMap(stations -> {
-                    if (stations == null || stations.isEmpty()) {
-                        AvailableStationsAiDTO container = new AvailableStationsAiDTO();
-                        container.setRadioStations(List.of());
-                        return Uni.createFrom().item(container);
-                    }
-
-                    List<Uni<RadioStationAiDTO>> unis = stations.stream()
-                            .map(dto -> {
-                                if (statuses != null && !statuses.contains(dto.getStatus())) {
-                                    return Uni.createFrom().<RadioStationAiDTO>nullItem();
-                                }
-
-                                if (djLanguage != null) {
-                                    if (dto.getAiAgentId() == null) {
-                                        return Uni.createFrom().<RadioStationAiDTO>nullItem();
-                                    }
-                                    return aiAgentService.getById(dto.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                            .map(agent -> {
-                                                boolean supports = agent.getPreferredLang().stream()
-                                                        .anyMatch(p -> p.getLanguageTag() == djLanguage);
-                                                if (!supports) {
-                                                    return null;
-                                                }
-                                                return toRadioStationAiDTO(dto, agent);
-                                            })
-                                            .onFailure().recoverWithItem(() -> null);
-                                } else {
-                                    if (dto.getAiAgentId() == null) {
-                                        return Uni.createFrom().item(toRadioStationAiDTO(dto, null));
-                                    }
-                                    return aiAgentService.getById(dto.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                            .map(agent -> toRadioStationAiDTO(dto, agent))
-                                            .onFailure().recoverWithItem(() -> toRadioStationAiDTO(dto, null));
-                                }
-                            })
-                            .collect(Collectors.toList());
-
-                    return (unis.isEmpty() ? Uni.createFrom().item(List.<RadioStationAiDTO>of()) : Uni.join().all(unis).andFailFast())
-                            .map(list -> {
-                                List<RadioStationAiDTO> stationsList = new ArrayList<>(list);
-                                AvailableStationsAiDTO container = new AvailableStationsAiDTO();
-                                container.setRadioStations(stationsList);
-                                return container;
-                            });
-                });
+        LOGGER.warn("getAllStations is a stub — station data should be fetched from aivox");
+        AvailableStationsAiDTO container = new AvailableStationsAiDTO();
+        container.setRadioStations(List.of());
+        return Uni.createFrom().item(container);
     }
 
     public Uni<List<BrandSoundFragmentAiDTO>> searchBrandSoundFragmentsForAi(

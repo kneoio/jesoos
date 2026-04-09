@@ -6,8 +6,8 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.service.ListenerService;
+import com.semantyca.mixpla.model.Listener;
 import com.semantyca.mixpla.model.filter.ListenerFilter;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
@@ -85,17 +85,15 @@ public class AudienceToolHandler extends BaseToolHandler {
 
         ListenerFilter finalFilter = filter.isActivated() ? filter : null;
 
-        return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), finalFilter)
-                .flatMap(brandListeners -> {
-                    int count = brandListeners.size();
+        return listenerService.getListenersForBrand(stationSlug, 100, 0, SuperUser.build(), finalFilter)
+                .flatMap(listeners -> {
+                    int count = listeners.size();
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " listener" + (count != 1 ? "s" : ""));
 
                     JsonArray listenersJson = new JsonArray();
-                    brandListeners.forEach(bl -> {
-                        ListenerDTO listener = bl.getListenerDTO();
+                    listeners.forEach((Listener listener) -> {
                         JsonObject listenerObj = new JsonObject()
-                                .put("id", listener.getId().toString())
-                                .put("slugName", listener.getSlugName());
+                                .put("id", listener.getId().toString());
 
                         if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
                             Set<String> nicknames = listener.getNickName().get(LanguageCode.en);
@@ -106,12 +104,12 @@ public class AudienceToolHandler extends BaseToolHandler {
                         if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
                             listenerObj.put("name", listener.getLocalizedName().get(LanguageCode.en));
                         }
-                        if (listener.getUserData() != null && !listener.getUserData().isEmpty()) {
+                        if (listener.getUserData() != null) {
                             JsonObject userDataJson = new JsonObject();
-                            listener.getUserData().forEach(userDataJson::put);
+                            listener.getUserData().getData().forEach(userDataJson::put);
                             listenerObj.put("userData", userDataJson);
                         }
-                        
+
                         listenersJson.add(listenerObj);
                     });
 

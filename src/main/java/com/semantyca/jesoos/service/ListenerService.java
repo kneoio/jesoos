@@ -59,6 +59,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.getBrandsForListener(listener);
     }
 
+    public Uni<List<Listener>> getListenersForBrand(String brandName, int limit, int offset, IUser user, ListenerFilter filter) {
+        assert repository != null;
+        return repository.findForBrand(brandName, limit, offset, user, false, filter)
+                .map(list -> list.stream().map(BrandListener::getListener).collect(Collectors.toList()));
+    }
+
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user, ListenerFilter filter) {
         assert repository != null;
         assert brandService != null;
@@ -126,6 +132,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         .chain(this::mapToDTO);
             }
         }
+    }
+
+    public Uni<Listener> update(UUID id, Listener listener, String stationSlug) {
+        assert repository != null;
+        return repository.getBrandsForListener(id)
+                .chain(brandIds -> repository.update(id, listener, brandIds, SuperUser.build()));
     }
 
     private Uni<Brand> getBrand(String stationSlug) {
