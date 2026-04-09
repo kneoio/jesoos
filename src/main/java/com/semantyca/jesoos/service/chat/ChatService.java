@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
@@ -368,7 +369,7 @@ public abstract class ChatService {
         return maybeObj.orElse(Collections.emptyMap());
     }
 
-    protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
+    protected Function<MessageCreateParams, Uni<Void>> createStreamFunction(
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
