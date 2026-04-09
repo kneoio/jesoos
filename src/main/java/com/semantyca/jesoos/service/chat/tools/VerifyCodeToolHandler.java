@@ -4,25 +4,22 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class VerifyCodeToolHandler extends BaseToolHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(VerifyCodeToolHandler.class);
+    private static final Logger LOG = Logger.getLogger(VerifyCodeToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -49,32 +46,32 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        LOG.info("[VerifyCode] Verifying code for email: {}", email);
+        LOG.infof("[VerifyCode] Verifying code for email: %s", email);
         handler.sendProcessingChunk(chunkHandler, connectionId, "Verifying code...");
 
         boolean valid = sessionManager.verifyAndConsumePendingOtp(email, code);
         if (!valid) {
-            LOG.warn("[VerifyCode] Invalid or expired code for {}", email);
+            LOG.warnf("[VerifyCode] Invalid or expired code for %s", email);
             return handleError(toolUse, "Invalid or expired verification code. Please request a new one.",
                     handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        LOG.info("[VerifyCode] Code verified for {}, upgrading user session", email);
+        LOG.infof("[VerifyCode] Code verified for %s, upgrading user session", email);
 
         return userService.findByEmail(email)
                 .onItem().transformToUni(user -> {
                     if (user == null || user.getId() == 0) {
-                        LOG.warn("[VerifyCode] User not found for email {}", email);
+                        LOG.warnf("[VerifyCode] User not found for email %s", email);
                         return handleError(toolUse, "User account not found. Please contact support.",
                                 handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                     }
 
                     controller.upgradeUserSession(connectionId, user);
-                    LOG.info("[VerifyCode] User session upgraded in-place for {} (userId={})", email, user.getId());
+                    LOG.infof("[VerifyCode] User session upgraded in-place for % (userId=%)", email, user.getId());
 
                     return chatService.registerListener(email, brandSlug, user.getUserName())
                             .onItem().transformToUni(registrationResult -> {
-                                LOG.info("[VerifyCode] User registered as listener for station {} (userId={})", brandSlug, user.getId());
+                                LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
 
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true)
@@ -89,7 +86,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                                 return streamFn.apply(params);
                             })
                             .onFailure().recoverWithUni(err -> {
-                                LOG.warn("[VerifyCode] Listener registration failed for {}, continuing anyway: {}", email, err.getMessage());
+                                LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
                                 
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true)

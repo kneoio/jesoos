@@ -5,9 +5,10 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.model.SimpleReferenceEntity;
+import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.dto.ListenerDTO;
+import com.semantyca.mixpla.model.Listener;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.officeframe.dto.LabelDTO;
 import com.semantyca.officeframe.model.Label;
@@ -58,25 +59,22 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                         return handleError(toolUse, "Listener not found. User must be registered first.", handler, conversationHistory, systemPromptCall2, streamFn);
                     }
 
-                    return listenerService.getDTO(listener.getId(), SuperUser.build(), null)
-                            .flatMap(listenerDTO -> {
-                                return switch (action) {
-                                    case "get" ->
-                                            handleGet(toolUse, listenerDTO, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, labelService);
-                                    case "set" ->
-                                            handleSet(toolUse, listenerDTO, fieldName, fieldValue, listenerService, labelService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                                    case "remove" ->
-                                            handleRemove(toolUse, listenerDTO, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                                    default ->
-                                            handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
-                                };
-                            });
+                    return switch (action) {
+                        case "get" ->
+                                handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, labelService);
+                        case "set" ->
+                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, labelService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        case "remove" ->
+                                handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        default ->
+                                handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
+                    };
                 });
     }
 
     private static Uni<Void> handleGet(
             ToolUseBlock toolUse,
-            ListenerDTO listenerDTO,
+            Listener listener,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -95,8 +93,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                         .filter(name -> !name.isEmpty())
                         .collect(Collectors.toList()));
         
-        if (listenerDTO.getLabels() != null && !listenerDTO.getLabels().isEmpty()) {
-            List<Uni<Label>> labelUnis = listenerDTO.getLabels().stream()
+        if (listener.getLabels() != null && !listener.getLabels().isEmpty()) {
+            List<Uni<Label>> labelUnis = listener.getLabels().stream()
                     .map(labelId -> labelService.getById(labelId)
                             .onFailure().recoverWithNull())
                     .collect(Collectors.toList());
@@ -114,13 +112,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             availableLabelsUni.chain(allLabels -> {
                 JsonObject payload = new JsonObject()
                         .put("ok", true)
-                        .put("listener_id", listenerDTO.getId().toString())
-                        .put("user_id", listenerDTO.getUserId())
-                        .put("email", listenerDTO.getEmail())
-                        .put("slug_name", listenerDTO.getSlugName())
-                        .put("localized_name", JsonObject.mapFrom(listenerDTO.getLocalizedName()))
-                        .put("nick_name", JsonObject.mapFrom(listenerDTO.getNickName()))
-                        .put("user_data", listenerDTO.getUserData() != null ? JsonObject.mapFrom(listenerDTO.getUserData()) : new JsonObject())
+                        .put("listener_id", listener.getId().toString())
+                        .put("user_id", listener.getUserId())
+                        .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
+                        .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
+                        .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
                         .put("labels", resolvedLabels)
                         .put("available_labels", allLabels);
 
@@ -135,7 +131,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
     private static Uni<Void> handleSet(
             ToolUseBlock toolUse,
-            ListenerDTO listenerDTO,
+            Listener listener,
             String fieldName,
             String fieldValue,
             ListenerService listenerService,
@@ -172,11 +168,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                                 .map(Label::getId)
                                 .collect(Collectors.toList());
 
-                        listenerDTO.setLabels(labelIds);
-                        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build());
+                        listener.setLabels(labelIds);
+                        return listenerService.upsert(listener.getId(), listener, stationSlug);
                     })
                     .flatMap(updatedListener -> {
-                        LOGGER.info("[ListenerData] Set labels '{}' for listener {}", fieldValue, listenerDTO.getId());
+                        LOGGER.info("[ListenerData] Set labels '{}' for listener {}", fieldValue, listener.getId());
 
                         JsonObject payload = new JsonObject()
                                 .put("ok", true)
@@ -197,14 +193,14 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                     });
         }
 
-        if (listenerDTO.getUserData() == null) {
-            listenerDTO.setUserData(new HashMap<>());
+        if (listener.getUserData() == null) {
+            listener.setUserData(new UserData(new HashMap<>()));
         }
-        listenerDTO.getUserData().put(fieldName, fieldValue);
+        listener.getUserData().getData().put(fieldName, fieldValue);
 
-        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build())
+        return listenerService.update(listener.getId(), listener, stationSlug)
                 .flatMap(updatedListener -> {
-                    LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listenerDTO.getId());
+                    LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listener.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
@@ -227,7 +223,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
     private static Uni<Void> handleRemove(
             ToolUseBlock toolUse,
-            ListenerDTO listenerDTO,
+            Listener listener,
             String fieldName,
             ListenerService listenerService,
             String stationSlug,
@@ -245,8 +241,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Removing user data...");
 
         boolean removed = false;
-        if (listenerDTO.getUserData() != null) {
-            removed = listenerDTO.getUserData().remove(fieldName) != null;
+        if (listener.getUserData() != null) {
+            removed = listener.getUserData().getData().remove(fieldName) != null;
         }
 
         if (!removed) {
@@ -264,9 +260,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return streamFn.apply(secondCallParams);
         }
 
-        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build())
+        return listenerService.update(listener.getId(), listener, stationSlug)
                 .flatMap(updatedListener -> {
-                    LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listenerDTO.getId());
+                    LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listener.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
