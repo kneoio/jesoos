@@ -4,14 +4,10 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import com.semantyca.core.model.SimpleReferenceEntity;
 import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.mixpla.model.Listener;
 import com.semantyca.jesoos.service.ListenerService;
-import com.semantyca.officeframe.dto.LabelDTO;
-import com.semantyca.officeframe.model.Label;
-import com.semantyca.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -20,11 +16,8 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ListenerDataToolHandler extends BaseToolHandler {
 
@@ -34,7 +27,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
-            LabelService labelService,
             String stationSlug,
             long userId,
             Consumer<String> chunkHandler,
@@ -59,7 +51,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
                     return switch (action) {
                         case "get" ->
-                                handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, labelService);
+                                handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "set" ->
                                 handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "remove" ->
@@ -78,53 +70,23 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn,
-            LabelService labelService
+            Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
 
-        Uni<List<String>> labelsUni = Uni.createFrom().item(List.of());
-        Uni<List<String>> availableLabelsUni = labelService.getOfCategory("listener", LanguageCode.en)
-                .onFailure().recoverWithItem(List.of())
-                .map(labels -> labels.stream()
-                        .map(LabelDTO::getIdentifier)
-                        .filter(name -> !name.isEmpty())
-                        .collect(Collectors.toList()));
-        
-        if (listener.getLabels() != null && !listener.getLabels().isEmpty()) {
-            List<Uni<Label>> labelUnis = listener.getLabels().stream()
-                    .map(labelId -> labelService.getById(labelId)
-                            .onFailure().recoverWithNull())
-                    .collect(Collectors.toList());
-            
-            labelsUni = Uni.join().all(labelUnis).andFailFast().map(list -> {
-                return list.stream()
-                        .filter(Objects::nonNull)
-                        .map(SimpleReferenceEntity::getIdentifier)
-                        .filter(name -> !name.isEmpty())
-                        .collect(Collectors.toList());
-            });
-        }
+        JsonObject payload = new JsonObject()
+                .put("ok", true)
+                .put("listener_id", listener.getId().toString())
+                .put("user_id", listener.getUserId())
+                .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
+                .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
+                .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject());
 
-        return labelsUni.chain(resolvedLabels -> 
-            availableLabelsUni.chain(allLabels -> {
-                JsonObject payload = new JsonObject()
-                        .put("ok", true)
-                        .put("listener_id", listener.getId().toString())
-                        .put("user_id", listener.getUserId())
-                        .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
-                        .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
-                        .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
-                        .put("labels", resolvedLabels)
-                        .put("available_labels", allLabels);
+        handler.addToolUseToHistory(toolUse, conversationHistory);
+        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
 
-                handler.addToolUseToHistory(toolUse, conversationHistory);
-                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
-
-                MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                return streamFn.apply(secondCallParams);
-            })
-        );
+        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+        return streamFn.apply(secondCallParams);
     }
 
     private static Uni<Void> handleSet(
