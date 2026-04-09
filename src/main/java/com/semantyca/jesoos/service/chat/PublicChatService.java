@@ -6,6 +6,7 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
@@ -79,6 +80,10 @@ public class PublicChatService extends ChatService {
     private com.semantyca.jesoos.ws.PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug) {
+        return registerListener(email, stationSlug, null);
+    }
+
+    public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
         return userService.findByEmail(email)
                 .chain(user -> {
                     String userToken = UUID.randomUUID().toString();
@@ -87,6 +92,9 @@ public class PublicChatService extends ChatService {
                     if (user == null || user.getId() == 0) {
                         ListenerDTO dto = new ListenerDTO();
                         dto.setEmail(email);
+                        if (preferredName != null && !preferredName.isBlank()) {
+                            dto.setUserData(Map.of("preferred_name", preferredName));
+                        }
                         return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
                                 .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
                     }
@@ -94,11 +102,19 @@ public class PublicChatService extends ChatService {
                     return listenerService.getByUserId(user.getId())
                             .chain(listener -> {
                                 if (listener != null) {
-                                    return ensureUserIsListenerOfStation(user.getId(), stationSlug)
+                                    Uni<Void> storeNameUni = (preferredName != null && !preferredName.isBlank())
+                                            ? listenerService.updateUserData(listener.getId(),
+                                                    mergeUserData(listener.getUserData(), "preferred_name", preferredName))
+                                            : Uni.createFrom().voidItem();
+                                    return storeNameUni
+                                            .chain(() -> ensureUserIsListenerOfStation(user.getId(), stationSlug))
                                             .replaceWith(new RegistrationResult(user.getId(), userToken));
                                 }
                                 ListenerDTO dto = new ListenerDTO();
                                 dto.setEmail(email);
+                                if (preferredName != null && !preferredName.isBlank()) {
+                                    dto.setUserData(Map.of("preferred_name", preferredName));
+                                }
                                 return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
                                         .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
                             });
@@ -122,6 +138,12 @@ public class PublicChatService extends ChatService {
                     }
                     return Uni.createFrom().item(user);
                 });
+    }
+
+    public Function<MessageCreateParams, Uni<Void>> createAuthStreamFn(
+            Consumer<String> chunkHandler, Consumer<String> completionHandler,
+            String connectionId, String brandName, long userId) {
+        return createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
     }
 
     public Uni<String> resolveDisplayName(long userId, String fallback) {
@@ -364,10 +386,18 @@ public class PublicChatService extends ChatService {
                     toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };
+    }
+
+    private UserData mergeUserData(UserData existing, String key, String value) {
+        UserData merged = new UserData(existing != null && existing.getData() != null
+                ? new java.util.HashMap<>(existing.getData())
+                : new java.util.HashMap<>());
+        merged.getData().put(key, value);
+        return merged;
     }
 
     @Override

@@ -30,6 +30,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             PublicChatService chatService,
             String brandSlug,
             Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
@@ -39,6 +40,8 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
         String email = inputMap.getOrDefault("email", JsonValue.from(""))
                 .toString().replace("\"", "").trim();
         String code = inputMap.getOrDefault("code", JsonValue.from(""))
+                .toString().replace("\"", "").trim();
+        String preferredName = inputMap.getOrDefault("preferred_name", JsonValue.from(""))
                 .toString().replace("\"", "").trim();
 
         if (email.isBlank() || code.isBlank()) {
@@ -69,7 +72,12 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     controller.upgradeUserSession(connectionId, user);
                     LOG.infof("[VerifyCode] User session upgraded in-place for %s (userId=%s)", email, user.getId());
 
-                    return chatService.registerListener(email, brandSlug)
+                    // Create an authenticated streamFn with the real userId so the follow-up
+                    // AI call has access to listener_data and other authenticated tools
+                    Function<MessageCreateParams, Uni<Void>> authStreamFn =
+                            chatService.createAuthStreamFn(chunkHandler, completionHandler, connectionId, brandSlug, user.getId());
+
+                    return chatService.registerListener(email, brandSlug, preferredName)
                             .onItem().transformToUni(registrationResult -> {
                                 LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
 
@@ -83,11 +91,11 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                                return streamFn.apply(params);
+                                return authStreamFn.apply(params);
                             })
                             .onFailure().recoverWithUni(err -> {
                                 LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
-                                
+
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true)
                                         .put("email", email)
@@ -98,7 +106,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                                return streamFn.apply(params);
+                                return authStreamFn.apply(params);
                             });
                 });
     }

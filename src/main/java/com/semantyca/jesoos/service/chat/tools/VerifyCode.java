@@ -14,14 +14,16 @@ public class VerifyCode {
                         "email",
                         Map.of("type", "string"),
                         "code",
-                        Map.of("type", "string")
+                        Map.of("type", "string"),
+                        "preferred_name",
+                        Map.of("type", "string", "description", "User's name if already known from conversation")
                 )))
                 .required(List.of("email", "code"))
                 .build();
 
         return Tool.builder()
                 .name("verify_code")
-                .description("Verify OTP code and authenticate user, returning access token")
+                .description("Verify OTP code and authenticate user. Pass preferred_name if user already shared their name.")
                 .inputSchema(schema)
                 .build();
     }
