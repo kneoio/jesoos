@@ -363,30 +363,33 @@ public class PublicChatService extends ChatService {
         Function<MessageCreateParams, Uni<Void>> streamFn =
                 createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
+        String djName = assistantNameByConnectionId.getOrDefault(connectionId, "");
+        String resolvedFollowUpPrompt = resolvedFollowUpPrompt.replace("{{djName}}", djName);
+
         return switch (toolUse.name()) {
             case "get_stations" -> GetStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "perplexity_search" -> PerplexitySearchToolHandler.handle(
-                    toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "listener" -> AudienceToolHandler.handle(
-                    toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "listener_data" -> ListenerDataToolHandler.handle(
-                    toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "send_email_to_owner" -> SendEmailToOwnerToolHandler.handle(
-                    toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_auth" -> StartAuthToolHandler.handle(
-                    toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };
