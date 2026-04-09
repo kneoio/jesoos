@@ -7,7 +7,6 @@ import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.model.SimpleReferenceEntity;
 import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.mixpla.model.Listener;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.officeframe.dto.LabelDTO;
@@ -26,7 +25,6 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ListenerDataToolHandler extends BaseToolHandler {
 
@@ -63,7 +61,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                         case "get" ->
                                 handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, labelService);
                         case "set" ->
-                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, labelService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "remove" ->
                                 handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         default ->
@@ -135,7 +133,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String fieldName,
             String fieldValue,
             ListenerService listenerService,
-            LabelService labelService,
             String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
@@ -144,54 +141,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        if (fieldName.isEmpty()) {
-            return handleError(toolUse, "field_name is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
-        }
-        if (fieldValue.isEmpty() && !"labels".equals(fieldName)) {
-            return handleError(toolUse, "field_value is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
+        if (fieldName.isEmpty() || fieldValue.isEmpty()) {
+            return handleError(toolUse, "field_name and field_value are required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
-
-        if ("labels".equals(fieldName)) {
-            String[] labelNames = fieldValue.split(",");
-            List<Uni<Label>> labelUnis = Stream.of(labelNames)
-                    .map(String::trim)
-                    .filter(name -> !name.isEmpty())
-                    .map(name -> labelService.findByIdentifier(name)
-                            .onFailure().recoverWithNull())
-                    .collect(Collectors.toList());
-
-            return Uni.join().all(labelUnis).andFailFast().chain(list -> {
-                        List<UUID> labelIds = list.stream()
-                                .filter(Objects::nonNull)
-                                .map(Label::getId)
-                                .collect(Collectors.toList());
-
-                        listener.setLabels(labelIds);
-                        return listenerService.update(listener.getId(), listener, stationSlug);
-                    })
-                    .flatMap(updatedListener -> {
-                        LOGGER.info("[ListenerData] Set labels '{}' for listener {}", fieldValue, listener.getId());
-
-                        JsonObject payload = new JsonObject()
-                                .put("ok", true)
-                                .put("action", "set")
-                                .put("field_name", fieldName)
-                                .put("field_value", fieldValue)
-                                .put("message", "Labels updated successfully");
-
-                        handler.addToolUseToHistory(toolUse, conversationHistory);
-                        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
-
-                        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                        return streamFn.apply(secondCallParams);
-                    })
-                    .onFailure().recoverWithUni(err -> {
-                        LOGGER.error("[ListenerData] Failed to set labels", err);
-                        return handleError(toolUse, "Failed to set labels: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
-                    });
-        }
 
         if (listener.getUserData() == null) {
             listener.setUserData(new UserData(new HashMap<>()));
