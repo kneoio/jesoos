@@ -14,14 +14,15 @@ public class PerplexitySearchTool {
                         "query",
                         Map.of(
                                 "type", "string",
-                                "description", "The Internet search query to send to Perplexity"))))
+                                "description", "The web search query. Use natural language to ask about current events, news, facts, or information not available in the radio platform."))))
                 .required(JsonValue.from(List.of("query")))
                 .build();
 
         return Tool.builder()
                 .name("perplexity_search")
-                .description("Search the web using Perplexity to get current information, facts, news, " +
-                        "or answer questions that require up-to-date knowledge")
+                .description("Search the internet for current information, news, facts, or general knowledge that is NOT about the radio station's music library. " +
+                        "Use this for: weather, news, sports, celebrities, general facts, current events. " +
+                        "Do NOT use this to search for songs in the station - use search_brand_sound_fragments for that.")
                 .inputSchema(schema)
                 .build();
     }

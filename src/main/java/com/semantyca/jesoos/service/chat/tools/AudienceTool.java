@@ -12,17 +12,17 @@ public class AudienceTool {
                 .properties(JsonValue.from(Map.of(
                         "search_term", Map.of(
                                 "type", "string",
-                                "description", "Search term to find listeners using PostgreSQL similarity search on keywords (optional, returns all if not provided, max 100 results)"),
+                                "description", "Search by listener name, nickname, or profile information (optional, returns all listeners if not provided, max 100 results)"),
                         "countries", Map.of(
                                 "type", "array",
                                 "items", Map.of("type", "string"),
-                                "description", "Filter listeners by country codes (optional, e.g., ['US', 'GB', 'DE'])")
+                                "description", "Filter to show only listeners from specific countries using country codes (e.g., ['US', 'GB', 'FR', 'DE'])")
                 )))
                 .build();
 
         return Tool.builder()
                 .name("listener")
-                .description("Search registered listeners using PostgreSQL similarity matching. Returns max 100 non-archived listeners ordered by relevance. Use search_term to find listeners by keywords. Optionally filter by countries.")
+                .description("View and search the radio station's audience (registered listeners). Use this to see who listens to the station, find specific listeners, or get audience demographics. Returns listener profiles with names and user data. Do NOT use this for the current user's personal data - use listener_data for that instead.")
                 .inputSchema(schema)
                 .build();
     }

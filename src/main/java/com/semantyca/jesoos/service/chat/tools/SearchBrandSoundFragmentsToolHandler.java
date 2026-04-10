@@ -33,6 +33,12 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
         SearchBrandSoundFragmentsToolHandler handler = new SearchBrandSoundFragmentsToolHandler();
         String brandName = inputMap.getOrDefault("brandName", JsonValue.from("")).toString().replace("\"", "");
         String keyword = inputMap.getOrDefault("keyword", JsonValue.from("")).toString().replace("\"", "");
+        
+        if (brandName.isEmpty()) {
+            LOGGER.error("[SearchSoundFragments] brandName is required but was not provided");
+            return Uni.createFrom().failure(new IllegalArgumentException("brandName is required"));
+        }
+        
         Integer limit = null;
         Integer offset = null;
         try {
@@ -49,7 +55,7 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
         LOGGER.info("[SearchSoundFragments] AI requested search - brandName: '{}', keyword: '{}', limit: {}, offset: {}, connectionId: {}",
                 brandName, keyword, limit, offset, connectionId);
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, String.format("Searching for songs %s...", keyword));
+        handler.sendProcessingChunk(chunkHandler, connectionId, String.format("Searching for songs: %s...", keyword));
 
         return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, limit, offset)
                 .flatMap(list -> {

@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.chat.tools;
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.Tool;
 
+import java.util.List;
 import java.util.Map;
 
 public class SearchBrandSoundFragments {
@@ -13,25 +14,26 @@ public class SearchBrandSoundFragments {
                         "brandName",
                         Map.of(
                                 "type", "string",
-                                "description", "Brand (radio station) name to search within"),
+                                "description", "The radio station slug name (e.g., 'mixpla', 'jazzfm'). Use the current station's slug from the context."),
                         "keyword",
                         Map.of(
                                 "type", "string",
-                                "description", "Free-text keyword to search in fragment metadata"),
+                                "description", "Search keyword: artist name, song title, album name, or genre to find in the station's music library"),
                         "limit",
                         Map.of(
                                 "type", "integer",
-                                "description", "Max number of items to return (default 50)"),
+                                "description", "Max number of songs to return (default 50)"),
                         "offset",
                         Map.of(
                                 "type", "integer",
                                 "description", "Offset for pagination (default 0)")
                 )))
+                .required(List.of("brandName", "keyword"))
                 .build();
 
         return Tool.builder()
                 .name("search_brand_sound_fragments")
-                .description("Search brand sound fragments by keyword for a specific brand")
+                .description("Search for songs in a specific radio station's music library by keyword. Use this when users ask about songs, artists, albums, or music available in the station. Searches by artist name, song title, album, or genre.")
                 .inputSchema(schema)
                 .build();
     }

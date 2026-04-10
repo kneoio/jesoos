@@ -154,12 +154,10 @@ public class PublicChatService extends ChatService {
     }
     protected List<Tool> getToolsForUser(boolean isAuthenticated) {
         List<Tool> tools = new ArrayList<>();
-        tools.add(GetStations.toTool());
         tools.add(SendEmailToOwnerTool.toTool());
         
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
-            tools.add(AddToQueueTool.toTool());
             tools.add(PerplexitySearchTool.toTool());
             tools.add(AudienceTool.toTool());
             tools.add(ListenerDataTool.toTool());
@@ -333,9 +331,6 @@ public class PublicChatService extends ChatService {
         String resolvedFollowUpPrompt = getFollowUpPrompt().replace("{{djName}}", djName);
 
         return switch (toolUse.name()) {
-            case "get_stations" -> GetStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
