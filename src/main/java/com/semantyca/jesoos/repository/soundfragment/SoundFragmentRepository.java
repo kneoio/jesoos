@@ -102,7 +102,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeGenres, boolean includeFiles) {
+    public Uni<SoundFragment> findById(UUID uuid, long userID, boolean includeGenres, boolean includeFiles) {
         String sql = "SELECT theTable.*, rls.*" +
                 String.format(" FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id ", entityData.getTableName(), entityData.getRlsName()) +
                 "WHERE rls.reader = $1 AND theTable.id = $2 AND theTable.archived = 0";

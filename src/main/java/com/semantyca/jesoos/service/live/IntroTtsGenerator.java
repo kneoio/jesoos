@@ -116,6 +116,20 @@ public class IntroTtsGenerator {
                 .chain(v -> calculateDuration(v, language, fallBacked.get()));
     }
 
+    public Uni<IntroAudioResult> generateCustomIntroAudioFile(
+            String customIntroText,
+            AiAgent agent,
+            LanguageTag language,
+            String sceneTitle,
+            UUID traceId,
+            String brandName
+    ) {
+        LOGGER.infof("Generating custom intro audio for scene '%s' with text: '%s'", sceneTitle, customIntroText);
+        
+        return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName)
+                .chain(filePath -> calculateDuration(filePath, language, false));
+    }
+
     public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
         return generateTtsAudio(text, agent.getTtsSetting().getDj(), language, sceneTitle, traceId, brandName);
     }

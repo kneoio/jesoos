@@ -22,7 +22,7 @@ public class SearchBrandSoundFragments {
                         "limit",
                         Map.of(
                                 "type", "integer",
-                                "description", "Max number of songs to return (default 50)"),
+                                "description", "Max number of songs to return (default 10)"),
                         "offset",
                         Map.of(
                                 "type", "integer",

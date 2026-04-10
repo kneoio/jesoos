@@ -17,6 +17,9 @@ import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
+import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.SongEmitter;
+import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -57,6 +60,15 @@ public class PublicChatService extends ChatService {
 
     @Inject
     KeycloakAuthService keycloakAuthService;
+
+    @Inject
+    SoundFragmentService soundFragmentService;
+
+    @Inject
+    BrandPool brandPool;
+
+    @Inject
+    SongEmitter songEmitter;
 
     @Setter
     private PublicChatController controller;
@@ -161,6 +173,7 @@ public class PublicChatService extends ChatService {
             tools.add(PerplexitySearchTool.toTool());
             tools.add(AudienceTool.toTool());
             tools.add(ListenerDataTool.toTool());
+            tools.add(PlaySongWithIntroTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
             tools.add(VerifyCode.toTool());
@@ -351,6 +364,9 @@ public class PublicChatService extends ChatService {
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
                     toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
+                    toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };

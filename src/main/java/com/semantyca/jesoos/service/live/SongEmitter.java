@@ -141,6 +141,45 @@ public class SongEmitter {
         return true;
     }
 
+    public Uni<Void> sendWithCustomIntro(String brandName,
+                                          LiveScene liveScene,
+                                          TimelineEntry entry,
+                                          String customIntroText,
+                                          AiAgent agent,
+                                          ZoneId brandZone,
+                                          int priority) {
+
+        LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
+        long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
+                .atZone(brandZone)
+                .toInstant()
+                .toEpochMilli();
+
+        return introTtsGenerator.generateCustomIntroAudioFile(
+                customIntroText,
+                agent,
+                lang,
+                liveScene.getSceneTitle(),
+                liveScene.getTraceId(),
+                brandName
+        ).chain(introResult -> {
+            SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, MixingType.INTRO_SONG, sceneDeadlineForAivoxAwareness, priority);
+
+            Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+            introMap.put(IntroKey.INTRO_1, new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds()));
+
+            Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+            songMap.put(SongKey.SONG_1, new SongInfoDTO(
+                    entry.getSongs().get(0).getSoundFragment().getId(),
+                    entry.getSongs().get(0).getDurationSeconds()));
+
+            message.setFilePaths(introMap);
+            message.setSongs(songMap);
+
+            return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
+        });
+    }
+
     private static MixingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
         MixingType[] availableTypes;
         if (entry.getSongs().size() == 2) {

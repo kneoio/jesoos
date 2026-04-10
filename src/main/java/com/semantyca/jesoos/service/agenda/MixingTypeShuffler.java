@@ -24,7 +24,7 @@ public class MixingTypeShuffler {
         boolean blockCrossfade = consecutiveCount >= 2 && lastType == MixingType.SONG_CROSSFADE_SONG;
         boolean blockSingle = consecutiveCount >= 2 && (lastType == MixingType.SONG_ONLY || lastType == MixingType.FILLER_JINGLE);
 
-        if (availableSongCount >= 2 && !blockCrossfade && Math.random() < 0.5) {
+        if (availableSongCount >= 2 && !blockCrossfade && Math.random() < 0.35) {
             return new MixingStrategy(MixingType.SONG_CROSSFADE_SONG, 2, false);
         }
         if (blockSingle) {

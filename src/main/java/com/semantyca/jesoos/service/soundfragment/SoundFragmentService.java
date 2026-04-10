@@ -57,6 +57,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getAllCount(user, filter);
     }
 
+
+    public Uni<SoundFragment> getById(UUID uuid) {
+        assert repository != null;
+        return repository.findById(uuid, SuperUser.ID, false, false);
+    }
+
     public Uni<List<SoundFragment>> getByTypeAndBrand(PlaylistItemType type, UUID brandId) {
         assert repository != null;
         return repository.findByTypeAndBrand(type, brandId, 100, 0);

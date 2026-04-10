@@ -85,7 +85,7 @@ public class AiHelperService {
             Integer limit,
             Integer offset
     ) {
-        int actualLimit = (limit != null && limit > 0) ? limit : 50;
+        int actualLimit = (limit != null && limit > 0) ? limit : 10;
         int actualOffset = (offset != null && offset >= 0) ? offset : 0;
 
         return soundFragmentService.getBrandSoundFragmentsBySimilarity(brandName, keyword, actualLimit, actualOffset)
