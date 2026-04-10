@@ -19,8 +19,8 @@ public class GenerateContentTool {
                                 "description", "UUID of the generator prompt to use (obtained from list_generator_prompts)"),
                         "priority", Map.of(
                                 "type", "integer",
-                                "enum", new Integer[]{7, 8, 9, 10},
-                                "description", "Queue priority: 10=LAST, 9=HIGH, 8=INTERRUPT (default), 7=HARD_INTERRUPT"))))
+                                "enum", new Integer[]{8, 9, 10},
+                                "description", "Queue priority: 10=REGULAR, 9=HIGH, 8=URGENT"))))
                 .required(List.of("brandName", "promptId"))
                 .build();
 

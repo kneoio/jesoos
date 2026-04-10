@@ -1,40 +1,30 @@
 package com.semantyca.jesoos.service.chat;
 
 import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.Tool;
-import com.anthropic.models.messages.ToolUseBlock;
+import com.anthropic.models.messages.*;
 import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.core.repository.exception.ext.UserAlreadyExistsException;
 import com.semantyca.core.service.UserService;
 import com.semantyca.core.util.ResourceUtil;
-import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ListenerDTO;
+import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
-import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
-import com.semantyca.officeframe.service.LabelService;
+import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -59,16 +49,8 @@ public class PublicChatService extends ChatService {
     @Inject
     BrandService brandService;
 
-    @Override
-    protected ChatType getChatType() {
-        return ChatType.PUBLIC;
-    }
-
     @Inject
     UserService userService;
-
-    @Inject
-    LabelService labelService;
 
     @Inject
     ReactiveMailer reactiveMailer;
@@ -77,11 +59,7 @@ public class PublicChatService extends ChatService {
     KeycloakAuthService keycloakAuthService;
 
     @Setter
-    private com.semantyca.jesoos.ws.PublicChatController controller;
-
-    public Uni<RegistrationResult> registerListener(String email, String stationSlug) {
-        return registerListener(email, stationSlug, null);
-    }
+    private PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
         return userService.findByEmail(email)
@@ -174,12 +152,6 @@ public class PublicChatService extends ChatService {
                             });
                 });
     }
-
-    @Override
-    protected List<Tool> getAvailableTools() {
-        return getToolsForUser(true);
-    }
-
     protected List<Tool> getToolsForUser(boolean isAuthenticated) {
         List<Tool> tools = new ArrayList<>();
         tools.add(GetStations.toTool());
@@ -249,12 +221,9 @@ public class PublicChatService extends ChatService {
                 assert station != null;
                 String stationSlug = station.getSlugName();
                 String stationCountry = station.getCountry().getCountryName();
-                String stationBitRate = Long.toString(station.getBitRate());
                 String stationStatus = "unknown";
                 String stationTz = station.getTimeZone().getId();
                 String stationDesc = station.getDescription();
-                String hlsUrl = config.getHost() + "/" + stationSlug + "/radio/stream.m3u8";
-                String mixplaUrl = "https://player.mixpla.io/?radio=" + stationSlug;
 
                 String djLanguages, djPrimaryVoices;
                 String djCopilotName = "";
@@ -269,12 +238,9 @@ public class PublicChatService extends ChatService {
                         .replace("{{radioStationName}}", radioStationName)
                         .replace("{{radioStationSlug}}", stationSlug)
                         .replace("{{radioStationCountry}}", stationCountry)
-                        .replace("{{radioStationBitRate}}", stationBitRate)
                         .replace("{{radioStationStatus}}", stationStatus)
                         .replace("{{radioStationTimeZone}}", stationTz)
                         .replace("{{radioStationDescription}}", stationDesc)
-                        .replace("{{radioStationHlsUrl}}", hlsUrl)
-                        .replace("{{radioStationMixplaUrl}}", mixplaUrl)
                         .replace("{{djLanguages}}", djLanguages)
                         .replace("{{djCopilotName}}", djCopilotName)
                         .replace("{{userName}}", user.getUserName());
@@ -422,4 +388,15 @@ public class PublicChatService extends ChatService {
             return super.getFollowUpPrompt();
         }
     }
+
+    @Override
+    protected List<Tool> getAvailableTools() {
+        return getToolsForUser(true);
+    }
+
+    @Override
+    protected ChatType getChatType() {
+        return ChatType.PUBLIC;
+    }
+
 }
