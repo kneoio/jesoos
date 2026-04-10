@@ -14,7 +14,7 @@ public class SearchBrandSoundFragments {
                         "brandName",
                         Map.of(
                                 "type", "string",
-                                "description", "The radio station slug name (e.g., 'mixpla', 'jazzfm'). Use the current station's slug from the context."),
+                                "description", "The radio station slug name (e.g., 'lumisonic', 'sunonation'). Use the current station's slug from the context."),
                         "keyword",
                         Map.of(
                                 "type", "string",
