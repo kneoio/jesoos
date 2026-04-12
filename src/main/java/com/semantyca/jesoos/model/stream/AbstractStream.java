@@ -78,4 +78,5 @@ public abstract class AbstractStream implements IStream, ILiveStream {
     public void clearSceneState(UUID sceneId) {
         fetchedSongsByScene.remove(sceneId);
     }
+
 }

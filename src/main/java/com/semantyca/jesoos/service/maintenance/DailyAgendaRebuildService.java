@@ -17,6 +17,7 @@ import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -90,12 +91,12 @@ public class DailyAgendaRebuildService {
             result -> {
                 LOGGER.infof("Daily agenda rebuild completed: %s", result.get("message"));
                 metricPublisher.publishMetric("system", MetricEventType.INFORMATION, ProcessType.CRON,
-                        "daily_agenda_rebuild_completed", result, null);
+                        "daily_agenda_rebuild_completed", new HashMap<>(result), null);
             },
             failure -> {
                 LOGGER.error("Daily agenda rebuild failed", failure);
                 metricPublisher.publishMetric("system", MetricEventType.ERROR, ProcessType.CRON,
-                        "daily_agenda_rebuild_failed", Map.of("error", failure.getMessage()), null);
+                        "daily_agenda_rebuild_failed", Map.<String, Object>of("error", failure.getMessage()), null);
             }
         );
     }
@@ -136,36 +137,4 @@ public class DailyAgendaRebuildService {
         }
     }
 
-    public Uni<Map<String, Object>> rebuildSingleBrandAgenda(String brandSlug) {
-        LOGGER.infof("Manual agenda rebuild requested for brand: %s", brandSlug);
-        
-        return Uni.createFrom().item(() -> {
-            ILiveStream existingStream = brandPool.getStationsSnapshot().stream()
-                    .filter(stream -> stream.getSlugName().equals(brandSlug))
-                    .findFirst()
-                    .orElse(null);
-                    
-            if (existingStream == null) {
-                throw new IllegalArgumentException("Brand not found in active pool: " + brandSlug);
-            }
-            
-            try {
-                rebuildBrandAgenda(brandSlug, existingStream);
-                return Map.of(
-                    "success", true,
-                    "brand", brandSlug,
-                    "message", "Agenda rebuilt successfully",
-                    "timestamp", LocalDateTime.now().toString()
-                );
-            } catch (Exception e) {
-                return Map.of(
-                    "success", false,
-                    "brand", brandSlug,
-                    "error", e.getMessage(),
-                    "timestamp", LocalDateTime.now().toString()
-                );
-            }
-        })
-        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
-    }
 }
