@@ -9,6 +9,7 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.model.cnst.ChatType;
@@ -24,10 +25,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -40,7 +39,7 @@ import java.util.function.Function;
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
 public abstract class ChatService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ChatService.class);
+    private static final Logger LOGGER = Logger.getLogger(ChatService.class);
     
     protected final AnthropicClient anthropicClient;
     protected final AiHelperService aiHelperService;
@@ -78,6 +77,7 @@ public abstract class ChatService {
         }
     }
 
+    @Deprecated
     private String loadPromptTemplate(String resourcePath) {
         try (InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
@@ -141,7 +141,6 @@ public abstract class ChatService {
                 .build();
 
         chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
-        chunkHandler.accept(ChatMessageDTO.processing("...", connectionId).build().toJson());
 
         Uni<Brand> stationUni = brandService.getBySlugName(slugName);
 
@@ -406,7 +405,7 @@ public abstract class ChatService {
                             .findFirst();
 
                     if (toolUse.isPresent()) {
-                        LOGGER.debug("Follow-up detected tool call: {}", toolUse.get().name());
+                        LOGGER.debugf("Follow-up detected tool call: %s", toolUse.get().name());
                         List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {

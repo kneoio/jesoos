@@ -8,9 +8,7 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.jboss.logging.Logger;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -18,7 +16,7 @@ import java.util.function.Function;
 
 public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SearchBrandSoundFragmentsToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(SearchBrandSoundFragmentsToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -52,18 +50,18 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
             }
         } catch (Exception ignored) {}
 
-        LOGGER.info("[SearchSoundFragments] AI requested search - brandName: '{}', keyword: '{}', limit: {}, offset: {}, connectionId: {}",
+        LOGGER.infof("[SearchSoundFragments] AI requested search - brandName: '%s', keyword: '%s', limit: %s, offset: %s, connectionId: %s",
                 brandName, keyword, limit, offset, connectionId);
 
         handler.sendProcessingChunk(chunkHandler, connectionId, String.format("Searching for songs: %s...", keyword));
 
         return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, limit, offset)
                 .flatMap(list -> {
-                    LOGGER.info("[SearchSoundFragments] Search completed - found {} songs for keyword: '{}'", list.size(), keyword);
+                    LOGGER.infof("[SearchSoundFragments] Search completed - found %s songs for keyword: '%s'", list.size(), keyword);
                     if (!list.isEmpty()) {
                         LOGGER.info("[SearchSoundFragments] First 3 results:");
                         list.stream().limit(3).forEach(f -> 
-                            LOGGER.info("[SearchSoundFragments]   - {} by {} (ID: {})", f.getTitle(), f.getArtist(), f.getId())
+                            LOGGER.infof("[SearchSoundFragments]   - %s by %s (ID: %s)", f.getTitle(), f.getArtist(), f.getId())
                         );
                     }
                     

@@ -79,7 +79,7 @@ public class CommandResource extends AbstractResource {
         String slugName = rc.pathParam("brand").toLowerCase();
         String sceneIdParam = rc.pathParam("sceneId");
         String seqNumParam = rc.pathParam("sequenceNumber");
-        
+
         try {
             UUID sceneId = UUID.fromString(sceneIdParam);
             int sequenceNumber = Integer.parseInt(seqNumParam);
@@ -153,5 +153,4 @@ public class CommandResource extends AbstractResource {
             throw new RuntimeException(e);
         }
     }
-
 }

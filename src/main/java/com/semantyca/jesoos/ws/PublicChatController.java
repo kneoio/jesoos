@@ -180,6 +180,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
+                            webSocket.writeTextMessage(ChatMessageDTO.processing("...", connectionId).build().toJson());
                             sendBotResponse(webSocket, content, connectionId, brandSlug, userHolder);
                         },
                         err -> {

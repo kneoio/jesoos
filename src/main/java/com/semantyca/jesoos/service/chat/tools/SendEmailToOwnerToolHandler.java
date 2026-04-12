@@ -4,7 +4,6 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.service.BrandService;
 import io.quarkus.mailer.Mail;
