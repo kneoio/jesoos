@@ -3,13 +3,12 @@ package com.semantyca.jesoos.service.live;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import com.semantyca.jesoos.service.AiAgentService;
-import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
@@ -17,7 +16,6 @@ import io.vertx.mutiny.core.Vertx;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
 import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;

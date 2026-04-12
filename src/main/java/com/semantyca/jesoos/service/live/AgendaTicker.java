@@ -44,25 +44,6 @@ public class AgendaTicker {
             List<LiveScene> scenes = agenda.getLiveScenes();
             LiveScene activeSceneFound = null;
 
-            LiveScene currentActive = scenePool.getActiveScene(brandSlug);
-            if (currentActive != null && currentActive.isOneTimeRun() && currentActive.isFinished()) {
-                int currentIndex = -1;
-                for (int i = 0; i < scenes.size(); i++) {
-                    if (scenes.get(i).getSceneId().equals(currentActive.getSceneId())) {
-                        currentIndex = i;
-                        break;
-                    }
-                }
-                if (currentIndex >= 0) {
-                    LiveScene nextScene = scenes.get((currentIndex + 1) % scenes.size());
-                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, advancing to '%s'",
-                            currentActive.getSceneTitle(), brandSlug, nextScene.getSceneTitle());
-                    scenePool.removeActiveScene(brandSlug);
-                    processScene(brandSlug, nextScene, TriggerContext.ON_TIME);
-                }
-                return;
-            }
-
             for (int i = 0; i < scenes.size(); i++) {
                 LiveScene scene = scenes.get(i);
                 LocalTime nextSceneStartTime = scenes.get((i + 1) % scenes.size()).getOriginalStartTime();
@@ -73,6 +54,7 @@ public class AgendaTicker {
 
                 activeSceneFound = scene;
 
+                LiveScene currentActive = scenePool.getActiveScene(brandSlug);
                 if (currentActive != null && currentActive.getSceneId().equals(scene.getSceneId())) {
                     LOGGER.debugf("Scene '%s' is already active for brand: %s",
                             scene.getSceneTitle(), brandSlug);
@@ -85,7 +67,26 @@ public class AgendaTicker {
                 processScene(brandSlug, scene, triggerContext);
             }
             
+            // Check if current active oneTimeRun scene is finished after scheduling
             LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
+            if (currentActiveScene != null && currentActiveScene.isOneTimeRun() && currentActiveScene.isFinished()) {
+                int currentIndex = -1;
+                for (int i = 0; i < scenes.size(); i++) {
+                    if (scenes.get(i).getSceneId().equals(currentActiveScene.getSceneId())) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+                if (currentIndex >= 0) {
+                    LiveScene nextScene = scenes.get((currentIndex + 1) % scenes.size());
+                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, advancing to '%s'",
+                            currentActiveScene.getSceneTitle(), brandSlug, nextScene.getSceneTitle());
+                    scenePool.removeActiveScene(brandSlug);
+                    processScene(brandSlug, nextScene, TriggerContext.ON_TIME);
+                }
+                return;
+            }
+            
             if (currentActiveScene != null && activeSceneFound == null) {
                 LOGGER.infof("No active scene found for brand: %s, removing scene '%s' from pool",
                         brandSlug, currentActiveScene.getSceneTitle());
