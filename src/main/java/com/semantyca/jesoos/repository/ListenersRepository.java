@@ -471,6 +471,13 @@ public class ListenersRepository extends AsyncRepository {
         return client.preparedQuery("UPDATE " + entityData.getTableName() + " SET user_data=$1 WHERE id=$2")
                 .execute(params)
                 .onFailure().invoke(err -> LOGGER.error("Failed to update user_data for listener {}: {}", id, err.getMessage()))
+                .invoke(rows -> {
+                    if (rows.rowCount() == 0) {
+                        LOGGER.warn("updateUserData affected 0 rows for listener id={} — RLS or missing record?", id);
+                    } else {
+                        LOGGER.info("updateUserData OK for listener id={}, rows={}", id, rows.rowCount());
+                    }
+                })
                 .replaceWithVoid();
     }
 

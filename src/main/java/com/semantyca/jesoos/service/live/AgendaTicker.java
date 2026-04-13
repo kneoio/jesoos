@@ -53,6 +53,7 @@ public class AgendaTicker {
                 boolean isActive = scene.isActiveAt(nowTime, nextSceneStartTime);
 
                 if (!isActive) continue;
+                if (scene.isOneTimeRun() && scene.isFinished()) continue;
 
                 activeSceneFound = scene;
 
