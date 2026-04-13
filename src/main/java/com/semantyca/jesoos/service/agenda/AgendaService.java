@@ -37,6 +37,7 @@ public class AgendaService {
     private final AiAgentService aiAgentService;
     private final ScheduleSongSupplier scheduleSongSupplier;
     private final SceneService sceneService;
+    private final AgendaPersistenceService agendaPersistenceService;
     private final Random random = new Random();
 
     record SceneTimeSlot(Scene scene, LocalTime startTime) {}
@@ -45,11 +46,13 @@ public class AgendaService {
     public AgendaService(ScriptService scriptService,
                          AiAgentService aiAgentService,
                          ScheduleSongSupplier scheduleSongSupplier,
-                         SceneService sceneService) {
+                         SceneService sceneService,
+                         AgendaPersistenceService agendaPersistenceService) {
         this.scriptService = scriptService;
         this.aiAgentService = aiAgentService;
         this.scheduleSongSupplier = scheduleSongSupplier;
         this.sceneService = sceneService;
+        this.agendaPersistenceService = agendaPersistenceService;
     }
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, IUser user) {
@@ -64,11 +67,11 @@ public class AgendaService {
                                     addAll(list);
                                 }})
                                 .invoke(script::setScenes)
-                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier))
+                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier, user))
                 );
     }
 
-    private Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+    private Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier, IUser user) {
         ZoneId brandZone = sourceBrand.getTimeZone();
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
         schedule.setTimeZone(brandZone);
@@ -169,7 +172,12 @@ public class AgendaService {
                         schedule.addScene(liveScene);
                     }
                     return schedule;
-                });
+                })
+                .invoke(agenda -> agendaPersistenceService.persist(agenda, sourceBrand.getId(), user.getId())
+                        .subscribe().with(
+                                id -> LOGGER.debugf("Agenda persisted async for brand %s, config id: %s", sourceBrand.getId(), id),
+                                e -> LOGGER.warnf("Agenda persistence failed for brand %s: %s", sourceBrand.getId(), e.getMessage())
+                        ));
     }
 
     private int calculateDurationUntilNext(LocalTime start, LocalTime next) {

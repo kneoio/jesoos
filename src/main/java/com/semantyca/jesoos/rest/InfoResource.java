@@ -67,19 +67,25 @@ public class InfoResource extends AbstractResource {
         rc.vertx().executeBlocking(() -> {
             var agenda = agendaViewService.getAgendaByBrand(brand);
             if (agenda == null) {
-                throw new IllegalArgumentException("Agenda not found for brand: " + brand);
+                return null;
             }
             return OBJECT_MAPPER.writeValueAsString(agenda);
         }).onSuccess(json -> {
+            if (json == null) {
+                rc.response()
+                        .setStatusCode(404)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject().put("error", "Agenda not found for brand: " + brand).encode());
+                return;
+            }
             rc.response()
                     .setStatusCode(200)
                     .putHeader("Content-Type", "application/json")
                     .end(json);
         }).onFailure(err -> {
-            LOGGER.error("Failed to get agenda for brand: " + brand, err);
-            int statusCode = err instanceof IllegalArgumentException ? 404 : 500;
+            LOGGER.error("Failed to serialize agenda for brand: " + brand, err);
             rc.response()
-                    .setStatusCode(statusCode)
+                    .setStatusCode(500)
                     .putHeader("Content-Type", "application/json")
                     .end(new JsonObject().put("error", err.getMessage()).encode());
         });

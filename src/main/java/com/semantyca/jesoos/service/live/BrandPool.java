@@ -63,14 +63,17 @@ public class BrandPool {
 
                                 RadioStream newStream = new RadioStream(brand);
                                 newStream.setStatus(StreamStatus.WARMING_UP);
-                                pool.put(name, newStream);
 
                                 return agendaService.getStreamAgenda(brand, SuperUser.build())
                                         .invoke(schedule -> {
                                             newStream.setAgenda(schedule);
+                                            pool.put(name, newStream);
                                             LOGGER.infof("BrandPool: Station '%s' created with %s scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
-                                        .map(schedule -> (ILiveStream) newStream);
+                                        .map(schedule -> (ILiveStream) newStream)
+                                        .onFailure().invoke(e -> {
+                                            LOGGER.errorf("Agenda build failed for brand '%s': %s", name, e.getMessage());
+                                        });
                             });
                 })
                 .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", agenda.getStatus().name())))

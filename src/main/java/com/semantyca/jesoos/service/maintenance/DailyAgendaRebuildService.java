@@ -3,23 +3,23 @@ package com.semantyca.jesoos.service.maintenance;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
+import com.semantyca.jesoos.repository.agenda.AgendaRepository;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @ApplicationScoped
 public class DailyAgendaRebuildService {
@@ -29,112 +29,85 @@ public class DailyAgendaRebuildService {
     private final AgendaService agendaService;
     private final BrandService brandService;
     private final MetricPublisher metricPublisher;
+    private final AgendaRepository agendaRepository;
 
     @Inject
-    public DailyAgendaRebuildService(BrandPool brandPool, AgendaService agendaService, 
-                                   BrandService brandService, MetricPublisher metricPublisher) {
+    public DailyAgendaRebuildService(BrandPool brandPool, AgendaService agendaService,
+                                     BrandService brandService, MetricPublisher metricPublisher,
+                                     AgendaRepository agendaRepository) {
         this.brandPool = brandPool;
         this.agendaService = agendaService;
         this.brandService = brandService;
         this.metricPublisher = metricPublisher;
+        this.agendaRepository = agendaRepository;
     }
 
     @Scheduled(cron = "0 0 5 * * ?") // 5:00 AM daily
     public void rebuildAllAgendas() {
         LOGGER.info("Starting daily agenda rebuild for all active brands");
-        
-        Uni.createFrom().item(() -> {
-            AtomicInteger successCount = new AtomicInteger(0);
-            AtomicInteger failureCount = new AtomicInteger(0);
-            
-            // Get all active brands from the pool
-            Map<String, ILiveStream> activeStreams = brandPool.getStationsSnapshot().stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                            ILiveStream::getSlugName,
-                            stream -> stream
-                    ));
-            
-            if (activeStreams.isEmpty()) {
-                LOGGER.info("No active brands found for agenda rebuild");
-                return Map.of(
-                    "totalBrands", 0,
-                    "successCount", 0,
-                    "failureCount", 0,
-                    "message", "No active brands to rebuild"
+
+        List<ILiveStream> activeStreams = List.copyOf(brandPool.getStationsSnapshot());
+
+        if (activeStreams.isEmpty()) {
+            LOGGER.info("No active brands found for agenda rebuild");
+            return;
+        }
+
+        LOGGER.infof("Found %d active brands for agenda rebuild", activeStreams.size());
+
+        Multi.createFrom().iterable(activeStreams)
+                .onItem().transformToUniAndMerge(stream -> rebuildBrandAgenda(stream.getSlugName(), stream)
+                        .onFailure().recoverWithItem(e -> {
+                            LOGGER.errorf(e, "Failed to rebuild agenda for brand: %s", stream.getSlugName());
+                            return 0;
+                        }))
+                .collect().asList()
+                .chain(results -> {
+                    long success = results.stream().filter(r -> r > 0).count();
+                    long failure = results.stream().filter(r -> r == 0).count();
+                    LOGGER.infof("Agenda rebuild completed: %d success, %d failures", success, failure);
+                    metricPublisher.publishMetric("system", MetricEventType.INFORMATION, ProcessType.CRON,
+                            "daily_agenda_rebuild_completed",
+                            Map.of("totalBrands", activeStreams.size(), "successCount", success, "failureCount", failure),
+                            null);
+                    return deleteOldAgendas();
+                })
+                .subscribe().with(
+                        deleted -> LOGGER.infof("Deleted %d agenda configurations older than 7 days", deleted),
+                        failure -> {
+                            LOGGER.error("Daily agenda rebuild pipeline failed", failure);
+                            metricPublisher.publishMetric("system", MetricEventType.ERROR, ProcessType.CRON,
+                                    "daily_agenda_rebuild_failed",
+                                    Map.<String, Object>of("error", failure.getMessage()), null);
+                        }
                 );
-            }
-            
-            LOGGER.infof("Found %d active brands for agenda rebuild", activeStreams.size());
-            
-            // Rebuild agenda for each active brand
-            activeStreams.forEach((brandSlug, stream) -> {
-                try {
-                    rebuildBrandAgenda(brandSlug, stream);
-                    successCount.incrementAndGet();
-                    LOGGER.infof("Successfully rebuilt agenda for brand: %s", brandSlug);
-                } catch (Exception e) {
-                    failureCount.incrementAndGet();
-                    LOGGER.errorf(e, "Failed to rebuild agenda for brand: %s", brandSlug);
-                }
-            });
-            
-            return Map.of(
-                "totalBrands", activeStreams.size(),
-                "successCount", successCount.get(),
-                "failureCount", failureCount.get(),
-                "message", String.format("Rebuild completed: %d success, %d failures", 
-                        successCount.get(), failureCount.get())
-            );
-        })
-        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-        .subscribe().with(
-            result -> {
-                LOGGER.infof("Daily agenda rebuild completed: %s", result.get("message"));
-                metricPublisher.publishMetric("system", MetricEventType.INFORMATION, ProcessType.CRON,
-                        "daily_agenda_rebuild_completed", new HashMap<>(result), null);
-            },
-            failure -> {
-                LOGGER.error("Daily agenda rebuild failed", failure);
-                metricPublisher.publishMetric("system", MetricEventType.ERROR, ProcessType.CRON,
-                        "daily_agenda_rebuild_failed", Map.<String, Object>of("error", failure.getMessage()), null);
-            }
-        );
     }
 
-    private void rebuildBrandAgenda(String brandSlug, ILiveStream existingStream) {
-        try {
-            // Get fresh brand data
-            brandService.getBySlugName(brandSlug)
-                    .onItem().transformToUni(brand -> {
-                        if (brand == null) {
-                            LOGGER.warnf("Brand %s not found, removing from pool", brandSlug);
-                            brandPool.stopAndRemove(brandSlug);
-                            return Uni.createFrom().failure(new RuntimeException("Brand not found"));
-                        }
-                        
-                        // Build new agenda
-                        return agendaService.getStreamAgenda(brand, SuperUser.build())
-                                .invoke(newAgenda -> {
-                                    // Update the existing stream with new agenda
-                                    existingStream.setAgenda(newAgenda);
-                                    LOGGER.infof("Rebuilt agenda for brand %s with %d scenes", 
-                                            brandSlug, newAgenda.getTotalScenes());
-                                    
-                                    // Publish metric for successful rebuild
-                                    metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, 
-                                            ProcessType.CRON, "agenda_rebuilt", 
-                                            Map.of(
-                                                "totalScenes", newAgenda.getTotalScenes(),
-                                                "rebuildTime", LocalDateTime.now().toString()
-                                            ), null);
-                                });
-                    })
-                    .await().indefinitely();
-                    
-        } catch (Exception e) {
-            LOGGER.errorf(e, "Failed to rebuild agenda for brand: %s", brandSlug);
-            throw e;
-        }
+    private Uni<Integer> rebuildBrandAgenda(String brandSlug, ILiveStream existingStream) {
+        return brandService.getBySlugName(brandSlug)
+                .onItem().transformToUni(brand -> {
+                    if (brand == null) {
+                        LOGGER.warnf("Brand %s not found, removing from pool", brandSlug);
+                        return brandPool.stopAndRemove(brandSlug)
+                                .map(ignored -> 0);
+                    }
+                    return agendaService.getStreamAgenda(brand, SuperUser.build())
+                            .invoke(newAgenda -> {
+                                existingStream.setAgenda(newAgenda);
+                                LOGGER.infof("Rebuilt agenda for brand %s with %d scenes", brandSlug, newAgenda.getTotalScenes());
+                                metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION,
+                                        ProcessType.CRON, "agenda_rebuilt",
+                                        Map.of("totalScenes", newAgenda.getTotalScenes(),
+                                                "rebuildTime", LocalDateTime.now().toString()), null);
+                            })
+                            .map(ignored -> 1);
+                });
+    }
+
+    private Uni<Integer> deleteOldAgendas() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(7);
+        return agendaRepository.deleteOlderThan(cutoff)
+                .invoke(count -> LOGGER.infof("Purged %d agenda configurations older than %s", count, cutoff));
     }
 
 }
