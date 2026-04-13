@@ -97,6 +97,13 @@ public class AgendaViewService {
                 .collect(Collectors.toList());
 
 
+        List<TimelineEntryDTO.StatusRecordDTO> historyDTOs = entry.getStatusHistory().stream()
+                .map(r -> TimelineEntryDTO.StatusRecordDTO.builder()
+                        .status(r.status().name())
+                        .at(r.at())
+                        .build())
+                .collect(Collectors.toList());
+
         return TimelineEntryDTO.builder()
                 .id(entry.getId().toString())
                 .sequenceNumber(entry.getSequenceNumber())
@@ -108,6 +115,7 @@ public class AgendaViewService {
                 .hasJingle(entry.isHasJingle())
                 .generated(entry.isGenerated())
                 .status(entry.getStatus().name())
+                .statusHistory(historyDTOs)
                 .build();
     }
 }

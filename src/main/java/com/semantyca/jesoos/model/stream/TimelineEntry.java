@@ -5,9 +5,12 @@ import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Getter
@@ -30,7 +33,11 @@ public class TimelineEntry {
     private boolean generated;
     @Setter
     private int estimatedDurationSeconds;
-    private final AtomicReference<TimelineEntryStatus> status = new AtomicReference<>(TimelineEntryStatus.PENDING);
+
+    private final AtomicReference<TimelineEntryStatus> currentStatus = new AtomicReference<>(TimelineEntryStatus.PENDING);
+    private final CopyOnWriteArrayList<StatusRecord> statusHistory = new CopyOnWriteArrayList<>();
+
+    public record StatusRecord(TimelineEntryStatus status, Instant at) {}
 
     public TimelineEntry(int sequenceNumber, LocalDateTime scheduledEmissionTime,
                          List<SongEntry> songs, MixingType mixingStrategy,
@@ -43,17 +50,28 @@ public class TimelineEntry {
         this.hasIntro = hasIntro;
         this.hasJingle = hasJingle;
         this.estimatedDurationSeconds = calculateEstimatedDuration(songs);
+        statusHistory.add(new StatusRecord(TimelineEntryStatus.PENDING, Instant.now()));
     }
 
     public boolean compareAndSetStatus(TimelineEntryStatus expected, TimelineEntryStatus update) {
-        return status.compareAndSet(expected, update);
+        if (currentStatus.compareAndSet(expected, update)) {
+            statusHistory.add(new StatusRecord(update, Instant.now()));
+            return true;
+        }
+        return false;
     }
 
     public TimelineEntryStatus getStatus() {
-        return status.get();
+        return currentStatus.get();
     }
+
     public void setStatus(TimelineEntryStatus s) {
-        status.set(s);
+        currentStatus.set(s);
+        statusHistory.add(new StatusRecord(s, Instant.now()));
+    }
+
+    public List<StatusRecord> getStatusHistory() {
+        return Collections.unmodifiableList(statusHistory);
     }
 
     private int calculateEstimatedDuration(List<SongEntry> songs) {

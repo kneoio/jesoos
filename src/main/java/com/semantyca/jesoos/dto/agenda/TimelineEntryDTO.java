@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +25,16 @@ public class TimelineEntryDTO {
     private boolean generated;
     private int batchId;
     private String status;
+    private List<StatusRecordDTO> statusHistory;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StatusRecordDTO {
+        private String status;
+        private Instant at;
+    }
 
     @Data
     @Builder
