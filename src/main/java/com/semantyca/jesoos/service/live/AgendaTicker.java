@@ -24,12 +24,14 @@ public class AgendaTicker {
     private final BrandPool brandPool;
     private final ScenePool scenePool;
     private final MetricPublisher metricPublisher;
+    private final StaggeredSongScheduler staggeredSongScheduler;
 
     @Inject
-    public AgendaTicker(BrandPool brandPool, ScenePool scenePool, MetricPublisher metricPublisher) {
+    public AgendaTicker(BrandPool brandPool, ScenePool scenePool, MetricPublisher metricPublisher, StaggeredSongScheduler staggeredSongScheduler) {
         this.brandPool = brandPool;
         this.scenePool = scenePool;
         this.metricPublisher = metricPublisher;
+        this.staggeredSongScheduler = staggeredSongScheduler;
     }
 
     @Scheduled(every = "60s")
@@ -81,6 +83,7 @@ public class AgendaTicker {
                     LiveScene nextScene = scenes.get((currentIndex + 1) % scenes.size());
                     LOGGER.infof("One-time-run scene '%s' finished for brand: %s, advancing to '%s'",
                             currentActiveScene.getSceneTitle(), brandSlug, nextScene.getSceneTitle());
+                    staggeredSongScheduler.cancelBrandTimers(brandSlug);
                     scenePool.removeActiveScene(brandSlug);
                     processScene(brandSlug, nextScene, TriggerContext.ON_TIME);
                 }
@@ -90,10 +93,12 @@ public class AgendaTicker {
             if (currentActiveScene != null && activeSceneFound == null) {
                 LOGGER.infof("No active scene found for brand: %s, removing scene '%s' from pool",
                         brandSlug, currentActiveScene.getSceneTitle());
+                staggeredSongScheduler.cancelBrandTimers(brandSlug);
                 scenePool.removeActiveScene(brandSlug);
             } else if (currentActiveScene != null && !currentActiveScene.getSceneId().equals(activeSceneFound.getSceneId())) {
                 LOGGER.infof("Active scene changed for brand: %s, removing old scene '%s' from pool",
                         brandSlug, currentActiveScene.getSceneTitle());
+                staggeredSongScheduler.cancelBrandTimers(brandSlug);
                 scenePool.removeActiveScene(brandSlug);
             }
         });

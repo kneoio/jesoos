@@ -101,7 +101,6 @@ public class StaggeredSongScheduler {
         }
     }
 
-
     private boolean scheduleTimelineEntry(String brandName, LiveScene scene, TimelineEntry entry, ZoneId brandZone) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
             return false;
@@ -114,7 +113,7 @@ public class StaggeredSongScheduler {
 
         long now = System.currentTimeMillis();
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
-        long delay = Math.max(1, emissionTime - leadTimeMs - now);
+        long triggerTime = emissionTime - leadTimeMs;
 
         Runnable task = () -> {
             long deadline = scene.getEndTime()
@@ -131,40 +130,65 @@ public class StaggeredSongScheduler {
 
             emitTimelineEntry(brandName, scene, entry, brandZone)
                     .subscribe().with(
-                            v -> {
-                                entry.setStatus(TimelineEntryStatus.COMPLETED);
-                            },
+                            v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
                                 String errorMsg = err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName();
                                 Throwable rootCause = rootCause(err);
                                 String rootMsg = rootCause.getMessage() != null ? rootCause.getMessage() : rootCause.getClass().getSimpleName();
-                                LOGGER.error(String.format("Entry #%d FAILED for scene '%s' brand '%s' — %s: %s (root: %s: %s)",
+                                LOGGER.error(String.format(
+                                        "Entry #%d FAILED for scene '%s' brand '%s' → %s: %s (root: %s: %s)",
                                         entry.getSequenceNumber(), scene.getSceneTitle(), brandName,
                                         err.getClass().getSimpleName(), errorMsg,
-                                        rootCause.getClass().getSimpleName(), rootMsg), err);
-                                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "entry_failed",
+                                        rootCause.getClass().getSimpleName(), rootMsg
+                                ), err);
+                                metricPublisher.publishMetric(
+                                        brandName,
+                                        MetricEventType.ERROR,
+                                        ProcessType.FLOW,
+                                        "entry_failed",
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
                                                 "errorType", err.getClass().getSimpleName(),
                                                 "error", errorMsg,
-                                                "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg),
-                                        scene.getTraceId());
+                                                "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg
+                                        ),
+                                        scene.getTraceId()
+                                );
                             }
                     );
         };
 
+        if (triggerTime <= now) {
+            ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+            if (timers != null) {
+                Long old = timers.remove(entry.getSequenceNumber());
+                if (old != null) {
+                    vertx.cancelTimer(old);
+                }
+            }
+            task.run();
+            return true;
+        }
+
+        long delay = triggerTime - now;
+
         long timerId = vertx.setTimer(delay, id -> {
-            entry.setStatus(TimelineEntryStatus.EMITTING);
             ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
             if (timers != null) {
                 timers.remove(entry.getSequenceNumber());
             }
             task.run();
         });
-        brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
-                .put(entry.getSequenceNumber(), timerId);
+
+        ConcurrentHashMap<Integer, Long> timers =
+                brandTimers.computeIfAbsent(brandName, k -> new ConcurrentHashMap<>());
+
+        Long old = timers.put(entry.getSequenceNumber(), timerId);
+        if (old != null) {
+            vertx.cancelTimer(old);
+        }
 
         return true;
     }
