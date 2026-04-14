@@ -37,7 +37,7 @@ public class PerplexityApiClient {
     public Uni<JsonObject> search(String query, List<LanguageCode> languages, List<String> domains, boolean onlySummaries) {
 
         String languageInstruction = !languages.isEmpty()
-                ? " Respond in " + languages.get(0).name() + " language."
+                ? " Respond in " + languages.getFirst().name() + " language."
                 : "";
 
         JsonObject requestBody;
