@@ -68,7 +68,6 @@ public interface JesoosConfig {
 
     JesoosConfig.Keycloak keycloak();
 
-
     interface Path {
         @WithDefault("uploads")
         String uploads();
@@ -99,10 +98,6 @@ public interface JesoosConfig {
     @WithName("elevenlabs.api-key")
     String getElevenLabsApiKey();
 
-    @WithName("elevenlabs.voice-id")
-    @WithDefault("nZ5WsS2E2UAALki8m2V6")
-    String getElevenLabsVoiceId();
-
     @WithName("elevenlabs.model-id")
     @WithDefault("eleven_v3")
     String getElevenLabsModelId();
@@ -114,6 +109,9 @@ public interface JesoosConfig {
     @WithName("fish.audio.api-key")
     String getFishAudioApiKey();
 
+    @WithName("fish.audio.model.id")
+    @WithDefault("s2-pro")
+    String getFishAudioModelId();
 
     @WithName("mailer.from-address")
     @WithDefault("noreply@mixpla.io")

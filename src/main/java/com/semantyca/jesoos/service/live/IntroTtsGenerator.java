@@ -9,6 +9,7 @@ import com.anthropic.models.messages.Model;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.external.ElevenLabsClient;
+import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.external.TextToSpeechClient;
@@ -55,6 +56,8 @@ public class IntroTtsGenerator {
     ElevenLabsClient elevenLabsClient;
     @Inject
     ModelslabClient modelslabClient;
+    @Inject
+    FishAudioClient fishAudioClient;
     @Inject
     GCPTTSClient gcpttsClient;
     @Inject
@@ -153,6 +156,11 @@ public class IntroTtsGenerator {
             modelId = null;
             finalText = trimmed;
             LOGGER.infof("Using GCP TTS for scene '%s' (cleaned tags)", sceneTitle);
+        } else if (engineType == TTSEngineType.FISH_AUDIO) {
+            ttsClient = fishAudioClient;
+            modelId = config.getFishAudioModelId();
+            finalText = trimmed;
+            LOGGER.infof("Using Fish Audio TTS for scene '%s'", sceneTitle);
         } else {
             ttsClient = elevenLabsClient;
             modelId = config.getElevenLabsModelId();

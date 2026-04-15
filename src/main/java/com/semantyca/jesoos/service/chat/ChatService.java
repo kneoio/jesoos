@@ -9,7 +9,6 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.model.cnst.ChatType;
@@ -27,6 +26,7 @@ import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import org.jetbrains.annotations.NotNull;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -177,6 +177,8 @@ public abstract class ChatService {
                         .reduce((a, b) -> a + "," + b).orElse("");
                 djPrimaryVoices = agent.getTtsSetting().getDj().getId();
 
+                String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
+                
                 String renderedPrompt = getMainPrompt()
                         .replace("{{djName}}", djName)
                         .replace("{{radioStationName}}", radioStationName)
@@ -190,7 +192,8 @@ public abstract class ChatService {
                         .replace("{{radioStationMixplaUrl}}", mixplaUrl)
                         .replace("{{djLanguages}}", djLanguages)
                         .replace("{{djCopilotName}}", djCopilotName)
-                        .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName());
+                        .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
+                        .replace("{{isAuthenticated}}", isAuthenticated);
 
                 assistantNameByConnectionId.put(connectionId, djName);
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
