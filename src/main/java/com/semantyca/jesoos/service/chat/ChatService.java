@@ -16,6 +16,7 @@ import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.live.AiHelperService;
+import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
@@ -47,7 +48,10 @@ public abstract class ChatService {
     protected final String followUpPrompt;
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
-    
+    private final ConcurrentHashMap<String, String> partialPromptCache = new ConcurrentHashMap<>();
+
+    @Inject
+    protected ScenePool scenePool;
     @Inject
     protected BrandService brandService;
     @Inject
@@ -161,37 +165,34 @@ public abstract class ChatService {
 
                 assert station != null;
                 String stationSlug = station.getSlugName();
-                String stationCountry = station.getCountry().getCountryName();
-                String stationBitRate = Long.toString(station.getBitRate());
-                String stationStatus = "unknown";
-                String stationTz = station.getTimeZone().getId();
-                String stationDesc = station.getDescription();
-                String hlsUrl = config.getHost() + "/" + stationSlug + "/radio/stream.m3u8";
-                String mixplaUrl = "https://player.mixpla.io/?radio=" + stationSlug;
+                String djPrimaryVoices = agent.getTtsSetting().getDj().getId();
 
-                String djLanguages, djPrimaryVoices;
-                String djCopilotName = "";
-                djLanguages = agent.getPreferredLang().stream()
-                        .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                        .map(lp -> lp.getLanguageTag().name())
-                        .reduce((a, b) -> a + "," + b).orElse("");
-                djPrimaryVoices = agent.getTtsSetting().getDj().getId();
+                String partialPrompt = partialPromptCache.computeIfAbsent(slugName, k -> {
+                    String stationCountry = station.getCountry().getCountryName();
+                    String stationBitRate = Long.toString(station.getBitRate());
+                    String stationTz = station.getTimeZone().getId();
+                    String stationDesc = station.getDescription();
+                    String djLanguages = agent.getPreferredLang().stream()
+                            .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
+                            .map(lp -> lp.getLanguageTag().name())
+                            .reduce((a, b) -> a + "," + b).orElse("");
+                    return getMainPrompt()
+                            .replace("{{djName}}", djName)
+                            .replace("{{radioStationName}}", radioStationName)
+                            .replace("{{radioStationSlug}}", stationSlug)
+                            .replace("{{radioStationCountry}}", stationCountry)
+                            .replace("{{radioStationBitRate}}", stationBitRate)
+                            .replace("{{radioStationTimeZone}}", stationTz)
+                            .replace("{{radioStationDescription}}", stationDesc)
+                            .replace("{{djLanguages}}", djLanguages)
+                            .replace("{{djCopilotName}}", "");
+                });
 
+                String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
                 String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
-                
-                String renderedPrompt = getMainPrompt()
-                        .replace("{{djName}}", djName)
-                        .replace("{{radioStationName}}", radioStationName)
-                        .replace("{{radioStationSlug}}", stationSlug)
-                        .replace("{{radioStationCountry}}", stationCountry)
-                        .replace("{{radioStationBitRate}}", stationBitRate)
+
+                String renderedPrompt = partialPrompt
                         .replace("{{radioStationStatus}}", stationStatus)
-                        .replace("{{radioStationTimeZone}}", stationTz)
-                        .replace("{{radioStationDescription}}", stationDesc)
-                        .replace("{{radioStationHlsUrl}}", hlsUrl)
-                        .replace("{{radioStationMixplaUrl}}", mixplaUrl)
-                        .replace("{{djLanguages}}", djLanguages)
-                        .replace("{{djCopilotName}}", djCopilotName)
                         .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
                         .replace("{{isAuthenticated}}", isAuthenticated);
 
