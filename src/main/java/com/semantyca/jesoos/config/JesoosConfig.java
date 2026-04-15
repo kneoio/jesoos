@@ -68,6 +68,7 @@ public interface JesoosConfig {
 
     JesoosConfig.Keycloak keycloak();
 
+
     interface Path {
         @WithDefault("uploads")
         String uploads();
@@ -109,6 +110,10 @@ public interface JesoosConfig {
     @WithName("elevenlabs.output-format")
     @WithDefault("mp3_44100_128")
     String getElevenLabsOutputFormat();
+
+    @WithName("fish.audio.api-key")
+    String getFishAudioApiKey();
+
 
     @WithName("mailer.from-address")
     @WithDefault("noreply@mixpla.io")
