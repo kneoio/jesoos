@@ -195,7 +195,7 @@ public abstract class ChatService {
 
                 return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
                         .map(history -> buildMessageCreateParams(renderedPrompt, history));
-        }).flatMap(paramsUni -> paramsUni).flatMap(params ->
+        }).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
                         .flatMap(message -> {
                             Optional<ToolUseBlock> toolUse = message.content().stream()
