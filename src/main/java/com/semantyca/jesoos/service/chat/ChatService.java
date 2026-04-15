@@ -194,7 +194,7 @@ public abstract class ChatService {
                 assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
                 return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
-                        .map(history -> buildMessageCreateParams(renderedPrompt, history));
+                        .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history));
         }).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
                         .flatMap(message -> {
