@@ -48,7 +48,9 @@ public abstract class ChatService {
     protected final String followUpPrompt;
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> partialPromptCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
+
+    private record BrandStaticData(String djName, String djPrimaryVoices, String partialPrompt) {}
 
     @Inject
     protected ScenePool scenePool;
@@ -146,62 +148,53 @@ public abstract class ChatService {
 
         chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
 
-        Uni<Brand> stationUni = brandService.getBySlugName(slugName);
-
-        return stationUni.flatMap(station -> {
-            String radioStationName = station != null && station.getLocalizedName() != null
-                    ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
-                    : slugName;
-
-            Uni<AiAgent> agentUni;
-            if (station != null && station.getAiAgentId() != null) {
-                agentUni = aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en);
-            } else {
-                agentUni = Uni.createFrom().item(() -> null);
-            }
-
-            return agentUni.onItem().transform(agent -> {
-                String djName = agent.getName();
-
-                assert station != null;
-                String stationSlug = station.getSlugName();
-                String djPrimaryVoices = agent.getTtsSetting().getDj().getId();
-
-                String partialPrompt = partialPromptCache.computeIfAbsent(slugName, k -> {
-                    String stationCountry = station.getCountry().getCountryName();
-                    String stationBitRate = Long.toString(station.getBitRate());
-                    String stationTz = station.getTimeZone().getId();
-                    String stationDesc = station.getDescription();
-                    String djLanguages = agent.getPreferredLang().stream()
-                            .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                            .map(lp -> lp.getLanguageTag().name())
-                            .reduce((a, b) -> a + "," + b).orElse("");
-                    return getMainPrompt()
-                            .replace("{{djName}}", djName)
-                            .replace("{{radioStationName}}", radioStationName)
-                            .replace("{{radioStationSlug}}", stationSlug)
-                            .replace("{{radioStationCountry}}", stationCountry)
-                            .replace("{{radioStationBitRate}}", stationBitRate)
-                            .replace("{{radioStationTimeZone}}", stationTz)
-                            .replace("{{radioStationDescription}}", stationDesc)
-                            .replace("{{djLanguages}}", djLanguages)
-                            .replace("{{djCopilotName}}", "");
+        BrandStaticData cached = brandStaticCache.get(slugName);
+        Uni<BrandStaticData> staticDataUni = cached != null
+                ? Uni.createFrom().item(cached)
+                : brandService.getBySlugName(slugName).flatMap(station -> {
+                    String radioStationName = station != null && station.getLocalizedName() != null
+                            ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
+                            : slugName;
+                    Uni<AiAgent> agentUni = station != null && station.getAiAgentId() != null
+                            ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                            : Uni.createFrom().item(() -> null);
+                    return agentUni.map(agent -> {
+                        assert station != null;
+                        String djName = agent.getName();
+                        String stationSlug = station.getSlugName();
+                        String djLanguages = agent.getPreferredLang().stream()
+                                .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
+                                .map(lp -> lp.getLanguageTag().name())
+                                .reduce((a, b) -> a + "," + b).orElse("");
+                        String partialPrompt = getMainPrompt()
+                                .replace("{{djName}}", djName)
+                                .replace("{{radioStationName}}", radioStationName)
+                                .replace("{{radioStationSlug}}", stationSlug)
+                                .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
+                                .replace("{{radioStationBitRate}}", Long.toString(station.getBitRate()))
+                                .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
+                                .replace("{{radioStationDescription}}", station.getDescription())
+                                .replace("{{djLanguages}}", djLanguages)
+                                .replace("{{djCopilotName}}", "");
+                        BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
+                        brandStaticCache.put(slugName, data);
+                        return data;
+                    });
                 });
 
+        return staticDataUni.flatMap(staticData -> {
                 String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
                 String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
-
-                String renderedPrompt = partialPrompt
+                String renderedPrompt = staticData.partialPrompt()
                         .replace("{{radioStationStatus}}", stationStatus)
                         .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
                         .replace("{{isAuthenticated}}", isAuthenticated);
 
-                assistantNameByConnectionId.put(connectionId, djName);
-                assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
+                assistantNameByConnectionId.put(connectionId, staticData.djName());
+                assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
                 return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
                         .map(history -> buildMessageCreateParams(renderedPrompt, history));
-            });
         }).flatMap(paramsUni -> paramsUni).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
                         .flatMap(message -> {
