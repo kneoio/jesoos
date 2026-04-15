@@ -3,6 +3,9 @@ package com.semantyca.jesoos.service.agenda;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.*;
 import com.semantyca.jesoos.service.AiAgentService;
@@ -38,6 +41,7 @@ public class AgendaService {
     private final ScheduleSongSupplier scheduleSongSupplier;
     private final SceneService sceneService;
     private final AgendaPersistenceService agendaPersistenceService;
+    private final MetricPublisher metricPublisher;
     private final Random random = new Random();
 
     record SceneTimeSlot(Scene scene, LocalTime startTime) {}
@@ -47,12 +51,14 @@ public class AgendaService {
                          AiAgentService aiAgentService,
                          ScheduleSongSupplier scheduleSongSupplier,
                          SceneService sceneService,
-                         AgendaPersistenceService agendaPersistenceService) {
+                         AgendaPersistenceService agendaPersistenceService,
+                         MetricPublisher metricPublisher) {
         this.scriptService = scriptService;
         this.aiAgentService = aiAgentService;
         this.scheduleSongSupplier = scheduleSongSupplier;
         this.sceneService = sceneService;
         this.agendaPersistenceService = agendaPersistenceService;
+        this.metricPublisher = metricPublisher;
     }
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, IUser user) {
@@ -170,6 +176,19 @@ public class AgendaService {
                 .map(liveScenes -> {
                     for (LiveScene liveScene : liveScenes) {
                         schedule.addScene(liveScene);
+                        if (liveScene.getFitSeconds() > 0) {
+                            metricPublisher.publishMetric(
+                                    sourceBrand.getSlugName(),
+                                    MetricEventType.WARNING,
+                                    ProcessType.FLOW,
+                                    "scene_content_gap",
+                                    Map.of(
+                                            "scene", liveScene.getSceneTitle(),
+                                            "sceneId", liveScene.getSceneId().toString(),
+                                            "gapSeconds", liveScene.getFitSeconds()
+                                    )
+                            );
+                        }
                     }
                     return schedule;
                 })
