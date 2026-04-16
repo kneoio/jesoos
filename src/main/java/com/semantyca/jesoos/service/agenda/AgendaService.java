@@ -176,7 +176,7 @@ public class AgendaService {
                 .map(liveScenes -> {
                     for (LiveScene liveScene : liveScenes) {
                         schedule.addScene(liveScene);
-                        if (liveScene.getFitSeconds() > 0) {
+                        if (liveScene.getFitSeconds() > 360) {
                             metricPublisher.publishMetric(
                                     sourceBrand.getSlugName(),
                                     MetricEventType.WARNING,

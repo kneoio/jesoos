@@ -25,6 +25,7 @@ public class ChatSummary extends DataEntity<UUID> {
     private LocalDateTime periodEnd;
     private LocalDateTime createdAt;
 
+    @Deprecated
     public enum SummaryType {
         BRAND,
         USER
