@@ -25,6 +25,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
+import org.jboss.logging.Logger;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -32,6 +33,8 @@ import java.util.function.Function;
 
 @ApplicationScoped
 public class PublicChatService extends ChatService {
+
+    private static final Logger LOGGER = Logger.getLogger(PublicChatService.class);
 
     protected PublicChatService() {
         super(null, null);
@@ -194,9 +197,12 @@ public class PublicChatService extends ChatService {
                 .messages(history)
                 .model(Model.CLAUDE_HAIKU_4_5_20251001);
 
-        for (Tool tool : getToolsForUser(isAuthenticated)) {
-            builder.addTool(tool);
-        }
+        List<Tool> tools = getToolsForUser(isAuthenticated);
+        tools.forEach(t -> builder.addTool(t));
+
+        LOGGER.infof("[Chat] buildParams isAuthenticated=%b historySize=%d tools=%s",
+                isAuthenticated, history.size(),
+                tools.stream().map(Tool::name).reduce((a, b) -> a + "," + b).orElse("none"));
 
         return builder.build();
     }
