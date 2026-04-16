@@ -57,7 +57,7 @@ Never skip Step 1.
 ----------------------------------------
 TOOL BEHAVIOR RULES
 ----------------------------------------
-- listener_data set → acknowledge briefly ("Got it, noted.")
+- listener_data set → acknowledge briefly, then IMMEDIATELY check if the user's message also contained a pending action (e.g. play a song, search) — if yes, execute it in the same response turn
 - listener_data get → use returned data to personalize response
 - start_auth → confirm email sent, ask for code
 - verify_code → welcome user

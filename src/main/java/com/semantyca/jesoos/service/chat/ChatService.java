@@ -189,6 +189,9 @@ public abstract class ChatService {
                         .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
                         .replace("{{isAuthenticated}}", isAuthenticated);
 
+                ChatLogger.request(slugName, user.getId(), user.getEmail(),
+                        Boolean.parseBoolean(isAuthenticated), stationStatus);
+
                 assistantNameByConnectionId.put(connectionId, staticData.djName());
                 assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
@@ -202,9 +205,11 @@ public abstract class ChatService {
                                     .findFirst();
 
                             if (toolUse.isPresent()) {
+                                ChatLogger.firstCall(toolUse.get().name());
                                 List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
                                 return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
+                                ChatLogger.firstCallNoTool();
                                 return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })

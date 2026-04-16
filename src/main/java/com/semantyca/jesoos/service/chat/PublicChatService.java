@@ -194,9 +194,11 @@ public class PublicChatService extends ChatService {
                 .messages(history)
                 .model(Model.CLAUDE_HAIKU_4_5_20251001);
 
-        for (Tool tool : getToolsForUser(isAuthenticated)) {
-            builder.addTool(tool);
-        }
+        List<Tool> tools = getToolsForUser(isAuthenticated);
+        tools.forEach(t -> builder.addTool(t));
+
+        ChatLogger.tools(isAuthenticated, history.size(),
+                tools.stream().map(Tool::name).reduce((a, b) -> a + "," + b).orElse("none"));
 
         return builder.build();
     }
@@ -241,9 +243,11 @@ public class PublicChatService extends ChatService {
                             .findFirst();
 
                     if (toolUse.isPresent()) {
+                        ChatLogger.followUp(toolUse.get().name());
                         List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
+                        ChatLogger.followUpNoTool();
                         return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);
                     }
                 }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
