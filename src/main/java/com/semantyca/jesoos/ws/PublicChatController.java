@@ -93,12 +93,20 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private Uni<IUser> authenticateUserFromToken(String token) {
         if (token == null || token.isBlank()) {
+            LOG.infof("[ws-auth] no token — anonymous");
             return Uni.createFrom().item(AnonymousUser.build());
         }
         assert publicChatService != null;
         return publicChatService.authenticateUserFromToken(token)
+                .onItem().invoke(user -> {
+                    if (user instanceof AnonymousUser || user.getId() == 0) {
+                        LOG.warnf("[ws-auth] token present but resolved to anonymous — token may be expired or invalidated: %s", token.substring(0, 8) + "...");
+                    } else {
+                        LOG.infof("[ws-auth] token OK — userId=%d email=%s", user.getId(), user.getEmail());
+                    }
+                })
                 .onFailure().recoverWithItem(err -> {
-                    LOG.warnf("Token authentication failed, treating as anonymous: %s", err.getMessage());
+                    LOG.warnf("[ws-auth] token validation failed — %s", err.getMessage());
                     return AnonymousUser.build();
                 });
     }
