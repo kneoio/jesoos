@@ -189,10 +189,8 @@ public abstract class ChatService {
                         .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
                         .replace("{{isAuthenticated}}", isAuthenticated);
 
-                LOGGER.infof("[Chat] slug=%s userId=%d email=%s isAuthenticated=%s status=%s",
-                        slugName, user.getId(),
-                        user.getEmail() != null ? user.getEmail() : "null",
-                        isAuthenticated, stationStatus);
+                ChatLogger.request(slugName, user.getId(), user.getEmail(),
+                        Boolean.parseBoolean(isAuthenticated), stationStatus);
 
                 assistantNameByConnectionId.put(connectionId, staticData.djName());
                 assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
@@ -207,11 +205,11 @@ public abstract class ChatService {
                                     .findFirst();
 
                             if (toolUse.isPresent()) {
-                                LOGGER.infof("[Chat] first-call tool=%s", toolUse.get().name());
+                                ChatLogger.firstCall(toolUse.get().name());
                                 List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
                                 return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
-                                LOGGER.infof("[Chat] first-call no tool — streaming text response");
+                                ChatLogger.firstCallNoTool();
                                 return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
