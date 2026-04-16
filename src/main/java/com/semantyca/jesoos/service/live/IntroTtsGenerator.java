@@ -116,7 +116,7 @@ public class IntroTtsGenerator {
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
-                .chain(v -> calculateDuration(v, language, fallBacked.get()));
+                .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain()));
     }
 
     public Uni<IntroAudioResult> generateCustomIntroAudioFile(
@@ -130,7 +130,7 @@ public class IntroTtsGenerator {
         LOGGER.infof("Generating custom intro audio for scene '%s' with text: '%s'", sceneTitle, customIntroText);
         
         return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName)
-                .chain(filePath -> calculateDuration(filePath, language, false));
+                .chain(filePath -> calculateDuration(filePath, language, false, agent.getTtsSetting().getDj().getGain()));
     }
 
     public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
@@ -280,7 +280,7 @@ public class IntroTtsGenerator {
                 "NEVER use song names from PAST CONTEXT.";
     }
 
-    private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked) {
+    private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain) {
         return Uni.createFrom().item(() -> {
             try {
                 FFmpegProbeResult probeResult =
@@ -288,10 +288,10 @@ public class IntroTtsGenerator {
                 double durationSeconds = probeResult.getFormat().duration;
                 int roundedDuration = (int) Math.ceil(durationSeconds);
                 LOGGER.infof("Intro audio duration: %s seconds (file: %s)", roundedDuration, filePath);
-                return new IntroAudioResult(filePath, roundedDuration, languageTag, fallBacked);
+                return new IntroAudioResult(filePath, roundedDuration, languageTag, fallBacked, gain);
             } catch (Exception e) {
                 LOGGER.warnf("Failed to probe intro audio duration for %s, using default 10s", filePath, e);
-                return new IntroAudioResult(filePath, 10, languageTag, fallBacked);
+                return new IntroAudioResult(filePath, 10, languageTag, fallBacked, gain);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }

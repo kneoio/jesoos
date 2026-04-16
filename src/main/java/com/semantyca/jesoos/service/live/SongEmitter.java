@@ -82,8 +82,9 @@ public class SongEmitter {
                             IntroAudioResult intro = intros.get(i);
 
                             if (intro != null) {
-                                introMap.put(getIntroKeyByIndex(introIndex++),
-                                        new IntroInfoDTO(intro.filePath(), intro.durationSeconds()));
+                                IntroInfoDTO introDto = new IntroInfoDTO(intro.filePath(), intro.durationSeconds());
+                                introDto.setGain(intro.gain());
+                                introMap.put(getIntroKeyByIndex(introIndex++), introDto);
                             }
 
                             songMap.put(getSongKeyByIndex(i),
@@ -166,7 +167,9 @@ public class SongEmitter {
             SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, MixingType.INTRO_SONG, sceneDeadlineForAivoxAwareness, priority);
 
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
-            introMap.put(IntroKey.INTRO_1, new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds()));
+            IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
+            introDto.setGain(introResult.gain());
+            introMap.put(IntroKey.INTRO_1, introDto);
 
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
             songMap.put(SongKey.SONG_1, new SongInfoDTO(

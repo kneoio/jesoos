@@ -6,5 +6,6 @@ public record IntroAudioResult(
         String filePath,
         int durationSeconds,
         LanguageTag languageTag,
-        boolean fallBacked) {
+        boolean fallBacked,
+        float gain) {
 }
