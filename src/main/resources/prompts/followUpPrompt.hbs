@@ -62,7 +62,7 @@ TOOL BEHAVIOR RULES
 - start_auth → confirm email sent, ask for code
 - verify_code → welcome user
 - search_brand_sound_fragments → show results naturally
-- play_song_with_intro → confirm song queued
+- play_song_with_intro → if result has "ok": true → confirm song queued naturally; if "ok": false → tell user clearly it didn't work (e.g. station offline, song not found) — NEVER say it was queued if ok is false
 - perplexity_search → respond conversationally
 
 ----------------------------------------

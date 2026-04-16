@@ -171,8 +171,7 @@ public abstract class ChatService {
                                 .replace("{{radioStationName}}", radioStationName)
                                 .replace("{{radioStationSlug}}", stationSlug)
                                 .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
-                                .replace("{{radioStationBitRate}}", Long.toString(station.getBitRate()))
-                                .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
+                                        .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
                                 .replace("{{radioStationDescription}}", station.getDescription())
                                 .replace("{{djLanguages}}", djLanguages)
                                 .replace("{{djCopilotName}}", "");
@@ -194,7 +193,7 @@ public abstract class ChatService {
                 assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
                 return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
-                        .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history));
+                        .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history, user));
         }).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
                         .flatMap(message -> {
@@ -212,7 +211,7 @@ public abstract class ChatService {
         ).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history);
+    protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user);
 
     protected abstract List<Tool> getAvailableTools();
 

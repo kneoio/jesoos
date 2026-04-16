@@ -3,7 +3,6 @@ package com.semantyca.jesoos.service.chat;
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.semantyca.core.model.UserData;
-import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
@@ -183,8 +182,9 @@ public class PublicChatService extends ChatService {
     }
 
     @Override
-    protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history) {
-        return buildMessageCreateParamsForUser(renderedPrompt, history, true);
+    protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user) {
+        boolean isAuthenticated = user.getEmail() != null && !user.getEmail().isBlank();
+        return buildMessageCreateParamsForUser(renderedPrompt, history, isAuthenticated);
     }
 
     protected MessageCreateParams buildMessageCreateParamsForUser(String renderedPrompt, List<MessageParam> history, boolean isAuthenticated) {
@@ -201,84 +201,6 @@ public class PublicChatService extends ChatService {
         return builder.build();
     }
     
-    @Override
-    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
-        boolean isAuthenticated = !(user instanceof AnonymousUser) && user.getId() != 0;
-        
-        MessageParam userMsg = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(MessageParam.Content.ofString(userMessage))
-                .build();
-
-        chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
-
-        Uni<com.semantyca.mixpla.model.brand.Brand> stationUni = brandService.getBySlugName(slugName);
-
-        return stationUni.flatMap(station -> {
-            String radioStationName = station != null && station.getLocalizedName() != null
-                    ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
-                    : slugName;
-
-            Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni;
-            if (station != null && station.getAiAgentId() != null) {
-                agentUni = aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en);
-            } else {
-                agentUni = Uni.createFrom().item(() -> null);
-            }
-
-            return agentUni.onItem().transform(agent -> {
-                String djName = agent.getName();
-
-                assert station != null;
-                String stationSlug = station.getSlugName();
-                String stationCountry = station.getCountry().getCountryName();
-                String stationStatus = "unknown";
-                String stationTz = station.getTimeZone().getId();
-                String stationDesc = station.getDescription();
-
-                String djLanguages, djPrimaryVoices;
-                String djCopilotName = "";
-                djLanguages = agent.getPreferredLang().stream()
-                        .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
-                        .map(lp -> lp.getLanguageTag().name())
-                        .reduce((a, b) -> a + "," + b).orElse("");
-                djPrimaryVoices = agent.getTtsSetting().getDj().getId();
-
-                String renderedPrompt = getMainPrompt()
-                        .replace("{{djName}}", djName)
-                        .replace("{{radioStationName}}", radioStationName)
-                        .replace("{{radioStationSlug}}", stationSlug)
-                        .replace("{{radioStationCountry}}", stationCountry)
-                        .replace("{{radioStationStatus}}", stationStatus)
-                        .replace("{{radioStationTimeZone}}", stationTz)
-                        .replace("{{radioStationDescription}}", stationDesc)
-                        .replace("{{djLanguages}}", djLanguages)
-                        .replace("{{djCopilotName}}", djCopilotName)
-                        .replace("{{userName}}", user.getUserName());
-
-                assistantNameByConnectionId.put(connectionId, djName);
-                assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
-
-                return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
-                        .map(history -> buildMessageCreateParamsForUser(renderedPrompt, history, isAuthenticated));
-            });
-        }).flatMap(paramsUni -> paramsUni).flatMap(params ->
-                Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
-                        .flatMap(message -> {
-                            Optional<ToolUseBlock> toolUse = message.content().stream()
-                                    .flatMap(block -> block.toolUse().stream())
-                                    .findFirst();
-
-                            if (toolUse.isPresent()) {
-                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
-                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
-                            } else {
-                                return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
-                            }
-                        })
-        ).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
-    }
-
     @Override
     protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
             Consumer<String> chunkHandler,
