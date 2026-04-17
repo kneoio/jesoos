@@ -64,6 +64,44 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .collect().asList();
     }
 
+    public Uni<List<BrandSoundFragment>> findForBrandWithFilter(UUID brandId, String keyword, SoundFragmentFilter filter, int limit, int offset, IUser user) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand");
+        if (hasKeyword) {
+            sql.append(", similarity(t.search_name, $3) AS sim");
+        }
+        sql.append(" FROM ").append(entityData.getTableName()).append(" t ")
+                .append("JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ")
+                .append("JOIN ").append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
+                .append("WHERE bsf.brand_id = $1 AND rls.reader = $2 AND t.archived = 0");
+
+        if (hasKeyword) {
+            sql.append(" AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)");
+        }
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+        sql.append(hasKeyword ? " ORDER BY sim DESC" : " ORDER BY bsf.last_time_played_by_brand DESC NULLS LAST");
+        if (limit > 0) {
+            sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
+        }
+
+        Tuple params = hasKeyword ? Tuple.of(brandId, user.getId(), keyword) : Tuple.of(brandId, user.getId());
+
+        return client.preparedQuery(sql.toString())
+                .execute(params)
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, true, false, true).onItem().transform(soundFragment -> {
+                    BrandSoundFragment bsf = createBrandSoundFragment(row, brandId);
+                    bsf.setSoundFragment(soundFragment);
+                    return bsf;
+                }))
+                .concatenate()
+                .collect().asList();
+    }
+
     public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType, final int limit, final int offset) {
         String sql = "SELECT t.* " +
                 "FROM " + entityData.getTableName() + " t " +
