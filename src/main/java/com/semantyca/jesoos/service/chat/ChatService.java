@@ -175,10 +175,11 @@ public abstract class ChatService {
                                 .replace("{{radioStationName}}", radioStationName)
                                 .replace("{{radioStationSlug}}", stationSlug)
                                 .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
-                                        .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
+                                .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
                                 .replace("{{radioStationDescription}}", station.getDescription())
                                 .replace("{{djLanguages}}", djLanguages)
-                                .replace("{{djCopilotName}}", "");
+                                .replace("{{djCopilotName}}", "")
+                                .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata());
                         BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
                         brandStaticCache.put(slugName, data);
                         return data;

@@ -170,7 +170,6 @@ public class PublicChatService extends ChatService {
         
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
-            tools.add(GetStationMusicMetadata.toTool());
             tools.add(PerplexitySearchTool.toTool());
             tools.add(AudienceTool.toTool());
             tools.add(ListenerDataTool.toTool());
@@ -273,9 +272,6 @@ public class PublicChatService extends ChatService {
 
         return switch (toolUse.name()) {
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
-            case "get_station_music_metadata" -> GetStationMusicMetadataToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "perplexity_search" -> PerplexitySearchToolHandler.handle(

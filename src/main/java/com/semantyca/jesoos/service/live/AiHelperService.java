@@ -19,19 +19,20 @@ import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
+import com.semantyca.officeframe.dto.GenreDTO;
+import com.semantyca.officeframe.dto.LabelDTO;
 import com.semantyca.officeframe.service.GenreService;
 import com.semantyca.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -59,6 +60,10 @@ public class AiHelperService {
     private final LabelService labelService;
     private final StatsAccumulator statsAccumulator = new StatsAccumulator();
 
+    private volatile List<GenreDTO> cachedGenres = Collections.emptyList();
+    private volatile List<LabelDTO> cachedLabels = Collections.emptyList();
+    private volatile String cachedMusicMetadata = "";
+
     private static final int SCENE_START_SHIFT_MINUTES = 10;
 
     @Inject
@@ -73,6 +78,42 @@ public class AiHelperService {
         this.brandService = brandService;
         this.genreService = genreService;
         this.labelService = labelService;
+    }
+
+    @PostConstruct
+    void init() {
+        try {
+            var result = Uni.combine().all().unis(
+                    genreService.getAll(200, 0, LanguageCode.en),
+                    labelService.getAll(200, 0, LanguageCode.en)
+            ).asTuple().await().atMost(Duration.ofSeconds(30));
+
+            this.cachedGenres = result.getItem1();
+            this.cachedLabels = result.getItem2();
+            this.cachedMusicMetadata = buildMusicMetadataSection(cachedGenres, cachedLabels);
+            LOGGER.infof("Music metadata cached: %d genres, %d labels", cachedGenres.size(), cachedLabels.size());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to preload music metadata at startup", e);
+        }
+    }
+
+    private String buildMusicMetadataSection(List<GenreDTO> genres, List<LabelDTO> labels) {
+        String genreNames = genres.stream()
+                .map(g -> g.getLocalizedName().getOrDefault(LanguageCode.en, g.getIdentifier()))
+                .filter(s -> s != null && !s.isBlank())
+                .sorted()
+                .collect(Collectors.joining(", "));
+        String labelNames = labels.stream()
+                .map(l -> l.getLocalizedName().getOrDefault(LanguageCode.en, l.getIdentifier()))
+                .filter(s -> s != null && !s.isBlank())
+                .sorted()
+                .collect(Collectors.joining(", "));
+        return "Genres: " + (genreNames.isBlank() ? "none" : genreNames) + "\n" +
+                "Labels: " + (labelNames.isBlank() ? "none" : labelNames);
+    }
+
+    public String getCachedMusicMetadata() {
+        return cachedMusicMetadata;
     }
 
     // TODO: jesoos should not know about stations directly — must contact aivox via RabbitMQ
@@ -116,36 +157,15 @@ public class AiHelperService {
                 });
     }
 
-    public Uni<JsonObject> getStationMusicMetadata() {
-        return Uni.combine().all().unis(
-                genreService.getAll(200, 0, LanguageCode.en),
-                labelService.getAll(200, 0, LanguageCode.en)
-        ).asTuple().map(tuple -> {
-            List<String> genres = tuple.getItem1().stream()
-                    .map(g -> g.getLocalizedName().getOrDefault(LanguageCode.en, g.getIdentifier()))
-                    .filter(s -> s != null && !s.isBlank())
-                    .sorted()
-                    .collect(Collectors.toList());
-            List<String> labels = tuple.getItem2().stream()
-                    .map(l -> l.getLocalizedName().getOrDefault(LanguageCode.en, l.getIdentifier()))
-                    .filter(s -> s != null && !s.isBlank())
-                    .sorted()
-                    .collect(Collectors.toList());
-            return new JsonObject()
-                    .put("genres", new JsonArray(genres))
-                    .put("labels", new JsonArray(labels));
-        });
-    }
-
     private Uni<List<UUID>> resolveGenreNamesToIds(List<String> names) {
         if (names == null || names.isEmpty()) {
             return Uni.createFrom().item(Collections.emptyList());
         }
-        return genreService.getAll(200, 0, LanguageCode.en).map(allGenres ->
+        return Uni.createFrom().item(
                 names.stream()
-                        .map(name -> allGenres.stream()
+                        .map(name -> cachedGenres.stream()
                                 .filter(g -> name.equalsIgnoreCase(g.getLocalizedName().getOrDefault(LanguageCode.en, "")))
-                                .map(g -> g.getId())
+                                .map(GenreDTO::getId)
                                 .findFirst().orElse(null))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList())
@@ -156,11 +176,11 @@ public class AiHelperService {
         if (names == null || names.isEmpty()) {
             return Uni.createFrom().item(Collections.emptyList());
         }
-        return labelService.getAll(200, 0, LanguageCode.en).map(allLabels ->
+        return Uni.createFrom().item(
                 names.stream()
-                        .map(name -> allLabels.stream()
+                        .map(name -> cachedLabels.stream()
                                 .filter(l -> name.equalsIgnoreCase(l.getLocalizedName().getOrDefault(LanguageCode.en, "")))
-                                .map(l -> l.getId())
+                                .map(LabelDTO::getId)
                                 .findFirst().orElse(null))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList())
