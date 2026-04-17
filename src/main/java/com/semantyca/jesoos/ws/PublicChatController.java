@@ -131,7 +131,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                         handleUserMessage(webSocket, msgJson, connectionId, brandSlug, userHolder);
                         break;
                     case "getHistory":
-                        handleGetHistory(webSocket, msgJson, userHolder);
+                        handleGetHistory(webSocket, msgJson, connectionId, userHolder);
                         break;
                     default:
                         sendError(webSocket, "Unknown action: " + action);
@@ -217,12 +217,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         );
     }
 
-    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, UserHolder userHolder) {
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, UserHolder userHolder) {
         String brandSlug = msgJson.getString("brandSlug");
         Integer limit = msgJson.getInteger("limit", 50);
 
         IUser user = userHolder.getUser();
-        publicChatService.getChatHistory(brandSlug, limit, user)
+        publicChatService.getChatHistory(brandSlug, limit, connectionId, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {
@@ -238,6 +238,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     public void upgradeUserSession(String connectionId, IUser newUser) {
         UserHolder holder = connectionUsers.get(connectionId);
+        if (holder != null && holder.getUser().getId() == 0) {
+            assert publicChatService != null;
+            publicChatService.migrateAnonymousSession(connectionId, newUser.getId())
+                    .subscribe().with(
+                            v -> LOG.infof("Migrated anonymous chat for connection %s to user %s", connectionId, newUser.getUserName()),
+                            e -> LOG.errorf(e, "Failed to migrate anonymous chat for connection %s", connectionId)
+                    );
+        }
         if (holder != null) {
             holder.setUser(newUser);
             LOG.infof("Upgraded user session for connection %s to user %s", connectionId, newUser.getUserName());

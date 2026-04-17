@@ -12,6 +12,7 @@ import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
+import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.*;
@@ -244,7 +245,7 @@ public class PublicChatService extends ChatService {
 
                     if (toolUse.isPresent()) {
                         ChatLogger.followUp(toolUse.get().name());
-                        List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
+                        List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
