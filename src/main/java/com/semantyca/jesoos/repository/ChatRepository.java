@@ -75,13 +75,28 @@ public class ChatRepository extends AsyncRepository {
                 );
     }
 
-    public Uni<List<JsonObject>> getRecentChatMessages(long userId, String brandName, ChatType chatType, int limit) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + 
-                " WHERE user_id = $1 AND brand_name = $2 AND chat_type = $3 " +
-                "ORDER BY timestamp DESC LIMIT $4";
+    public static String sessionKey(long userId, String connectionId, ChatType chatType) {
+        String base = (userId == 0 ? connectionId : String.valueOf(userId));
+        return base + "_" + chatType.name();
+    }
+
+    public Uni<List<JsonObject>> getRecentChatMessages(long userId, String connectionId, String brandName, ChatType chatType, int limit) {
+        final String sql;
+        final Tuple params;
+        if (userId == 0) {
+            sql = "SELECT * FROM " + entityData.getTableName() +
+                    " WHERE connection_id = $1 AND brand_name = $2 AND chat_type = $3 " +
+                    "ORDER BY timestamp DESC LIMIT $4";
+            params = Tuple.of(connectionId, brandName, chatType.name(), limit);
+        } else {
+            sql = "SELECT * FROM " + entityData.getTableName() +
+                    " WHERE user_id = $1 AND brand_name = $2 AND chat_type = $3 " +
+                    "ORDER BY timestamp DESC LIMIT $4";
+            params = Tuple.of(userId, brandName, chatType.name(), limit);
+        }
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(userId, brandName, chatType.name(), limit))
+                .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::rowToJsonObject)
                 .collect().asList()
@@ -92,19 +107,38 @@ public class ChatRepository extends AsyncRepository {
                 });
     }
 
-    public List<MessageParam> getConversationHistory(long userId, ChatType chatType) {
-        String cacheKey = userId + "_" + chatType.name();
-        return conversationHistoryCache.computeIfAbsent(cacheKey, k -> new ArrayList<>());
+    public List<MessageParam> getConversationHistory(String sessionKey) {
+        return conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
     }
 
-    public void appendToConversation(long userId, ChatType chatType, MessageParam message) {
-        String cacheKey = userId + "_" + chatType.name();
-        conversationHistoryCache.computeIfAbsent(cacheKey, k -> new ArrayList<>()).add(message);
+    public void appendToConversation(String sessionKey, MessageParam message) {
+        conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>()).add(message);
     }
 
-    public void clearConversationHistory(long userId, ChatType chatType) {
-        String cacheKey = userId + "_" + chatType.name();
-        conversationHistoryCache.remove(cacheKey);
+    public void clearConversationHistory(String sessionKey) {
+        conversationHistoryCache.remove(sessionKey);
+    }
+
+    public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId, ChatType chatType) {
+        String anonKey = sessionKey(0, connectionId, chatType);
+        String userKey = sessionKey(newUserId, connectionId, chatType);
+        List<MessageParam> anonHistory = conversationHistoryCache.remove(anonKey);
+        if (anonHistory != null) {
+            conversationHistoryCache.merge(userKey, anonHistory, (existing, migrated) -> {
+                List<MessageParam> merged = new ArrayList<>(migrated);
+                merged.addAll(existing);
+                return merged;
+            });
+        }
+
+        String sql = "UPDATE " + entityData.getTableName() +
+                " SET user_id = $1 WHERE connection_id = $2 AND user_id = 0";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(newUserId, connectionId))
+                .replaceWithVoid()
+                .onFailure().invoke(t ->
+                        LOGGER.error("Failed to migrate anonymous chat for connection {} to user {}", connectionId, newUserId, t)
+                );
     }
 
     private JsonObject rowToJsonObject(Row row) {
