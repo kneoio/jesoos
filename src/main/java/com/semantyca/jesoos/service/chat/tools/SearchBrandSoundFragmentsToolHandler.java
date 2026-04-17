@@ -99,11 +99,8 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
                                 .put("title", f.getTitle())
                                 .put("artist", f.getArtist())
                                 .put("genres", f.getGenres())
-                                .put("labels", f.getLabels())
                                 .put("album", f.getAlbum())
-                                .put("description", f.getDescription())
-                                .put("playedByBrandCount", f.getPlayedByBrandCount())
-                                .put("lastTimePlayedByBrand", String.valueOf(f.getLastTimePlayedByBrand()));
+                                .put("description", f.getDescription());
                         items.add(obj);
                     });
 

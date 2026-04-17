@@ -132,7 +132,7 @@ public class AiHelperService {
             Integer limit,
             Integer offset
     ) {
-        int actualLimit = (limit != null && limit > 0) ? limit : 10;
+        int actualLimit = (limit != null && limit > 0) ? Math.min(limit, 10) : 10;
         int actualOffset = (offset != null && offset >= 0) ? offset : 0;
 
         Uni<List<UUID>> genreIdsUni = resolveGenreNamesToIds(genreNames);
