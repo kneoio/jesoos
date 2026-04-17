@@ -1,63 +1,39 @@
 package com.semantyca.jesoos.service.chat;
 
 import io.quarkus.scheduler.Scheduled;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
+import jakarta.inject.Inject;
 
-import java.io.File;
 import java.time.Instant;
-import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
-/**
- * Persistent session store (MapDB) for authenticated public chat sessions.
- * OTP generation and code verification are fully delegated to Keycloak.
- * This manager only stores the session token after successful Keycloak authentication.
- */
 @ApplicationScoped
 public class PublicChatSessionManager {
 
-    private static final long SESSION_EXPIRY_SECONDS = 86400 * 30; // 30 days
-    private static final long OTP_EXPIRY_SECONDS = 600; // 10 minutes
+    private static final long SESSION_EXPIRY_SECONDS = 86400 * 30;
+    private static final long OTP_EXPIRY_SECONDS = 600;
 
-    private DB db;
-    private HTreeMap<String, PublicChatSession> sessions;
+    private static final String TABLE = "mixpla__chat_sessions";
+
+    private final Pool client;
     private final ConcurrentHashMap<String, PendingOtp> pendingOtps = new ConcurrentHashMap<>();
 
     public record PendingOtp(String code, Instant expiresAt) {
         boolean isExpired() { return Instant.now().isAfter(expiresAt); }
     }
 
-    @SuppressWarnings("unchecked")
-    @PostConstruct
-    void init() {
-        new File("sessions_data").mkdirs();
-        this.db = DBMaker
-                .fileDB("sessions_data/chat-sessions.db")
-                .transactionEnable()
-                .make();
-        this.sessions = db
-                .hashMap("sessions", Serializer.STRING, Serializer.JAVA)
-                .expireAfterCreate(SESSION_EXPIRY_SECONDS, TimeUnit.SECONDS)
-                .createOrOpen();
+    @Inject
+    public PublicChatSessionManager(Pool client) {
+        this.client = client;
     }
 
-    @PreDestroy
-    void shutdown() {
-        db.close();
-    }
-
-    @Scheduled(every = "1h")
-    void cleanupExpiredSessions() {
-        sessions.entrySet().removeIf(entry -> entry.getValue().isExpired());
-        db.commit();
-    }
+    // ---- OTP (in-memory, unchanged) ----
 
     public void storePendingOtp(String email, String code) {
         pendingOtps.put(email.toLowerCase(),
@@ -73,43 +49,57 @@ public class PublicChatSessionManager {
         return true;
     }
 
-    /**
-     * Stores a session token after successful OTP verification.
-     */
-    public void storeUserToken(String token, String email) {
-        // Remove any existing sessions for this email first
-        sessions.entrySet().removeIf(e -> e.getValue().email().equals(email.toLowerCase()));
-        sessions.put(token, new PublicChatSession(email.toLowerCase(), Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
-        db.commit();
+    // ---- Session tokens (PostgreSQL-backed) ----
+
+    public Uni<Void> storeUserToken(String token, String email) {
+        String lower = email.toLowerCase();
+        OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(SESSION_EXPIRY_SECONDS);
+
+        return client.withTransaction(tx ->
+            tx.preparedQuery("DELETE FROM " + TABLE + " WHERE email = $1")
+                .execute(Tuple.of(lower))
+                .chain(() -> tx.preparedQuery(
+                        "INSERT INTO " + TABLE + " (token, email, expires_at) VALUES ($1, $2, $3)")
+                    .execute(Tuple.of(token, lower, expiresAt)))
+        ).replaceWithVoid();
     }
 
-    /**
-     * Validates a session token and returns the associated email, or null if invalid/expired.
-     */
-    public String validateSessionAndGetEmail(String token) {
-        PublicChatSession session = sessions.get(token);
-        if (session == null || session.isExpired()) {
-            if (session != null) {
-                sessions.remove(token);
-                db.commit();
-            }
-            return null;
-        }
-        return session.email();
+    public Uni<String> validateSessionAndGetEmail(String token) {
+        return client.preparedQuery(
+                "SELECT email FROM " + TABLE + " WHERE token = $1 AND expires_at > NOW()")
+            .execute(Tuple.of(token))
+            .map(rows -> {
+                if (rows.rowCount() == 0) return null;
+                return rows.iterator().next().getString("email");
+            });
     }
 
-    /**
-     * Generates a fresh token for an existing session (e.g. for token rotation).
-     */
-    public String rotateToken(String oldToken) {
-        String email = validateSessionAndGetEmail(oldToken);
-        if (email == null) {
-            throw new IllegalArgumentException("Invalid or expired token");
-        }
-        String newToken = UUID.randomUUID().toString();
-        storeUserToken(newToken, email);
-        sessions.remove(oldToken);
-        db.commit();
-        return newToken;
+    public Uni<String> rotateToken(String oldToken) {
+        return validateSessionAndGetEmail(oldToken)
+            .onItem().transformToUni(email -> {
+                if (email == null) {
+                    return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+                }
+                String newToken = java.util.UUID.randomUUID().toString();
+                OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(SESSION_EXPIRY_SECONDS);
+
+                return client.withTransaction(tx ->
+                    tx.preparedQuery("DELETE FROM " + TABLE + " WHERE token = $1")
+                        .execute(Tuple.of(oldToken))
+                        .chain(() -> tx.preparedQuery(
+                                "INSERT INTO " + TABLE + " (token, email, expires_at) VALUES ($1, $2, $3)")
+                            .execute(Tuple.of(newToken, email, expiresAt)))
+                ).map(ignored -> newToken);
+            });
+    }
+
+    @Scheduled(every = "1h")
+    void cleanupExpiredSessions() {
+        client.preparedQuery("DELETE FROM " + TABLE + " WHERE expires_at <= NOW()")
+            .execute()
+            .subscribe().with(
+                rows -> {},
+                err -> {}
+            );
     }
 }
