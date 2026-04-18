@@ -6,7 +6,6 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.live.ScenePool;
-import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -26,9 +25,6 @@ public class InfoResource extends AbstractResource {
 
     @Inject
     CommandService commandService;
-
-    @Inject
-    StaggeredSongScheduler staggeredSongScheduler;
 
     @Inject
     ScenePool scenePool;
