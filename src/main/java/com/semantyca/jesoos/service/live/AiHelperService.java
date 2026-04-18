@@ -157,6 +157,10 @@ public class AiHelperService {
                 });
     }
 
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummaryForAi(String brandName) {
+        return soundFragmentService.getBrandCatalogSummary(brandName);
+    }
+
     private Uni<List<UUID>> resolveGenreNamesToIds(List<String> names) {
         if (names == null || names.isEmpty()) {
             return Uni.createFrom().item(Collections.emptyList());

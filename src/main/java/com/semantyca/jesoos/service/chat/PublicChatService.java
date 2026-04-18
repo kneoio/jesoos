@@ -170,9 +170,10 @@ public class PublicChatService extends ChatService {
         
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
+            tools.add(GetBrandCatalogSummary.toTool());
             tools.add(PerplexitySearchTool.toTool());
-            tools.add(AudienceTool.toTool());
             tools.add(ListenerDataTool.toTool());
+            tools.add(FindCommunityMemberTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
@@ -274,14 +275,17 @@ public class PublicChatService extends ChatService {
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
+            case "get_brand_catalog_summary" -> GetBrandCatalogSummaryToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
             case "perplexity_search" -> PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
-            case "listener" -> AudienceToolHandler.handle(
-                    toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
-            case "listener_data" -> ListenerDataToolHandler.handle(
+case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "find_community_member" -> FindCommunityMemberToolHandler.handle(
+                    toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "send_email_to_owner" -> SendEmailToOwnerToolHandler.handle(
                     toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

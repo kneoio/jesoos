@@ -175,6 +175,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilter(brandId, filter, limit);
     }
 
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.getBrandCatalogSummary(brandId);
+    }
+
     public Uni<List<SoundFragment>> findByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
             return Uni.createFrom().item(List.of());

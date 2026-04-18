@@ -94,6 +94,18 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(String brandName) {
+        assert repository != null;
+        assert brandService != null;
+        return brandService.getBySlugName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    return repository.getBrandCatalogSummary(radioStation.getId());
+                });
+    }
+
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
         assert repository != null;
         assert brandService != null;
