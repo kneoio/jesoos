@@ -34,35 +34,6 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<BrandSoundFragment>> findForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset, IUser user) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand, " +
-                "similarity(t.search_name, $3) AS sim " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bsf.brand_id = $1 AND rls.reader = $2 AND  t.archived = 0";
-
-        sql += " AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)";
-        sql += " ORDER BY sim DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId(), keyword))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, true, false, true);
-                    return soundFragmentUni.onItem().transform(soundFragment -> {
-                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
-                        brandSoundFragment.setSoundFragment(soundFragment);
-                        return brandSoundFragment;
-                    });
-                })
-                .concatenate()
-                .collect().asList();
-    }
 
     public Uni<List<BrandSoundFragment>> findForBrandWithFilter(UUID brandId, String keyword, SoundFragmentFilter filter, int limit, int offset, IUser user) {
         boolean hasKeyword = keyword != null && !keyword.isBlank();
