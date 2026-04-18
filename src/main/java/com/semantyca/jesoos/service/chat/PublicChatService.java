@@ -18,6 +18,7 @@ import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -66,6 +67,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     BrandPool brandPool;
+
+    @Inject
+    ScenePool scenePool;
 
     @Inject
     SongEmitter songEmitter;
@@ -174,6 +178,7 @@ public class PublicChatService extends ChatService {
             tools.add(PerplexitySearchTool.toTool());
             tools.add(ListenerDataTool.toTool());
             tools.add(FindCommunityMemberTool.toTool());
+            tools.add(LiveStreamInfoTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
@@ -283,6 +288,9 @@ public class PublicChatService extends ChatService {
             );
 case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
+                    toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "find_community_member" -> FindCommunityMemberToolHandler.handle(
                     toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
