@@ -180,7 +180,7 @@ public class AgendaService {
                             metricPublisher.publishMetric(
                                     sourceBrand.getSlugName(),
                                     MetricEventType.WARNING,
-                                    ProcessType.FLOW,
+                                    ProcessType.INDEPENDENT,
                                     "scene_content_gap",
                                     Map.of(
                                             "scene", liveScene.getSceneTitle(),

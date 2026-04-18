@@ -67,6 +67,33 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.findByTypeAndBrand(type, brandId, 100, 0);
     }
 
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsForAiWithFilter(String brandName, String keyword, SoundFragmentFilter filter, int limit, int offset) {
+        assert repository != null;
+        assert brandService != null;
+
+        return brandService.getBySlugName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.findForBrandWithFilter(brandId, keyword, filter, limit, offset, SuperUser.build())
+                            .chain(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
+                                }
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+                                return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to search fragments for brand: %s", brandName, failure);
+                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
+                });
+    }
+
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
         assert repository != null;
         assert brandService != null;

@@ -12,28 +12,32 @@ public class SearchBrandSoundFragments {
         Tool.InputSchema schema = Tool.InputSchema.builder()
                 .properties(JsonValue.from(Map.of(
                         "brandName",
-                        Map.of(
-                                "type", "string",
+                        Map.of("type", "string",
                                 "description", "The radio station slug name (e.g., 'lumisonic', 'sunonation'). Use the current station's slug from the context."),
                         "keyword",
-                        Map.of(
-                                "type", "string",
-                                "description", "Search keyword: artist name, song title, album name, or genre to find in the station's music library"),
+                        Map.of("type", "string",
+                                "description", "Optional text search: artist name, song title, or album. Omit to browse all songs."),
+                        "genres",
+                        Map.of("type", "array",
+                                "items", Map.of("type", "string"),
+                                "description", "Optional genre names to filter by (e.g. ['Electronic', 'Pop']). Use get_station_music_metadata to see available genres."),
+                        "labels",
+                        Map.of("type", "array",
+                                "items", Map.of("type", "string"),
+                                "description", "Optional label names to filter by. Use get_station_music_metadata to see available labels."),
                         "limit",
-                        Map.of(
-                                "type", "integer",
+                        Map.of("type", "integer",
                                 "description", "Max number of songs to return (default 10)"),
                         "offset",
-                        Map.of(
-                                "type", "integer",
+                        Map.of("type", "integer",
                                 "description", "Offset for pagination (default 0)")
                 )))
-                .required(List.of("brandName", "keyword"))
+                .required(List.of("brandName"))
                 .build();
 
         return Tool.builder()
                 .name("search_brand_sound_fragments")
-                .description("Search for songs in a specific radio station's music library by keyword. Use this when users ask about songs, artists, albums, or music available in the station. Searches by artist name, song title, album, or genre.")
+                .description("Search or browse songs in a specific radio station's music library. Keyword is optional — omit it to list all songs. Supports genre and label filtering. Use get_station_music_metadata first to discover available genres and labels. Only searches within the station's own playlist, not the internet.")
                 .inputSchema(schema)
                 .build();
     }

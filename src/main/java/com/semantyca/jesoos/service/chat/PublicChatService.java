@@ -74,11 +74,10 @@ public class PublicChatService extends ChatService {
     private PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
-        return userService.findByEmail(email)
+        String userToken = UUID.randomUUID().toString();
+        return sessionManager.storeUserToken(userToken, email)
+                .chain(() -> userService.findByEmail(email))
                 .chain(user -> {
-                    String userToken = UUID.randomUUID().toString();
-                    sessionManager.storeUserToken(userToken, email);
-
                     if (user == null || user.getId() == 0) {
                         ListenerDTO dto = new ListenerDTO();
                         dto.setEmail(email);
@@ -116,17 +115,18 @@ public class PublicChatService extends ChatService {
             return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
         }
 
-        String email = sessionManager.validateSessionAndGetEmail(token);
-        if (email == null) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
-        }
-
-        return userService.findByEmail(email)
-                .onItem().transformToUni(user -> {
-                    if (user == null || user.getId() == 0) {
-                        return Uni.createFrom().item(AnonymousUser.build());
+        return sessionManager.validateSessionAndGetEmail(token)
+                .onItem().transformToUni(email -> {
+                    if (email == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
                     }
-                    return Uni.createFrom().item(user);
+                    return userService.findByEmail(email)
+                            .onItem().transformToUni(user -> {
+                                if (user == null || user.getId() == 0) {
+                                    return Uni.createFrom().item(AnonymousUser.build());
+                                }
+                                return Uni.createFrom().item(user);
+                            });
                 });
     }
 
