@@ -16,7 +16,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 @ApplicationScoped
-public class GCPTTSClient implements TextToSpeechClient {
+public class GCPTTSClient implements TTSClient {
     private static final Logger LOGGER = Logger.getLogger(GCPTTSClient.class);
     private static final int MAX_TEXT_LENGTH = 3000;
     private static final double VOLUME_GAIN_DB = 6.0;
@@ -24,7 +24,7 @@ public class GCPTTSClient implements TextToSpeechClient {
     @Inject
     JesoosConfig config;
 
-    private com.google.cloud.texttospeech.v1beta1.TextToSpeechClient gcpClient;
+    private TextToSpeechClient gcpClient;
 
     @PostConstruct
     void init() throws IOException {
@@ -39,7 +39,7 @@ public class GCPTTSClient implements TextToSpeechClient {
                 .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                 .build();
 
-        this.gcpClient = com.google.cloud.texttospeech.v1beta1.TextToSpeechClient.create(settings);
+        this.gcpClient = TextToSpeechClient.create(settings);
     }
 
     @Override

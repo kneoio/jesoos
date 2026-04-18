@@ -24,7 +24,7 @@ public final class AiHelperUtils {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
             LOGGER.warnf("Agent %s has no language preferences, defaulting to English", agent.getName());
-            return LanguageTag.EN_GB;
+            return LanguageTag.EN_US;
         }
 
         if (preferences.size() == 1) {

@@ -12,7 +12,7 @@ import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
 import com.semantyca.jesoos.external.ModelslabClient;
-import com.semantyca.jesoos.external.TextToSpeechClient;
+import com.semantyca.jesoos.external.TTSClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -141,7 +141,7 @@ public class IntroTtsGenerator {
         String voiceId = voice.getId();
         TTSEngineType engineType = voice.getEngineType();
 
-        TextToSpeechClient ttsClient;
+        TTSClient ttsClient;
         String modelId;
         String finalText = text;
 
