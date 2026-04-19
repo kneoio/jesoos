@@ -1,7 +1,9 @@
 package com.semantyca.jesoos.rest;
 
+import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -24,9 +26,49 @@ public class ChatUploadResource extends AbstractResource {
     PublicChatService publicChatService;
 
     @Inject
+    ListenerService listenerService;
+
+    @Inject
     JesoosConfig config;
 
     public void setupRoutes(Router router) {
+        router.get("/jesoos/chat/listener-profile").handler(ctx -> {
+            String token = ctx.request().getParam("token");
+
+            publicChatService.authenticateUserFromToken(token)
+                    .subscribe().with(
+                            user -> {
+                                if (user instanceof AnonymousUser || user.getId() == 0) {
+                                    ctx.response().setStatusCode(401)
+                                            .putHeader("Content-Type", "application/json")
+                                            .end(new JsonObject().put("error", "Authentication required").encode());
+                                    return;
+                                }
+                                listenerService.getByUserId(user.getId())
+                                        .subscribe().with(
+                                                listener -> {
+                                                    JsonObject userData = new JsonObject();
+                                                    if (listener != null && listener.getUserData() != null
+                                                            && listener.getUserData().getData() != null) {
+                                                        listener.getUserData().getData().forEach(
+                                                                (k, v) -> userData.put(k, v != null ? v.toString() : null)
+                                                        );
+                                                    }
+                                                    ctx.response().setStatusCode(200)
+                                                            .putHeader("Content-Type", "application/json")
+                                                            .end(new JsonObject().put("user_data", userData).encode());
+                                                },
+                                                err -> ctx.response().setStatusCode(500)
+                                                        .putHeader("Content-Type", "application/json")
+                                                        .end(new JsonObject().put("error", "Failed to fetch profile").encode())
+                                        );
+                            },
+                            err -> ctx.response().setStatusCode(401)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject().put("error", "Authentication required").encode())
+                    );
+        });
+
         String path = "/jesoos/chat/upload-temp";
 
         router.route(path).handler(
