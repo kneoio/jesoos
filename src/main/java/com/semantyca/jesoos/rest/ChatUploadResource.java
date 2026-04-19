@@ -90,7 +90,7 @@ public class ChatUploadResource extends AbstractResource {
                                     return;
                                 }
 
-                                var upload = uploads.iterator().next();
+                                var upload = uploads.getFirst();
                                 String safeFilename;
                                 try {
                                     safeFilename = FileSecurityUtils.sanitizeFilename(upload.fileName());
