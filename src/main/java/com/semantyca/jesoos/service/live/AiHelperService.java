@@ -161,7 +161,7 @@ public class AiHelperService {
         return soundFragmentService.getBrandCatalogSummary(brandName);
     }
 
-    private Uni<List<UUID>> resolveGenreNamesToIds(List<String> names) {
+    public Uni<List<UUID>> resolveGenreNamesToIds(List<String> names) {
         if (names == null || names.isEmpty()) {
             return Uni.createFrom().item(Collections.emptyList());
         }

@@ -179,6 +179,7 @@ public class PublicChatService extends ChatService {
             tools.add(ListenerDataTool.toTool());
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(LiveStreamInfoTool.toTool());
+            tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
@@ -288,6 +289,9 @@ public class PublicChatService extends ChatService {
             );
 case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "upload_song" -> UploadSongToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
                     toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
