@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @ApplicationScoped
-public class ModelslabClient implements TextToSpeechClient {
+public class ModelslabClient implements TTSClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(ModelslabClient.class);
 
     @Inject

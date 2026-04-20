@@ -34,34 +34,91 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<BrandSoundFragment>> findForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset, IUser user) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand, " +
-                "similarity(t.search_name, $3) AS sim " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bsf.brand_id = $1 AND rls.reader = $2 AND  t.archived = 0";
 
-        sql += " AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)";
-        sql += " ORDER BY sim DESC";
+    public Uni<List<BrandSoundFragment>> findForBrandWithFilter(UUID brandId, String keyword, SoundFragmentFilter filter, int limit, int offset, IUser user) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
 
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand");
+        if (hasKeyword) {
+            sql.append(", similarity(t.search_name, $3) AS sim");
+        }
+        sql.append(" FROM ").append(entityData.getTableName()).append(" t ")
+                .append("JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ")
+                .append("JOIN ").append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
+                .append("WHERE bsf.brand_id = $1 AND rls.reader = $2 AND t.archived = 0");
+
+        if (hasKeyword) {
+            sql.append(" AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)");
+        }
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+        sql.append(hasKeyword ? " ORDER BY sim DESC" : " ORDER BY bsf.last_time_played_by_brand DESC NULLS LAST");
         if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+            sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
         }
 
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId(), keyword))
+        Tuple params = hasKeyword ? Tuple.of(brandId, user.getId(), keyword) : Tuple.of(brandId, user.getId());
+
+        return client.preparedQuery(sql.toString())
+                .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, true, false, true);
-                    return soundFragmentUni.onItem().transform(soundFragment -> {
-                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
-                        brandSoundFragment.setSoundFragment(soundFragment);
-                        return brandSoundFragment;
-                    });
-                })
+                .onItem().transformToUni(row -> from(row, true, false, true).onItem().transform(soundFragment -> {
+                    BrandSoundFragment bsf = createBrandSoundFragment(row, brandId);
+                    bsf.setSoundFragment(soundFragment);
+                    return bsf;
+                }))
                 .concatenate()
                 .collect().asList();
+    }
+
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
+        String artistsSql = "SELECT t.artist, COUNT(*) AS song_count " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.artist IS NOT NULL AND t.artist <> '' " +
+                "GROUP BY t.artist ORDER BY song_count DESC";
+
+        String genresSql = "SELECT g.identifier, COUNT(DISTINCT t.id) AS song_count " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN kneobroadcaster__sound_fragment_genres sfg ON sfg.sound_fragment_id = t.id " +
+                "JOIN __genres g ON g.id = sfg.genre_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0 " +
+                "GROUP BY g.identifier ORDER BY song_count DESC";
+
+        String totalSql = "SELECT COUNT(*) AS total FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0";
+
+        Uni<io.vertx.mutiny.sqlclient.RowSet<io.vertx.mutiny.sqlclient.Row>> artistsUni =
+                client.preparedQuery(artistsSql).execute(Tuple.of(brandId));
+        Uni<io.vertx.mutiny.sqlclient.RowSet<io.vertx.mutiny.sqlclient.Row>> genresUni =
+                client.preparedQuery(genresSql).execute(Tuple.of(brandId));
+        Uni<io.vertx.mutiny.sqlclient.RowSet<io.vertx.mutiny.sqlclient.Row>> totalUni =
+                client.preparedQuery(totalSql).execute(Tuple.of(brandId));
+
+        return Uni.combine().all().unis(artistsUni, genresUni, totalUni).asTuple()
+                .map(tuple -> {
+                    io.vertx.core.json.JsonArray artists = new io.vertx.core.json.JsonArray();
+                    tuple.getItem1().forEach(row -> artists.add(
+                            new io.vertx.core.json.JsonObject()
+                                    .put("artist", row.getString("artist"))
+                                    .put("songCount", row.getLong("song_count"))
+                    ));
+                    io.vertx.core.json.JsonArray genres = new io.vertx.core.json.JsonArray();
+                    tuple.getItem2().forEach(row -> genres.add(
+                            new io.vertx.core.json.JsonObject()
+                                    .put("genre", row.getString("identifier"))
+                                    .put("songCount", row.getLong("song_count"))
+                    ));
+                    long total = tuple.getItem3().iterator().next().getLong("total");
+                    return new io.vertx.core.json.JsonObject()
+                            .put("totalTracks", total)
+                            .put("artists", artists)
+                            .put("genres", genres);
+                });
     }
 
     public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType, final int limit, final int offset) {

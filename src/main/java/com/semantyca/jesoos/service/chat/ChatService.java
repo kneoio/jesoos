@@ -105,6 +105,10 @@ public abstract class ChatService {
 
     protected abstract ChatType getChatType();
 
+    public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId) {
+        return chatRepository.migrateAnonymousSession(connectionId, newUserId, getChatType());
+    }
+
     public Uni<String> processUserMessage(String username, String content, String connectionId, String brandName, IUser user) {
         return Uni.createFrom().item(() -> {
             JsonObject message = createMessage(
@@ -120,12 +124,19 @@ public abstract class ChatService {
                     failure -> LOGGER.error("Failed to save user message", failure)
             );
 
+            String sessionKey = ChatRepository.sessionKey(user.getId(), connectionId, getChatType());
+            MessageParam userMsg = MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(MessageParam.Content.ofString(content))
+                    .build();
+            chatRepository.appendToConversation(sessionKey, userMsg);
+
             return ChatMessageDTO.user(content, username, connectionId).build().toJson();
         });
     }
 
-    public Uni<String> getChatHistory(String brandName, int limit, IUser user) {
-        return chatRepository.getRecentChatMessages(user.getId(), brandName, getChatType(), limit)
+    public Uni<String> getChatHistory(String brandName, int limit, String connectionId, IUser user) {
+        return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, getChatType(), limit)
                 .map(recentMessages -> {
 
                     JsonArray messages = new JsonArray();
@@ -140,13 +151,6 @@ public abstract class ChatService {
     }
 
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
-
-        MessageParam userMsg = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(MessageParam.Content.ofString(userMessage))
-                .build();
-
-        chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
 
         BrandStaticData cached = brandStaticCache.get(slugName);
         Uni<BrandStaticData> staticDataUni = cached != null
@@ -171,10 +175,11 @@ public abstract class ChatService {
                                 .replace("{{radioStationName}}", radioStationName)
                                 .replace("{{radioStationSlug}}", stationSlug)
                                 .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
-                                        .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
+                                .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
                                 .replace("{{radioStationDescription}}", station.getDescription())
                                 .replace("{{djLanguages}}", djLanguages)
-                                .replace("{{djCopilotName}}", "");
+                                .replace("{{djCopilotName}}", "")
+                                .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata());
                         BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
                         brandStaticCache.put(slugName, data);
                         return data;
@@ -195,7 +200,7 @@ public abstract class ChatService {
                 assistantNameByConnectionId.put(connectionId, staticData.djName());
                 assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
-                return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
+                return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
                         .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history, user));
         }).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
@@ -206,7 +211,7 @@ public abstract class ChatService {
 
                             if (toolUse.isPresent()) {
                                 ChatLogger.firstCall(toolUse.get().name());
-                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
+                                List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
                                 return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
                                 ChatLogger.firstCallNoTool();
@@ -291,7 +296,7 @@ public abstract class ChatService {
                                         .content(MessageParam.Content.ofString(responseText))
                                         .build();
 
-                                chatRepository.appendToConversation(userId, getChatType(), assistantResponse);
+                                chatRepository.appendToConversation(ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantResponse);
 
                                 JsonObject botMessage = createMessage(
                                         MessageType.BOT,
@@ -326,8 +331,8 @@ public abstract class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected Uni<List<MessageParam>> loadConversationHistoryWithSummary(long userId, String brandName, ChatType chatType) {
-        List<MessageParam> currentHistory = chatRepository.getConversationHistory(userId, chatType);
+    protected Uni<List<MessageParam>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, ChatType chatType) {
+        List<MessageParam> currentHistory = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, chatType));
         
         return chatSummaryService.getLatestUserSummary(userId, brandName, chatType)
                 .map(summaryText -> {
@@ -407,7 +412,7 @@ public abstract class ChatService {
 
                     if (toolUse.isPresent()) {
                         LOGGER.debugf("Follow-up detected tool call: %s", toolUse.get().name());
-                        List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
+                        List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);

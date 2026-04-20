@@ -409,6 +409,21 @@ public class ListenersRepository extends AsyncRepository {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
+    public Uni<List<Listener>> findByUserDataFieldInBrand(String brandSlug, UUID excludeListenerId, String fieldName, String fieldValue) {
+        String sql = "SELECT l.* FROM " + entityData.getTableName() + " l " +
+                "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
+                "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
+                "WHERE b.slug_name = $1 AND l.id != $2 AND l.archived = 0 " +
+                "AND lower(l.user_data->>$3) = lower($4) " +
+                "LIMIT 5";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandSlug, excludeListenerId, fieldName, fieldValue))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<Listener> findByUserDataField(String fieldName, String fieldValue) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.user_data->$1 = $2 LIMIT 1";
 

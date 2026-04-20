@@ -11,7 +11,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class FishAudioClient implements TextToSpeechClient {
+public class FishAudioClient implements TTSClient {
 
     @Inject
     JesoosConfig config;

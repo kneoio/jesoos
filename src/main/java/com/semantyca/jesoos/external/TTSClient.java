@@ -3,6 +3,6 @@ package com.semantyca.jesoos.external;
 import com.semantyca.core.model.cnst.LanguageTag;
 import io.smallrye.mutiny.Uni;
 
-public interface TextToSpeechClient {
+public interface TTSClient {
     Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag);
 }

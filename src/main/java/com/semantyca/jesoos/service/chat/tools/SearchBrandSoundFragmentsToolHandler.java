@@ -9,6 +9,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -30,13 +31,36 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
     ) {
         SearchBrandSoundFragmentsToolHandler handler = new SearchBrandSoundFragmentsToolHandler();
         String brandName = inputMap.getOrDefault("brandName", JsonValue.from("")).toString().replace("\"", "");
-        String keyword = inputMap.getOrDefault("keyword", JsonValue.from("")).toString().replace("\"", "");
-        
+        String keyword = inputMap.containsKey("keyword") ? inputMap.get("keyword").toString().replace("\"", "") : "";
+
         if (brandName.isEmpty()) {
             LOGGER.error("[SearchSoundFragments] brandName is required but was not provided");
             return Uni.createFrom().failure(new IllegalArgumentException("brandName is required"));
         }
-        
+
+        List<String> genres = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        if (inputMap.containsKey("genres")) {
+            try {
+                JsonValue genresValue = inputMap.get("genres");
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(genresValue.toString());
+                if (node.isArray()) {
+                    node.forEach(n -> genres.add(n.asText()));
+                }
+            } catch (Exception ignored) {}
+        }
+        if (inputMap.containsKey("labels")) {
+            try {
+                JsonValue labelsValue = inputMap.get("labels");
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(labelsValue.toString());
+                if (node.isArray()) {
+                    node.forEach(n -> labels.add(n.asText()));
+                }
+            } catch (Exception ignored) {}
+        }
+
         Integer limit = null;
         Integer offset = null;
         try {
@@ -50,12 +74,13 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
             }
         } catch (Exception ignored) {}
 
-        LOGGER.infof("[SearchSoundFragments] AI requested search - brandName: '%s', keyword: '%s', limit: %s, offset: %s, connectionId: %s",
-                brandName, keyword, limit, offset, connectionId);
+        LOGGER.infof("[SearchSoundFragments] AI requested search - brandName: '%s', keyword: '%s', genres: %s, labels: %s, limit: %s, offset: %s",
+                brandName, keyword, genres, labels, limit, offset);
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, String.format("Searching for songs: %s...", keyword));
+        String progressMsg = keyword.isBlank() ? "Browsing song library..." : "Searching for songs: " + keyword + "...";
+        handler.sendProcessingChunk(chunkHandler, connectionId, progressMsg);
 
-        return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, limit, offset)
+        return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, genres, labels, limit, offset)
                 .flatMap(list -> {
                     LOGGER.infof("[SearchSoundFragments] Search completed - found %s songs for keyword: '%s'", list.size(), keyword);
                     if (!list.isEmpty()) {
@@ -74,11 +99,8 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
                                 .put("title", f.getTitle())
                                 .put("artist", f.getArtist())
                                 .put("genres", f.getGenres())
-                                .put("labels", f.getLabels())
                                 .put("album", f.getAlbum())
-                                .put("description", f.getDescription())
-                                .put("playedByBrandCount", f.getPlayedByBrandCount())
-                                .put("lastTimePlayedByBrand", String.valueOf(f.getLastTimePlayedByBrand()));
+                                .put("description", f.getDescription());
                         items.add(obj);
                     });
 

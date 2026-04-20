@@ -12,7 +12,7 @@ import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
 import com.semantyca.jesoos.external.ModelslabClient;
-import com.semantyca.jesoos.external.TextToSpeechClient;
+import com.semantyca.jesoos.external.TTSClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -141,7 +141,7 @@ public class IntroTtsGenerator {
         String voiceId = voice.getId();
         TTSEngineType engineType = voice.getEngineType();
 
-        TextToSpeechClient ttsClient;
+        TTSClient ttsClient;
         String modelId;
         String finalText = text;
 
@@ -263,7 +263,7 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Generated text (%s tokens): %s", response.usage().outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.usage().inputTokens(), "outputTokens", response.usage().outputTokens(),
-                                    "promptId", prompt.getId().toString()), traceId);
+                                    "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle()), traceId);
                     em.complete(text);
                 }
             } catch (Exception e) {

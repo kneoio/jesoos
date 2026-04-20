@@ -154,9 +154,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 });
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset, IUser user) {
+    public Uni<List<BrandSoundFragment>> findForBrandWithFilter(UUID brandId, String keyword, SoundFragmentFilter filter, int limit, int offset, IUser user) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, user);
+        return brandRepository.findForBrandWithFilter(brandId, keyword, filter, limit, offset, user);
     }
 
 
@@ -168,6 +168,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findByFilter(brandId, filter, limit);
+    }
+
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.getBrandCatalogSummary(brandId);
     }
 
     public Uni<List<SoundFragment>> findByIds(List<UUID> ids) {

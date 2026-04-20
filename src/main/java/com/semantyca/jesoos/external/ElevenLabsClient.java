@@ -11,7 +11,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class ElevenLabsClient implements TextToSpeechClient {
+public class ElevenLabsClient implements TTSClient {
 
     @Inject
     JesoosConfig config;

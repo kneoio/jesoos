@@ -18,22 +18,27 @@ import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
+import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
+import com.semantyca.officeframe.dto.GenreDTO;
+import com.semantyca.officeframe.dto.LabelDTO;
 import com.semantyca.officeframe.service.GenreService;
 import com.semantyca.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -55,6 +60,10 @@ public class AiHelperService {
     private final LabelService labelService;
     private final StatsAccumulator statsAccumulator = new StatsAccumulator();
 
+    private volatile List<GenreDTO> cachedGenres = Collections.emptyList();
+    private volatile List<LabelDTO> cachedLabels = Collections.emptyList();
+    private volatile String cachedMusicMetadata = "";
+
     private static final int SCENE_START_SHIFT_MINUTES = 10;
 
     @Inject
@@ -71,6 +80,42 @@ public class AiHelperService {
         this.labelService = labelService;
     }
 
+    @PostConstruct
+    void init() {
+        try {
+            var result = Uni.combine().all().unis(
+                    genreService.getAll(200, 0, LanguageCode.en),
+                    labelService.getAll(200, 0, LanguageCode.en)
+            ).asTuple().await().atMost(Duration.ofSeconds(30));
+
+            this.cachedGenres = result.getItem1();
+            this.cachedLabels = result.getItem2();
+            this.cachedMusicMetadata = buildMusicMetadataSection(cachedGenres, cachedLabels);
+            LOGGER.infof("Music metadata cached: %d genres, %d labels", cachedGenres.size(), cachedLabels.size());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to preload music metadata at startup", e);
+        }
+    }
+
+    private String buildMusicMetadataSection(List<GenreDTO> genres, List<LabelDTO> labels) {
+        String genreNames = genres.stream()
+                .map(g -> g.getLocalizedName().getOrDefault(LanguageCode.en, g.getIdentifier()))
+                .filter(s -> s != null && !s.isBlank())
+                .sorted()
+                .collect(Collectors.joining(", "));
+        String labelNames = labels.stream()
+                .map(l -> l.getLocalizedName().getOrDefault(LanguageCode.en, l.getIdentifier()))
+                .filter(s -> s != null && !s.isBlank())
+                .sorted()
+                .collect(Collectors.joining(", "));
+        return "Genres: " + (genreNames.isBlank() ? "none" : genreNames) + "\n" +
+                "Labels: " + (labelNames.isBlank() ? "none" : labelNames);
+    }
+
+    public String getCachedMusicMetadata() {
+        return cachedMusicMetadata;
+    }
+
     // TODO: jesoos should not know about stations directly — must contact aivox via RabbitMQ
     public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {
         LOGGER.warn("getAllStations is a stub — station data should be fetched from aivox");
@@ -82,24 +127,68 @@ public class AiHelperService {
     public Uni<List<BrandSoundFragmentAiDTO>> searchBrandSoundFragmentsForAi(
             String brandName,
             String keyword,
+            List<String> genreNames,
+            List<String> labelNames,
             Integer limit,
             Integer offset
     ) {
-        int actualLimit = (limit != null && limit > 0) ? limit : 10;
+        int actualLimit = (limit != null && limit > 0) ? Math.min(limit, 10) : 10;
         int actualOffset = (offset != null && offset >= 0) ? offset : 0;
 
-        return soundFragmentService.getBrandSoundFragmentsBySimilarity(brandName, keyword, actualLimit, actualOffset)
-                .chain(brandFragments -> {
-                    if (brandFragments == null || brandFragments.isEmpty()) {
-                        return Uni.createFrom().item(Collections.<BrandSoundFragmentAiDTO>emptyList());
-                    }
+        Uni<List<UUID>> genreIdsUni = resolveGenreNamesToIds(genreNames);
+        Uni<List<UUID>> labelIdsUni = resolveLabelNamesToIds(labelNames);
 
-                    List<Uni<BrandSoundFragmentAiDTO>> aiDtoUnis = brandFragments.stream()
-                            .map(this::mapToBrandSoundFragmentAiDTO)
-                            .collect(Collectors.toList());
+        return Uni.combine().all().unis(genreIdsUni, labelIdsUni).asTuple()
+                .chain(tuple -> {
+                    SoundFragmentFilter filter = new SoundFragmentFilter();
+                    if (!tuple.getItem1().isEmpty()) filter.setGenre(tuple.getItem1());
+                    if (!tuple.getItem2().isEmpty()) filter.setLabels(tuple.getItem2());
 
-                    return Uni.join().all(aiDtoUnis).andFailFast();
+                    return soundFragmentService.getBrandSoundFragmentsForAiWithFilter(brandName, keyword, filter, actualLimit, actualOffset)
+                            .chain(brandFragments -> {
+                                if (brandFragments == null || brandFragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentAiDTO>emptyList());
+                                }
+                                List<Uni<BrandSoundFragmentAiDTO>> aiDtoUnis = brandFragments.stream()
+                                        .map(this::mapToBrandSoundFragmentAiDTO)
+                                        .collect(Collectors.toList());
+                                return Uni.join().all(aiDtoUnis).andFailFast();
+                            });
                 });
+    }
+
+    public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummaryForAi(String brandName) {
+        return soundFragmentService.getBrandCatalogSummary(brandName);
+    }
+
+    public Uni<List<UUID>> resolveGenreNamesToIds(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return Uni.createFrom().item(Collections.emptyList());
+        }
+        return Uni.createFrom().item(
+                names.stream()
+                        .map(name -> cachedGenres.stream()
+                                .filter(g -> name.equalsIgnoreCase(g.getLocalizedName().getOrDefault(LanguageCode.en, "")))
+                                .map(GenreDTO::getId)
+                                .findFirst().orElse(null))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList())
+        );
+    }
+
+    private Uni<List<UUID>> resolveLabelNamesToIds(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return Uni.createFrom().item(Collections.emptyList());
+        }
+        return Uni.createFrom().item(
+                names.stream()
+                        .map(name -> cachedLabels.stream()
+                                .filter(l -> name.equalsIgnoreCase(l.getLocalizedName().getOrDefault(LanguageCode.en, "")))
+                                .map(LabelDTO::getId)
+                                .findFirst().orElse(null))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList())
+        );
     }
 
 

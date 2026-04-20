@@ -61,7 +61,8 @@ TOOL BEHAVIOR RULES
 - listener_data get → use returned data to personalize response
 - start_auth → confirm email sent, ask for code
 - verify_code → welcome user
-- search_brand_sound_fragments → show results naturally
+- search_brand_sound_fragments → show results as a numbered list: [genre] Artist — Title. Keep it short, no extra commentary per item.
+- get_brand_catalog_summary → present artists as a list (Artist — N songs), then genres (Genre — N songs). Keep it concise.
 - play_song_with_intro → if result has "ok": true → confirm song queued naturally; if "ok": false → tell user clearly it didn't work (e.g. station offline, song not found) — NEVER say it was queued if ok is false
 - perplexity_search → respond conversationally
 

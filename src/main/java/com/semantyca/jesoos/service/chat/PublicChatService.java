@@ -12,11 +12,13 @@ import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
+import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -67,17 +69,19 @@ public class PublicChatService extends ChatService {
     BrandPool brandPool;
 
     @Inject
+    ScenePool scenePool;
+
+    @Inject
     SongEmitter songEmitter;
 
     @Setter
     private PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
-        return userService.findByEmail(email)
+        String userToken = UUID.randomUUID().toString();
+        return sessionManager.storeUserToken(userToken, email)
+                .chain(() -> userService.findByEmail(email))
                 .chain(user -> {
-                    String userToken = UUID.randomUUID().toString();
-                    sessionManager.storeUserToken(userToken, email);
-
                     if (user == null || user.getId() == 0) {
                         ListenerDTO dto = new ListenerDTO();
                         dto.setEmail(email);
@@ -115,17 +119,18 @@ public class PublicChatService extends ChatService {
             return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
         }
 
-        String email = sessionManager.validateSessionAndGetEmail(token);
-        if (email == null) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
-        }
-
-        return userService.findByEmail(email)
-                .onItem().transformToUni(user -> {
-                    if (user == null || user.getId() == 0) {
-                        return Uni.createFrom().item(AnonymousUser.build());
+        return sessionManager.validateSessionAndGetEmail(token)
+                .onItem().transformToUni(email -> {
+                    if (email == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
                     }
-                    return Uni.createFrom().item(user);
+                    return userService.findByEmail(email)
+                            .onItem().transformToUni(user -> {
+                                if (user == null || user.getId() == 0) {
+                                    return Uni.createFrom().item(AnonymousUser.build());
+                                }
+                                return Uni.createFrom().item(user);
+                            });
                 });
     }
 
@@ -169,9 +174,12 @@ public class PublicChatService extends ChatService {
         
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
+            tools.add(GetBrandCatalogSummary.toTool());
             tools.add(PerplexitySearchTool.toTool());
-            tools.add(AudienceTool.toTool());
             tools.add(ListenerDataTool.toTool());
+            tools.add(FindCommunityMemberTool.toTool());
+            tools.add(LiveStreamInfoTool.toTool());
+            tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
@@ -244,7 +252,7 @@ public class PublicChatService extends ChatService {
 
                     if (toolUse.isPresent()) {
                         ChatLogger.followUp(toolUse.get().name());
-                        List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
+                        List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
@@ -273,14 +281,23 @@ public class PublicChatService extends ChatService {
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
+            case "get_brand_catalog_summary" -> GetBrandCatalogSummaryToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
             case "perplexity_search" -> PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
-            case "listener" -> AudienceToolHandler.handle(
-                    toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
-            case "listener_data" -> ListenerDataToolHandler.handle(
+case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "upload_song" -> UploadSongToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
+                    toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "find_community_member" -> FindCommunityMemberToolHandler.handle(
+                    toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "send_email_to_owner" -> SendEmailToOwnerToolHandler.handle(
                     toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
