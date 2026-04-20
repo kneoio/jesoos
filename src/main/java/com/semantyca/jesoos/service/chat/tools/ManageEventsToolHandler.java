@@ -14,8 +14,8 @@ import com.semantyca.mixpla.model.cnst.EventType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
+
 
 import java.util.List;
 import java.util.Map;
@@ -24,7 +24,7 @@ import java.util.function.Function;
 
 public class ManageEventsToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ManageEventsToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(ManageEventsToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -41,7 +41,7 @@ public class ManageEventsToolHandler extends BaseToolHandler {
         ManageEventsToolHandler handler = new ManageEventsToolHandler();
         String action = inputMap.getOrDefault("action", JsonValue.from("list")).toString().replace("\"", "");
 
-        LOGGER.info("[ManageEvents] action={}, brand={}", action, brandName);
+        LOGGER.infof("[ManageEvents] action=%s, brand=%s", action, brandName);
 
         return switch (action) {
             case "list" -> handleList(toolUse, eventService, brandName, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
@@ -135,7 +135,7 @@ public class ManageEventsToolHandler extends BaseToolHandler {
                     return eventService.upsert(id != null && !id.isEmpty() ? id : null, dto, SuperUser.build());
                 })
                 .flatMap(saved -> {
-                    LOGGER.info("[ManageEvents] upserted event id={}", saved.getId());
+                    LOGGER.infof("[ManageEvents] upserted event id=%s", saved.getId());
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("id", saved.getId().toString())
