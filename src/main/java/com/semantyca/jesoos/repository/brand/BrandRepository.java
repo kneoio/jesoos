@@ -235,4 +235,17 @@ public class BrandRepository extends AsyncRepository {
                 })
                 .collect().asList();
     }
+
+    public Uni<List<Brand>> getByLabelIds(List<UUID> labelIds) {
+        String sql = "SELECT b.* FROM " + entityData.getTableName() + " b " +
+                "JOIN kneobroadcaster__brand_labels bl ON b.id = bl.brand_id " +
+                "WHERE bl.label_id = ANY($1) AND b.archived = 0 " +
+                "GROUP BY b.id";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(labelIds.toArray(new UUID[0])))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
 }

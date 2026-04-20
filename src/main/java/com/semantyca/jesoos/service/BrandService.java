@@ -53,4 +53,8 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                             });
                 });
     }
+
+    public Uni<List<Brand>> getByLabelIds(List<UUID> labelIds) {
+        return repository.getByLabelIds(labelIds);
+    }
 }
