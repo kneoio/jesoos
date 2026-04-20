@@ -89,17 +89,62 @@ public class GCPTTSClient implements TTSClient {
 
     private static String getLanguageCode(LanguageTag tag) {
         return switch (tag) {
-            case EN_GB -> "en-GB";
-            case ES_ES -> "es-ES";
-            case JA_JP -> "ja-JP";
-            case ZH_CN -> "zh-CN";
-            case FR_FR -> "fr-FR";
-            case PT_BR -> "pt-BR";
-            case PT_PT -> "pt-PT";
-            case HI_IN -> "hi-IN";
-            case IT_IT -> "it-IT";
-            case UK_UA -> "uk-UA";
-            default -> "en-US";
+            // most used
+            case EN_US, EN_GB, EN_AU, EN_IN -> "en-US";
+            case ES_ES, ES_US           -> "es-ES";
+            case FR_FR, FR_CA           -> "fr-FR";
+            case PT_PT, PT_PT_ALT       -> "pt-PT";
+            case PT_BR                  -> "pt-BR";
+            case DE_DE                  -> "de-DE";
+            case HI_IN                  -> "hi-IN";
+            case TR_TR                  -> "tr-TR";
+            case AR_XA                  -> "ar-XA";
+            case CMN_CN, ZH_CN          -> "cmn-CN";
+            case BG_BG                  -> "bg-BG";
+            case LV_LV                  -> "lv-LV";
+            case SV_SE                  -> "sv-SE";
+            case IT_IT                  -> "it-IT";
+            case JA_JP                  -> "ja-JP";
+            case KO_KR                  -> "ko-KR";
+            case FI_FI                  -> "fi-FI";
+            case TH_TH                  -> "th-TH";
+            case UK_UA                  -> "uk-UA";
+            case RU_RU                  -> "ru-RU";
+            // others
+            case NL_NL, NL_BE           -> "nl-NL";
+            case DA_DK                  -> "da-DK";
+            case NO_NO, NB_NO           -> "nb-NO";
+            case PL_PL                  -> "pl-PL";
+            case CS_CZ                  -> "cs-CZ";
+            case SK_SK                  -> "sk-SK";
+            case HR_HR                  -> "hr-HR";
+            case SL_SI                  -> "sl-SI";
+            case SR_RS                  -> "sr-RS";
+            case RO_RO                  -> "ro-RO";
+            case EL_GR                  -> "el-GR";
+            case HU_HU                  -> "hu-HU";
+            case LT_LT                  -> "lt-LT";
+            case ET_EE                  -> "et-EE";
+            case KK_KZ                  -> "kk-KZ";
+            case KA_GE                  -> "ka-GE";
+            case CMN_TW                 -> "cmn-TW";
+            case YUE_HK                 -> "yue-HK";
+            case BN_IN                  -> "bn-IN";
+            case GU_IN                  -> "gu-IN";
+            case KN_IN                  -> "kn-IN";
+            case ML_IN                  -> "ml-IN";
+            case MR_IN                  -> "mr-IN";
+            case PA_IN                  -> "pa-IN";
+            case TA_IN                  -> "ta-IN";
+            case TE_IN                  -> "te-IN";
+            case UR_IN                  -> "ur-IN";
+            case ID_ID                  -> "id-ID";
+            case MS_MY                  -> "ms-MY";
+            case FIL_PH                 -> "fil-PH";
+            case VI_VN                  -> "vi-VN";
+            case HE_IL                  -> "he-IL";
+            case AM_ET                  -> "am-ET";
+            case SW_KE                  -> "sw-KE";
         };
     }
 }
