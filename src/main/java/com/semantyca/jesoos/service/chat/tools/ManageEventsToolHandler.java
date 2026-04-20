@@ -9,6 +9,8 @@ import com.semantyca.jesoos.dto.event.EventDTO;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.EventService;
 import com.semantyca.mixpla.model.Event;
+import com.semantyca.mixpla.model.cnst.EventPriority;
+import com.semantyca.mixpla.model.cnst.EventType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -98,10 +100,20 @@ public class ManageEventsToolHandler extends BaseToolHandler {
     ) {
         String id = inputMap.containsKey("id") ? inputMap.get("id").toString().replace("\"", "") : null;
         String description = inputMap.getOrDefault("description", JsonValue.from("")).toString().replace("\"", "");
-        // TODO: validate against actual EventType enum values from 42next platform
-        String type = inputMap.getOrDefault("type", JsonValue.from("SPECIAL")).toString().replace("\"", "");
-        // TODO: validate against actual EventPriority enum values from 42next platform
-        String priority = inputMap.getOrDefault("priority", JsonValue.from("NORMAL")).toString().replace("\"", "");
+        String typeRaw = inputMap.getOrDefault("type", JsonValue.from(EventType.SPECIAL.name())).toString().replace("\"", "");
+        String type;
+        try {
+            type = EventType.valueOf(typeRaw).name();
+        } catch (IllegalArgumentException e) {
+            type = EventType.SPECIAL.name();
+        }
+        String priorityRaw = inputMap.getOrDefault("priority", JsonValue.from(EventPriority.MEDIUM.name())).toString().replace("\"", "");
+        String priority;
+        try {
+            priority = EventPriority.valueOf(priorityRaw).name();
+        } catch (IllegalArgumentException e) {
+            priority = EventPriority.MEDIUM.name();
+        }
 
         if (description.isEmpty()) {
             return handleError(toolUse, "description is required for upsert", handler, conversationHistory, systemPromptCall2, streamFn);
@@ -109,13 +121,15 @@ public class ManageEventsToolHandler extends BaseToolHandler {
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Saving event...");
 
+        String finalPriority = priority;
+        String finalType = type;
         return brandService.getBySlugName(brandName)
                 .flatMap(brand -> {
                     EventDTO dto = new EventDTO();
                     dto.setBrandId(brand.getId().toString());
                     dto.setDescription(description);
-                    dto.setType(type);
-                    dto.setPriority(priority);
+                    dto.setType(finalType);
+                    dto.setPriority(finalPriority);
                     dto.setTimeZone(brand.getTimeZone() != null ? brand.getTimeZone().getId() : "UTC");
 
                     return eventService.upsert(id != null && !id.isEmpty() ? id : null, dto, SuperUser.build());

@@ -5,6 +5,8 @@ import com.semantyca.core.dto.AbstractDTO;
 import com.semantyca.core.dto.scheduler.ScheduleDTO;
 import com.semantyca.jesoos.dto.ScenePromptDTO;
 import com.semantyca.jesoos.dto.StagePlaylistDTO;
+import com.semantyca.mixpla.model.cnst.EventPriority;
+import com.semantyca.mixpla.model.cnst.EventType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;

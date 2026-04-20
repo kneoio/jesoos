@@ -21,14 +21,14 @@ public class ManageEventsTool {
                         "description", Map.of(
                                 "type", "string",
                                 "description", "Human-readable event description, e.g. 'Maria birthday May 15', 'New Year celebration'"),
-                        // TODO: replace enum values with actual EventType values from 42next platform
                         "type", Map.of(
                                 "type", "string",
-                                "description", "Event type — use values available in the platform (e.g. BIRTHDAY, NATIONAL_HOLIDAY, ANNIVERSARY, SPECIAL)"),
-                        // TODO: replace enum values with actual EventPriority values from 42next platform
+                                "enum", new String[]{"ADVERTISEMENT", "REMINDER", "BIRTHDAY", "NATIONAL_HOLIDAY", "ANNIVERSARY", "SPECIAL"},
+                                "description", "Event type"),
                         "priority", Map.of(
                                 "type", "string",
-                                "description", "Event priority — use values available in the platform (e.g. NORMAL, HIGH, LOW)")
+                                "enum", new String[]{"LOW", "MEDIUM", "HIGH", "CRITICAL"},
+                                "description", "Event priority")
                 )))
                 .required(List.of("action"))
                 .build();
