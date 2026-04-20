@@ -14,6 +14,7 @@ import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
@@ -52,6 +53,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     BrandService brandService;
+
+    @Inject
+    EventService eventService;
 
     @Inject
     UserService userService;
@@ -181,6 +185,7 @@ public class PublicChatService extends ChatService {
             tools.add(LiveStreamInfoTool.toTool());
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
+            tools.add(ManageEventsTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
             tools.add(VerifyCode.toTool());
@@ -310,6 +315,9 @@ case "listener_data" -> ListenerDataToolHandler.handle(
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "manage_events" -> ManageEventsToolHandler.handle(
+                    toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };

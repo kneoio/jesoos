@@ -47,6 +47,11 @@ public class EventService extends AbstractService<Event, EventDTO> {
     }
 
 
+    public Uni<List<Event>> findForBrand(String brandSlugName, int limit, int offset, IUser user) {
+        assert repository != null;
+        return repository.findForBrand(brandSlugName, limit, offset, user, false);
+    }
+
     public Uni<Event> upsert(String id, EventDTO dto, IUser user) {
         assert repository != null;
 
