@@ -173,8 +173,8 @@ public class SongEmitter {
 
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
             songMap.put(SongKey.SONG_1, new SongInfoDTO(
-                    entry.getSongs().get(0).getSoundFragment().getId(),
-                    entry.getSongs().get(0).getDurationSeconds()));
+                    entry.getSongs().getFirst().getSoundFragment().getId(),
+                    entry.getSongs().getFirst().getDurationSeconds()));
 
             message.setFilePaths(introMap);
             message.setSongs(songMap);
