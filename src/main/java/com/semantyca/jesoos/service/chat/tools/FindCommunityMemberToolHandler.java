@@ -92,6 +92,11 @@ public class FindCommunityMemberToolHandler extends BaseToolHandler {
                                 MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                                 return streamFn.apply(secondCallParams);
                             });
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.error("[FindCommunityMember] Failed field={}, value={}", fieldName, fieldValue, err);
+                    handler.sendBotChunk(chunkHandler, connectionId, "bot", "I couldn't look that up right now, please try again.");
+                    return Uni.createFrom().voidItem();
                 });
     }
 

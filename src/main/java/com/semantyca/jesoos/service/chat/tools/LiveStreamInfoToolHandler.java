@@ -60,6 +60,11 @@ public class LiveStreamInfoToolHandler extends BaseToolHandler {
 
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.error("[LiveStreamInfo] Failed for brand={}", brandName, err);
+                    handler.sendBotChunk(chunkHandler, connectionId, "bot", "I couldn't get the stream info right now, please try again.");
+                    return Uni.createFrom().voidItem();
                 });
     }
 
