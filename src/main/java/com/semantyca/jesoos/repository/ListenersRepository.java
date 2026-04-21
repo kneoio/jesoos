@@ -225,10 +225,35 @@ public class ListenersRepository extends AsyncRepository {
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
                                         .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
+                                        .onItem().transformToUni(ignored -> insertBrandOwnerReadAccess(tx, id, representedInBrands))
                                         .onItem().transformToUni(ignored -> upsertLabels(tx, id, listener.getLabels()))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
+    }
+
+    private Uni<Void> insertBrandOwnerReadAccess(SqlClient tx, UUID listenerId, List<UUID> brandIds) {
+        if (brandIds == null || brandIds.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        String rlsSql = String.format(
+                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, false, false) " +
+                        "ON CONFLICT (reader, entity_id) DO NOTHING",
+                entityData.getRlsName()
+        );
+        String authorSql = "SELECT author FROM kneobroadcaster__brands WHERE id = ANY($1::uuid[])";
+        UUID[] ids = brandIds.toArray(new UUID[0]);
+        return tx.preparedQuery(authorSql)
+                .execute(Tuple.of(ids))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUniAndConcatenate(row -> {
+                    long authorId = row.getLong("author");
+                    return tx.preparedQuery(rlsSql)
+                            .execute(Tuple.of(authorId, listenerId))
+                            .onItem().ignore().andContinueWithNull();
+                })
+                .collect().asList()
+                .onItem().ignore().andContinueWithNull();
     }
 
     private Uni<Void> insertBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
