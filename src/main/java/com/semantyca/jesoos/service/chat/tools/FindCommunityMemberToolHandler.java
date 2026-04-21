@@ -48,7 +48,17 @@ public class FindCommunityMemberToolHandler extends BaseToolHandler {
                         return handleError(toolUse, "Current listener not found.", handler, conversationHistory, systemPromptCall2, streamFn);
                     }
 
-                    return listenerService.findCommunityMembers(brandName, currentListener.getId(), fieldName, fieldValue)
+                    Uni<java.util.List<com.semantyca.mixpla.model.Listener>> searchUni;
+                    if ("interests".equals(fieldName)) {
+                        String city = currentListener.getUserData() != null
+                                ? (String) currentListener.getUserData().getData().getOrDefault("city", null)
+                                : null;
+                        searchUni = listenerService.findCommunityMembersByInterest(brandName, currentListener.getId(), fieldValue, city);
+                    } else {
+                        searchUni = listenerService.findCommunityMembers(brandName, currentListener.getId(), fieldName, fieldValue);
+                    }
+
+                    return searchUni
                             .flatMap(members -> {
                                 JsonArray matches = new JsonArray();
                                 for (var member : members) {
@@ -60,6 +70,8 @@ public class FindCommunityMemberToolHandler extends BaseToolHandler {
                                         if (company != null) entry.put("company", company.toString());
                                         Object group = member.getUserData().getData().get("community_group");
                                         if (group != null) entry.put("community_group", group.toString());
+                                        Object city = member.getUserData().getData().get("city");
+                                        if (city != null) entry.put("city", city.toString());
                                     }
                                     if (!entry.isEmpty()) {
                                         matches.add(entry);

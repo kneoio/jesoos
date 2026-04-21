@@ -13,8 +13,8 @@ public class FindCommunityMemberTool {
                 .properties(JsonValue.from(Map.of(
                         "field_name", Map.of(
                                 "type", "string",
-                                "enum", new String[]{"company", "community_group", "preferred_name"},
-                                "description", "Which field to search by: 'company' for same workplace, 'community_group' for same Telegram/Discord group, 'preferred_name' for a specific person"),
+                                "enum", new String[]{"company", "community_group", "preferred_name", "interests"},
+                                "description", "Which field to search by: 'company' for same workplace, 'community_group' for same Telegram/Discord group, 'preferred_name' for a specific person, 'interests' for shared hobby/activity (automatically filtered by same city if available)"),
                         "field_value", Map.of(
                                 "type", "string",
                                 "description", "The value to search for (e.g. company name, group name, or person's name)")

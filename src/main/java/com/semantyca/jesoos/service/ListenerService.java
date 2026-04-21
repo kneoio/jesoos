@@ -161,6 +161,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.findByUserDataFieldInBrand(brandSlug, excludeListenerId, fieldName, fieldValue);
     }
 
+    public Uni<List<Listener>> findCommunityMembersByInterest(String brandSlug, UUID excludeListenerId, String interest, String city) {
+        assert repository != null;
+        return repository.findByInterestAndCityInBrand(brandSlug, excludeListenerId, interest, city);
+    }
+
     public Uni<Void> updateUserData(UUID listenerId, UserData userData) {
         assert repository != null;
         return repository.updateUserData(listenerId, userData);

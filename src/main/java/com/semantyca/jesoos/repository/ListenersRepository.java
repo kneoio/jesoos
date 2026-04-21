@@ -424,6 +424,27 @@ public class ListenersRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<List<Listener>> findByInterestAndCityInBrand(String brandSlug, UUID excludeListenerId, String interest, String city) {
+        boolean hasCity = city != null && !city.isBlank();
+        String sql = "SELECT l.* FROM " + entityData.getTableName() + " l " +
+                "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
+                "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
+                "WHERE b.slug_name = $1 AND l.id != $2 AND l.archived = 0 " +
+                "AND l.user_data->'interests' ? $3 " +
+                (hasCity ? "AND lower(l.user_data->>'city') = lower($4) " : "") +
+                "LIMIT 5";
+
+        Tuple params = hasCity
+                ? Tuple.of(brandSlug, excludeListenerId, interest, city)
+                : Tuple.of(brandSlug, excludeListenerId, interest);
+
+        return client.preparedQuery(sql)
+                .execute(params)
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<Listener> findByUserDataField(String fieldName, String fieldValue) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.user_data->$1 = $2 LIMIT 1";
 
