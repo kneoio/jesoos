@@ -26,6 +26,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
+            ListenerLabelCache labelCache,
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -37,6 +38,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         String action = inputMap.getOrDefault("action", JsonValue.from("get")).toString().replace("\"", "");
         String fieldName = inputMap.getOrDefault("field_name", JsonValue.from("")).toString().replace("\"", "");
         String fieldValue = inputMap.getOrDefault("field_value", JsonValue.from("")).toString().replace("\"", "");
+        String labelIdentifier = inputMap.getOrDefault("label_identifier", JsonValue.from("")).toString().replace("\"", "");
 
         LOGGER.info("[ListenerData] Action: {}, fieldName: {}, userId: {}, connectionId: {}",
                 action, fieldName, userId, connectionId);
@@ -54,6 +56,10 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                                 handleSet(toolUse, listener, fieldName, fieldValue, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "remove" ->
                                 handleRemove(toolUse, listener, fieldName, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        case "add_label" ->
+                                handleAddLabel(toolUse, listener, labelIdentifier, listenerService, labelCache, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        case "remove_label" ->
+                                handleRemoveLabel(toolUse, listener, labelIdentifier, listenerService, labelCache, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         default ->
                                 handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
                     };
@@ -78,7 +84,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 .put("user_id", listener.getUserId())
                 .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
                 .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
-                .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject());
+                .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
+                .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of());
 
         handler.addToolUseToHistory(toolUse, conversationHistory);
         handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
@@ -195,6 +202,107 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 .onFailure().recoverWithUni(err -> {
                     LOGGER.error("[ListenerData] Failed to remove field", err);
                     return handleError(toolUse, "Failed to remove user data: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
+                });
+    }
+
+    private static Uni<Void> handleAddLabel(
+            ToolUseBlock toolUse,
+            Listener listener,
+            String labelIdentifier,
+            ListenerService listenerService,
+            ListenerLabelCache labelCache,
+            ListenerDataToolHandler handler,
+            Consumer<String> chunkHandler,
+            String connectionId,
+            List<MessageParam> conversationHistory,
+            String systemPromptCall2,
+            Function<MessageCreateParams, Uni<Void>> streamFn
+    ) {
+        if (labelIdentifier.isEmpty()) {
+            return handleError(toolUse, "label_identifier is required for 'add_label' action", handler, conversationHistory, systemPromptCall2, streamFn);
+        }
+
+        java.util.UUID labelId = labelCache.get(labelIdentifier);
+        if (labelId == null) {
+            return handleError(toolUse, "Unknown label: " + labelIdentifier, handler, conversationHistory, systemPromptCall2, streamFn);
+        }
+
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Adding label...");
+
+        List<java.util.UUID> labels = listener.getLabels();
+        if (!labels.contains(labelId)) {
+            labels.add(labelId);
+        }
+        return listenerService.updateLabels(listener.getId(), labels)
+                .flatMap(ignored -> {
+                    LOGGER.info("[ListenerData] Added label '{}' for listener {}", labelIdentifier, listener.getId());
+                    JsonObject payload = new JsonObject()
+                            .put("ok", true)
+                            .put("action", "add_label")
+                            .put("label_identifier", labelIdentifier)
+                            .put("message", "Label added successfully");
+                    handler.addToolUseToHistory(toolUse, conversationHistory);
+                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                    return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.error("[ListenerData] Failed to add label", err);
+                    return handleError(toolUse, "Failed to add label: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
+                });
+    }
+
+    private static Uni<Void> handleRemoveLabel(
+            ToolUseBlock toolUse,
+            Listener listener,
+            String labelIdentifier,
+            ListenerService listenerService,
+            ListenerLabelCache labelCache,
+            ListenerDataToolHandler handler,
+            Consumer<String> chunkHandler,
+            String connectionId,
+            List<MessageParam> conversationHistory,
+            String systemPromptCall2,
+            Function<MessageCreateParams, Uni<Void>> streamFn
+    ) {
+        if (labelIdentifier.isEmpty()) {
+            return handleError(toolUse, "label_identifier is required for 'remove_label' action", handler, conversationHistory, systemPromptCall2, streamFn);
+        }
+
+        java.util.UUID labelId = labelCache.get(labelIdentifier);
+        if (labelId == null) {
+            return handleError(toolUse, "Unknown label: " + labelIdentifier, handler, conversationHistory, systemPromptCall2, streamFn);
+        }
+
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Removing label...");
+
+        boolean removed = listener.getLabels().remove(labelId);
+        if (!removed) {
+            JsonObject payload = new JsonObject()
+                    .put("ok", true)
+                    .put("action", "remove_label")
+                    .put("label_identifier", labelIdentifier)
+                    .put("removed", false)
+                    .put("message", "Label was not assigned");
+            handler.addToolUseToHistory(toolUse, conversationHistory);
+            handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+            return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
+        }
+        return listenerService.updateLabels(listener.getId(), listener.getLabels())
+                .flatMap(ignored -> {
+                    LOGGER.info("[ListenerData] Removed label '{}' for listener {}", labelIdentifier, listener.getId());
+                    JsonObject payload = new JsonObject()
+                            .put("ok", true)
+                            .put("action", "remove_label")
+                            .put("label_identifier", labelIdentifier)
+                            .put("removed", true)
+                            .put("message", "Label removed successfully");
+                    handler.addToolUseToHistory(toolUse, conversationHistory);
+                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                    return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.error("[ListenerData] Failed to remove label", err);
+                    return handleError(toolUse, "Failed to remove label: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
                 });
     }
 

@@ -49,6 +49,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
             BrandPool brandPool,
             SongEmitter songEmitter,
             AiAgentService aiAgentService,
+            ListenerLabelCache labelCache,
             String brandName,
             long userId,
             Consumer<String> chunkHandler,
@@ -87,10 +88,11 @@ public class UploadSongToolHandler extends BaseToolHandler {
                     if (listener == null) {
                         return handler.error(toolUse, "Listener not found.", conversationHistory, systemPromptCall2, streamFn);
                     }
-                    String isArtist = listener.getUserData() != null
-                            ? (String) listener.getUserData().getData().get("is_artist")
-                            : null;
-                    if (!"true".equalsIgnoreCase(isArtist)) {
+                    java.util.UUID artistLabelId = labelCache.get("artist");
+                    boolean isArtist = artistLabelId != null
+                            && listener.getLabels() != null
+                            && listener.getLabels().contains(artistLabelId);
+                    if (!isArtist) {
                         return handler.error(toolUse, "Upload is only available for verified artists.", conversationHistory, systemPromptCall2, streamFn);
                     }
 

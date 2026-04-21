@@ -166,6 +166,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.updateUserData(listenerId, userData);
     }
 
+    public Uni<Void> updateLabels(UUID listenerId, List<UUID> labels) {
+        assert repository != null;
+        return repository.updateLabels(listenerId, labels);
+    }
+
     public Uni<Listener> update(UUID id, Listener listener, String stationSlug) {
         assert repository != null;
         return repository.getBrandsForListener(id)

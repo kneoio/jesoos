@@ -70,6 +70,9 @@ public class PublicChatService extends ChatService {
     SoundFragmentService soundFragmentService;
 
     @Inject
+    ListenerLabelCache listenerLabelCache;
+
+    @Inject
     BrandPool brandPool;
 
     @Inject
@@ -293,10 +296,10 @@ public class PublicChatService extends ChatService {
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
 case "listener_data" -> ListenerDataToolHandler.handle(
-                    toolUse, inputMap, listenerService, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, listenerService, listenerLabelCache, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "upload_song" -> UploadSongToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
                     toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

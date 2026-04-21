@@ -5,6 +5,7 @@ import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -27,6 +28,9 @@ public class ChatUploadResource extends AbstractResource {
 
     @Inject
     ListenerService listenerService;
+
+    @Inject
+    ListenerLabelCache listenerLabelCache;
 
     @Inject
     JesoosConfig config;
@@ -53,6 +57,14 @@ public class ChatUploadResource extends AbstractResource {
                                                         listener.getUserData().getData().forEach(
                                                                 (k, v) -> userData.put(k, v != null ? v.toString() : null)
                                                         );
+                                                    }
+                                                    java.util.UUID artistLabelId = listenerLabelCache.get("artist");
+                                                    boolean isArtist = artistLabelId != null
+                                                            && listener != null
+                                                            && listener.getLabels() != null
+                                                            && listener.getLabels().contains(artistLabelId);
+                                                    if (isArtist) {
+                                                        userData.put("is_artist", "true");
                                                     }
                                                     ctx.response().setStatusCode(200)
                                                             .putHeader("Content-Type", "application/json")

@@ -518,6 +518,10 @@ public class ListenersRepository extends AsyncRepository {
         return userData;
     }
 
+    public Uni<Void> updateLabels(UUID listenerId, List<UUID> labels) {
+        return upsertLabels(client, listenerId, labels);
+    }
+
     private Uni<Void> upsertLabels(SqlClient client, UUID listenerId, List<UUID> labels) {
         if (labels == null || labels.isEmpty()) {
             return client.preparedQuery("DELETE FROM kneobroadcaster__listener_labels WHERE listener_id = $1")
