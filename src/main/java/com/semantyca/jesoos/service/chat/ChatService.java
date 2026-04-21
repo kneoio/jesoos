@@ -218,7 +218,12 @@ public abstract class ChatService {
                                 return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
-        ).runSubscriptionOn(getDefaultWorkerPool());
+        ).ifNoItem().after(java.time.Duration.ofSeconds(30)).fail()
+        .onFailure().recoverWithUni(err -> {
+            LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
+            completionHandler.accept(ChatMessageDTO.error("Something went wrong, please try again.", "system", connectionId).build().toJson());
+            return Uni.createFrom().voidItem();
+        }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
     protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user);
