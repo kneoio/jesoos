@@ -31,7 +31,7 @@ public class ListenerDataTool {
 
         return Tool.builder()
                 .name("listener_data")
-                .description("Manage listener data. Use 'get' to retrieve all listener information (profile + custom user_data + labels). Use 'set' to store custom user data fields. Use 'remove' to delete specific fields. Use 'add_label' / 'remove_label' with label_identifier to manage labels (available: 'artist').")
+                .description("Manage listener data. Use 'get' to retrieve all listener information (profile + custom user_data + labels). The response includes has_artist_label (boolean) — use it for song upload eligibility. Use 'set' to store custom user data fields. Use 'remove' to delete specific fields. Use 'add_label' / 'remove_label' with label_identifier to manage labels (available: 'artist').")
                 .inputSchema(schema)
                 .build();
     }

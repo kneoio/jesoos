@@ -51,7 +51,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
                     return switch (action) {
                         case "get" ->
-                                handleGet(toolUse, listener, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                handleGet(toolUse, listener, labelCache, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "set" ->
                                 handleSet(toolUse, listener, fieldName, fieldValue, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                         case "remove" ->
@@ -69,6 +69,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
     private static Uni<Void> handleGet(
             ToolUseBlock toolUse,
             Listener listener,
+            ListenerLabelCache labelCache,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -78,6 +79,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
     ) {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
 
+        java.util.UUID artistLabelId = labelCache.get("artist");
+        boolean hasArtistLabel = artistLabelId != null
+                && listener.getLabels() != null
+                && listener.getLabels().contains(artistLabelId);
+
         JsonObject payload = new JsonObject()
                 .put("ok", true)
                 .put("listener_id", listener.getId().toString())
@@ -85,7 +91,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
                 .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
                 .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
-                .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of());
+                .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of())
+                .put("has_artist_label", hasArtistLabel);
 
         handler.addToolUseToHistory(toolUse, conversationHistory);
         handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
