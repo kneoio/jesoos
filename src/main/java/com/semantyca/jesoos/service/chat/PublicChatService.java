@@ -314,7 +314,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn, listenerService, listenerLabelCache
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

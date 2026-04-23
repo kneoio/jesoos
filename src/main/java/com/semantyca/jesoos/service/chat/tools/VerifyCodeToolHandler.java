@@ -5,6 +5,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -34,7 +35,9 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<MessageCreateParams, Uni<Void>> streamFn,
+            ListenerService listenerService,
+            ListenerLabelCache listenerLabelCache
     ) {
         VerifyCodeToolHandler handler = new VerifyCodeToolHandler();
         String email = inputMap.getOrDefault("email", JsonValue.from(""))
@@ -79,24 +82,65 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                             .onItem().transformToUni(registrationResult -> {
                                 LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
 
-                                // Send session token directly to frontend for persistent reconnect
-                                controller.sendToConnection(connectionId, new JsonObject()
-                                        .put("type", "session_token")
-                                        .put("token", registrationResult.userToken())
-                                        .put("email", email)
-                                        .encode());
+                                return listenerService.getByUserId(user.getId())
+                                        .onItem().transformToUni(listener -> {
+                                            JsonObject userData = new JsonObject();
+                                            if (listener != null && listener.getUserData() != null
+                                                    && listener.getUserData().getData() != null) {
+                                                listener.getUserData().getData().forEach(
+                                                        (k, v) -> userData.put(k, v != null ? v.toString() : null)
+                                                );
+                                            }
+                                            java.util.UUID artistLabelId = listenerLabelCache.get("artist");
+                                            boolean isArtist = artistLabelId != null
+                                                    && listener != null
+                                                    && listener.getLabels() != null
+                                                    && listener.getLabels().contains(artistLabelId);
+                                            if (isArtist) {
+                                                userData.put("is_artist", "true");
+                                            }
 
-                                JsonObject payload = new JsonObject()
-                                        .put("ok", true)
-                                        .put("email", email)
-                                        .put("userId", user.getId())
-                                        .put("message", "Authentication successful! You now have access to all features and personalization.");
+                                            // Send session token with user_data to frontend
+                                            controller.sendToConnection(connectionId, new JsonObject()
+                                                    .put("type", "session_token")
+                                                    .put("token", registrationResult.userToken())
+                                                    .put("email", email)
+                                                    .put("user_data", userData)
+                                                    .encode());
 
-                                handler.addToolUseToHistory(toolUse, conversationHistory);
-                                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                                            JsonObject payload = new JsonObject()
+                                                    .put("ok", true)
+                                                    .put("email", email)
+                                                    .put("userId", user.getId())
+                                                    .put("message", "Authentication successful! You now have access to all features and personalization.");
 
-                                MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                                return authStreamFn.apply(params);
+                                            handler.addToolUseToHistory(toolUse, conversationHistory);
+                                            handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                            MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                            return authStreamFn.apply(params);
+                                        })
+                                        .onFailure().recoverWithUni(err -> {
+                                            LOG.warnf("[VerifyCode] Failed to fetch listener data for %s, sending token without user_data: %s", user.getId(), err.getMessage());
+
+                                            controller.sendToConnection(connectionId, new JsonObject()
+                                                    .put("type", "session_token")
+                                                    .put("token", registrationResult.userToken())
+                                                    .put("email", email)
+                                                    .encode());
+
+                                            JsonObject payload = new JsonObject()
+                                                    .put("ok", true)
+                                                    .put("email", email)
+                                                    .put("userId", user.getId())
+                                                    .put("message", "Authentication successful! You now have access to all features and personalization.");
+
+                                            handler.addToolUseToHistory(toolUse, conversationHistory);
+                                            handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                            MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                            return authStreamFn.apply(params);
+                                        });
                             })
                             .onFailure().recoverWithUni(err -> {
                                 LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
