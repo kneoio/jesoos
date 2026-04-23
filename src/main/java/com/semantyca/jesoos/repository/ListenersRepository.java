@@ -491,7 +491,12 @@ public class ListenersRepository extends AsyncRepository {
                 .execute(Tuple.of(userId))
                 .onItem().transformToUni(rows -> {
                     if (rows.iterator().hasNext()) {
-                        return Uni.createFrom().item(from(rows.iterator().next()));
+                        Listener listener = from(rows.iterator().next());
+                        return loadLabels(listener.getId())
+                                .onItem().transform(labels -> {
+                                    listener.setLabels(labels);
+                                    return listener;
+                                });
                     } else {
                         return Uni.createFrom().nullItem();
                     }

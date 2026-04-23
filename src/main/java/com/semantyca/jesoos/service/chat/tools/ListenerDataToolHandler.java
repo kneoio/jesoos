@@ -77,12 +77,14 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Recalling user...");
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Remembering user...");
 
-        UUID artistLabelId = labelCache.get("artist");
+        return labelCache.getOrLoad("artist").flatMap(artistLabelId -> {
         boolean hasArtistLabel = artistLabelId != null
                 && listener.getLabels() != null
                 && listener.getLabels().contains(artistLabelId);
+        LOGGER.infof("[ListenerData] get: artistLabelId=%s, listenerLabels=%s, hasArtistLabel=%s",
+                artistLabelId, listener.getLabels(), hasArtistLabel);
 
         JsonObject payload = new JsonObject()
                 .put("ok", true)
@@ -99,6 +101,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
         MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
         return streamFn.apply(secondCallParams);
+        });
     }
 
     private static Uni<Void> handleSet(
@@ -229,12 +232,14 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return handleError(toolUse, "label_identifier is required for 'add_label' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        java.util.UUID labelId = labelCache.get(labelIdentifier);
+        return labelCache.getOrLoad(labelIdentifier).flatMap(labelId -> {
         if (labelId == null) {
+            LOGGER.warnf("[ListenerData] add_label: label identifier '%s' not found in cache or DB", labelIdentifier);
             return handleError(toolUse, "Unknown label: " + labelIdentifier, handler, conversationHistory, systemPromptCall2, streamFn);
         }
 
         List<java.util.UUID> labels = listener.getLabels();
+        LOGGER.infof("[ListenerData] add_label: resolved label '%s' -> %s, listener labels: %s", labelIdentifier, labelId, labels);
         if (labels.contains(labelId)) {
             LOGGER.infof("[ListenerData] Label '%s' already present for listener %s, skipping update", labelIdentifier, listener.getId());
             JsonObject payload = new JsonObject()
@@ -268,6 +273,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                     LOGGER.error("[ListenerData] Failed to add label", err);
                     return handleError(toolUse, "Failed to add label: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
                 });
+        });
     }
 
     private static Uni<Void> handleRemoveLabel(

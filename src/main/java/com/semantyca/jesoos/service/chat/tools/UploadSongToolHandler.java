@@ -78,6 +78,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
         } catch (Exception ignored) {}
 
         if (tempFilename.isEmpty() || title.isEmpty() || artist.isEmpty()) {
+            LOGGER.warn("[UploadSong] Missing required fields — temp_filename='{}', title='{}', artist='{}'", tempFilename, title, artist);
             return handler.error(toolUse, "temp_filename, title and artist are required", conversationHistory, systemPromptCall2, streamFn);
         }
 
@@ -92,6 +93,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                     boolean isArtist = artistLabelId != null
                             && listener.getLabels() != null
                             && listener.getLabels().contains(artistLabelId);
+                    LOGGER.info("[UploadSong] artistLabelId={}, listenerLabels={}, isArtist={}", artistLabelId, listener.getLabels(), isArtist);
                     if (!isArtist) {
                         return handler.error(toolUse,
                                 "Listener profile does not have the station 'artist' label yet (not the same as email or sign-in). If the user wants to upload, call listener_data add_label with label_identifier=artist after they confirm, then call upload_song again.",
@@ -122,7 +124,8 @@ public class UploadSongToolHandler extends BaseToolHandler {
 
                                         dto.setRepresentedInBrands(List.of(stream.getId()));
 
-                                        handler.sendProcessingChunk(chunkHandler, connectionId, "Saving your track...");
+                                        LOGGER.info("[UploadSong] Attempting upsert — file='{}', title='{}', artist='{}', genres={}", tempFilename, title, artist, finalGenreNames);
+                                    handler.sendProcessingChunk(chunkHandler, connectionId, "Saving your track...");
 
                                         // TODO: Shazam copyright check placeholder
 
@@ -155,7 +158,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                                             return songEmitter.sendWithCustomIntro(
                                                                                     brandName, liveScene, entry,
                                                                                     introText.isBlank() ? "A fresh track just arrived — " + title + " by " + artist + "!" : introText,
-                                                                                    agent, stream.getTimeZone(), 9
+                                                                                    agent, stream.getTimeZone(), 8
                                                                             );
                                                                         });
                                                             })

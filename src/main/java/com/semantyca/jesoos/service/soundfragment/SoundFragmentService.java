@@ -48,7 +48,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         super(userService);
         this.repository = repository;
         this.brandService = brandService;
-        uploadDir = config.getPathUploads() + "/sound-fragments-controller";
+        uploadDir = config.getPathUploads() + "/chat-upload-controller";
         this.localFileCleanupService = localFileCleanupService;
     }
 

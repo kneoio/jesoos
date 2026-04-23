@@ -25,6 +25,10 @@ public class ListenerLabelCache {
     LabelService labelService;
 
     void onStart(@Observes StartupEvent event) {
+        reload();
+    }
+
+    public void reload() {
         for (String identifier : KNOWN_IDENTIFIERS) {
             labelService.findByIdentifier(identifier)
                     .subscribe().with(
@@ -43,5 +47,20 @@ public class ListenerLabelCache {
 
     public UUID get(String identifier) {
         return cache.get(identifier);
+    }
+
+    public io.smallrye.mutiny.Uni<UUID> getOrLoad(String identifier) {
+        UUID cached = cache.get(identifier);
+        if (cached != null) {
+            return io.smallrye.mutiny.Uni.createFrom().item(cached);
+        }
+        return labelService.findByIdentifier(identifier)
+                .onItem().invoke(label -> {
+                    if (label != null) {
+                        cache.put(identifier, label.getId());
+                        LOGGER.info("[ListenerLabelCache] Lazy-resolved '{}' -> {}", identifier, label.getId());
+                    }
+                })
+                .map(label -> label != null ? label.getId() : null);
     }
 }
