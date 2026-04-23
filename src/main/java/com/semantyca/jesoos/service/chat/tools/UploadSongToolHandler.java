@@ -20,6 +20,7 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.jesoos.ws.PublicChatController;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
@@ -56,7 +57,8 @@ public class UploadSongToolHandler extends BaseToolHandler {
             String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<MessageCreateParams, Uni<Void>> streamFn,
+            PublicChatController controller
     ) {
         UploadSongToolHandler handler = new UploadSongToolHandler();
 
@@ -95,6 +97,10 @@ public class UploadSongToolHandler extends BaseToolHandler {
                     if (!isArtist) {
                         return handler.error(toolUse, "Upload is only available for verified artists.", conversationHistory, systemPromptCall2, streamFn);
                     }
+
+                    controller.sendToConnection(connectionId, new JsonObject()
+                            .put("type", "show_upload_button")
+                            .encode());
 
                     return userService.get(userId).flatMap(userOpt -> {
                         if (userOpt.isEmpty()) {

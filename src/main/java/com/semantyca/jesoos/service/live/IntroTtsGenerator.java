@@ -263,7 +263,7 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Generated text (%s tokens): %s", response.usage().outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.usage().inputTokens(), "outputTokens", response.usage().outputTokens(),
-                                    "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle()), traceId);
+                                    "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "spokenText", text), traceId);
                     em.complete(text);
                 }
             } catch (Exception e) {
