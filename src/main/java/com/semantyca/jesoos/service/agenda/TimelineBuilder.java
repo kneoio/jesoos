@@ -54,8 +54,8 @@ public class TimelineBuilder {
         boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
                              introPrompts.stream().anyMatch(ScenePrompt::isActive);
 
-        LOGGER.infof("Building timeline for scene '%s' with talkativity=%.2f, allowIntros=%s",
-                scene.getSceneTitle(), talkativity, allowIntros);
+        /*LOGGER.infof("Building timeline for scene '%s' with talkativity=%.2f, allowIntros=%s",
+                scene.getSceneTitle(), talkativity, allowIntros);*/
 
         int songIndex = 0;
         int sequenceNumber = 0;
@@ -144,9 +144,9 @@ public class TimelineBuilder {
 
         scene.setFitSeconds(fitSeconds);
 
-        LOGGER.infof("Built timeline for scene '%s': %d entries, content %ds, budget %ds, fit %ds, allowIntros: %s",
+        /*LOGGER.infof("Built timeline for scene '%s': %d entries, content %ds, budget %ds, fit %ds, allowIntros: %s",
                 scene.getSceneTitle(), timeline.size(),
-                contentDurationSeconds, sceneDurationSeconds, fitSeconds, allowIntros);
+                contentDurationSeconds, sceneDurationSeconds, fitSeconds, allowIntros);*/
 
         scene.setTimelineBuild(true);
         return timeline;
