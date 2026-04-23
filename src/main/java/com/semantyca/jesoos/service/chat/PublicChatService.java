@@ -300,7 +300,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, listenerLabelCache, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "upload_song" -> UploadSongToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn, controller
+                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
                     toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
