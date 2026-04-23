@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.external;
+package com.semantyca.jesoos.external;
 
 import com.semantyca.jesoos.dto.stream.StreamScheduleDTO;
 import io.quarkus.mailer.Mail;

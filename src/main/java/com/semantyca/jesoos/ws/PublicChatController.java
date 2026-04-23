@@ -62,7 +62,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     public void setupRoutes(Router router) {
         String path = "/jesoos/chat";
-        router.route(path + "*").handler(BodyHandler.create());
+        router.route(path + "*").handler(BodyHandler.create().setBodyLimit(-1));
         router.route(path + "*").handler(this::addHeaders);
         
         router.route("/jesoos/ws/chat").handler(rc -> {

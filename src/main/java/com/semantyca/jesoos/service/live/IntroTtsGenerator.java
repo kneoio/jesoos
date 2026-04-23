@@ -1,13 +1,8 @@
 package com.semantyca.jesoos.service.live;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.Model;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.external.AnthropicMessagesClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
@@ -47,34 +42,46 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
+    private static final String INTRO_SPOKEN_TEXT_MODEL = "claude-haiku-4-5-20251001";
+
+    private final PromptService promptService;
+    private final DraftFactory draftFactory;
+    private final ElevenLabsClient elevenLabsClient;
+    private final ModelslabClient modelslabClient;
+    private final FishAudioClient fishAudioClient;
+    private final GCPTTSClient gcpttsClient;
+    private final JesoosConfig config;
+    private final FFmpegProvider ffmpegProvider;
+    private final MetricPublisher metricPublisher;
+    private final AnthropicMessagesClient anthropicMessagesClient;
 
     @Inject
-    PromptService promptService;
-    @Inject
-    DraftFactory draftFactory;
-    @Inject
-    ElevenLabsClient elevenLabsClient;
-    @Inject
-    ModelslabClient modelslabClient;
-    @Inject
-    FishAudioClient fishAudioClient;
-    @Inject
-    GCPTTSClient gcpttsClient;
-    @Inject
-    JesoosConfig config;
-    @Inject
-    FFmpegProvider ffmpegProvider;
-    @Inject
-    private MetricPublisher metricPublisher;
-    private AnthropicClient anthropicClient;
+    public IntroTtsGenerator(
+            PromptService promptService,
+            DraftFactory draftFactory,
+            ElevenLabsClient elevenLabsClient,
+            ModelslabClient modelslabClient,
+            FishAudioClient fishAudioClient,
+            GCPTTSClient gcpttsClient,
+            JesoosConfig config,
+            FFmpegProvider ffmpegProvider,
+            MetricPublisher metricPublisher,
+            AnthropicMessagesClient anthropicMessagesClient
+    ) {
+        this.promptService = promptService;
+        this.draftFactory = draftFactory;
+        this.elevenLabsClient = elevenLabsClient;
+        this.modelslabClient = modelslabClient;
+        this.fishAudioClient = fishAudioClient;
+        this.gcpttsClient = gcpttsClient;
+        this.config = config;
+        this.ffmpegProvider = ffmpegProvider;
+        this.metricPublisher = metricPublisher;
+        this.anthropicMessagesClient = anthropicMessagesClient;
+    }
 
     @PostConstruct
-    void init() {
-        anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .timeout(java.time.Duration.ofSeconds(60))
-                .build();
-        
+    void initIntroTtsTempDir() {
         try {
             Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
             Files.createDirectories(uploadsDir);
@@ -211,68 +218,54 @@ public class IntroTtsGenerator {
     }
 
     private Uni<String> generateSpokenText(Prompt prompt, String draftContent, UUID traceId, String brandName) {
-        return Uni.createFrom().<String>emitter(em -> {
-            if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
-                LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
-                em.complete(null);
-                return;
-            }
+        if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
+            LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
+            return Uni.createFrom().item((String) null);
+        }
 
-            String fullPrompt = String.format(
-                    "%s\n\nDraft input:\n%s",
-                    prompt.getPrompt(),
-                    draftContent
-            );
+        String fullPrompt = String.format(
+                "%s\n\nDraft input:\n%s",
+                prompt.getPrompt(),
+                draftContent
+        );
 
-            // LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
+        long maxTokens = 2048L;
+        return anthropicMessagesClient.createTextMessage(
+                        INTRO_SPOKEN_TEXT_MODEL,
+                        maxTokens,
+                        getSystemPrompt(),
+                        fullPrompt)
+                .map(response -> {
+                    LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
+                            response.inputTokens(), response.outputTokens());
 
-            long maxTokens = 2048L;
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(maxTokens)
-                    .system(getSystemPrompt())
-                    .addUserMessage(fullPrompt)
-                    .build();
+                    String text = response.text();
+                    if (response.outputTokens() >= maxTokens * 0.95) {
+                        LOGGER.warnf("Content generation used %s tokens (%s%% of max %s). Response may be truncated.",
+                                response.outputTokens(),
+                                Math.round((response.outputTokens() / (double) maxTokens) * 100),
+                                maxTokens);
+                    }
 
-            try {
-                Message response = anthropicClient.messages().create(params);
+                    if (text.contains("technical difficulty")
+                            || text.contains("technical error")
+                            || text.contains("technical issue")) {
+                        metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                                Map.of("reason", "technical_difficulty_detected", "promptId", prompt.getId().toString()), traceId);
+                        return null;
+                    }
 
-                LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
-                        response.usage().inputTokens(), response.usage().outputTokens());
-
-                String text = response.content().stream()
-                        .filter(ContentBlock::isText)
-                        .map(block -> block.asText().text())
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("No text generated from AI"));
-
-                if (response.usage().outputTokens() >= maxTokens * 0.95) {
-                    LOGGER.warnf("Content generation used %s tokens (%s% of max %s). Response may be truncated.",
-                            response.usage().outputTokens(),
-                            Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
-                            maxTokens);
-                }
-
-                if (text.contains("technical difficulty")
-                        || text.contains("technical error")
-                        || text.contains("technical issue")) {
-                    metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW,"intro_spoken_text_generation_failed",
-                            Map.of("reason", "technical_difficulty_detected", "promptId", prompt.getId().toString()), traceId);
-                    em.complete(null);
-                } else {
-                    LOGGER.infof("Generated text (%s tokens): %s", response.usage().outputTokens(), text);
+                    LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
-                            Map.of("inputTokens", response.usage().inputTokens(), "outputTokens", response.usage().outputTokens(),
+                            Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "spokenText", text), traceId);
-                    em.complete(text);
-                }
-            } catch (Exception e) {
-                LOGGER.errorf("Anthropic API call failed - Type: %s, Message: %s", e.getClass().getSimpleName(), e.getMessage(), e);
-                metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
-                        Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
-                em.fail(e);
-            }
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+                    return text;
+                })
+                .onFailure().invoke(e -> {
+                    LOGGER.errorf("Anthropic API call failed - Type: %s, Message: %s", e.getClass().getSimpleName(), e.getMessage(), e);
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                            Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
+                });
     }
 
     private String getSystemPrompt() {
