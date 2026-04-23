@@ -93,7 +93,9 @@ public class UploadSongToolHandler extends BaseToolHandler {
                             && listener.getLabels() != null
                             && listener.getLabels().contains(artistLabelId);
                     if (!isArtist) {
-                        return handler.error(toolUse, "Upload is only available for verified artists.", conversationHistory, systemPromptCall2, streamFn);
+                        return handler.error(toolUse,
+                                "Listener profile does not have the station 'artist' label yet (not the same as email or sign-in). If the user wants to upload, call listener_data add_label with label_identifier=artist after they confirm, then call upload_song again.",
+                                conversationHistory, systemPromptCall2, streamFn);
                     }
 
                     return userService.get(userId).flatMap(userOpt -> {

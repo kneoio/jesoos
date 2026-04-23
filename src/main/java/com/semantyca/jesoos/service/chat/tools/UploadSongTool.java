@@ -29,14 +29,14 @@ public class UploadSongTool {
                                 "description", "Optional artist note about the song"),
                         "intro_text", Map.of(
                                 "type", "string",
-                                "description", "DJ intro speech for on-air broadcast — must be in DJ language, warm and natural")
+                                "description", "Exact words you will speak on air as the DJ (TTS) before the track — not 'written copy for the website'. DJ language, warm, natural.")
                 )))
                 .required(List.of("temp_filename", "title", "artist", "genre_names", "intro_text"))
                 .build();
 
         return Tool.builder()
                 .name("upload_song")
-                .description("Save an artist-uploaded song to the station catalog and immediately queue it for broadcast with a DJ intro. Only available to verified artists (is_artist=true in listener data).")
+                .description("After POST /chat/upload-temp returns a filename: save that file to the catalog and queue it for broadcast with a spoken DJ intro (TTS). Eligibility = listener has the station artist label (see listener_data get → has_artist_label). This is NOT email verification or sign-in — never confuse with account verification.")
                 .inputSchema(schema)
                 .build();
     }
