@@ -189,6 +189,7 @@ public class PublicChatService extends ChatService {
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
             tools.add(ManageEventsTool.toTool());
+            tools.add(SendUICommandTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());
             tools.add(VerifyCode.toTool());
@@ -321,6 +322,9 @@ case "listener_data" -> ListenerDataToolHandler.handle(
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "send_ui_command" -> SendUICommandToolHandler.handle(
+                    toolUse, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };

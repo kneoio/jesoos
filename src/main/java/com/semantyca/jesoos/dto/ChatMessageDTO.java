@@ -13,6 +13,7 @@ public class ChatMessageDTO {
     private final long timestamp;
     private final String id;
     private final Boolean asWrapper;
+    private final JsonObject payload;
 
     private ChatMessageDTO(Builder builder) {
         this.type = builder.type;
@@ -22,6 +23,7 @@ public class ChatMessageDTO {
         this.timestamp = builder.timestamp != null ? builder.timestamp : System.currentTimeMillis();
         this.id = builder.id != null ? builder.id : UUID.randomUUID().toString();
         this.asWrapper = builder.asWrapper;
+        this.payload = builder.payload;
     }
 
     public static Builder builder() {
@@ -68,6 +70,15 @@ public class ChatMessageDTO {
                 .connectionId(connectionId);
     }
 
+    public static Builder command(String commandName, JsonObject payload, String connectionId) {
+        return builder()
+                .type(MessageType.COMMAND)
+                .content(commandName)
+                .username("system")
+                .connectionId(connectionId)
+                .payload(payload != null ? payload : new JsonObject());
+    }
+
     public String toJson() {
         boolean shouldUseWrapper = asWrapper != null ? asWrapper : 
             (type == MessageType.USER || type == MessageType.BOT);
@@ -95,6 +106,10 @@ public class ChatMessageDTO {
                 message.put("content", content);
             }
 
+            if (type == MessageType.COMMAND) {
+                message.put("payload", payload != null ? payload : new JsonObject());
+            }
+
             if (type != MessageType.PROCESSING) {
                 message.put("timestamp", timestamp);
             }
@@ -111,6 +126,7 @@ public class ChatMessageDTO {
         private Long timestamp;
         private String id;
         private Boolean asWrapper;
+        private JsonObject payload;
 
         public Builder type(MessageType type) {
             this.type = type;
@@ -144,6 +160,11 @@ public class ChatMessageDTO {
 
         public Builder asWrapper(boolean asWrapper) {
             this.asWrapper = asWrapper;
+            return this;
+        }
+
+        public Builder payload(JsonObject payload) {
+            this.payload = payload;
             return this;
         }
 
