@@ -7,8 +7,7 @@ import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -17,7 +16,7 @@ import java.util.function.Function;
 
 public class StartAuthToolHandler extends BaseToolHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StartAuthToolHandler.class);
+    private static final Logger LOG = Logger.getLogger(StartAuthToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -38,7 +37,7 @@ public class StartAuthToolHandler extends BaseToolHandler {
                     chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        LOG.info("[StartAuth] Initiating auth for email: {}", email);
+        LOG.infof("[StartAuth] Initiating auth for email: %s", email);
         handler.sendProcessingChunk(chunkHandler, connectionId, "Sending verification code to " + email + "...");
 
         return keycloakAuthService.startAuth(email)

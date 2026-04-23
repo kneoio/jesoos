@@ -9,18 +9,18 @@ import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.mixpla.model.Listener;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class ListenerDataToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerDataToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(ListenerDataToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -40,7 +40,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         String fieldValue = inputMap.getOrDefault("field_value", JsonValue.from("")).toString().replace("\"", "");
         String labelIdentifier = inputMap.getOrDefault("label_identifier", JsonValue.from("")).toString().replace("\"", "");
 
-        LOGGER.info("[ListenerData] Action: {}, fieldName: {}, userId: {}, connectionId: {}",
+        LOGGER.infof("[ListenerData] Action: %s, fieldName: %s, userId: %s, connectionId: %s",
                 action, fieldName, userId, connectionId);
 
         return listenerService.getByUserId(userId)
@@ -77,9 +77,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Recalling user...");
 
-        java.util.UUID artistLabelId = labelCache.get("artist");
+        UUID artistLabelId = labelCache.get("artist");
         boolean hasArtistLabel = artistLabelId != null
                 && listener.getLabels() != null
                 && listener.getLabels().contains(artistLabelId);
@@ -121,16 +121,16 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
 
         if (listener.getUserData() == null) {
-            LOGGER.info("[ListenerData] userData was null, creating new for listener {}", listener.getId());
+            LOGGER.infof("[ListenerData] userData was null, creating new for listener %s", listener.getId());
             listener.setUserData(new UserData(new HashMap<>()));
         }
-        LOGGER.info("[ListenerData] userData before set: {}", listener.getUserData().getData());
+        LOGGER.infof("[ListenerData] userData before set: %s", listener.getUserData().getData());
         listener.getUserData().put(fieldName, fieldValue);
-        LOGGER.info("[ListenerData] userData after set: {}", listener.getUserData().getData());
+        LOGGER.infof("[ListenerData] userData after set: %s", listener.getUserData().getData());
 
         return listenerService.updateUserData(listener.getId(), listener.getUserData())
                 .flatMap(ignored -> {
-                    LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listener.getId());
+                    LOGGER.infof("[ListenerData] Set field '%s' = '%s' for listener %s", fieldName, fieldValue, listener.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
@@ -191,7 +191,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
         return listenerService.updateUserData(listener.getId(), listener.getUserData())
                 .flatMap(ignored -> {
-                    LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listener.getId());
+                    LOGGER.infof("[ListenerData] Removed field '%s' for listener %s", fieldName, listener.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
@@ -242,7 +242,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         }
         return listenerService.updateLabels(listener.getId(), labels)
                 .flatMap(ignored -> {
-                    LOGGER.info("[ListenerData] Added label '{}' for listener {}", labelIdentifier, listener.getId());
+                    LOGGER.infof("[ListenerData] Added label '%s' for listener %s", labelIdentifier, listener.getId());
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("action", "add_label")
@@ -296,7 +296,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         }
         return listenerService.updateLabels(listener.getId(), listener.getLabels())
                 .flatMap(ignored -> {
-                    LOGGER.info("[ListenerData] Removed label '{}' for listener {}", labelIdentifier, listener.getId());
+                    LOGGER.infof("[ListenerData] Removed label '%s' for listener %s", labelIdentifier, listener.getId());
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("action", "remove_label")

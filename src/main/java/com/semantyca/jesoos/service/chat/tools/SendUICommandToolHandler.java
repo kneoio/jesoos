@@ -7,8 +7,7 @@ import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -17,7 +16,7 @@ import java.util.function.Function;
 
 public class SendUICommandToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SendUICommandToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(SendUICommandToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -42,7 +41,7 @@ public class SendUICommandToolHandler extends BaseToolHandler {
                 }
             }
         } catch (Exception e) {
-            LOGGER.warn("[SendUICommand] Invalid payload, using empty object: {}", e.getMessage());
+            LOGGER.warnf("[SendUICommand] Invalid payload, using empty object: %s", e.getMessage());
         }
 
         if (command.isBlank()) {
@@ -52,7 +51,7 @@ public class SendUICommandToolHandler extends BaseToolHandler {
             return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
         }
 
-        LOGGER.info("[SendUICommand] Sending command '{}' to connection {}", command, connectionId);
+        LOGGER.infof("[SendUICommand] Sending command '{}' to connection %s", command, connectionId);
         chunkHandler.accept(ChatMessageDTO.command(command, payload, connectionId).build().toJson());
 
         JsonObject result = new JsonObject()

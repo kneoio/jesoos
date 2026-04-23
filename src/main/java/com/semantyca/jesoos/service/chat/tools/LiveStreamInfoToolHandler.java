@@ -11,8 +11,7 @@ import com.semantyca.jesoos.service.live.ScenePool;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -23,7 +22,7 @@ import java.util.function.Function;
 
 public class LiveStreamInfoToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(LiveStreamInfoToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(LiveStreamInfoToolHandler.class);
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
     public static Uni<Void> handle(
@@ -41,7 +40,7 @@ public class LiveStreamInfoToolHandler extends BaseToolHandler {
         LiveStreamInfoToolHandler handler = new LiveStreamInfoToolHandler();
         String action = inputMap.getOrDefault("action", JsonValue.from("get_agenda")).toString().replace("\"", "");
 
-        LOGGER.info("[LiveStreamInfo] action={}, brand={}", action, brandName);
+        LOGGER.infof("[LiveStreamInfo] action=%s, brand=%s", action, brandName);
 
         return brandPool.get(brandName)
                 .flatMap(stream -> {
