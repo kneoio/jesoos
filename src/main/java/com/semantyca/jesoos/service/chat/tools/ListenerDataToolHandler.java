@@ -234,12 +234,23 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return handleError(toolUse, "Unknown label: " + labelIdentifier, handler, conversationHistory, systemPromptCall2, streamFn);
         }
 
+        List<java.util.UUID> labels = listener.getLabels();
+        if (labels.contains(labelId)) {
+            LOGGER.infof("[ListenerData] Label '%s' already present for listener %s, skipping update", labelIdentifier, listener.getId());
+            JsonObject payload = new JsonObject()
+                    .put("ok", true)
+                    .put("action", "add_label")
+                    .put("label_identifier", labelIdentifier)
+                    .put("already_had_label", true)
+                    .put("message", "Listener already has this label");
+            handler.addToolUseToHistory(toolUse, conversationHistory);
+            handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+            return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
+        }
+
         handler.sendProcessingChunk(chunkHandler, connectionId, "Adding label...");
 
-        List<java.util.UUID> labels = listener.getLabels();
-        if (!labels.contains(labelId)) {
-            labels.add(labelId);
-        }
+        labels.add(labelId);
         return listenerService.updateLabels(listener.getId(), labels)
                 .flatMap(ignored -> {
                     LOGGER.infof("[ListenerData] Added label '%s' for listener %s", labelIdentifier, listener.getId());
@@ -247,6 +258,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                             .put("ok", true)
                             .put("action", "add_label")
                             .put("label_identifier", labelIdentifier)
+                            .put("already_had_label", false)
                             .put("message", "Label added successfully");
                     handler.addToolUseToHistory(toolUse, conversationHistory);
                     handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);

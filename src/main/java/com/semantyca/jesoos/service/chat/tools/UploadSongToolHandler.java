@@ -159,13 +159,17 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                                             );
                                                                         });
                                                             })
-                                                            .flatMap(ignored -> {
+                                                            .onFailure().recoverWithItem(err -> {
+                                                                LOGGER.warn("[UploadSong] Song saved (id={}) but broadcast scheduling failed: {}", songId, err.getMessage());
+                                                                return null;
+                                                            })
+                                                            .flatMap(broadcastResult -> {
                                                                 JsonObject payload = new JsonObject()
                                                                         .put("ok", true)
                                                                         .put("song_id", songId.toString())
                                                                         .put("title", title)
                                                                         .put("artist", artist)
-                                                                        .put("queued", true);
+                                                                        .put("queued", broadcastResult != null);
 
                                                                 handler.addToolUseToHistory(toolUse, conversationHistory);
                                                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);

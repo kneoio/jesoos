@@ -220,7 +220,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         entity.setFileMetadataList(fileMetadataList);
 
         if ("new".equalsIgnoreCase(id) || id == null) {
-            entity.setSource(SourceType.USER_UPLOAD);
+            if (entity.getSource() == null) {
+                entity.setSource(SourceType.USER_UPLOAD);
+            }
             return repository.insert(entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
                     .chain(doc -> mapToDTO(doc, true, null))
@@ -297,6 +299,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragment doc = new SoundFragment();
         doc.setStatus(dto.getStatus());
         doc.setType(dto.getType());
+        doc.setSource(dto.getSource());
         doc.setTitle(dto.getTitle());
         doc.setArtist(dto.getArtist());
         doc.setGenres(dto.getGenres());
