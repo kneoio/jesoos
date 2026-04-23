@@ -36,6 +36,7 @@ public class ChatUploadResource extends AbstractResource {
         router.route(uploadPath).handler(
                 BodyHandler.create(config.getQuarkusFileUploadsPath())
                         .setUploadsDirectory(config.getQuarkusFileUploadsPath())
+                        .setBodyLimit(config.getChatUploadMaxBodySizeBytes())
         );
         router.post(uploadPath).handler(this::handleUploadTemp);
     }

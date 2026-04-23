@@ -32,3 +32,4 @@ src/main/resources/application-prod.properties
 /sessions_data/
 /.claude/
 CLAUDE.md
+/.cursor/

@@ -38,6 +38,10 @@ public interface JesoosConfig {
     @WithDefault("/tmp/file-uploads")
     String getQuarkusFileUploadsPath();
 
+    @WithName("chat.upload.max-body-size-bytes")
+    @WithDefault("104857600")
+    long getChatUploadMaxBodySizeBytes();
+
     @WithName("ffmpeg.path")
     @WithDefault("ffmpeg")
     String getFfmpegPath();
