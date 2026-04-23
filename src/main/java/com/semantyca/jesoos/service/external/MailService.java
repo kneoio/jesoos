@@ -39,10 +39,16 @@ public class MailService {
         String htmlBody = """
         <!DOCTYPE html>
         <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>Mixpla Email Confirmation</h2>
-            <p>Your code: <strong style="font-size: 24px; color: #3498db;">%s</strong></p>
-            <p style="color: #7f8c8d;">Enter the number to the submission form. WARNING: It will expire in 60 minutes.</p>
+        <body style="margin: 0; padding: 24px; background: #f7f7fb; font-family: Inter, Arial, sans-serif; color: #1f2937;">
+            <div style="max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #ececf2; border-radius: 14px; padding: 28px;">
+                <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
+                <h2 style="font-size: 20px; margin: 0 0 12px;">Your confirmation code</h2>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;">Use this code in the form to continue. It stays active for 60 minutes.</p>
+                <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px;">
+                    <div style="font-size: 34px; letter-spacing: 6px; font-weight: 700; color: #312e81; font-family: 'Courier New', monospace;">%s</div>
+                </div>
+                <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.45;">If this was not you, just ignore this email.</p>
+            </div>
         </body>
         </html>
         """.formatted(code);
