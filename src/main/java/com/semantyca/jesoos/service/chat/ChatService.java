@@ -218,7 +218,7 @@ public abstract class ChatService {
                                 return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
-        ).ifNoItem().after(java.time.Duration.ofSeconds(30)).fail()
+        ).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
             chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
