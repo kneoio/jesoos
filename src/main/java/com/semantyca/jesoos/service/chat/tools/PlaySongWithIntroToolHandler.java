@@ -5,6 +5,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
@@ -88,9 +89,15 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
 
                                 return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                                         .chain(agent -> {
+                                            LanguageCode primaryLang = agent.getPreferredLang().stream()
+                                                    .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
+                                                    .map(LanguagePreference::getLanguageTag)
+                                                    .findFirst()
+                                                    .orElse(LanguageCode.en);
+
                                             PromptEntry promptEntry = new PromptEntry();
                                             promptEntry.setPromptId(UUID.randomUUID());
-                                            promptEntry.setLanguage(LanguageCode.en);
+                                            promptEntry.setLanguage(primaryLang);
 
                                             SongEntry songEntry = new SongEntry(soundFragment, promptEntry, 0);
 

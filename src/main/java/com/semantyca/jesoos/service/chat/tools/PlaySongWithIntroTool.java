@@ -19,7 +19,7 @@ public class PlaySongWithIntroTool {
                                 "description", "UUID of the song from search results"),
                         "textToTTSIntro", Map.of(
                                 "type", "string",
-                                "description", "DJ intro speech text"),
+                                "description", "DJ intro speech text — must be written in the station's primary broadcast language, regardless of what language the user wrote in"),
                         "priority", Map.of(
                                 "type", "integer",
                                 "description", "Priority: 10=LAST, 9=HIGH, 8=INTERRUPT, 7=HARD_INTERRUPT")
