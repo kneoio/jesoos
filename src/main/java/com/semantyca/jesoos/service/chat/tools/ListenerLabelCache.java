@@ -30,18 +30,18 @@ public class ListenerLabelCache {
 
     public void reload() {
         for (String identifier : KNOWN_IDENTIFIERS) {
-            labelService.findByIdentifier(identifier)
-                    .subscribe().with(
-                            label -> {
-                                if (label != null) {
-                                    cache.put(identifier, label.getId());
-                                    LOGGER.info("[ListenerLabelCache] Resolved '{}' -> {}", identifier, label.getId());
-                                } else {
-                                    LOGGER.warn("[ListenerLabelCache] Label not found for identifier '{}'", identifier);
-                                }
-                            },
-                            err -> LOGGER.error("[ListenerLabelCache] Failed to resolve label '{}'", identifier, err)
-                    );
+            try {
+                var label = labelService.findByIdentifier(identifier)
+                        .await().atMost(java.time.Duration.ofSeconds(10));
+                if (label != null) {
+                    cache.put(identifier, label.getId());
+                    LOGGER.info("[ListenerLabelCache] Resolved '{}' -> {}", identifier, label.getId());
+                } else {
+                    LOGGER.warn("[ListenerLabelCache] Label not found for identifier '{}'", identifier);
+                }
+            } catch (Exception err) {
+                LOGGER.error("[ListenerLabelCache] Failed to resolve label '{}'", identifier, err);
+            }
         }
     }
 
