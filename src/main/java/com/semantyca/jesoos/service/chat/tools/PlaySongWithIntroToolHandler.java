@@ -92,7 +92,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                                             LanguageCode primaryLang = (agent != null && agent.getPreferredLang() != null)
                                                     ? agent.getPreferredLang().stream()
                                                             .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                                            .map(LanguagePreference::getLanguageTag)
+                                                            .map(lp -> LanguageCode.valueOf(lp.getLanguageTag().name()))
                                                             .findFirst()
                                                             .orElse(LanguageCode.en)
                                                     : LanguageCode.en;
