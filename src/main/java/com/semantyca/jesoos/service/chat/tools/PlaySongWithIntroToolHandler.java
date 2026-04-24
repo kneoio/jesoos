@@ -89,11 +89,13 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
 
                                 return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                                         .chain(agent -> {
-                                            LanguageCode primaryLang = agent.getPreferredLang().stream()
-                                                    .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                                    .map(LanguagePreference::getLanguageTag)
-                                                    .findFirst()
-                                                    .orElse(LanguageCode.en);
+                                            LanguageCode primaryLang = (agent != null && agent.getPreferredLang() != null)
+                                                    ? agent.getPreferredLang().stream()
+                                                            .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
+                                                            .map(LanguagePreference::getLanguageTag)
+                                                            .findFirst()
+                                                            .orElse(LanguageCode.en)
+                                                    : LanguageCode.en;
 
                                             PromptEntry promptEntry = new PromptEntry();
                                             promptEntry.setPromptId(UUID.randomUUID());
