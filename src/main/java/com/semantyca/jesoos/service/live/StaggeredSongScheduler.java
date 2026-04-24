@@ -205,7 +205,7 @@ public class StaggeredSongScheduler {
                 .chain(stream -> {
 
                     if (entry.isGenerated()) {
-                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                                 .chain(mainAgent ->
                                         generatedContentEmitter.send(brandName, liveScene, entry, mainAgent, stream, brandZone, priority))
                                 .onFailure().invoke(err -> LOGGER.error(String.format(
@@ -220,7 +220,7 @@ public class StaggeredSongScheduler {
                                         entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                     }
 
-                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                             .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority))
                             .onFailure().invoke(err -> LOGGER.error(String.format(
                                     "Song emitter failed for entry #%d scene '%s': %s",

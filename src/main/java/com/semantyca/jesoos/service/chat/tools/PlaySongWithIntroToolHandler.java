@@ -87,20 +87,12 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                                     return Uni.createFrom().failure(new RuntimeException("Song not found"));
                                 }
 
-                                return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                                return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                                         .chain(agent -> {
-                                            LanguageCode primaryLang = (agent != null && agent.getPreferredLang() != null)
-                                                    ? agent.getPreferredLang().stream()
-                                                            .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                                            .map(lp -> LanguageCode.valueOf(lp.getLanguageTag().name()))
-                                                            .findFirst()
-                                                            .orElse(LanguageCode.en)
-                                                    : LanguageCode.en;
-
                                             PromptEntry promptEntry = new PromptEntry();
                                             promptEntry.setPromptId(UUID.randomUUID());
+                                            LanguageCode primaryLang = agent.getPreferredLang().getFirst().getLanguageTag().toLanguageCode();
                                             promptEntry.setLanguage(primaryLang);
-
                                             SongEntry songEntry = new SongEntry(soundFragment, promptEntry, 0);
 
                                             TimelineEntry entry = new TimelineEntry(

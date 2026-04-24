@@ -160,7 +160,7 @@ public abstract class ChatService {
                             ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
                             : slugName;
                     Uni<AiAgent> agentUni = station != null && station.getAiAgentId() != null
-                            ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                            ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
                             : Uni.createFrom().item(() -> null);
                     return agentUni.map(agent -> {
                         assert station != null;

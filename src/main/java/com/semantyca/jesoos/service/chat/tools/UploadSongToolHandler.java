@@ -134,7 +134,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                     UUID songId = saved.getId();
                                                     LOGGER.info("[UploadSong] Saved contribution '{}' by '{}' id={}", title, artist, songId);
 
-                                                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                                                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                                                             .flatMap(agent -> {
                                                                 PromptEntry promptEntry = new PromptEntry();
                                                                 promptEntry.setPromptId(UUID.randomUUID());

@@ -78,7 +78,7 @@ public class DraftFactory {
             Map<String, Object> userVariables
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
-                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
                 : Uni.createFrom().nullItem();
 
         Uni<List<String>> genresUni = song != null

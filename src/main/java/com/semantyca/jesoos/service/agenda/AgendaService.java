@@ -129,7 +129,7 @@ public class AgendaService {
             TimelineBuilder timelineBuilder = new TimelineBuilder();
 
             Uni<AiAgent> agentUni = (sourceBrand.getAiAgentId() != null)
-                    ? aiAgentService.getById(sourceBrand.getAiAgentId(), SuperUser.build(), null)
+                    ? aiAgentService.getById(sourceBrand.getAiAgentId(), SuperUser.build())
                     : Uni.createFrom().nullItem();
 
             sceneUnis.add(

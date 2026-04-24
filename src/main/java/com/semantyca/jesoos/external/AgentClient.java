@@ -1,11 +1,8 @@
 package com.semantyca.jesoos.external;
 
-import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.core.model.cnst.TranslationType;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.agentrest.AgentRespDTO;
 import com.semantyca.mixpla.model.cnst.LlmType;
-import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -53,42 +50,5 @@ public class AgentClient {
                         throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
                     }
                 });
-    }
-
-    public Uni<AgentRespDTO> translate(String toTranslate, TranslationType translationType, LanguageTag languageTag, CountryCode countryCode) {
-        String endpoint = config.getAgentUrl() + "/translate";
-
-        JsonObject payload = new JsonObject();
-        payload.put("toTranslate", toTranslate);
-        payload.put("translationType", translationType);
-        payload.put("language", languageTag.name());
-        payload.put("country", countryCode.name());
-
-        return webClient
-                .postAbs(endpoint)
-                .putHeader("Content-Type", "application/json")
-                .sendJsonObject(payload)
-                .map(response -> {
-                    if (response.statusCode() == 200) {
-                        JsonObject body = response.bodyAsJsonObject();
-                        if (body == null) {
-                            throw new RuntimeException("Empty response body");
-                        }
-                        return body.mapTo(AgentRespDTO.class);
-                    } else {
-                        throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
-                    }
-                });
-    }
-
-    public Uni<Boolean> checkHealth() {
-        String endpoint = config.getAgentUrl() + "/health";
-        
-        return webClient
-                .getAbs(endpoint)
-                .timeout(3000)
-                .send()
-                .map(response -> response.statusCode() == 200)
-                .onFailure().recoverWithItem(false);
     }
 }
