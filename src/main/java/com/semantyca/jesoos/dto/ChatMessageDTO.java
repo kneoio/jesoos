@@ -62,6 +62,14 @@ public class ChatMessageDTO {
                 .connectionId(connectionId);
     }
 
+    public static Builder processingDone(String connectionId) {
+        return builder()
+                .type(MessageType.PROCESSING)
+                .content("")
+                .username("system")
+                .connectionId(connectionId);
+    }
+
     public static Builder chunk(String content, String username, String connectionId) {
         return builder()
                 .type(MessageType.CHUNK)

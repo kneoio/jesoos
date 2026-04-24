@@ -221,6 +221,7 @@ public abstract class ChatService {
         ).ifNoItem().after(java.time.Duration.ofSeconds(30)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
+            chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
             completionHandler.accept(ChatMessageDTO.error("Something went wrong, please try again.", "system", connectionId).build().toJson());
             return Uni.createFrom().voidItem();
         }).runSubscriptionOn(getDefaultWorkerPool());
@@ -284,6 +285,7 @@ public abstract class ChatService {
 
                         @Override
                         public void onComplete(@NotNull Optional<Throwable> error) {
+                            chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
 
                             if (error.isPresent()) {
                                 completionHandler.accept(ChatMessageDTO.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());

@@ -23,6 +23,10 @@ public abstract class BaseToolHandler {
         chunkHandler.accept(ChatMessageDTO.processing(message, connectionId).build().toJson());
     }
 
+    protected void sendProcessingDone(Consumer<String> chunkHandler, String connectionId) {
+        chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+    }
+
     protected void sendBotChunk(Consumer<String> chunkHandler, String connectionId, String username, String message) {
         chunkHandler.accept(ChatMessageDTO.bot(message, username, connectionId).build().toJson());
     }

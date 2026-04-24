@@ -79,7 +79,13 @@ public class ListenerDataToolHandler extends BaseToolHandler {
     ) {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Remembering user...");
 
-        return labelCache.getOrLoad("artist").flatMap(artistLabelId -> {
+        return labelCache.getOrLoad("artist")
+                .ifNoItem().after(java.time.Duration.ofSeconds(10)).fail()
+                .onFailure().recoverWithItem(err -> {
+                    LOGGER.warnf("[ListenerData] labelCache.getOrLoad timed out or failed: %s", err.getMessage());
+                    return null;
+                })
+                .flatMap(artistLabelId -> {
         boolean hasArtistLabel = artistLabelId != null
                 && listener.getLabels() != null
                 && listener.getLabels().contains(artistLabelId);
