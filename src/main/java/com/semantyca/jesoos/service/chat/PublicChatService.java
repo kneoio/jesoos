@@ -16,6 +16,7 @@ import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
+import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
@@ -80,6 +81,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     SongEmitter songEmitter;
+
+    @Inject
+    PlaylistQueueService playlistQueueService;
 
     @Setter
     private PublicChatController controller;
@@ -303,7 +307,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
-                    toolUse, inputMap, brandPool, scenePool, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, brandPool, scenePool, playlistQueueService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "find_community_member" -> FindCommunityMemberToolHandler.handle(
                     toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

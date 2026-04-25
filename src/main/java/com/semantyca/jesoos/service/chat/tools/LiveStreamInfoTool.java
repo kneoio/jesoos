@@ -13,8 +13,8 @@ public class LiveStreamInfoTool {
                 .properties(JsonValue.from(Map.of(
                         "action", Map.of(
                                 "type", "string",
-                                "enum", new String[]{"get_agenda"},
-                                "description", "What to retrieve: 'get_agenda' returns today's scene schedule and the currently active scene with upcoming songs")
+                                "enum", new String[]{"get_agenda", "get_live_queue"},
+                                "description", "What to retrieve: 'get_agenda' returns today's scene schedule and the currently active scene with upcoming songs; 'get_live_queue' returns what is currently playing and what songs are queued next")
                 )))
                 .required(List.of("action"))
                 .build();

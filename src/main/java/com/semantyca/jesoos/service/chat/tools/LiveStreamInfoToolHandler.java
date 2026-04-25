@@ -6,6 +6,7 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.ScenePool;
 import io.smallrye.mutiny.Uni;
@@ -30,6 +31,7 @@ public class LiveStreamInfoToolHandler extends BaseToolHandler {
             Map<String, JsonValue> inputMap,
             BrandPool brandPool,
             ScenePool scenePool,
+            PlaylistQueueService playlistQueueService,
             String brandName,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -41,6 +43,22 @@ public class LiveStreamInfoToolHandler extends BaseToolHandler {
         String action = inputMap.getOrDefault("action", JsonValue.from("get_agenda")).toString().replace("\"", "");
 
         LOGGER.infof("[LiveStreamInfo] action=%s, brand=%s", action, brandName);
+
+        if ("get_live_queue".equals(action)) {
+            return playlistQueueService.getQueueByBrandSlug(brandName)
+                    .flatMap(queue -> {
+                        JsonObject payload = new JsonObject().put("ok", true).put("queue", queue);
+                        handler.addToolUseToHistory(toolUse, conversationHistory);
+                        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                        return streamFn.apply(secondCallParams);
+                    })
+                    .onFailure().recoverWithUni(err -> {
+                        LOGGER.error("[LiveStreamInfo] get_live_queue failed for brand={}", brandName, err);
+                        handler.sendBotChunk(chunkHandler, connectionId, "bot", "I couldn't get the queue right now, please try again.");
+                        return Uni.createFrom().voidItem();
+                    });
+        }
 
         return brandPool.get(brandName)
                 .flatMap(stream -> {
