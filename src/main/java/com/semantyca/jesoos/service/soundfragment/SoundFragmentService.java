@@ -169,7 +169,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
         SoundFragment entity = buildEntity(dto);
-
+        entity.setArchived(10);
         List<FileMetadata> fileMetadataList = new ArrayList<>();
         if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
             for (String fileName : dto.getNewlyUploaded()) {
@@ -237,7 +237,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
         if ("new".equalsIgnoreCase(id) || id == null) {
             if (entity.getSource() == null) {
-                entity.setSource(SourceType.USER_UPLOAD);
+                entity.setSource(SourceType.CONTRIBUTION);
             }
             return repository.insert(entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
