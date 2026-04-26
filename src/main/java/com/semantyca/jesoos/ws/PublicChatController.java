@@ -252,6 +252,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
     }
 
+    public void downgradeUserSession(String connectionId) {
+        UserHolder holder = connectionUsers.get(connectionId);
+        if (holder != null) {
+            holder.setUser(AnonymousUser.build());
+            LOG.infof("Downgraded user session for connection %s to anonymous", connectionId);
+        }
+    }
+
     public void sendToConnection(String connectionId, String message) {
         ServerWebSocket ws = activeConnections.get(connectionId);
         if (ws != null && !ws.isClosed()) {

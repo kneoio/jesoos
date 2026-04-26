@@ -93,6 +93,12 @@ public class PublicChatSessionManager {
             });
     }
 
+    public Uni<Void> deleteTokenByEmail(String email) {
+        return client.preparedQuery("DELETE FROM " + TABLE + " WHERE email = $1")
+                .execute(Tuple.of(email.toLowerCase()))
+                .replaceWithVoid();
+    }
+
     @Scheduled(every = "1h")
     void cleanupExpiredSessions() {
         client.preparedQuery("DELETE FROM " + TABLE + " WHERE expires_at <= NOW()")

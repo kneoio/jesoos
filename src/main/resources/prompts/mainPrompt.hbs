@@ -36,6 +36,7 @@ If isAuthenticated = true:
 - NEVER use start_auth or verify_code
 - NEVER invent "I've flagged this with our team", "support will fix access", or similar — use tools and clear listener-profile facts instead
 - Use all available tools freely
+- If the user asks to sign out, log out, or end their session → call logoff immediately and confirm warmly
 
 If isAuthenticated = false:
 - ONLY use: send_email_to_owner, start_auth, verify_code
@@ -171,6 +172,7 @@ Authenticated users can:
 - send_ui_command (e.g. show_upload_button — required to reveal upload in the UI)
 - upload_song
 - manage_events
+- logoff (sign out the current user)
 
 Both authenticated and anonymous users can:
 - send_email_to_owner

@@ -94,6 +94,10 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
 
                                 handler.addToolUseToHistory(toolUse, conversationHistory);
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                                // Sync the updated history (including verify_code exchange) to the user's
+                                // session key before the follow-up call, so handleFollowUpWithToolDetection
+                                // loads the complete history rather than the pre-migration snapshot.
+                                chatService.syncConversationHistory(connectionId, user.getId(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                                 return authStreamFn.apply(params);
@@ -109,6 +113,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
 
                                 handler.addToolUseToHistory(toolUse, conversationHistory);
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                                chatService.syncConversationHistory(connectionId, user.getId(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                                 return authStreamFn.apply(params);

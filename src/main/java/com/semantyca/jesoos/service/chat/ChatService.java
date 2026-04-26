@@ -330,6 +330,9 @@ public abstract class ChatService {
 
 
                                 completionHandler.accept(completeMessage);
+                            } else {
+                                // Empty response — still signal completion so the UI is never left hanging
+                                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                             }
                         }
                     })
@@ -374,6 +377,11 @@ public abstract class ChatService {
                         .put("timestamp", timestamp)
                         .put("connectionId", connectionId)
                 );
+    }
+
+    public void syncConversationHistory(String connectionId, long userId, List<MessageParam> history) {
+        chatRepository.replaceConversationHistory(
+                ChatRepository.sessionKey(userId, connectionId, getChatType()), history);
     }
 
     protected Map<String, JsonValue> extractInputMap(ToolUseBlock toolUse) {

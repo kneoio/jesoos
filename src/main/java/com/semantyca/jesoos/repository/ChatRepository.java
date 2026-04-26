@@ -119,6 +119,12 @@ public class ChatRepository extends AsyncRepository {
         conversationHistoryCache.remove(sessionKey);
     }
 
+    public void replaceConversationHistory(String sessionKey, List<MessageParam> history) {
+        List<MessageParam> live = conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
+        live.clear();
+        live.addAll(history);
+    }
+
     public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId, ChatType chatType) {
         String anonKey = sessionKey(0, connectionId, chatType);
         String userKey = sessionKey(newUserId, connectionId, chatType);
