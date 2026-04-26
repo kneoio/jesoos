@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.live;
 
-import com.semantyca.mixpla.model.Prompt;
+import com.semantyca.mixpla.model.DjPrompt;
 
-record PromptAndDraft(Prompt prompt, String draftContent) {
+record PromptAndDraft(DjPrompt prompt, String draftContent) {
 }

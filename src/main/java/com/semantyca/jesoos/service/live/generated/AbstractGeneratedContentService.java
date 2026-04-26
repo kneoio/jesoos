@@ -23,7 +23,7 @@ import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import com.semantyca.mixpla.model.Prompt;
+import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
@@ -158,7 +158,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     private Uni<SoundFragment> saveSoundFragment(
             String ttsFilePath,
-            Prompt prompt,
+            DjPrompt prompt,
             UUID brandId,
             UUID promptId,
             String brandSlug
@@ -233,7 +233,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<String> generateText(Prompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+    private Uni<String> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
         return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), airLanguage, new HashMap<>())
                 .chain(draftContent -> Uni.createFrom().item(() -> {
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {

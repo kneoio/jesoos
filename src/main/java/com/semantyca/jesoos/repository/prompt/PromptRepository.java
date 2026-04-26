@@ -9,7 +9,7 @@ import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
 import com.semantyca.core.repository.exception.DocumentModificationAccessException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
-import com.semantyca.mixpla.model.Prompt;
+import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.PromptType;
 import com.semantyca.mixpla.model.filter.PromptFilter;
@@ -45,7 +45,7 @@ public class PromptRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<List<Prompt>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final PromptFilter filter) {
+    public Uni<List<DjPrompt>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final PromptFilter filter) {
         String sql = queryBuilder.buildGetAllQuery(
                 entityData.getTableName(),
                 entityData.getRlsName(),
@@ -81,7 +81,7 @@ public class PromptRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<Prompt> findById(UUID id, IUser user, boolean includeArchived) {
+    public Uni<DjPrompt> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
@@ -103,7 +103,7 @@ public class PromptRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<Prompt>> findByIds(List<UUID> ids, IUser user) {
+    public Uni<List<DjPrompt>> findByIds(List<UUID> ids, IUser user) {
         if (ids == null || ids.isEmpty()) {
             return Uni.createFrom().item(List.of());
         }
@@ -129,7 +129,7 @@ public class PromptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag) {
+    public Uni<DjPrompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
                 " WHERE master_id = $1 AND language_tag = $2 AND archived = 0";
 
@@ -148,7 +148,7 @@ public class PromptRepository extends AsyncRepository {
 
     }
 
-    public Uni<Prompt> insert(Prompt prompt, IUser user) {
+    public Uni<DjPrompt> insert(DjPrompt prompt, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
@@ -192,7 +192,7 @@ public class PromptRepository extends AsyncRepository {
         });
     }
 
-    public Uni<Prompt> update(UUID id, Prompt prompt, IUser user) {
+    public Uni<DjPrompt> update(UUID id, DjPrompt prompt, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -240,8 +240,8 @@ public class PromptRepository extends AsyncRepository {
         });
     }
 
-    private Prompt from(Row row) {
-        Prompt doc = new Prompt();
+    private DjPrompt from(Row row) {
+        DjPrompt doc = new DjPrompt();
         setDefaultFields(doc, row);
         doc.setEnabled(row.getBoolean("enabled"));
         doc.setPrompt(row.getString("prompt"));

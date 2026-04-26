@@ -17,7 +17,7 @@ import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
-import com.semantyca.mixpla.model.Prompt;
+import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -203,7 +203,7 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateDraftText(Prompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
+    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
         return draftFactory.createDraft(
                 song,
                 agent,
@@ -217,7 +217,7 @@ public class IntroTtsGenerator {
         });
     }
 
-    private Uni<String> generateSpokenText(Prompt prompt, String draftContent, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, UUID traceId, String brandName) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
             return Uni.createFrom().item((String) null);

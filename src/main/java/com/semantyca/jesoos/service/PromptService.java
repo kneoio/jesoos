@@ -6,7 +6,7 @@ import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.PromptDTO;
 import com.semantyca.jesoos.repository.prompt.PromptRepository;
-import com.semantyca.mixpla.model.Prompt;
+import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.filter.PromptFilter;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
-public class PromptService extends AbstractService<Prompt, PromptDTO> {
+public class PromptService extends AbstractService<DjPrompt, PromptDTO> {
     private final PromptRepository repository;
 
     @Inject
@@ -25,7 +25,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<Prompt>> getAll(final int limit, final int offset, final IUser user, final PromptFilter filter) {
+    public Uni<List<DjPrompt>> getAll(final int limit, final int offset, final IUser user, final PromptFilter filter) {
         return repository.getAll(limit, offset, false, user, filter);
     }
 
@@ -33,11 +33,11 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         return repository.getAllCount(user, false, filter);
     }
 
-    public Uni<Prompt> getById(UUID id, IUser user) {
+    public Uni<DjPrompt> getById(UUID id, IUser user) {
         return repository.findById(id, user, false);
     }
 
-   public Uni<Prompt> findByLanguage(UUID masterId, LanguageTag languageCode) {
+   public Uni<DjPrompt> findByLanguage(UUID masterId, LanguageTag languageCode) {
         return repository.findByMasterAndLanguage(masterId, languageCode);
     }
 

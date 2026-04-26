@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
 import com.semantyca.core.model.cnst.LanguageCode;
-import com.semantyca.mixpla.model.Prompt;
 import lombok.Getter;
 import lombok.Setter;
 
