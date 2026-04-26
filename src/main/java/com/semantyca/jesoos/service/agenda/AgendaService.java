@@ -155,6 +155,7 @@ public class AgendaService {
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
                                 }
+                                liveScene.setIntroPrompts(scene.getIntroPrompts());
 
                                 List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
 

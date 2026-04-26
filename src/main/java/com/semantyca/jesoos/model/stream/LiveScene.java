@@ -24,6 +24,7 @@ public class LiveScene {
     private UUID agentId;
     private ContentStatus contentStatus;
     private List<ScenePrompt> contentPrompts;
+    private List<ScenePrompt> introPrompts;
     private TriggerContext triggerContext;
     private UUID traceId;
     private List<TimelineEntry> timeline;

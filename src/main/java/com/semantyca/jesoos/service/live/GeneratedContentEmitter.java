@@ -3,7 +3,10 @@ package com.semantyca.jesoos.service.live;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.PromptEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
@@ -38,14 +41,17 @@ public class GeneratedContentEmitter {
     private final GeneratedNewsService generatedNewsService;
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
+    private final IntroTtsGenerator introTtsGenerator;
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
                                    SoundFragmentService soundFragmentService,
-                                   QueueSupplier queueSupplier) {
+                                   QueueSupplier queueSupplier,
+                                   IntroTtsGenerator introTtsGenerator) {
         this.generatedNewsService = generatedNewsService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
+        this.introTtsGenerator = introTtsGenerator;
     }
 
     public Uni<Void> send(String brandName,
@@ -75,6 +81,13 @@ public class GeneratedContentEmitter {
         Uni<SoundFragment> generatedUni =
                 generatedNewsService.generateAudio(promptId, agent, stream, lang, scene);
 
+        List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
+                scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
+        boolean canUseIntro = !activeIntroPrompts.isEmpty();
+        MixingType mixingType = canUseIntro && ThreadLocalRandom.current().nextBoolean()
+                ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
+                : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
+
         return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()
                 .chain(tuple -> {
                     List<SoundFragment> jingles = tuple.getItem1();
@@ -96,24 +109,47 @@ public class GeneratedContentEmitter {
 
                     long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
 
-                    SongQueueMessageDTO dto = new SongQueueMessageDTO();
-                    dto.setMergingMethod(MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND);
-                    dto.setSceneId(scene.getSceneId());
-                    dto.setSceneTitle(scene.getSceneTitle());
-                    dto.setSequenceNumber(entry.getSequenceNumber());
-                    dto.setPriority(priority);
-                    dto.setSceneDeadlineTimestamp(deadline);
-
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                     songMap.put(JINGLE_INTRO, new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
                     songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
                     songMap.put(BACKGROUND_MUSIC, new SongInfoDTO(background.getId(), songDuration(background)));
                     songMap.put(GENERATED_CONTENT, new SongInfoDTO(generated.getId(), songDuration(generated)));
 
-                    dto.setSongs(songMap);
+                    if (mixingType == MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND) {
+                        ScenePrompt selectedIntroPrompt = activeIntroPrompts.get(
+                                ThreadLocalRandom.current().nextInt(activeIntroPrompts.size()));
+                        PromptEntry promptEntry = new PromptEntry();
+                        promptEntry.setPromptId(selectedIntroPrompt.getPromptId());
+                        SongEntry introSongEntry = new SongEntry(generated, promptEntry, entry.getSequenceNumber());
 
+                        return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, agent, stream, lang)
+                                .chain(introResult -> {
+                                    SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
+                                    Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+                                    IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
+                                    introDto.setGain(introResult.gain());
+                                    introMap.put(IntroKey.INTRO_1, introDto);
+                                    dto.setFilePaths(introMap);
+                                    dto.setSongs(songMap);
+                                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                                });
+                    }
+
+                    SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
+                    dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
                 });
+    }
+
+    private static SongQueueMessageDTO buildDto(MixingType type, LiveScene scene, TimelineEntry entry, long deadline, int priority) {
+        SongQueueMessageDTO dto = new SongQueueMessageDTO();
+        dto.setMergingMethod(type);
+        dto.setSceneId(scene.getSceneId());
+        dto.setSceneTitle(scene.getSceneTitle());
+        dto.setSequenceNumber(entry.getSequenceNumber());
+        dto.setPriority(priority);
+        dto.setSceneDeadlineTimestamp(deadline);
+        return dto;
     }
 
     private int jingleDuration(SoundFragment jingle) {
