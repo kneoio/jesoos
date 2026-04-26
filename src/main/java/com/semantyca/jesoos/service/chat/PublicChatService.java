@@ -332,7 +332,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "logoff" -> LogoffToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };

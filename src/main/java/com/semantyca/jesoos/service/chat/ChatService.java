@@ -379,6 +379,11 @@ public abstract class ChatService {
                 );
     }
 
+    public void clearConversationHistory(String connectionId, long userId) {
+        chatRepository.clearConversationHistory(
+                ChatRepository.sessionKey(userId, connectionId, getChatType()));
+    }
+
     public void syncConversationHistory(String connectionId, long userId, List<MessageParam> history) {
         chatRepository.replaceConversationHistory(
                 ChatRepository.sessionKey(userId, connectionId, getChatType()), history);

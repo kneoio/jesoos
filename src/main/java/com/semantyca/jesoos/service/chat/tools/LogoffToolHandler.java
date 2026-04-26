@@ -5,6 +5,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.smallrye.mutiny.Uni;
@@ -26,6 +27,7 @@ public class LogoffToolHandler extends BaseToolHandler {
             PublicChatSessionManager sessionManager,
             UserService userService,
             PublicChatController controller,
+            ChatService chatService,
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -48,6 +50,7 @@ public class LogoffToolHandler extends BaseToolHandler {
                     return sessionManager.deleteTokenByEmail(email)
                             .onItem().transformToUni(v -> {
                                 controller.downgradeUserSession(connectionId);
+                                chatService.clearConversationHistory(connectionId, userId);
                                 controller.sendToConnection(connectionId, new JsonObject()
                                         .put("type", "session_token")
                                         .put("token", (Object) null)
