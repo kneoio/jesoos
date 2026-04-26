@@ -25,8 +25,7 @@ import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,7 +36,7 @@ import java.util.function.Function;
 
 public class UploadSongToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(UploadSongToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(UploadSongToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -78,7 +77,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
         } catch (Exception ignored) {}
 
         if (tempFilename.isEmpty() || title.isEmpty() || artist.isEmpty()) {
-            LOGGER.warn("[UploadSong] Missing required fields — temp_filename='{}', title='{}', artist='{}'", tempFilename, title, artist);
+            LOGGER.warnf("[UploadSong] Missing required fields — temp_filename='%s', title='%s', artist='%s'", tempFilename, title, artist);
             return handler.error(toolUse, "temp_filename, title and artist are required", conversationHistory, systemPromptCall2, streamFn);
         }
 
@@ -93,7 +92,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                     boolean isArtist = artistLabelId != null
                             && listener.getLabels() != null
                             && listener.getLabels().contains(artistLabelId);
-                    LOGGER.info("[UploadSong] artistLabelId={}, listenerLabels={}, isArtist={}", artistLabelId, listener.getLabels(), isArtist);
+                    LOGGER.infof("[UploadSong] artistLabelId=%s, listenerLabels=%s, isArtist=%s", artistLabelId, listener.getLabels(), isArtist);
                     if (!isArtist) {
                         return handler.error(toolUse,
                                 "Listener profile does not have the station 'artist' label yet (not the same as email or sign-in). If the user wants to upload, call listener_data add_label with label_identifier=artist after they confirm, then call upload_song again.",
@@ -124,7 +123,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
 
                                         dto.setRepresentedInBrands(List.of(stream.getId()));
 
-                                        LOGGER.info("[UploadSong] Attempting upsert — file='{}', title='{}', artist='{}', genres={}", tempFilename, title, artist, finalGenreNames);
+                                        LOGGER.infof("[UploadSong] Attempting upsert — file='%s', title='%s', artist='%s', genres=%s", tempFilename, title, artist, finalGenreNames);
                                     handler.sendProcessingChunk(chunkHandler, connectionId, "Saving your track...");
 
                                         // TODO: Shazam copyright check placeholder
@@ -132,7 +131,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                         return soundFragmentService.upsert("new", dto, user, LanguageCode.en)
                                                 .flatMap(saved -> {
                                                     UUID songId = saved.getId();
-                                                    LOGGER.info("[UploadSong] Saved contribution '{}' by '{}' id={}", title, artist, songId);
+                                                    LOGGER.infof("[UploadSong] Saved contribution '%s' by '%s' id=%s", title, artist, songId);
 
                                                     return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                                                             .flatMap(agent -> {
@@ -163,7 +162,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                                         });
                                                             })
                                                             .onFailure().recoverWithItem(err -> {
-                                                                LOGGER.warn("[UploadSong] Song saved (id={}) but broadcast scheduling failed: {}", songId, err.getMessage());
+                                                                LOGGER.warnf("[UploadSong] Song saved (id=%s) but broadcast scheduling failed: %s", songId, err.getMessage());
                                                                 return null;
                                                             })
                                                             .flatMap(broadcastResult -> {

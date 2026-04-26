@@ -11,6 +11,7 @@ import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.external.KeycloakAuthService;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.BrandService;
@@ -22,16 +23,14 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
-import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
-import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
-import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
+import org.jboss.logging.Logger;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -39,6 +38,7 @@ import java.util.function.Function;
 
 @ApplicationScoped
 public class PublicChatService extends ChatService {
+    private static final Logger LOGGER = Logger.getLogger(UploadSongToolHandler.class);
 
     protected PublicChatService() {
         super(null, null);
@@ -223,7 +223,7 @@ public class PublicChatService extends ChatService {
                 .model(Model.CLAUDE_SONNET_4_5_20250929);
 
         List<Tool> tools = getToolsForUser(isAuthenticated);
-        tools.forEach(t -> builder.addTool(t));
+        tools.forEach(builder::addTool);
 
         ChatLogger.tools(isAuthenticated, history.size(),
                 tools.stream().map(Tool::name).reduce((a, b) -> a + "," + b).orElse("none"));
@@ -273,9 +273,9 @@ public class PublicChatService extends ChatService {
                     if (toolUse.isPresent()) {
                         ChatLogger.followUp(toolUse.get().name());
                         List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
-                        LOG.infof("[followUp] tool=%s userId=%d historySize=%d lastRole=%s",
+                        LOGGER.infof("[followUp] tool=%s userId=%d historySize=%d lastRole=%s",
                                 toolUse.get().name(), userId, history.size(),
-                                history.isEmpty() ? "n/a" : history.get(history.size() - 1).role().toString());
+                                history.isEmpty() ? "n/a" : history.getLast().role().toString());
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
