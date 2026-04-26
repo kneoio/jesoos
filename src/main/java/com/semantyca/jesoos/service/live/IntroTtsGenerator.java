@@ -152,7 +152,8 @@ public class IntroTtsGenerator {
         String modelId;
         String finalText = text;
 
-        String trimmed = text.replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
+        String beforeHr = text.contains("---") ? text.substring(0, text.indexOf("---")) : text;
+        String trimmed = beforeHr.replaceAll("(?m)^#+\\s.*$", "").replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
         if (engineType == TTSEngineType.MODELSLAB) {
             ttsClient = modelslabClient;
             modelId = null;
