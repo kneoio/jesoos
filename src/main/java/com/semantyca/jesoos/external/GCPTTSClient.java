@@ -7,6 +7,7 @@ import com.google.protobuf.ByteString;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.config.JesoosConfig;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -45,6 +46,7 @@ public class GCPTTSClient implements TTSClient {
     @Override
     public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag) {
         return Uni.createFrom().item(() -> {
+
             if (text == null || text.isEmpty()) {
                 throw new IllegalArgumentException("No text provided for TTS");
             }
@@ -84,7 +86,7 @@ public class GCPTTSClient implements TTSClient {
                 LOGGER.errorf("GCP TTS generation failed: %s", e.getMessage());
                 throw new RuntimeException("GCP TTS generation failed: " + e.getMessage(), e);
             }
-        });
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
     private static String getLanguageCode(LanguageTag tag) {

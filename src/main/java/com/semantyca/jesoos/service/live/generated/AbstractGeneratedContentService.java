@@ -167,11 +167,20 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             try {
                 Path path = Path.of(ttsFilePath);
                 String fileName = path.getFileName().toString();
+                boolean sourceExists = Files.exists(path);
+                LOGGER.infof(
+                        "saveSoundFragment preparing file copy: source=%s (exists=%s), fileName=%s, brandId=%s, promptId=%s",
+                        path.toAbsolutePath(), sourceExists, fileName, brandId, promptId
+                );
 
-                Path targetDir = Paths.get(config.getPathUploads(), "sound-fragments-controller", "supervisor", "temp");
+                Path targetDir = Paths.get(config.getPathUploads(), "chat-upload-controller", "supervisor", "temp");
                 Files.createDirectories(targetDir);
                 Path targetFile = targetDir.resolve(fileName);
                 Files.copy(path, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.infof(
+                        "saveSoundFragment copied file: target=%s (exists=%s)",
+                        targetFile.toAbsolutePath(), Files.exists(targetFile)
+                );
 
                 int durationSeconds = probeDuration(ttsFilePath);
 
@@ -185,7 +194,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 dto.setSource(SourceType.TEMPORARY_MIX);
                 dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
                 dto.setLength(Duration.ofSeconds(durationSeconds));
-                LOGGER.infof("saveSoundFragment: brandId=%s, promptId=%s", brandId, promptId);
+                LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, promptId=%s, newlyUploaded=%s", brandId, promptId, fileName);
                 if (brandId == null) {
                     throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
                 }

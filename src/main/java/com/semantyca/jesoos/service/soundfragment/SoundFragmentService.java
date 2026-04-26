@@ -204,8 +204,24 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return Uni.createFrom().failure(new SecurityException("Invalid file path"));
                 }
 
+                LOGGER.infof(
+                        "upsert upload resolution: id=%s, user=%s, uploadDir=%s, baseDir=%s, fileName=%s, resolvedPath=%s",
+                        id,
+                        user.getUserName(),
+                        uploadDir,
+                        baseDir.toAbsolutePath(),
+                        safeFileName,
+                        secureFilePath.toAbsolutePath()
+                );
+
                 if (!Files.exists(secureFilePath)) {
-                    LOGGER.errorf("File not found at expected secure path: %s for user: %s", secureFilePath, user.getUserName());
+                    LOGGER.errorf(
+                            "File not found at expected secure path: %s for user: %s (baseDirExists=%s, parentExists=%s)",
+                            secureFilePath,
+                            user.getUserName(),
+                            Files.exists(baseDir),
+                            Files.exists(secureFilePath.getParent())
+                    );
                     return Uni.createFrom().failure(new IllegalArgumentException("Something happen wrong with the uploaded file"));
                     // continue;
                 }
