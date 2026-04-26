@@ -5,9 +5,12 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
@@ -28,6 +31,8 @@ public class LogoffToolHandler extends BaseToolHandler {
             UserService userService,
             PublicChatController controller,
             ChatService chatService,
+            MetricPublisher metricPublisher,
+            String brandName,
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -51,6 +56,8 @@ public class LogoffToolHandler extends BaseToolHandler {
                             .onItem().transformToUni(v -> {
                                 controller.downgradeUserSession(connectionId);
                                 chatService.clearConversationHistory(connectionId, userId);
+                                metricPublisher.publishMetric(brandName, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                        "logoff", Map.of("email", email, "userId", userId, "connectionId", connectionId));
                                 controller.sendToConnection(connectionId, new JsonObject()
                                         .put("type", "session_token")
                                         .put("token", (Object) null)

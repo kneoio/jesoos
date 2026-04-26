@@ -5,9 +5,12 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
@@ -29,6 +32,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             PublicChatController controller,
             PublicChatService chatService,
             String brandSlug,
+            MetricPublisher metricPublisher,
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
@@ -55,6 +59,8 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
         boolean valid = sessionManager.verifyAndConsumePendingOtp(email, code);
         if (!valid) {
             LOG.warnf("[VerifyCode] Invalid or expired code for %s", email);
+            metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                    "login_failed", Map.of("email", email, "reason", "invalid_or_expired_code", "connectionId", connectionId));
             return handleError(toolUse, "Invalid or expired verification code. Please request a new one.",
                     handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
@@ -65,6 +71,8 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                 .onItem().transformToUni(user -> {
                     if (user == null || user.getId() == 0) {
                         LOG.warnf("[VerifyCode] User not found for email %s", email);
+                        metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                "login_failed", Map.of("email", email, "reason", "user_not_found", "connectionId", connectionId));
                         return handleError(toolUse, "User account not found. Please contact support.",
                                 handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                     }
@@ -78,6 +86,13 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                     return chatService.registerListener(email, brandSlug, preferredName)
                             .onItem().transformToUni(registrationResult -> {
                                 LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
+                                metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                        "login_success", Map.of(
+                                                "email", email,
+                                                "userId", user.getId(),
+                                                "connectionId", connectionId,
+                                                "historySize", conversationHistory.size()
+                                        ));
 
                                 // Send session token directly to frontend for persistent reconnect
                                 controller.sendToConnection(connectionId, new JsonObject()

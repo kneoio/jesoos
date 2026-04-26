@@ -22,8 +22,11 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -84,6 +87,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     PlaylistQueueService playlistQueueService;
+
+    @Inject
+    MetricPublisher metricPublisher;
 
     @Setter
     private PublicChatController controller;
@@ -323,7 +329,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, metricPublisher, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
@@ -335,7 +341,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "logoff" -> LogoffToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, sessionManager, userService, controller, this, metricPublisher, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
         };
