@@ -94,9 +94,9 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
 
                                 handler.addToolUseToHistory(toolUse, conversationHistory);
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
-                                // Sync the updated history (including verify_code exchange) to the user's
-                                // session key before the follow-up call, so handleFollowUpWithToolDetection
-                                // loads the complete history rather than the pre-migration snapshot.
+                                LOG.infof("[VerifyCode] syncing history for userId=%d size=%d lastRole=%s",
+                                        user.getId(), conversationHistory.size(),
+                                        conversationHistory.isEmpty() ? "n/a" : conversationHistory.get(conversationHistory.size() - 1).role().toString());
                                 chatService.syncConversationHistory(connectionId, user.getId(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);

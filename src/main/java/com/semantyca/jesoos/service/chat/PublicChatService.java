@@ -267,6 +267,9 @@ public class PublicChatService extends ChatService {
                     if (toolUse.isPresent()) {
                         ChatLogger.followUp(toolUse.get().name());
                         List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
+                        LOG.infof("[followUp] tool=%s userId=%d historySize=%d lastRole=%s",
+                                toolUse.get().name(), userId, history.size(),
+                                history.isEmpty() ? "n/a" : history.get(history.size() - 1).role().toString());
                         return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();

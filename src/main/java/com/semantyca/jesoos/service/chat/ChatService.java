@@ -332,6 +332,7 @@ public abstract class ChatService {
                                 completionHandler.accept(completeMessage);
                             } else {
                                 // Empty response — still signal completion so the UI is never left hanging
+                                LOGGER.warnf("[streamResponse] empty response from Claude userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
                                 completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                             }
                         }
@@ -380,13 +381,15 @@ public abstract class ChatService {
     }
 
     public void clearConversationHistory(String connectionId, long userId) {
-        chatRepository.clearConversationHistory(
-                ChatRepository.sessionKey(userId, connectionId, getChatType()));
+        String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
+        LOGGER.infof("[session] clearing history key=%s", key);
+        chatRepository.clearConversationHistory(key);
     }
 
     public void syncConversationHistory(String connectionId, long userId, List<MessageParam> history) {
-        chatRepository.replaceConversationHistory(
-                ChatRepository.sessionKey(userId, connectionId, getChatType()), history);
+        String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
+        LOGGER.infof("[session] syncing history key=%s size=%d", key, history.size());
+        chatRepository.replaceConversationHistory(key, history);
     }
 
     protected Map<String, JsonValue> extractInputMap(ToolUseBlock toolUse) {

@@ -129,10 +129,22 @@ public class ChatRepository extends AsyncRepository {
         String anonKey = sessionKey(0, connectionId, chatType);
         String userKey = sessionKey(newUserId, connectionId, chatType);
         List<MessageParam> anonHistory = conversationHistoryCache.remove(anonKey);
+        List<MessageParam> existingUserHistory = conversationHistoryCache.get(userKey);
+        LOGGER.info("[migrate] conn={} userId={} anonSize={} existingUserSize={}",
+                connectionId, newUserId,
+                anonHistory != null ? anonHistory.size() : 0,
+                existingUserHistory != null ? existingUserHistory.size() : 0);
+        if (anonHistory != null && existingUserHistory != null && !existingUserHistory.isEmpty()) {
+            String lastAnonRole = anonHistory.isEmpty() ? "n/a" : anonHistory.get(anonHistory.size() - 1).role().toString();
+            String firstExistingRole = existingUserHistory.get(0).role().toString();
+            LOGGER.warn("[migrate] boundary roles: lastAnon={} firstExisting={} — consecutive same-role risk if equal",
+                    lastAnonRole, firstExistingRole);
+        }
         if (anonHistory != null) {
             conversationHistoryCache.merge(userKey, anonHistory, (existing, migrated) -> {
                 List<MessageParam> merged = new ArrayList<>(migrated);
                 merged.addAll(existing);
+                LOGGER.info("[migrate] merged result size={}", merged.size());
                 return merged;
             });
         }
