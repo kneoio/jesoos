@@ -84,50 +84,43 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                             chatService.createAuthStreamFn(chunkHandler, completionHandler, connectionId, brandSlug, user.getId());
 
                     return chatService.registerListener(email, brandSlug, preferredName)
+                            .onFailure().recoverWithItem(err -> {
+                                LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
+                                return null;
+                            })
                             .onItem().transformToUni(registrationResult -> {
-                                LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
-                                metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
-                                        "login_success", Map.of(
-                                                "email", email,
-                                                "userId", user.getId(),
-                                                "connectionId", connectionId,
-                                                "historySize", conversationHistory.size()
-                                        ));
+                                boolean registered = registrationResult != null;
+                                if (registered) {
+                                    LOG.infof("[VerifyCode] User registered as listener for station %s (userId=%s)", brandSlug, user.getId());
+                                    metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                            "login_success", Map.of(
+                                                    "email", email,
+                                                    "userId", user.getId(),
+                                                    "connectionId", connectionId,
+                                                    "historySize", conversationHistory.size()
+                                            ));
+                                    controller.sendToConnection(connectionId, new JsonObject()
+                                            .put("type", "session_token")
+                                            .put("token", registrationResult.userToken())
+                                            .put("userName", user.getLogin())
+                                            .encode());
+                                }
 
-                                // Send session token directly to frontend for persistent reconnect
-                                controller.sendToConnection(connectionId, new JsonObject()
-                                        .put("type", "session_token")
-                                        .put("token", registrationResult.userToken())
-                                        .put("userName", user.getLogin())
-                                        .encode());
+                                String message = registered
+                                        ? "Authentication successful! You now have access to all features and personalization."
+                                        : "Authentication successful! You now have access to all features.";
 
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true)
                                         .put("email", email)
                                         .put("userId", user.getId())
-                                        .put("message", "Authentication successful! You now have access to all features and personalization.");
+                                        .put("message", message);
 
                                 handler.addToolUseToHistory(toolUse, conversationHistory);
                                 handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
                                 LOG.infof("[VerifyCode] syncing history for userId=%d size=%d lastRole=%s",
                                         user.getId(), conversationHistory.size(),
                                         conversationHistory.isEmpty() ? "n/a" : conversationHistory.get(conversationHistory.size() - 1).role().toString());
-                                chatService.syncConversationHistory(connectionId, user.getId(), conversationHistory);
-
-                                MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                                return authStreamFn.apply(params);
-                            })
-                            .onFailure().recoverWithUni(err -> {
-                                LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
-
-                                JsonObject payload = new JsonObject()
-                                        .put("ok", true)
-                                        .put("email", email)
-                                        .put("userId", user.getId())
-                                        .put("message", "Authentication successful! You now have access to all features.");
-
-                                handler.addToolUseToHistory(toolUse, conversationHistory);
-                                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
                                 chatService.syncConversationHistory(connectionId, user.getId(), conversationHistory);
 
                                 MessageCreateParams params = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);

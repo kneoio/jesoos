@@ -120,9 +120,10 @@ public class ChatRepository extends AsyncRepository {
     }
 
     public void replaceConversationHistory(String sessionKey, List<MessageParam> history) {
+        List<MessageParam> snapshot = new ArrayList<>(history);
         List<MessageParam> live = conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
         live.clear();
-        live.addAll(history);
+        live.addAll(snapshot);
     }
 
     public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId, ChatType chatType) {
