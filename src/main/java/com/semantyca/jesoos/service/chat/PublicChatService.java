@@ -213,7 +213,7 @@ public class PublicChatService extends ChatService {
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
-                .model(Model.CLAUDE_HAIKU_4_5_20251001);
+                .model(Model.CLAUDE_SONNET_4_5_20250929);
 
         List<Tool> tools = getToolsForUser(isAuthenticated);
         tools.forEach(t -> builder.addTool(t));

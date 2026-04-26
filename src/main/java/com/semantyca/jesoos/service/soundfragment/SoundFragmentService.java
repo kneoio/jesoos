@@ -169,7 +169,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
         SoundFragment entity = buildEntity(dto);
-        entity.setArchived(10);
+        //entity.setArchived(10);   //TODO it should be depend on settings
         List<FileMetadata> fileMetadataList = new ArrayList<>();
         if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
             for (String fileName : dto.getNewlyUploaded()) {
