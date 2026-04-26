@@ -144,7 +144,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                 return masterPrompt;
                             });
                 })
-                .chain(prompt -> generateText(prompt, agent, stream)
+                .chain(prompt -> generateText(prompt, agent, stream, airLanguage)
                         .chain(text -> {
                             if (text == null) {
                                 return Uni.createFrom().failure(
@@ -224,8 +224,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<String> generateText(Prompt prompt, AiAgent agent, IStream stream) {
-        return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), LanguageTag.EN_US, new HashMap<>())
+    private Uni<String> generateText(Prompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+        return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), airLanguage, new HashMap<>())
                 .chain(draftContent -> Uni.createFrom().item(() -> {
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                         LOGGER.errorf("Draft content contains error, skipping: %s", draftContent);
