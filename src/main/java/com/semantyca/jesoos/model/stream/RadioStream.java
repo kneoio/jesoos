@@ -5,20 +5,17 @@ import com.semantyca.mixpla.model.stream.IStreamer;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.UUID;
 
 @Setter
 @Getter
 @NoArgsConstructor
 public class RadioStream extends AbstractStream {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStream.class);
+    private static final Logger LOGGER = Logger.getLogger(RadioStream.class);
 
     public RadioStream(Brand brand) {
         this.masterBrand = brand;

@@ -227,7 +227,6 @@ public class StaggeredSongScheduler {
                 });
     }
 
-
     public void cancelBrandTimers(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
         if (timers != null) {
