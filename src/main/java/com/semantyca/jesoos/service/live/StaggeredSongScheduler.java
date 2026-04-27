@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service.live;
 
-import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
@@ -194,7 +193,7 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
-        return emitTimelineEntry(brandName, liveScene, entry, brandZone, 9);
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? 8 : 9);
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
