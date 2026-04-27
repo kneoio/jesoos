@@ -70,11 +70,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 String token = rc.request().getParam("token");
                 LOG.infof("WebSocket connection attempt with token: %s", token);
                 
+                String anonId = rc.request().getParam("anonId");
                 authenticateUserFromToken(token)
                         .subscribe().with(
                                 user -> {
                                     LOG.infof("User authenticated: %s", user.getUserName());
-                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user))
+                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user, anonId))
                                             .onFailure(err -> {
                                                 LOG.error("WebSocket connection failed", err);
                                                 rc.fail(500, err);
@@ -111,10 +112,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 });
     }
 
-    private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user) {
+    private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user, String anonId) {
         webSocket.accept();
-        
-        String connectionId = randomUUID().toString();
+
+        String connectionId = (isAnonymous(user) && isValidAnonId(anonId))
+                ? anonId
+                : randomUUID().toString();
         activeConnections.put(connectionId, webSocket);
         UserHolder userHolder = new UserHolder(user);
         connectionUsers.put(connectionId, userHolder);
@@ -234,6 +237,16 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private boolean isAnonymous(IUser user) {
         return user instanceof AnonymousUser || user.getId() == 0;
+    }
+
+    private boolean isValidAnonId(String anonId) {
+        if (anonId == null || anonId.isBlank()) return false;
+        try {
+            java.util.UUID.fromString(anonId);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public void upgradeUserSession(String connectionId, IUser newUser) {
