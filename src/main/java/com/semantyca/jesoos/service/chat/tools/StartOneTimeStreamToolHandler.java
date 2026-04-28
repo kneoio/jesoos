@@ -4,19 +4,26 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.ScriptVariable;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.service.OneTimeStreamService;
+import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.jesoos.service.chat.ots.OtsGraph;
+import com.semantyca.jesoos.service.chat.ots.OtsSessionData;
+import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class StartOneTimeStreamToolHandler extends BaseToolHandler {
 
@@ -26,6 +33,9 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             OneTimeStreamService oneTimeStreamService,
+            ScriptService scriptService,
+            OtsSessionManager otsSessionManager,
+            OtsGraph otsGraph,
             String streamHost,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -50,11 +60,6 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             return handler.buildErrorResponse(toolUse, "Invalid scriptId format", conversationHistory, systemPromptCall2, streamFn);
         }
 
-        boolean startImmediately = true;
-        if (inputMap.containsKey("startImmediately")) {
-            startImmediately = Boolean.parseBoolean(inputMap.get("startImmediately").toString());
-        }
-
         Map<String, Object> userVariables = new HashMap<>();
         if (inputMap.containsKey("userVariables")) {
             try {
@@ -65,32 +70,86 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             }
         }
 
-        LOGGER.info("[StartOneTimeStream] brand={}, scriptId={}, vars={}, startImmediately={}", brandSlugName, scriptId, userVariables.keySet(), startImmediately);
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Starting one-time stream...");
-
+        boolean startImmediately = true;
+        if (inputMap.containsKey("startImmediately")) {
+            startImmediately = Boolean.parseBoolean(inputMap.get("startImmediately").toString());
+        }
         boolean finalStartImmediately = startImmediately;
-        return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, finalStartImmediately, SuperUser.build())
-                .flatMap(stream -> {
-                    String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
-                    String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
 
-                    JsonObject payload = new JsonObject()
-                            .put("ok", true)
-                            .put("slugName", stream.getSlugName())
-                            .put("id", stream.getId().toString())
-                            .put("status", stream.getStatus().name())
-                            .put("hlsUrl", hlsUrl)
-                            .put("mixplaUrl", mixplaUrl);
+        LOGGER.info("[StartOneTimeStream] brand={}, scriptId={}, vars={}", brandSlugName, scriptId, userVariables.keySet());
 
-                    handler.sendProcessingChunk(chunkHandler, connectionId, "Stream started: " + stream.getSlugName());
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+        return scriptService.getById(scriptId, SuperUser.build())
+                .flatMap(script -> {
+                    List<ScriptVariable> requiredVars = script.getRequiredVariables();
 
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
+                    if (requiredVars != null && !requiredVars.isEmpty()) {
+                        List<String> missing = requiredVars.stream()
+                                .filter(v -> !userVariables.containsKey(v.getName()) ||
+                                        userVariables.get(v.getName()) == null ||
+                                        userVariables.get(v.getName()).toString().isBlank())
+                                .map(ScriptVariable::getName)
+                                .collect(Collectors.toList());
+
+                        if (!missing.isEmpty()) {
+                            LOGGER.info("[StartOneTimeStream] missing vars={}, activating OTS session", missing);
+                            handler.sendProcessingChunk(chunkHandler, connectionId, "Setting up stream...");
+
+                            List<String> varNames = requiredVars.stream()
+                                    .map(ScriptVariable::getName)
+                                    .collect(Collectors.toList());
+                            Map<String, String> varDescriptions = requiredVars.stream()
+                                    .collect(Collectors.toMap(ScriptVariable::getName, ScriptVariable::getDescription));
+
+                            OtsSessionData session = new OtsSessionData(
+                                    brandSlugName, scriptId, script.getName(), varNames, varDescriptions);
+
+                            otsSessionManager.start(connectionId, session);
+
+                            return otsGraph.generateFirstQuestion(session)
+                                    .flatMap(firstQuestion -> {
+                                        JsonObject payload = new JsonObject()
+                                                .put("action", "collect_variables")
+                                                .put("firstQuestion", firstQuestion)
+                                                .put("missingVars", new io.vertx.core.json.JsonArray(new ArrayList<>(missing)));
+
+                                        handler.addToolUseToHistory(toolUse, conversationHistory);
+                                        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                        return streamFn.apply(secondCallParams);
+                                    });
+                        }
+                    }
+
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Starting one-time stream...");
+
+                    return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, finalStartImmediately, SuperUser.build())
+                            .flatMap(stream -> {
+                                String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
+                                String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
+
+                                JsonObject payload = new JsonObject()
+                                        .put("ok", true)
+                                        .put("slugName", stream.getSlugName())
+                                        .put("id", stream.getId().toString())
+                                        .put("status", stream.getStatus().name())
+                                        .put("hlsUrl", hlsUrl)
+                                        .put("mixplaUrl", mixplaUrl);
+
+                                handler.sendProcessingChunk(chunkHandler, connectionId, "Stream started: " + stream.getSlugName());
+                                handler.addToolUseToHistory(toolUse, conversationHistory);
+                                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                                MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                                return streamFn.apply(secondCallParams);
+                            })
+                            .onFailure().recoverWithUni(err -> {
+                                LOGGER.error("[StartOneTimeStream] Failed", err);
+                                return handler.buildErrorResponse(toolUse, err.getMessage(), conversationHistory, systemPromptCall2, streamFn);
+                            });
                 })
                 .onFailure().recoverWithUni(err -> {
-                    LOGGER.error("[StartOneTimeStream] Failed", err);
+                    LOGGER.error("[StartOneTimeStream] Script lookup failed", err);
                     return handler.buildErrorResponse(toolUse, err.getMessage(), conversationHistory, systemPromptCall2, streamFn);
                 });
     }

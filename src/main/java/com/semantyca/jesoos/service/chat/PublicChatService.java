@@ -18,6 +18,9 @@ import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.PlaylistQueueService;
+import com.semantyca.jesoos.service.chat.ots.OtsGraph;
+import com.semantyca.jesoos.service.chat.ots.OtsResult;
+import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.OneTimeStreamService;
 import com.semantyca.jesoos.service.ScriptService;
@@ -27,8 +30,10 @@ import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.core.model.cnst.MessageType;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
@@ -37,6 +42,8 @@ import org.jboss.logging.Logger;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
 @ApplicationScoped
 public class PublicChatService extends ChatService {
@@ -98,6 +105,12 @@ public class PublicChatService extends ChatService {
 
     @Inject
     ScriptService scriptService;
+
+    @Inject
+    OtsSessionManager otsSessionManager;
+
+    @Inject
+    OtsGraph otsGraph;
 
     @Setter
     private PublicChatController controller;
@@ -344,7 +357,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
-                    toolUse, inputMap, oneTimeStreamService, config.getHost(), chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph, config.getHost(), chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
@@ -390,6 +403,55 @@ case "listener_data" -> ListenerDataToolHandler.handle(
     @Override
     protected List<Tool> getAvailableTools() {
         return getToolsForUser(true);
+    }
+
+    @Override
+    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler,
+                                         Consumer<String> completionHandler,
+                                         String connectionId, String slugName, IUser user) {
+        if (otsSessionManager.isActive(connectionId)) {
+            return otsGraph.processUserTurn(connectionId, userMessage)
+                    .flatMap(result -> {
+                        String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
+                        String responseText = result.action() == OtsResult.Action.STREAM_STARTED
+                                ? "Your stream is live! Tune in here: " + result.mixplaUrl()
+                                : result.question();
+                        return sendOtsResponse(responseText, djName, connectionId, user.getId(), slugName, chunkHandler, completionHandler);
+                    })
+                    .onFailure().recoverWithUni(err -> {
+                        LOGGER.errorf("[OTS] processUserTurn failed connectionId=%s: %s", connectionId, err.getMessage());
+                        otsSessionManager.end(connectionId);
+                        chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
+                        completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.error("Stream setup failed, please try again.", "system", connectionId).build().toJson());
+                        return Uni.createFrom().voidItem();
+                    });
+        }
+        return super.generateBotResponse(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+    }
+
+    private Uni<Void> sendOtsResponse(String text, String djName, String connectionId,
+                                      long userId, String slugName,
+                                      Consumer<String> chunkHandler, Consumer<String> completionHandler) {
+        return Uni.createFrom().voidItem()
+                .invoke(() -> {
+                    chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.chunk(text, djName, connectionId).build().toJson());
+                    chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
+
+                    MessageParam assistantMsg = MessageParam.builder()
+                            .role(MessageParam.Role.ASSISTANT)
+                            .content(MessageParam.Content.ofString(text))
+                            .build();
+                    chatRepository.appendToConversation(
+                            ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantMsg);
+
+                    JsonObject botMessage = createMessage(MessageType.BOT, djName, text, System.currentTimeMillis(), connectionId);
+                    chatRepository.saveChatMessage(userId, slugName, getChatType(), botMessage)
+                            .subscribe().with(success -> {}, err -> LOGGER.error("Failed to save OTS bot message", err));
+
+                    completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.bot(text, djName, connectionId)
+                            .timestamp(System.currentTimeMillis()).build().toJson());
+                })
+                .runSubscriptionOn(getDefaultWorkerPool());
     }
 
     @Override
