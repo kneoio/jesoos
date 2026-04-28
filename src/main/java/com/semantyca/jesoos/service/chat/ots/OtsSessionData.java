@@ -15,6 +15,7 @@ public class OtsSessionData {
     private final Map<String, String> varDescriptions;
     private Map<String, String> collectedVars = new HashMap<>();
     private String pendingVarName;
+    private String djName = "DJ";
 
     public OtsSessionData(String brandSlug, UUID scriptId, String scriptName,
                           List<String> varNames, Map<String, String> varDescriptions) {
@@ -32,9 +33,11 @@ public class OtsSessionData {
     public Map<String, String> getVarDescriptions() { return varDescriptions; }
     public Map<String, String> getCollectedVars() { return collectedVars; }
     public String getPendingVarName() { return pendingVarName; }
+    public String getDjName() { return djName; }
 
     public void setPendingVarName(String name) { this.pendingVarName = name; }
     public void setCollectedVars(Map<String, String> vars) { this.collectedVars = new HashMap<>(vars); }
+    public void setDjName(String name) { this.djName = name; }
 
     public boolean isComplete() {
         return varNames.stream().allMatch(v -> collectedVars.containsKey(v) && !collectedVars.get(v).isBlank());

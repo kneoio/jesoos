@@ -15,12 +15,17 @@ import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.StateGraph;
 import org.jboss.logging.Logger;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static org.bsc.langgraph4j.StateGraph.END;
 import static org.bsc.langgraph4j.StateGraph.START;
@@ -41,6 +46,7 @@ public class OtsGraph {
 
     private CompiledGraph<OtsState> compiledGraph;
     private AnthropicClient anthropicClient;
+    private String otsPromptTemplate;
 
     @PostConstruct
     void init() {
@@ -48,6 +54,7 @@ public class OtsGraph {
             anthropicClient = AnthropicOkHttpClient.builder()
                     .apiKey(config.getAnthropicApiKey())
                     .build();
+            otsPromptTemplate = loadResource("prompts/otsPrompt.hbs");
 
             compiledGraph = new StateGraph<>(OtsState::new)
                     .addNode("collectTurn",   this::collectTurnNode)
@@ -108,15 +115,22 @@ public class OtsGraph {
         String scriptName = state.scriptName();
 
         return Uni.createFrom().item(() -> {
-            String prompt = "You are a friendly radio DJ setting up a '" + scriptName + "' stream. " +
-                    "Ask ONE warm, natural, conversational question to get this information: '" +
-                    varName + "' (" + description + "). " +
-                    "One sentence only. No opening like 'Sure!' or 'Of course!'.";
+            String collected = state.collectedVars().entrySet().stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining(", "));
+            String djName = state.djName();
+            String systemPrompt = otsPromptTemplate
+                    .replace("{{djName}}", djName)
+                    .replace("{{scriptName}}", scriptName)
+                    .replace("{{collectedVars}}", collected.isEmpty() ? "none yet" : collected)
+                    .replace("{{pendingVarName}}", varName)
+                    .replace("{{pendingVarDescription}}", description);
 
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_HAIKU_4_5_20251001)
                     .maxTokens(80)
-                    .addUserMessage(prompt)
+                    .system(systemPrompt)
+                    .addUserMessage("Ask the question.")
                     .build();
 
             Message response = anthropicClient.messages().create(params);
@@ -200,6 +214,15 @@ public class OtsGraph {
                 });
     }
 
+    private String loadResource(String path) {
+        try (InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path)) {
+            if (is == null) throw new IllegalStateException("Resource not found: " + path);
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private Map<String, Object> buildStateMap(OtsSessionData session, String userMessage) {
         Map<String, Object> state = new HashMap<>();
         state.put(OtsState.USER_MESSAGE, userMessage);
@@ -210,6 +233,7 @@ public class OtsGraph {
         state.put(OtsState.BRAND_SLUG, session.getBrandSlug());
         state.put(OtsState.SCRIPT_ID, session.getScriptId().toString());
         state.put(OtsState.SCRIPT_NAME, session.getScriptName());
+        state.put(OtsState.DJ_NAME, session.getDjName());
         return state;
     }
 }

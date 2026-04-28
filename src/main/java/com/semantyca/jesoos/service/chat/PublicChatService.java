@@ -357,7 +357,9 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
-                    toolUse, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph, config.getHost(), chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph,
+                    config.getHost(), assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
+                    chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

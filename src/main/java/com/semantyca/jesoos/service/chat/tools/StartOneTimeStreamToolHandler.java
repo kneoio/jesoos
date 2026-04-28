@@ -37,6 +37,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             OtsSessionManager otsSessionManager,
             OtsGraph otsGraph,
             String streamHost,
+            String djName,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
@@ -103,6 +104,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
                             OtsSessionData session = new OtsSessionData(
                                     brandSlugName, scriptId, script.getName(), varNames, varDescriptions);
 
+                            session.setDjName(djName);
                             otsSessionManager.start(connectionId, session);
 
                             return otsGraph.generateFirstQuestion(session)

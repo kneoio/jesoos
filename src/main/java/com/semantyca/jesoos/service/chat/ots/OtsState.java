@@ -23,6 +23,7 @@ public class OtsState extends AgentState {
     public static final String BRAND_SLUG       = "brandSlug";
     public static final String SCRIPT_ID        = "scriptId";
     public static final String SCRIPT_NAME      = "scriptName";
+    public static final String DJ_NAME          = "djName";
     public static final String NEXT_PENDING_VAR = "nextPendingVar";
     public static final String NEXT_QUESTION    = "nextQuestion";
     public static final String MIXPLA_URL       = "mixplaUrl";
@@ -37,6 +38,7 @@ public class OtsState extends AgentState {
     public String brandSlug()       { return this.<String>value(BRAND_SLUG).orElse(""); }
     public String scriptId()        { return this.<String>value(SCRIPT_ID).orElse(""); }
     public String scriptName()      { return this.<String>value(SCRIPT_NAME).orElse(""); }
+    public String djName()          { return this.<String>value(DJ_NAME).orElse("DJ"); }
     public String nextPendingVar()  { return this.<String>value(NEXT_PENDING_VAR).orElse(null); }
     public String nextQuestion()    { return this.<String>value(NEXT_QUESTION).orElse(""); }
     public String mixplaUrl()       { return this.<String>value(MIXPLA_URL).orElse(""); }
