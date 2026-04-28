@@ -60,6 +60,7 @@ public class OtsStreamScheduler {
         ZoneId zone = stream.getTimeZone();
 
         for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
+            scene.setOtsSlugName(otsSlugName);
             scheduleSceneSongs(otsSlugName, masterBrandSlug, scene, zone, stream);
         }
     }

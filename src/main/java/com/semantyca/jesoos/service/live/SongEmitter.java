@@ -131,6 +131,7 @@ public class SongEmitter {
         dto.setSequenceNumber(entry.getSequenceNumber());
         dto.setPriority(priority);
         dto.setSceneDeadlineTimestamp(deadline);
+        dto.setOtsSlugName(scene.getOtsSlugName());
         return dto;
     }
 

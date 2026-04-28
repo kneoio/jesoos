@@ -31,6 +31,7 @@ public class LiveScene {
     private boolean timelineBuild;
     private boolean oneTimeRun;
     private int fitSeconds;
+    private String otsSlugName;
 
     public LocalDateTime getEndTime() {
         if (timeline == null || timeline.isEmpty()) return null;
