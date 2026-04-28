@@ -72,7 +72,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
         return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, finalStartImmediately, SuperUser.build())
                 .flatMap(stream -> {
                     String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
-                    String mixplaUrl = "https://player.mixpla.io/?radio=" + stream.getSlugName();
+                    String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
