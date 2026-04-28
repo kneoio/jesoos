@@ -206,7 +206,6 @@ public class PublicChatService extends ChatService {
             tools.add(LiveStreamInfoTool.toTool());
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
-            tools.add(ListOtsScriptsTool.toTool());
             tools.add(StartOneTimeStreamTool.toTool());
             tools.add(ManageEventsTool.toTool());
             tools.add(SendUICommandTool.toTool());
@@ -343,9 +342,6 @@ case "listener_data" -> ListenerDataToolHandler.handle(
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
-            case "list_ots_scripts" -> ListOtsScriptsToolHandler.handle(
-                    toolUse, inputMap, scriptService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
                     toolUse, inputMap, oneTimeStreamService, config.getHost(), chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

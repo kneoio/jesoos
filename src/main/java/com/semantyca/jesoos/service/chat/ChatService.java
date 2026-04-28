@@ -15,6 +15,9 @@ import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.mixpla.model.cnst.SceneTimingMode;
+import com.semantyca.mixpla.model.filter.ScriptFilter;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
@@ -64,6 +67,8 @@ public abstract class ChatService {
     protected PerplexitySearchHelper perplexitySearchHelper;
     @Inject
     protected ChatSummaryService chatSummaryService;
+    @Inject
+    protected ScriptService scriptService;
 
     protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
@@ -104,6 +109,31 @@ public abstract class ChatService {
     }
 
     protected abstract ChatType getChatType();
+
+    private Uni<String> buildOtsScriptsText() {
+        ScriptFilter filter = new ScriptFilter();
+        filter.setTimingMode(SceneTimingMode.RELATIVE_TO_STREAM_START);
+        return scriptService.getAll(50, 0, filter).map(scripts -> {
+            if (scripts == null || scripts.isEmpty()) {
+                return "none available";
+            }
+            StringBuilder sb = new StringBuilder();
+            scripts.forEach(script -> {
+                sb.append("- ").append(script.getName())
+                        .append(" (id: ").append(script.getId()).append(")");
+                if (script.getRequiredVariables() != null && !script.getRequiredVariables().isEmpty()) {
+                    sb.append(" — variables: ");
+                    script.getRequiredVariables().forEach(v ->
+                            sb.append(v.getName()).append("=").append(v.getDescription()).append(", "));
+                    sb.setLength(sb.length() - 2);
+                } else {
+                    sb.append(" — no variables needed");
+                }
+                sb.append("\n");
+            });
+            return sb.toString().trim();
+        });
+    }
 
     public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId) {
         return chatRepository.migrateAnonymousSession(connectionId, newUserId, getChatType());
@@ -162,7 +192,10 @@ public abstract class ChatService {
                     Uni<AiAgent> agentUni = station != null && station.getAiAgentId() != null
                             ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
                             : Uni.createFrom().item(() -> null);
-                    return agentUni.map(agent -> {
+                    return Uni.combine().all().unis(agentUni, buildOtsScriptsText()).asTuple()
+                            .map(tuple -> {
+                        AiAgent agent = tuple.getItem1();
+                        String otsScripts = tuple.getItem2();
                         assert station != null;
                         String djName = agent.getName();
                         String stationSlug = station.getSlugName();
@@ -179,7 +212,8 @@ public abstract class ChatService {
                                 .replace("{{radioStationDescription}}", station.getDescription())
                                 .replace("{{djLanguages}}", djLanguages)
                                 .replace("{{djCopilotName}}", "")
-                                .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata());
+                                .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata())
+                                .replace("{{otsScripts}}", otsScripts);
                         BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
                         brandStaticCache.put(slugName, data);
                         return data;
