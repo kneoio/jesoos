@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.core.model.user.IUser;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
 import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.service.agenda.AgendaService;
@@ -56,10 +55,15 @@ public class OneTimeStreamService {
                                 stream.setStatus(StreamStatus.PENDING);
                                 repository.insert(stream);
                                 pool.add(stream);
-                                LOGGER.infof("OneTimeStream created: slugName=%s id=%s", stream.getSlugName(), stream.getId());
+                                LOGGER.infof("[OTS] Created: slugName=%s", stream.getSlugName());
 
                                 if (startImmediately) {
-                                    return startStream(stream, scriptId, user).replaceWith(stream);
+                                    return agendaService.buildOtsAgenda(brand, scriptId, LocalDateTime.now(stream.getTimeZone()), user)
+                                            .invoke(agenda -> {
+                                                stream.setAgenda(agenda);
+                                                LOGGER.infof("[OTS] Agenda built for '%s', waiting for aivox start", stream.getSlugName());
+                                            })
+                                            .replaceWith(stream);
                                 }
                                 return Uni.createFrom().item(stream);
                             });
@@ -72,20 +76,11 @@ public class OneTimeStreamService {
                     if (stream == null) {
                         return Uni.createFrom().failure(new RuntimeException("OTS stream not found: " + otsSlugName));
                     }
-                    UUID scriptId = stream.getScript().getId();
-                    return startStream(stream, scriptId, SuperUser.build()).replaceWith(stream);
-                });
-    }
-
-    private Uni<Void> startStream(OneTimeStream stream, UUID scriptId, IUser user) {
-        stream.setStatus(StreamStatus.WARMING_UP);
-        return agendaService.buildOtsAgenda(stream.getMasterBrand(), scriptId, LocalDateTime.now(stream.getTimeZone()), user)
-                .invoke(agenda -> {
-                    stream.setAgenda(agenda);
-                    LOGGER.infof("[OTS] Agenda built for '%s', scheduling emission", stream.getSlugName());
+                    stream.setStatus(StreamStatus.WARMING_UP);
+                    LOGGER.infof("[OTS] Scheduling emission for '%s'", otsSlugName);
                     otsStreamScheduler.scheduleStream(stream);
-                })
-                .replaceWithVoid();
+                    return Uni.createFrom().item(stream);
+                });
     }
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {
