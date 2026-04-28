@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ScriptDTO;
@@ -11,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -27,36 +29,13 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         super(userService);
         this.repository = repository;
     }
-
-    private ScriptFilter toFilter(ScriptFilter dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        ScriptFilter filter = new ScriptFilter();
-        filter.setActivated(dto.isActivated());
-        filter.setLabels(dto.getLabels());
-        filter.setTimingMode(dto.getTimingMode());
-        filter.setLanguageTag(dto.getLanguageTag());
-        filter.setSearchTerm(dto.getSearchTerm());
-
-        return filter;
-    }
-
-    public Uni<Integer> getAllCount(final IUser user) {
-        return getAllCount(user, null);
-    }
-
-    public Uni<Integer> getAllCount(final IUser user, final ScriptFilter scriptFilter) {
+    public Uni<List<Script>> getAll(final int limit, final int offset, ScriptFilter filter) {
         assert repository != null;
-        ScriptFilter filter = toFilter(scriptFilter);
-        return repository.getAllCount(user, false, filter);
+        return repository.getAll(limit, offset, false, SuperUser.build(), filter);
     }
 
     public Uni<Script> getById(UUID id, IUser user) {
         assert repository != null;
         return repository.findById(id, user, false);
     }
-
-
 }
