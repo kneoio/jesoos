@@ -11,21 +11,18 @@ import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class BrandPool {
+public class BrandPool extends AbstractStreamPool<ILiveStream> {
     private static final Logger LOGGER = Logger.getLogger(BrandPool.class);
-    private final ConcurrentHashMap<String, ILiveStream> pool = new ConcurrentHashMap<>();
+
     private final BrandService brandService;
     private final AgendaService agendaService;
     private final MetricPublisher metricPublisher;
@@ -43,7 +40,6 @@ public class BrandPool {
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
         LOGGER.infof("Attempting to get (or start) brand: %s", brandName);
-
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(name -> {
                     ILiveStream existing = pool.get(name);
@@ -52,7 +48,6 @@ public class BrandPool {
                                 name, existing.getStatus());
                         return Uni.createFrom().item(existing);
                     }
-
                     return brandService.getBySlugName(name)
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
@@ -60,10 +55,8 @@ public class BrandPool {
                                     pool.remove(name);
                                     return Uni.createFrom().failure(new RuntimeException("Station not found: " + name));
                                 }
-
                                 RadioStream newStream = new RadioStream(brand);
                                 newStream.setStatus(StreamStatus.WARMING_UP);
-
                                 return agendaService.getStreamAgenda(brand, SuperUser.build())
                                         .invoke(schedule -> {
                                             newStream.setAgenda(schedule);
@@ -71,22 +64,11 @@ public class BrandPool {
                                             LOGGER.infof("BrandPool: Station '%s' created with %s scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
                                         .map(schedule -> (ILiveStream) newStream)
-                                        .onFailure().invoke(e -> {
-                                            LOGGER.errorf("Agenda build failed for brand '%s': %s", name, e.getMessage());
-                                        });
+                                        .onFailure().invoke(e -> LOGGER.errorf("Agenda build failed for brand '%s': %s", name, e.getMessage()));
                             });
                 })
-                .onItem().invoke(agenda -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", agenda.getStatus().name())))
+                .onItem().invoke(stream -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", stream.getStatus().name())))
                 .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
-    }
-
-    public Uni<ILiveStream> get(String brandName) {
-        ILiveStream stream = pool.get(brandName);
-        return Uni.createFrom().item(stream);
-    }
-
-    public Collection<ILiveStream> getStationsSnapshot() {
-        return new ArrayList<>(pool.values());
     }
 
     public Map<String, StreamAgenda> getAll() {
@@ -95,29 +77,19 @@ public class BrandPool {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getAgenda()));
     }
 
-    public Uni<ILiveStream> stopAndRemove(String brandName) {
-        LOGGER.infof("Attempting to stop and remove station: %s", brandName);
-        ILiveStream liveAgenda = pool.remove(brandName);
-
-        if (liveAgenda != null) {
-            scenePool.removeActiveScene(brandName);
-            djStateService.remove(brandName);
-            liveAgenda.setStatus(StreamStatus.OFF_LINE);
-            metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "station_stop", Map.of("status", liveAgenda.getStatus().name()));
-            return Uni.createFrom().item(liveAgenda);
-        } else {
-            LOGGER.warnf("Station {} not found in pool during stopAndRemove.", brandName);
-            return Uni.createFrom().nullItem();
-        }
+    public Collection<ILiveStream> getStationsSnapshot() {
+        return getSnapshot();
     }
 
-    @PreDestroy
-    void cleanup() {
-        LOGGER.info("BrandPool cleanup: stopping all brands and clearing resources");
-        pool.keySet().forEach(brandName -> {
-            scenePool.removeActiveScene(brandName);
-            djStateService.remove(brandName);
-        });
-        pool.clear();
+    @Override
+    protected void onRemoved(String slugName, ILiveStream stream) {
+        scenePool.removeActiveScene(slugName);
+        djStateService.remove(slugName);
+        metricPublisher.publishMetric(slugName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "station_stop", Map.of("status", stream.getStatus().name()));
+    }
+
+    @Override
+    protected Logger getLogger() {
+        return LOGGER;
     }
 }

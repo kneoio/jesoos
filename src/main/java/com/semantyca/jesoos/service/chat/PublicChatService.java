@@ -19,6 +19,7 @@ import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.chat.tools.*;
+import com.semantyca.jesoos.service.OneTimeStreamService;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.ScenePool;
@@ -90,6 +91,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     MetricPublisher metricPublisher;
+
+    @Inject
+    OneTimeStreamService oneTimeStreamService;
 
     @Setter
     private PublicChatController controller;
@@ -198,6 +202,7 @@ public class PublicChatService extends ChatService {
             tools.add(LiveStreamInfoTool.toTool());
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool());
+            tools.add(StartOneTimeStreamTool.toTool());
             tools.add(ManageEventsTool.toTool());
             tools.add(SendUICommandTool.toTool());
             tools.add(LogoffTool.toTool());
@@ -333,6 +338,9 @@ case "listener_data" -> ListenerDataToolHandler.handle(
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
                     toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
+            case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
+                    toolUse, inputMap, oneTimeStreamService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn

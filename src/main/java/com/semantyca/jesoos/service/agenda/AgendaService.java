@@ -63,6 +63,10 @@ public class AgendaService {
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, IUser user) {
         UUID scriptId = sourceBrand.getScripts().getFirst().getScriptId();
+        return getStreamAgenda(sourceBrand, scriptId, user);
+    }
+
+    public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, UUID scriptId, IUser user) {
         return scriptService.getById(scriptId, user)
                 .chain(script ->
                         sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
