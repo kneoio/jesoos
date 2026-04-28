@@ -11,6 +11,7 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             OneTimeStreamService oneTimeStreamService,
+            String streamHost,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
@@ -35,10 +37,6 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
 
         String brandSlugName = inputMap.getOrDefault("brandSlugName", JsonValue.from("")).toString().replace("\"", "");
         String scriptIdStr = inputMap.getOrDefault("scriptId", JsonValue.from("")).toString().replace("\"", "");
-        boolean startImmediately = true;
-        if (inputMap.containsKey("startImmediately")) {
-            startImmediately = Boolean.parseBoolean(inputMap.get("startImmediately").toString());
-        }
 
         if (brandSlugName.isEmpty() || scriptIdStr.isEmpty()) {
             return handler.buildErrorResponse(toolUse, "Missing required parameters: brandSlugName, scriptId",
@@ -52,17 +50,37 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             return handler.buildErrorResponse(toolUse, "Invalid scriptId format", conversationHistory, systemPromptCall2, streamFn);
         }
 
-        LOGGER.info("[StartOneTimeStream] brand={}, scriptId={}, startImmediately={}", brandSlugName, scriptId, startImmediately);
+        boolean startImmediately = true;
+        if (inputMap.containsKey("startImmediately")) {
+            startImmediately = Boolean.parseBoolean(inputMap.get("startImmediately").toString());
+        }
+
+        Map<String, Object> userVariables = new HashMap<>();
+        if (inputMap.containsKey("userVariables")) {
+            try {
+                JsonObject vars = new JsonObject(inputMap.get("userVariables").toString());
+                vars.forEach(entry -> userVariables.put(entry.getKey(), entry.getValue()));
+            } catch (Exception e) {
+                LOGGER.warn("[StartOneTimeStream] Could not parse userVariables, proceeding with empty map");
+            }
+        }
+
+        LOGGER.info("[StartOneTimeStream] brand={}, scriptId={}, vars={}, startImmediately={}", brandSlugName, scriptId, userVariables.keySet(), startImmediately);
         handler.sendProcessingChunk(chunkHandler, connectionId, "Starting one-time stream...");
 
         boolean finalStartImmediately = startImmediately;
-        return oneTimeStreamService.run(brandSlugName, scriptId, Map.of(), finalStartImmediately, SuperUser.build())
+        return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, finalStartImmediately, SuperUser.build())
                 .flatMap(stream -> {
+                    String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
+                    String mixplaUrl = "https://player.mixpla.io/?radio=" + stream.getSlugName();
+
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("slugName", stream.getSlugName())
                             .put("id", stream.getId().toString())
-                            .put("status", stream.getStatus().name());
+                            .put("status", stream.getStatus().name())
+                            .put("hlsUrl", hlsUrl)
+                            .put("mixplaUrl", mixplaUrl);
 
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Stream started: " + stream.getSlugName());
                     handler.addToolUseToHistory(toolUse, conversationHistory);
