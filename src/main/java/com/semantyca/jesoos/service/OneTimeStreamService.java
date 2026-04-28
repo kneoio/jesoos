@@ -1,16 +1,19 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
 import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.jesoos.service.live.OneTimeStreamPool;
+import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,16 +26,18 @@ public class OneTimeStreamService {
     private final AgendaService agendaService;
     private final OneTimeStreamRepository repository;
     private final OneTimeStreamPool pool;
+    private final OtsStreamScheduler otsStreamScheduler;
 
     @Inject
     public OneTimeStreamService(BrandService brandService, ScriptService scriptService,
                                 AgendaService agendaService, OneTimeStreamRepository repository,
-                                OneTimeStreamPool pool) {
+                                OneTimeStreamPool pool, OtsStreamScheduler otsStreamScheduler) {
         this.brandService = brandService;
         this.scriptService = scriptService;
         this.agendaService = agendaService;
         this.repository = repository;
         this.pool = pool;
+        this.otsStreamScheduler = otsStreamScheduler;
     }
 
     public Uni<OneTimeStream> run(String brandSlugName, UUID scriptId, Map<String, Object> userVariables, boolean startImmediately, IUser user) {
@@ -48,18 +53,39 @@ public class OneTimeStreamService {
                                 }
                                 Map<String, Object> vars = userVariables != null ? userVariables : Map.of();
                                 OneTimeStream stream = new OneTimeStream(brand, script, vars);
-                                stream.setStatus(startImmediately ? StreamStatus.WARMING_UP : StreamStatus.PENDING);
-                                return agendaService.getStreamAgenda(brand, scriptId, user)
-                                        .invoke(agenda -> {
-                                            stream.setAgenda(agenda);
-                                            repository.insert(stream);
-                                            pool.add(stream);
-                                            LOGGER.infof("OneTimeStream created: slugName=%s id=%s status=%s",
-                                                    stream.getSlugName(), stream.getId(), stream.getStatus());
-                                        })
-                                        .replaceWith(stream);
+                                stream.setStatus(StreamStatus.PENDING);
+                                repository.insert(stream);
+                                pool.add(stream);
+                                LOGGER.infof("OneTimeStream created: slugName=%s id=%s", stream.getSlugName(), stream.getId());
+
+                                if (startImmediately) {
+                                    return startStream(stream, scriptId, user).replaceWith(stream);
+                                }
+                                return Uni.createFrom().item(stream);
                             });
                 });
+    }
+
+    public Uni<OneTimeStream> start(String otsSlugName) {
+        return pool.get(otsSlugName)
+                .chain(stream -> {
+                    if (stream == null) {
+                        return Uni.createFrom().failure(new RuntimeException("OTS stream not found: " + otsSlugName));
+                    }
+                    UUID scriptId = stream.getScript().getId();
+                    return startStream(stream, scriptId, SuperUser.build()).replaceWith(stream);
+                });
+    }
+
+    private Uni<Void> startStream(OneTimeStream stream, UUID scriptId, IUser user) {
+        stream.setStatus(StreamStatus.WARMING_UP);
+        return agendaService.buildOtsAgenda(stream.getMasterBrand(), scriptId, LocalDateTime.now(stream.getTimeZone()), user)
+                .invoke(agenda -> {
+                    stream.setAgenda(agenda);
+                    LOGGER.infof("[OTS] Agenda built for '%s', scheduling emission", stream.getSlugName());
+                    otsStreamScheduler.scheduleStream(stream);
+                })
+                .replaceWithVoid();
     }
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {

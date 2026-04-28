@@ -7,6 +7,7 @@ import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.DjStateService;
+import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
@@ -26,13 +27,21 @@ public class CommandService {
     private final DjStateService djStateService;
     private final BrandPool brandPool;
     private final StaggeredSongScheduler staggeredSongScheduler;
+    private final OneTimeStreamService oneTimeStreamService;
+    private final OtsStreamScheduler otsStreamScheduler;
     private final MetricPublisher metricPublisher;
 
     @Inject
-    public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool, StaggeredSongScheduler staggeredSongScheduler, MetricPublisher metricPublisher) {
+    public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
+                          StaggeredSongScheduler staggeredSongScheduler,
+                          OneTimeStreamService oneTimeStreamService,
+                          OtsStreamScheduler otsStreamScheduler,
+                          MetricPublisher metricPublisher) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
+        this.oneTimeStreamService = oneTimeStreamService;
+        this.otsStreamScheduler = otsStreamScheduler;
         this.metricPublisher = metricPublisher;
     }
 
@@ -192,6 +201,23 @@ public class CommandService {
                             .put("sequenceNumber", sequenceNumber)
                             .put("error", failure.getMessage());
                 });
+    }
+
+    public Uni<JsonObject> startOts(String otsSlugName) {
+        return oneTimeStreamService.start(otsSlugName)
+                .map(stream -> new JsonObject()
+                        .put("success", true)
+                        .put("otsSlugName", stream.getSlugName())
+                        .put("status", stream.getStatus().name())
+                        .put("message", "OTS stream started"));
+    }
+
+    public Uni<JsonObject> stopOts(String otsSlugName) {
+        otsStreamScheduler.cancelOtsTimers(otsSlugName);
+        return Uni.createFrom().item(new JsonObject()
+                .put("success", true)
+                .put("otsSlugName", otsSlugName)
+                .put("message", "OTS stream stopped"));
     }
 
     private JsonObject toResponse(ILiveStream agendaHolder) {

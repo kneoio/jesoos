@@ -204,6 +204,86 @@ public class AgendaService {
                         ));
     }
 
+    public Uni<StreamAgenda> buildOtsAgenda(Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
+        return scriptService.getById(scriptId, user)
+                .chain(script ->
+                        sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                                .map(list -> new TreeSet<>(
+                                        Comparator.comparingInt(Scene::getSeqNum)
+                                                .thenComparing(Scene::getId)
+                                ) {{
+                                    addAll(list);
+                                }})
+                                .invoke(script::setScenes)
+                                .chain(x -> buildOtsAgendaFromScenes(script, brand, startTime, user))
+                );
+    }
+
+    private Uni<StreamAgenda> buildOtsAgendaFromScenes(Script script, Brand brand, LocalDateTime startTime, IUser user) {
+        ZoneId brandZone = brand.getTimeZone();
+        StreamAgenda schedule = new StreamAgenda(startTime);
+        schedule.setTimeZone(brandZone);
+
+        NavigableSet<Scene> scenes = script.getScenes();
+        if (scenes == null || scenes.isEmpty()) {
+            return Uni.createFrom().item(schedule);
+        }
+
+        List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
+        LocalDateTime currentTime = startTime;
+
+        for (Scene scene : scenes) {
+            int durationSeconds = scene.getDurationSeconds();
+            LocalDateTime sceneStart = currentTime;
+            currentTime = currentTime.plusSeconds(durationSeconds);
+
+            TimelineBuilder timelineBuilder = new TimelineBuilder();
+            Uni<AiAgent> agentUni = (brand.getAiAgentId() != null)
+                    ? aiAgentService.getById(brand.getAiAgentId(), SuperUser.build())
+                    : Uni.createFrom().nullItem();
+
+            sceneUnis.add(
+                    Uni.combine().all().unis(
+                                    fetchSongsForSceneWithDuration(brand, scene, durationSeconds, scheduleSongSupplier),
+                                    agentUni
+                            ).asTuple()
+                            .map(tuple -> {
+                                List<SoundFragment> soundFragments = tuple.getItem1();
+                                AiAgent agent = tuple.getItem2();
+
+                                LiveScene liveScene = new LiveScene();
+                                liveScene.setSceneId(scene.getId());
+                                liveScene.setSceneTitle(scene.getTitle());
+                                liveScene.setOriginalStartTime(sceneStart.toLocalTime());
+                                liveScene.setTraceId(UUID.randomUUID());
+                                liveScene.setTimeZone(brandZone);
+                                liveScene.setAgentId(brand.getAiAgentId());
+                                liveScene.setContentStatus(ContentStatus.PENDING);
+                                liveScene.setOneTimeRun(scene.isOneTimeRun());
+                                if (scene.getPlaylistRequest() != null
+                                        && isGeneratedContentScene(scene.getPlaylistRequest())) {
+                                    liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                }
+                                liveScene.setIntroPrompts(scene.getIntroPrompts());
+
+                                List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
+                                List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
+                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts());
+                                liveScene.setTimeline(timeline);
+                                return liveScene;
+                            })
+            );
+        }
+
+        return Uni.join().all(sceneUnis).andFailFast()
+                .map(liveScenes -> {
+                    for (LiveScene liveScene : liveScenes) {
+                        schedule.addScene(liveScene);
+                    }
+                    return schedule;
+                });
+    }
+
     private int calculateDurationUntilNext(LocalTime start, LocalTime next) {
         int startSeconds = start.toSecondOfDay();
         int nextSeconds = next.toSecondOfDay();

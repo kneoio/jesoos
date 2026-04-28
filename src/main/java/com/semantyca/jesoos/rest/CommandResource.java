@@ -25,6 +25,8 @@ public class CommandResource extends AbstractResource {
         router.route(HttpMethod.POST, path + "/:brand/enable-dj").handler(this::handleEnableDj);
         router.route(HttpMethod.POST, path + "/:brand/disable-dj").handler(this::handleDisableDj);
         router.route(HttpMethod.POST, path + "/:brand/emit-timeline-entry/:sceneId/:sequenceNumber").handler(this::handleEmitTimelineEntry);
+        router.route(HttpMethod.POST, path + "/ots/:otsSlug/start").handler(this::handleOtsStart);
+        router.route(HttpMethod.POST, path + "/ots/:otsSlug/stop").handler(this::handleOtsStop);
     }
 
     private void handleStart(RoutingContext rc) {
@@ -141,6 +143,28 @@ public class CommandResource extends AbstractResource {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void handleOtsStart(RoutingContext rc) {
+        String otsSlug = rc.pathParam("otsSlug");
+        commandService.startOts(otsSlug)
+                .subscribe().with(
+                        response -> rc.response().setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode()),
+                        failure -> handleCommandFailure(rc, otsSlug, "ots-start", failure)
+                );
+    }
+
+    private void handleOtsStop(RoutingContext rc) {
+        String otsSlug = rc.pathParam("otsSlug");
+        commandService.stopOts(otsSlug)
+                .subscribe().with(
+                        response -> rc.response().setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode()),
+                        failure -> handleCommandFailure(rc, otsSlug, "ots-stop", failure)
+                );
     }
 
     private JsonObject handleEmitTimelineEntryCommand(String brand, UUID sceneId, int sequenceNumber) {
