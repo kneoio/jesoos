@@ -2,7 +2,6 @@ package com.semantyca.jesoos.service;
 
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.agent.AivoxClient;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
 import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.service.agenda.AgendaService;
@@ -28,20 +27,17 @@ public class OneTimeStreamService {
     private final OneTimeStreamRepository repository;
     private final OneTimeStreamPool pool;
     private final OtsStreamScheduler otsStreamScheduler;
-    private final AivoxClient aivoxClient;
 
     @Inject
     public OneTimeStreamService(BrandService brandService, ScriptService scriptService,
                                 AgendaService agendaService, OneTimeStreamRepository repository,
-                                OneTimeStreamPool pool, OtsStreamScheduler otsStreamScheduler,
-                                AivoxClient aivoxClient) {
+                                OneTimeStreamPool pool, OtsStreamScheduler otsStreamScheduler) {
         this.brandService = brandService;
         this.scriptService = scriptService;
         this.agendaService = agendaService;
         this.repository = repository;
         this.pool = pool;
         this.otsStreamScheduler = otsStreamScheduler;
-        this.aivoxClient = aivoxClient;
     }
 
     public Uni<OneTimeStream> run(String brandSlugName, UUID scriptId, Map<String, Object> userVariables, boolean startImmediately, IUser user) {
@@ -83,15 +79,10 @@ public class OneTimeStreamService {
 
     private Uni<Void> startStream(OneTimeStream stream, UUID scriptId, IUser user) {
         stream.setStatus(StreamStatus.WARMING_UP);
-        String otsSlugName = stream.getSlugName();
-        String masterBrandSlug = stream.getMasterBrand().getSlugName();
-        return aivoxClient.startOtsStation(otsSlugName, masterBrandSlug)
-                .onFailure().invoke(err -> LOGGER.warnf("[OTS] aivox start-ots failed for '%s': %s (continuing)", otsSlugName, err.getMessage()))
-                .onFailure().recoverWithNull()
-                .chain(ignored -> agendaService.buildOtsAgenda(stream.getMasterBrand(), scriptId, LocalDateTime.now(stream.getTimeZone()), user))
+        return agendaService.buildOtsAgenda(stream.getMasterBrand(), scriptId, LocalDateTime.now(stream.getTimeZone()), user)
                 .invoke(agenda -> {
                     stream.setAgenda(agenda);
-                    LOGGER.infof("[OTS] Agenda built for '%s', scheduling emission", otsSlugName);
+                    LOGGER.infof("[OTS] Agenda built for '%s', scheduling emission", stream.getSlugName());
                     otsStreamScheduler.scheduleStream(stream);
                 })
                 .replaceWithVoid();
