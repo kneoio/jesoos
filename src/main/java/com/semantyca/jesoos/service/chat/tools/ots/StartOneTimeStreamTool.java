@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.ots;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.Tool;

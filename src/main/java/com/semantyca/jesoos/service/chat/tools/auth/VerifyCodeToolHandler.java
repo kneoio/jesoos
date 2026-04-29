@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.auth;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
@@ -8,6 +8,7 @@ import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.chat.PublicChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
+import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
 import com.semantyca.jesoos.ws.PublicChatController;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;

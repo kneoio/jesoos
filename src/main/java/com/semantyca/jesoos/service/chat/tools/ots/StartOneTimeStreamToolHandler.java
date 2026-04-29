@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.ots;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
@@ -11,6 +11,7 @@ import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.service.chat.ots.OtsGraph;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionData;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
+import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;

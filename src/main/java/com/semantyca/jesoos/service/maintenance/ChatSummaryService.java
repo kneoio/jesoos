@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.chat;
+package com.semantyca.jesoos.service.maintenance;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
@@ -17,8 +17,7 @@ import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +25,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ChatSummaryService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ChatSummaryService.class);
+    private static final Logger LOGGER = Logger.getLogger(ChatSummaryService.class);
 
     private static final int BRAND_SUMMARY_THRESHOLD = 20;
     private static final int USER_SUMMARY_THRESHOLD = 20;
@@ -81,7 +80,7 @@ public class ChatSummaryService {
     public void scheduledCleanup() {
         chatRepository.deleteOldSummarizedMessages(MESSAGE_RETENTION_DAYS)
                 .subscribe().with(
-                        v -> LOGGER.info("Cleaned up old summarized messages older than {} days", MESSAGE_RETENTION_DAYS),
+                        v -> LOGGER.infof("Cleaned up old summarized messages older than %s days", MESSAGE_RETENTION_DAYS),
                         error -> LOGGER.error("Failed to cleanup old messages", error)
                 );
     }
@@ -93,12 +92,12 @@ public class ChatSummaryService {
                             if (count >= BRAND_SUMMARY_THRESHOLD) {
                                 summarizeBrandMessages(brandName)
                                         .subscribe().with(
-                                                v -> LOGGER.info("Summarized {} messages for brand {}", count, brandName),
-                                                error -> LOGGER.error("Failed to summarize brand {}", brandName, error)
+                                                v -> LOGGER.infof("Summarized %s messages for brand %s", count, brandName),
+                                                error -> LOGGER.error("Failed to summarize brand %s", brandName, error)
                                         );
                             }
                         },
-                        error -> LOGGER.error("Failed to count messages for brand {}", brandName, error)
+                        error -> LOGGER.error("Failed to count messages for brand %s", brandName, error)
                 );
     }
 
@@ -109,12 +108,12 @@ public class ChatSummaryService {
                             if (count >= USER_SUMMARY_THRESHOLD) {
                                 summarizeUserMessages(session.userId(), session.brandName(), session.chatType())
                                         .subscribe().with(
-                                                v -> LOGGER.info("Summarized {} messages for user {} on brand {}", count, session.userId(), session.brandName()),
-                                                error -> LOGGER.error("Failed to summarize user {} on brand {}", session.userId(), session.brandName(), error)
+                                                v -> LOGGER.infof("Summarized %s messages for user %s on brand %s", count, session.userId(), session.brandName()),
+                                                error -> LOGGER.errorf("Failed to summarize user %s on brand %s", session.userId(), session.brandName(), error)
                                         );
                             }
                         },
-                        error -> LOGGER.error("Failed to count messages for user {} on brand {}", session.userId(), session.brandName(), error)
+                        error -> LOGGER.errorf("Failed to count messages for user %s on brand %s", session.userId(), session.brandName(), error)
                 );
     }
 

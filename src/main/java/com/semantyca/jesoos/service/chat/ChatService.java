@@ -16,6 +16,7 @@ import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
 import com.semantyca.jesoos.service.live.AiHelperService;

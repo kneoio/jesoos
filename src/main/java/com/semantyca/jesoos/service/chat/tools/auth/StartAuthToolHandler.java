@@ -1,10 +1,11 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.auth;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.external.KeycloakAuthService;
+import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;

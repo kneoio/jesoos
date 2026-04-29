@@ -1,11 +1,11 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.auth;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.Tool;
 
 import java.util.Map;
 
-public class ListOtsScriptsTool {
+public class LogoffTool {
 
     public static Tool toTool() {
         Tool.InputSchema schema = Tool.InputSchema.builder()
@@ -13,8 +13,8 @@ public class ListOtsScriptsTool {
                 .build();
 
         return Tool.builder()
-                .name("list_ots_scripts")
-                .description("List available scripts for one-time streams. Returns script id, name, and required variables the user must provide before starting.")
+                .name("logoff")
+                .description("Log out the current authenticated user and invalidate the session token")
                 .inputSchema(schema)
                 .build();
     }

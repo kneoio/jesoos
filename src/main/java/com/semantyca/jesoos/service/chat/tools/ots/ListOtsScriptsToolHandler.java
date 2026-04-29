@@ -1,10 +1,11 @@
-package com.semantyca.jesoos.service.chat.tools;
+package com.semantyca.jesoos.service.chat.tools.ots;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
 import io.smallrye.mutiny.Uni;

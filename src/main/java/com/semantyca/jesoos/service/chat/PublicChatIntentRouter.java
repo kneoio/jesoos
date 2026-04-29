@@ -3,6 +3,8 @@ package com.semantyca.jesoos.service.chat;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
@@ -26,6 +28,7 @@ import org.jboss.logging.Logger;
 public class PublicChatIntentRouter {
 
     private static final Logger LOGGER = Logger.getLogger(PublicChatIntentRouter.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Inject
     OtsSessionManager otsSessionManager;
@@ -86,11 +89,24 @@ public class PublicChatIntentRouter {
         return Uni.createFrom().item(() -> {
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(20)
+                    .maxTokens(120)
                     .system("""
-                            Classify the user message intent. Reply with exactly one word: START_OTS or NORMAL_CHAT.
+                            Classify the user message intent.
                             START_OTS: user explicitly wants to start or continue a one-time radio stream.
                             NORMAL_CHAT: anything else.
+                            
+                            Reply with ONLY a single JSON object, no markdown and no extra text.
+                            Required JSON fields:
+                            - intent: "START_OTS" or "NORMAL_CHAT"
+                            - confidence: number from 0 to 1
+                            - reason: short string
+                            
+                            Examples:
+                            User: "start one-time stream for my brand"
+                            {"intent":"START_OTS","confidence":0.97,"reason":"explicitly asks to start one-time stream"}
+                            
+                            User: "can we do ots now?"
+                            {"intent":"START_OTS","confidence":0.92,"reason":"explicit request to do OTS"}
                             """)
                     .addUserMessage(userMessage)
                     .build();
@@ -101,17 +117,33 @@ public class PublicChatIntentRouter {
                     .map(b -> b.asText().text())
                     .findFirst()
                     .orElse("")
-                    .trim()
-                    .toUpperCase();
+                    .trim();
 
-            if (raw.contains("START_OTS")) {
-                return IntentDecision.llm(ChatIntent.START_OTS, 0.9, "LLM classified as START_OTS");
-            } else if (raw.contains("NORMAL_CHAT")) {
-                return IntentDecision.llm(ChatIntent.NORMAL_CHAT, 0.9, "LLM classified as NORMAL_CHAT");
-            } else {
-                LOGGER.warnf("[router] unexpected LLM output: '%s', falling back to NORMAL_CHAT", raw);
-                return IntentDecision.fallback("unexpected LLM output: " + raw);
+            final LlmClassifierPayload payload;
+            try {
+                payload = OBJECT_MAPPER.readValue(raw, LlmClassifierPayload.class);
+            } catch (JsonProcessingException e) {
+                LOGGER.warnf("[router] invalid LLM JSON output: '%s'", raw);
+                return IntentDecision.fallback("invalid LLM JSON output");
             }
+
+            if (payload.intent() == null || payload.reason() == null || payload.reason().isBlank()) {
+                LOGGER.warnf("[router] incomplete LLM JSON output: '%s'", raw);
+                return IntentDecision.fallback("incomplete LLM JSON output");
+            }
+
+            double confidence = payload.confidence() == null ? 0.0 : Math.max(0.0, Math.min(1.0, payload.confidence()));
+            if ("START_OTS".equals(payload.intent())) {
+                return IntentDecision.llm(ChatIntent.START_OTS, confidence, payload.reason());
+            }
+            if ("NORMAL_CHAT".equals(payload.intent())) {
+                return IntentDecision.llm(ChatIntent.NORMAL_CHAT, confidence, payload.reason());
+            }
+
+            LOGGER.warnf("[router] unknown LLM intent in JSON output: '%s'", raw);
+            return IntentDecision.fallback("unknown LLM intent");
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
+
+    private record LlmClassifierPayload(String intent, Double confidence, String reason) {}
 }
