@@ -23,7 +23,6 @@ import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
-import com.semantyca.mixpla.model.brand.Brand;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -38,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
@@ -432,48 +430,4 @@ public abstract class ChatService {
         return maybeObj.orElse(Collections.emptyMap());
     }
 
-    protected Function<MessageCreateParams, Uni<Void>> createStreamFunction(
-            Consumer<String> chunkHandler,
-            Consumer<String> completionHandler,
-            String connectionId,
-            String brandName,
-            long userId) {
-        return params -> handleFollowUpWithToolDetection(params, chunkHandler, completionHandler, connectionId, brandName, userId);
-    }
-
-    protected Uni<Void> handleFollowUpWithToolDetection(
-            MessageCreateParams params,
-            Consumer<String> chunkHandler,
-            Consumer<String> completionHandler,
-            String connectionId,
-            String brandName,
-            long userId) {
-        
-        MessageCreateParams.Builder builder = MessageCreateParams.builder()
-                .maxTokens(params.maxTokens())
-                .system(Objects.requireNonNull(params.system().orElse(null)))
-                .messages(params.messages())
-                .model(params.model());
-        
-        for (Tool tool : getAvailableTools()) {
-            builder.addTool(tool);
-        }
-        
-        MessageCreateParams paramsWithTools = builder.build();
-        
-        return Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(paramsWithTools))
-                .flatMap(message -> {
-                    Optional<ToolUseBlock> toolUse = message.content().stream()
-                            .flatMap(block -> block.toolUse().stream())
-                            .findFirst();
-
-                    if (toolUse.isPresent()) {
-                        LOGGER.debugf("Follow-up detected tool call: %s", toolUse.get().name());
-                        List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
-                        return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
-                    } else {
-                        return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);
-                    }
-                }).runSubscriptionOn(getDefaultWorkerPool());
-    }
 }
