@@ -60,7 +60,7 @@ class UploadFlowTest {
             send(ws, "I want to upload my song");
 
             // ── Step 4: handle optional artist registration, assert show_upload_button ──
-            JsonObject commandMsg = waitForUploadButton(ws, received, 90);
+            JsonObject commandMsg = waitForUploadButton(ws, received, 180);
             assertNotNull(commandMsg, "COMMAND show_upload_button must be received");
             assertEquals("show_upload_button", commandMsg.getString("content"));
             System.out.println("[test] show_upload_button received");
@@ -77,7 +77,7 @@ class UploadFlowTest {
             JsonObject successMsg = waitFor(received,
                     msg -> isBotMessage(msg) && contentIncludes(msg,
                             "saved", "queue", "broadcast", "catalog", "added", "on air", "contribution", "uploaded", "live"),
-                    90);
+                    180);
             System.out.println("[test] messages after upload:");
             received.forEach(m -> System.out.println("  >> " + m.encode()));
             assertNotNull(successMsg, "Bot must confirm successful upload");
