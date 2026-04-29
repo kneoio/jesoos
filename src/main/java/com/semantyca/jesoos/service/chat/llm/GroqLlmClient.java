@@ -17,10 +17,14 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.function.Consumer;
 
 public class GroqLlmClient implements LlmClient {
     private static final String CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private static final Pattern RETRY_SECONDS_PATTERN = Pattern.compile("try again in\\s+([0-9]+(?:\\.[0-9]+)?)s", Pattern.CASE_INSENSITIVE);
+    private static final int MAX_RATE_LIMIT_RETRIES = 2;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -49,7 +53,7 @@ public class GroqLlmClient implements LlmClient {
                         .POST(HttpRequest.BodyPublishers.ofString(payload))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                HttpResponse<String> response = sendWithRetryForString(request);
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     throw new IllegalStateException("Groq request failed: HTTP " + response.statusCode() + " - " + response.body());
                 }
@@ -57,14 +61,36 @@ public class GroqLlmClient implements LlmClient {
                 JsonNode root = objectMapper.readTree(response.body());
                 JsonNode choice = root.path("choices").path(0);
                 JsonNode messageNode = choice.path("message");
+                JsonNode usageNode = root.path("usage");
+                long promptTokens = usageNode.path("prompt_tokens").asLong(0L);
+                long completionTokens = usageNode.path("completion_tokens").asLong(0L);
+                boolean hasToolCalls = messageNode.path("tool_calls").isArray() && messageNode.path("tool_calls").size() > 0;
 
                 Message.Builder resultBuilder = Message.builder()
                         .id(root.path("id").asText(UUID.randomUUID().toString()))
-                        .model(root.path("model").asText(model));
+                        .model(root.path("model").asText(model))
+                        .role(JsonValue.from("assistant"))
+                        .type(JsonValue.from("message"))
+                        .stopReason(hasToolCalls ? StopReason.TOOL_USE : StopReason.END_TURN)
+                        .stopSequence(Optional.empty())
+                        .usage(Usage.builder()
+                                .cacheCreation(CacheCreation.builder()
+                                        .ephemeral1hInputTokens(0L)
+                                        .ephemeral5mInputTokens(0L)
+                                        .build())
+                                .cacheCreationInputTokens(0L)
+                                .cacheReadInputTokens(0L)
+                                .inputTokens(promptTokens)
+                                .outputTokens(completionTokens)
+                                .serverToolUse(ServerToolUsage.builder()
+                                        .webSearchRequests(0L)
+                                        .build())
+                                .serviceTier(Usage.ServiceTier.STANDARD)
+                                .build());
 
                 String content = messageNode.path("content").asText("");
                 if (!content.isBlank()) {
-                    resultBuilder.addContent(TextBlock.builder().text(content).build());
+                    resultBuilder.addContent(TextBlock.builder().text(content).citations(Collections.emptyList()).build());
                 }
 
                 JsonNode toolCalls = messageNode.path("tool_calls");
@@ -87,7 +113,7 @@ public class GroqLlmClient implements LlmClient {
 
                 return resultBuilder.build();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to create Groq message", e);
+                throw new RuntimeException("Failed to create Groq message: " + e.getMessage(), e);
             }
         });
     }
@@ -107,7 +133,7 @@ public class GroqLlmClient implements LlmClient {
                         .POST(HttpRequest.BodyPublishers.ofString(payload))
                         .build();
 
-                HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                HttpResponse<InputStream> response = sendWithRetryForStream(request);
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     String errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
                     throw new IllegalStateException("Groq streaming request failed: HTTP " + response.statusCode() + " - " + errorBody);
@@ -135,7 +161,7 @@ public class GroqLlmClient implements LlmClient {
                 }
                 return fullText.toString();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to stream Groq response", e);
+                throw new RuntimeException("Failed to stream Groq response: " + e.getMessage(), e);
             }
         });
     }
@@ -205,5 +231,57 @@ public class GroqLlmClient implements LlmClient {
             return content.asString();
         }
         return content.toString();
+    }
+
+    private HttpResponse<String> sendWithRetryForString(HttpRequest request) throws Exception {
+        HttpResponse<String> response = null;
+        for (int attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() != 429 || attempt == MAX_RATE_LIMIT_RETRIES) {
+                return response;
+            }
+            sleepBeforeRetry(response.headers().firstValue("Retry-After").orElse(null), response.body());
+        }
+        return response;
+    }
+
+    private HttpResponse<InputStream> sendWithRetryForStream(HttpRequest request) throws Exception {
+        HttpResponse<InputStream> response = null;
+        for (int attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() != 429 || attempt == MAX_RATE_LIMIT_RETRIES) {
+                return response;
+            }
+            String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+            sleepBeforeRetry(response.headers().firstValue("Retry-After").orElse(null), responseBody);
+        }
+        return response;
+    }
+
+    private void sleepBeforeRetry(String retryAfterHeader, String responseBody) throws InterruptedException {
+        long sleepMs = parseRetryDelayMs(retryAfterHeader, responseBody);
+        Thread.sleep(Math.max(500L, sleepMs));
+    }
+
+    private long parseRetryDelayMs(String retryAfterHeader, String responseBody) {
+        if (retryAfterHeader != null && !retryAfterHeader.isBlank()) {
+            try {
+                double seconds = Double.parseDouble(retryAfterHeader.trim());
+                return (long) ((seconds + 0.2d) * 1000L);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        if (responseBody != null) {
+            Matcher matcher = RETRY_SECONDS_PATTERN.matcher(responseBody);
+            if (matcher.find()) {
+                try {
+                    double seconds = Double.parseDouble(matcher.group(1));
+                    return (long) ((seconds + 0.2d) * 1000L);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 2000L;
     }
 }

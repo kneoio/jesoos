@@ -1,11 +1,12 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
+import com.semantyca.jesoos.service.chat.llm.GroqLlmClient;
+import com.semantyca.jesoos.service.chat.llm.LlmClient;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -20,9 +21,7 @@ import org.jboss.logging.Logger;
  * Cascade order:
  *  1. Deterministic rules (no LLM cost, always wins when applicable)
  *  2. LLM classifier (Haiku, strict enum output) when deterministic result is UNKNOWN
- *  3. NORMAL_CHAT fallback on LLM error or unrecognised output
- *
- * Always resolves to START_OTS or NORMAL_CHAT — never returns UNKNOWN to callers.
+ * No provider fallback is applied.
  */
 @ApplicationScoped
 public class PublicChatIntentRouter {
@@ -36,26 +35,33 @@ public class PublicChatIntentRouter {
     @Inject
     JesoosConfig config;
 
-    private AnthropicClient anthropicClient;
+    private LlmClient llmClient;
 
     PublicChatIntentRouter() {}
 
-    PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicClient anthropicClient) {
+    PublicChatIntentRouter(OtsSessionManager otsSessionManager, LlmClient llmClient) {
         this.otsSessionManager = otsSessionManager;
-        this.anthropicClient = anthropicClient;
+        this.llmClient = llmClient;
         this.config = null;
     }
 
     @PostConstruct
     void init() {
-        anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .build();
+        if ("groq".equalsIgnoreCase(config.getLlmProvider())) {
+            String groqApiKey = config.getGroqApiKey()
+                    .filter(key -> !key.isBlank())
+                    .orElseThrow(() -> new IllegalStateException("groq.api-key is required when jesoos.llm.provider=groq"));
+            llmClient = new GroqLlmClient(groqApiKey, config.getGroqModel());
+            LOGGER.infof("[router] classifier provider=groq model=%s", config.getGroqModel());
+            return;
+        }
+        llmClient = new AnthropicLlmClient(config.getAnthropicApiKey());
+        LOGGER.info("[router] classifier provider=anthropic");
     }
 
     /**
      * Decide intent for one user turn.
-     * Result is always START_OTS or NORMAL_CHAT — UNKNOWN is resolved internally.
+     * UNKNOWN is resolved internally via LLM classification.
      */
     public Uni<IntentDecision> decide(String connectionId, String userMessage) {
         IntentDecision deterministic = applyDeterministicRules(connectionId);
@@ -66,10 +72,6 @@ public class PublicChatIntentRouter {
         }
 
         return classifyWithLlm(userMessage)
-                .onFailure().recoverWithItem(err -> {
-                    LOGGER.warnf("[router] LLM classifier failed, fallback to NORMAL_CHAT: %s", err.getMessage());
-                    return IntentDecision.fallback("LLM error: " + err.getMessage());
-                })
                 .invoke(decision -> LOGGER.infof("[router] connectionId=%s intent=%s source=%s reason=%s",
                         connectionId, decision.intent(), decision.source(), decision.reason()));
     }
@@ -86,8 +88,7 @@ public class PublicChatIntentRouter {
     }
 
     Uni<IntentDecision> classifyWithLlm(String userMessage) {
-        return Uni.createFrom().item(() -> {
-            MessageCreateParams params = MessageCreateParams.builder()
+        MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_HAIKU_4_5_20251001)
                     .maxTokens(120)
                     .system("""
@@ -108,10 +109,10 @@ public class PublicChatIntentRouter {
                             User: "can we do ots now?"
                             {"intent":"START_OTS","confidence":0.92,"reason":"explicit request to do OTS"}
                             """)
-                    .addUserMessage(userMessage)
-                    .build();
+                .addUserMessage(userMessage)
+                .build();
 
-            Message response = anthropicClient.messages().create(params);
+        return Uni.createFrom().completionStage(() -> llmClient.createMessage(params)).map(response -> {
             String raw = response.content().stream()
                     .filter(ContentBlock::isText)
                     .map(b -> b.asText().text())
@@ -123,13 +124,11 @@ public class PublicChatIntentRouter {
             try {
                 payload = OBJECT_MAPPER.readValue(raw, LlmClassifierPayload.class);
             } catch (JsonProcessingException e) {
-                LOGGER.warnf("[router] invalid LLM JSON output: '%s'", raw);
-                return IntentDecision.fallback("invalid LLM JSON output");
+                throw new IllegalStateException("invalid LLM JSON output: " + raw, e);
             }
 
             if (payload.intent() == null || payload.reason() == null || payload.reason().isBlank()) {
-                LOGGER.warnf("[router] incomplete LLM JSON output: '%s'", raw);
-                return IntentDecision.fallback("incomplete LLM JSON output");
+                throw new IllegalStateException("incomplete LLM JSON output: " + raw);
             }
 
             double confidence = payload.confidence() == null ? 0.0 : Math.max(0.0, Math.min(1.0, payload.confidence()));
@@ -140,8 +139,7 @@ public class PublicChatIntentRouter {
                 return IntentDecision.llm(ChatIntent.NORMAL_CHAT, confidence, payload.reason());
             }
 
-            LOGGER.warnf("[router] unknown LLM intent in JSON output: '%s'", raw);
-            return IntentDecision.fallback("unknown LLM intent");
+            throw new IllegalStateException("unknown LLM intent in JSON output: " + raw);
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
