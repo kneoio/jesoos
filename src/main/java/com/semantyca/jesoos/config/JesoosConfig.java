@@ -61,7 +61,6 @@ public interface JesoosConfig {
     Optional<String> getGroqApiKey();
 
     @WithName("groq.model")
-    @WithDefault("openai/gpt-oss-120b")
     String getGroqModel();
 
     @WithName("modelslab.api-key")
