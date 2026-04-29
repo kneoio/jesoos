@@ -256,7 +256,7 @@ public class PublicChatService extends ChatService {
         return builder.build();
     }
     
-    @Override
+
     protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
@@ -266,7 +266,7 @@ public class PublicChatService extends ChatService {
         return params -> handleFollowUpWithToolDetection(params, chunkHandler, completionHandler, connectionId, brandName, userId);
     }
     
-    @Override
+
     protected Uni<Void> handleFollowUpWithToolDetection(
             MessageCreateParams params,
             Consumer<String> chunkHandler,
