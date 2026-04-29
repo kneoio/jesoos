@@ -8,9 +8,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
@@ -26,8 +23,6 @@ class UploadFlowTest {
     private static final String WS_URL     = BASE_URL.replace("http", "ws");
     private static final String BRAND_SLUG = "lumisonic";
     private static final String TEST_EMAIL = "test@mixpla.io";
-    private static final Path   TEST_AUDIO = Paths.get(System.getProperty("project.basedir",
-            "/home/aidazi/IdeaProjects/jesoos"), "src/test/resources/Waiting_State.wav");
 
     @Test
     void uploadFlow_authenticatedUser_uploadsSongSuccessfully() throws Exception {
@@ -176,9 +171,9 @@ class UploadFlowTest {
     // ── multipart file upload ────────────────────────────────────────────────
 
     private String uploadFile(HttpClient http, String token) throws Exception {
-        byte[] fileBytes = Files.readAllBytes(TEST_AUDIO);
+        byte[] fileBytes = minimalWav();
         String boundary = UUID.randomUUID().toString().replace("-", "");
-        String filename  = TEST_AUDIO.getFileName().toString();
+        String filename  = "test.wav";
 
         byte[] body = buildMultipart(boundary, filename, fileBytes);
 
@@ -205,6 +200,23 @@ class UploadFlowTest {
         System.arraycopy(fileBytes, 0, result, h.length, fileBytes.length);
         System.arraycopy(f, 0, result, h.length + fileBytes.length, f.length);
         return result;
+    }
+
+    private byte[] minimalWav() {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.put(new byte[]{'R','I','F','F'});
+        b.putInt(36);
+        b.put(new byte[]{'W','A','V','E','f','m','t',' '});
+        b.putInt(16);
+        b.putShort((short)1);   // PCM
+        b.putShort((short)1);   // mono
+        b.putInt(8000);         // sample rate
+        b.putInt(8000);         // byte rate
+        b.putShort((short)1);   // block align
+        b.putShort((short)8);   // bits per sample
+        b.put(new byte[]{'d','a','t','a'});
+        b.putInt(0);
+        return b.array();
     }
 
     // ── shared helpers ───────────────────────────────────────────────────────
