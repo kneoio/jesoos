@@ -124,6 +124,9 @@ class UploadFlowTest {
                     msg -> isBotMessage(msg) && contentIncludes(msg, "verification", "code", "sent", "check your"),
                     60);
 
+            System.out.println("[test] messages after login intent:");
+            received.forEach(m -> System.out.println("  >> " + m.encode()));
+
             String otp = fetchOtp(http, TEST_EMAIL, 15, 2000);
 
             send(ws, "My verification code is " + otp);
