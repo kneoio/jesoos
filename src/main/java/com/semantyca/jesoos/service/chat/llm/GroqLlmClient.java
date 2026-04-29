@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service.chat.llm;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
+import org.jboss.logging.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -22,6 +23,7 @@ import java.util.regex.Pattern;
 import java.util.function.Consumer;
 
 public class GroqLlmClient implements LlmClient {
+    private static final Logger LOGGER = Logger.getLogger(GroqLlmClient.class);
     private static final String CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
     private static final Pattern RETRY_SECONDS_PATTERN = Pattern.compile("try again in\\s+([0-9]+(?:\\.[0-9]+)?)s", Pattern.CASE_INSENSITIVE);
     private static final int MAX_RATE_LIMIT_RETRIES = 2;
@@ -44,6 +46,7 @@ public class GroqLlmClient implements LlmClient {
             try {
                 Map<String, Object> body = buildBaseRequest(params, false);
                 String payload = objectMapper.writeValueAsString(body);
+                LOGGER.infof("[Groq] request payload: %s", payload);
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(CHAT_COMPLETIONS_URL))
@@ -184,10 +187,7 @@ public class GroqLlmClient implements LlmClient {
             messages.add(Map.of("role", "system", "content", content));
         });
         for (MessageParam message : params.messages()) {
-            messages.add(Map.of(
-                    "role", toOpenAiRole(message.role()),
-                    "content", toOpenAiContent(message.content())
-            ));
+            messages.add(toOpenAiMessage(message));
         }
         body.put("messages", messages);
 
@@ -220,19 +220,67 @@ public class GroqLlmClient implements LlmClient {
         return body;
     }
 
-    private String toOpenAiRole(MessageParam.Role role) {
-        String value = role.toString().toLowerCase(Locale.ROOT);
-        if (value.contains("assistant")) {
-            return "assistant";
-        }
-        return "user";
-    }
+    private Map<String, Object> toOpenAiMessage(MessageParam message) {
+        MessageParam.Content content = message.content();
 
-    private String toOpenAiContent(MessageParam.Content content) {
         if (content.isString()) {
-            return content.asString();
+            String role = message.role().toString().toLowerCase(Locale.ROOT).contains("assistant") ? "assistant" : "user";
+            return Map.of("role", role, "content", content.asString());
         }
-        return content.toString();
+
+        List<com.anthropic.models.messages.ContentBlockParam> blocks = content.asBlockParams();
+        if (blocks.isEmpty()) {
+            String role = message.role().toString().toLowerCase(Locale.ROOT).contains("assistant") ? "assistant" : "user";
+            return Map.of("role", role, "content", "");
+        }
+
+        // Tool result → OpenAI "tool" role
+        if (blocks.get(0).isToolResult()) {
+            com.anthropic.models.messages.ToolResultBlockParam tr = blocks.get(0).asToolResult();
+            String resultText = tr.content()
+                    .map(c -> c.isString() ? c.asString() : "")
+                    .orElse("");
+            Map<String, Object> msg = new LinkedHashMap<>();
+            msg.put("role", "tool");
+            msg.put("tool_call_id", tr.toolUseId());
+            msg.put("content", resultText);
+            return msg;
+        }
+
+        // Tool use → OpenAI assistant with tool_calls
+        if (blocks.get(0).isToolUse()) {
+            List<Map<String, Object>> toolCalls = new ArrayList<>();
+            for (com.anthropic.models.messages.ContentBlockParam block : blocks) {
+                if (block.isToolUse()) {
+                    com.anthropic.models.messages.ToolUseBlockParam tu = block.asToolUse();
+                    Map<String, Object> fn = new LinkedHashMap<>();
+                    fn.put("name", tu.name());
+                    try {
+                        fn.put("arguments", objectMapper.writeValueAsString(tu._input().convert(Object.class)));
+                    } catch (Exception e) {
+                        fn.put("arguments", "{}");
+                    }
+                    Map<String, Object> tc = new LinkedHashMap<>();
+                    tc.put("id", tu.id());
+                    tc.put("type", "function");
+                    tc.put("function", fn);
+                    toolCalls.add(tc);
+                }
+            }
+            Map<String, Object> msg = new LinkedHashMap<>();
+            msg.put("role", "assistant");
+            msg.put("content", (Object) null);
+            msg.put("tool_calls", toolCalls);
+            return msg;
+        }
+
+        // Text blocks
+        String text = blocks.stream()
+                .filter(com.anthropic.models.messages.ContentBlockParam::isText)
+                .map(b -> b.asText().text())
+                .collect(java.util.stream.Collectors.joining(""));
+        String role = message.role().toString().toLowerCase(Locale.ROOT).contains("assistant") ? "assistant" : "user";
+        return Map.of("role", role, "content", text);
     }
 
     private HttpResponse<String> sendWithRetryForString(HttpRequest request) throws Exception {
