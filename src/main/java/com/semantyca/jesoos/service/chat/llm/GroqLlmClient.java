@@ -111,6 +111,10 @@ public class GroqLlmClient implements LlmClient {
                     }
                 }
 
+                if (content.isBlank() && (!toolCalls.isArray() || toolCalls.isEmpty())) {
+                    resultBuilder.content(Collections.emptyList());
+                }
+
                 return resultBuilder.build();
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create Groq message: " + e.getMessage(), e);
@@ -173,8 +177,6 @@ public class GroqLlmClient implements LlmClient {
         body.put("max_completion_tokens", params.maxTokens());
         body.put("top_p", params.topP().orElse(1.0));
         body.put("stream", stream);
-        body.put("reasoning_effort", "medium");
-        body.put("stop", null);
 
         List<Map<String, Object>> messages = new ArrayList<>();
         params.system().ifPresent(system -> {
