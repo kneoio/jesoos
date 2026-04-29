@@ -118,7 +118,7 @@ class UploadFlowTest {
         ws.request(1);
 
         try {
-            send(ws, "I want to login. My email is " + TEST_EMAIL);
+            sendAnon(ws, "I want to login. My email is " + TEST_EMAIL);
 
             waitFor(received,
                     msg -> isBotMessage(msg) && contentIncludes(msg, "verification", "code", "sent", "check your"),
@@ -129,7 +129,7 @@ class UploadFlowTest {
 
             String otp = fetchOtp(http, TEST_EMAIL, 15, 2000);
 
-            send(ws, "My verification code is " + otp);
+            sendAnon(ws, "My verification code is " + otp);
 
             JsonObject sessionMsg = waitFor(received,
                     msg -> "session_token".equals(msg.getString("type")),
@@ -213,6 +213,16 @@ class UploadFlowTest {
                 .put("content", content)
                 .put("brandSlug", BRAND_SLUG)
                 .put("username", "testmixpla.io")
+                .encode();
+        ws.sendText(json, true).get(5, TimeUnit.SECONDS);
+    }
+
+    private void sendAnon(WebSocket ws, String content) throws Exception {
+        String json = new JsonObject()
+                .put("action", "sendMessage")
+                .put("content", content)
+                .put("brandSlug", BRAND_SLUG)
+                .put("username", "anonymous")
                 .encode();
         ws.sendText(json, true).get(5, TimeUnit.SECONDS);
     }
