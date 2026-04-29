@@ -168,6 +168,8 @@ class UploadFlowTest {
 
             Thread.sleep(300);
         }
+        System.out.println("[test] waitForUploadButton timed out. Messages received:");
+        received.forEach(m -> System.out.println("  >> " + m.encode()));
         return null;
     }
 
