@@ -49,6 +49,11 @@ public class PublicChatSessionManager {
         return true;
     }
 
+    public String getPendingOtp(String email) {
+        PendingOtp otp = pendingOtps.get(email.toLowerCase());
+        return (otp != null && !otp.isExpired()) ? otp.code() : null;
+    }
+
     // ---- Session tokens (PostgreSQL-backed) ----
 
     public Uni<Void> storeUserToken(String token, String email) {
