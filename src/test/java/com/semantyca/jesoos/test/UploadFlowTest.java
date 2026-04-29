@@ -26,7 +26,8 @@ class UploadFlowTest {
     private static final String WS_URL     = BASE_URL.replace("http", "ws");
     private static final String BRAND_SLUG = "lumisonic";
     private static final String TEST_EMAIL = "test@mixpla.io";
-    private static final Path   TEST_AUDIO = Paths.get("src/main/resources/audio/waiting/Waiting_State.wav");
+    private static final Path   TEST_AUDIO = Paths.get(System.getProperty("project.basedir",
+            "/home/aidazi/IdeaProjects/jesoos"), "src/test/resources/Waiting_State.wav");
 
     @Test
     void uploadFlow_authenticatedUser_uploadsSongSuccessfully() throws Exception {
@@ -80,8 +81,10 @@ class UploadFlowTest {
             // ── Step 7: assert bot confirms the track is saved ────────────────
             JsonObject successMsg = waitFor(received,
                     msg -> isBotMessage(msg) && contentIncludes(msg,
-                            "saved", "queue", "broadcast", "catalog", "added", "on air", "contribution"),
+                            "saved", "queue", "broadcast", "catalog", "added", "on air", "contribution", "uploaded", "live"),
                     90);
+            System.out.println("[test] messages after upload:");
+            received.forEach(m -> System.out.println("  >> " + m.encode()));
             assertNotNull(successMsg, "Bot must confirm successful upload");
             System.out.println("[test] Upload confirmed: " + botContent(successMsg));
 
