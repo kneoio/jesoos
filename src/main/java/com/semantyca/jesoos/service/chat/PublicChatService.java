@@ -47,7 +47,7 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 
 @ApplicationScoped
 public class PublicChatService extends ChatService {
-    private static final Logger LOGGER = Logger.getLogger(UploadSongToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(PublicChatService.class);
 
     protected PublicChatService() {
         super(null, null);
@@ -111,6 +111,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     OtsGraph otsGraph;
+
+    @Inject
+    PublicChatIntentRouter intentRouter;
 
     @Setter
     private PublicChatController controller;
@@ -411,24 +414,33 @@ case "listener_data" -> ListenerDataToolHandler.handle(
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler,
                                          Consumer<String> completionHandler,
                                          String connectionId, String slugName, IUser user) {
-        if (otsSessionManager.isActive(connectionId)) {
-            return otsGraph.processUserTurn(connectionId, userMessage)
-                    .flatMap(result -> {
-                        String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
-                        String responseText = result.action() == OtsResult.Action.STREAM_STARTED
-                                ? "Your stream is live! Tune in here: " + result.mixplaUrl()
-                                : result.question();
-                        return sendOtsResponse(responseText, djName, connectionId, user.getId(), slugName, chunkHandler, completionHandler);
-                    })
-                    .onFailure().recoverWithUni(err -> {
-                        LOGGER.errorf("[OTS] processUserTurn failed connectionId=%s: %s", connectionId, err.getMessage());
-                        otsSessionManager.end(connectionId);
-                        chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
-                        completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.error("Stream setup failed, please try again.", "system", connectionId).build().toJson());
-                        return Uni.createFrom().voidItem();
-                    });
-        }
-        return super.generateBotResponse(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+        return intentRouter.decide(connectionId, userMessage)
+                .flatMap(decision -> {
+                    if (decision.intent() == ChatIntent.START_OTS) {
+                        return executeOtsContinuation(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+                    }
+                    return super.generateBotResponse(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+                });
+    }
+
+    private Uni<Void> executeOtsContinuation(String userMessage, Consumer<String> chunkHandler,
+                                              Consumer<String> completionHandler,
+                                              String connectionId, String slugName, IUser user) {
+        return otsGraph.processUserTurn(connectionId, userMessage)
+                .flatMap(result -> {
+                    String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
+                    String responseText = result.action() == OtsResult.Action.STREAM_STARTED
+                            ? "Your stream is live! Tune in here: " + result.mixplaUrl()
+                            : result.question();
+                    return sendOtsResponse(responseText, djName, connectionId, user.getId(), slugName, chunkHandler, completionHandler);
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.errorf("[OTS] processUserTurn failed connectionId=%s: %s", connectionId, err.getMessage());
+                    otsSessionManager.end(connectionId);
+                    chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.error("Stream setup failed, please try again.", "system", connectionId).build().toJson());
+                    return Uni.createFrom().voidItem();
+                });
     }
 
     private Uni<Void> sendOtsResponse(String text, String djName, String connectionId,
