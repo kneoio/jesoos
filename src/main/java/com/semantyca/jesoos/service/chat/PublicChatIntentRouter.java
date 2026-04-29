@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
-import com.semantyca.jesoos.service.chat.llm.GroqLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmClient;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
@@ -47,14 +46,6 @@ public class PublicChatIntentRouter {
 
     @PostConstruct
     void init() {
-        if ("groq".equalsIgnoreCase(config.getLlmProvider())) {
-            String groqApiKey = config.getGroqApiKey()
-                    .filter(key -> !key.isBlank())
-                    .orElseThrow(() -> new IllegalStateException("groq.api-key is required when jesoos.llm.provider=groq"));
-            llmClient = new GroqLlmClient(groqApiKey, config.getGroqModel());
-            LOGGER.infof("[router] classifier provider=groq model=%s", config.getGroqModel());
-            return;
-        }
         llmClient = new AnthropicLlmClient(config.getAnthropicApiKey());
         LOGGER.info("[router] classifier provider=anthropic");
     }

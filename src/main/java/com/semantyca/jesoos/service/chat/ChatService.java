@@ -20,7 +20,6 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
-import com.semantyca.jesoos.service.chat.llm.GroqLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmClient;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
@@ -85,14 +84,6 @@ public abstract class ChatService {
     }
 
     private LlmClient buildLlmClient(JesoosConfig config) {
-        String provider = config.getLlmProvider();
-        if ("groq".equalsIgnoreCase(provider)) {
-            String groqApiKey = config.getGroqApiKey()
-                    .filter(key -> !key.isBlank())
-                    .orElseThrow(() -> new IllegalStateException("groq.api-key is required when jesoos.llm.provider=groq"));
-            LOGGER.infof("[llm] provider=groq model=%s", config.getGroqModel());
-            return new GroqLlmClient(groqApiKey, config.getGroqModel());
-        }
         LOGGER.info("[llm] provider=anthropic");
         return new AnthropicLlmClient(config.getAnthropicApiKey());
     }
