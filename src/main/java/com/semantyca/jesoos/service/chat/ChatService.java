@@ -270,10 +270,12 @@ public abstract class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
+    // TODO(LLM-ABSTRACTION): migrate this Anthropic request builder to a provider-neutral LlmRequest DTO.
     protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user);
 
     protected abstract List<Tool> getAvailableTools();
 
+    // TODO(LLM-ABSTRACTION): replace ToolUseBlock with a neutral LlmToolCall DTO and move Anthropic mapping into adapters.
     protected abstract Uni<Void> handleToolCall(ToolUseBlock toolUse,
                                                 Consumer<String> chunkHandler,
                                                 Consumer<String> completionHandler,
