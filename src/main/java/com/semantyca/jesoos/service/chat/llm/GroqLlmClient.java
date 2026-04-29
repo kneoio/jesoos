@@ -202,7 +202,7 @@ public class GroqLlmClient implements LlmClient {
                 Map<String, Object> parameters = new LinkedHashMap<>();
                 parameters.put("type", tool.inputSchema()._type().convert(Object.class));
                 parameters.put("properties", tool.inputSchema()._properties().convert(Object.class));
-                tool.inputSchema().required().ifPresent(required -> parameters.put("required", required));
+                // Groq rejects the required array — omit it; descriptions convey required fields
                 function.put("parameters", parameters);
 
                 Map<String, Object> toolPayload = new LinkedHashMap<>();
