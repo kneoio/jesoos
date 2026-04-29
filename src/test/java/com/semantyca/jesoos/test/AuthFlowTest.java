@@ -73,7 +73,7 @@ class AuthFlowTest {
             // ── Assertions ────────────────────────────────────────────────────
             assertNotNull(sessionMsg, "session_token message must arrive");
             assertFalse(sessionMsg.getString("token", "").isBlank(), "token must be non-empty");
-            assertFalse(sessionMsg.getString("userName", "").isBlank(), "userName must be non-empty");
+            assertEquals("testmixpla.io", sessionMsg.getString("userName"), "userName must match the authenticated user");
 
             System.out.println("[test] Auth success — userName=" + sessionMsg.getString("userName"));
 
