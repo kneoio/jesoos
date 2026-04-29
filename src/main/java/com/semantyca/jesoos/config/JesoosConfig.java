@@ -53,6 +53,17 @@ public interface JesoosConfig {
     @WithName("anthropic.api-key")
     String getAnthropicApiKey();
 
+    @WithName("llm.provider")
+    @WithDefault("anthropic")
+    String getLlmProvider();
+
+    @WithName("groq.api-key")
+    Optional<String> getGroqApiKey();
+
+    @WithName("groq.model")
+    @WithDefault("openai/gpt-oss-120b")
+    String getGroqModel();
+
     @WithName("modelslab.api-key")
     String getModelslabApiKey();
 

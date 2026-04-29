@@ -297,7 +297,7 @@ public class PublicChatService extends ChatService {
         
         MessageCreateParams paramsWithTools = builder.build();
         
-        return Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(paramsWithTools))
+        return Uni.createFrom().completionStage(() -> llmClient.createMessage(paramsWithTools))
                 .flatMap(message -> {
                     Optional<ToolUseBlock> toolUse = message.content().stream()
                             .flatMap(block -> block.toolUse().stream())

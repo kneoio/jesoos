@@ -1,9 +1,6 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
-import com.anthropic.core.http.AsyncStreamResponse;
 import com.anthropic.models.messages.*;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
@@ -22,6 +19,9 @@ import com.semantyca.mixpla.model.filter.ScriptFilter;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
+import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
+import com.semantyca.jesoos.service.chat.llm.GroqLlmClient;
+import com.semantyca.jesoos.service.chat.llm.LlmClient;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import io.smallrye.mutiny.Uni;
@@ -29,7 +29,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +43,7 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 public abstract class ChatService {
     private static final Logger LOGGER = Logger.getLogger(ChatService.class);
     
-    protected final AnthropicClient anthropicClient;
+    protected final LlmClient llmClient;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
     protected final String followUpPrompt;
@@ -71,20 +70,31 @@ public abstract class ChatService {
 
     protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
-            this.anthropicClient = AnthropicOkHttpClient.builder()
-                    .apiKey(config.getAnthropicApiKey())
-                    .build();
+            this.llmClient = buildLlmClient(config);
             this.aiHelperService = aiHelperService;
             this.config = config;
             this.mainPrompt = loadPromptTemplate("prompts/mainPrompt.hbs");
             this.followUpPrompt = loadPromptTemplate("prompts/followUpPrompt.hbs");
         } else {
-            this.anthropicClient = null;
+            this.llmClient = null;
             this.aiHelperService = null;
             this.config = null;
             this.mainPrompt = null;
             this.followUpPrompt = null;
         }
+    }
+
+    private LlmClient buildLlmClient(JesoosConfig config) {
+        String provider = config.getLlmProvider();
+        if ("groq".equalsIgnoreCase(provider)) {
+            String groqApiKey = config.getGroqApiKey()
+                    .filter(key -> !key.isBlank())
+                    .orElseThrow(() -> new IllegalStateException("groq.api-key is required when jesoos.llm.provider=groq"));
+            LOGGER.infof("[llm] provider=groq model=%s", config.getGroqModel());
+            return new GroqLlmClient(groqApiKey, config.getGroqModel());
+        }
+        LOGGER.info("[llm] provider=anthropic");
+        return new AnthropicLlmClient(config.getAnthropicApiKey());
     }
 
     @Deprecated
@@ -236,7 +246,7 @@ public abstract class ChatService {
                 return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
                         .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history, user));
         }).flatMap(params ->
-                Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
+                Uni.createFrom().completionStage(() -> llmClient.createMessage(params))
                         .flatMap(message -> {
                             Optional<ToolUseBlock> toolUse = message.content().stream()
                                     .flatMap(block -> block.toolUse().stream())
@@ -280,97 +290,55 @@ public abstract class ChatService {
                                      long userId) {
 
         return Uni.createFrom().completionStage(() -> {
+            return llmClient.streamText(
+                    params,
+                    text -> chunkHandler.accept(
+                            ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson()
+                    )
+            ).thenAccept(fullResponse -> {
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
 
-            StringBuilder fullResponse = new StringBuilder();
-            boolean[] inThinking = {false};
+                String responseText = fullResponse
+                        .replaceAll("(?s)<thinking>.*?</thinking>", "")
+                        .trim();
 
-            return anthropicClient.async().messages().createStreaming(params)
-                    .subscribe(new AsyncStreamResponse.Handler<>() {
+                if (!responseText.isEmpty()) {
+                    MessageParam assistantResponse = MessageParam.builder()
+                            .role(MessageParam.Role.ASSISTANT)
+                            .content(MessageParam.Content.ofString(responseText))
+                            .build();
 
-                        @Override
-                        public void onNext(RawMessageStreamEvent chunk) {
-                            try {
-                                if (chunk.contentBlockDelta().isPresent()) {
-                                    RawContentBlockDelta delta = chunk.contentBlockDelta().get().delta();
+                    chatRepository.appendToConversation(ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantResponse);
 
-                                    if (delta.text().isPresent()) {
-                                        String text = delta.text().get().text();
-                                        fullResponse.append(text);
+                    JsonObject botMessage = createMessage(
+                            MessageType.BOT,
+                            assistantNameByConnectionId.get(connectionId),
+                            responseText,
+                            System.currentTimeMillis(),
+                            connectionId
+                    );
 
-                                        if (text.contains("<thinking>")) {
-                                            inThinking[0] = true;
-                                        }
-                                        if (text.contains("</thinking>")) {
-                                            inThinking[0] = false;
-                                        }
+                    chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
+                            success -> {},
+                            failure -> LOGGER.error("Failed to save bot message", failure)
+                    );
 
-                                        if (!inThinking[0]
-                                                && !text.contains("<thinking>")
-                                                && !text.contains("</thinking>")) {
+                    String completeMessage = ChatMessageDTO.bot(
+                                    botMessage.getJsonObject("data").getString("content"),
+                                    botMessage.getJsonObject("data").getString("username"),
+                                    botMessage.getJsonObject("data").getString("connectionId")
+                            )
+                            .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
+                            .build()
+                            .toJson();
 
-                                            chunkHandler.accept(ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson());
-                                        }
-                                    }
-                                }
-                            } catch (Exception ignored) {
-                            }
-                        }
-
-                        @Override
-                        public void onComplete(@NotNull Optional<Throwable> error) {
-                            chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-
-                            if (error.isPresent()) {
-                                completionHandler.accept(ChatMessageDTO.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());
-                                return;
-                            }
-
-                            String responseText = fullResponse.toString()
-                                    .replaceAll("(?s)<thinking>.*?</thinking>", "")
-                                    .trim();
-
-                            if (!responseText.isEmpty()) {
-
-                                MessageParam assistantResponse = MessageParam.builder()
-                                        .role(MessageParam.Role.ASSISTANT)
-                                        .content(MessageParam.Content.ofString(responseText))
-                                        .build();
-
-                                chatRepository.appendToConversation(ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantResponse);
-
-                                JsonObject botMessage = createMessage(
-                                        MessageType.BOT,
-                                        assistantNameByConnectionId.get(connectionId),
-                                        responseText,
-                                        System.currentTimeMillis(),
-                                        connectionId
-                                );
-
-                                chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
-                                        success -> {},
-                                        failure -> LOGGER.error("Failed to save bot message", failure)
-                                );
-
-
-                                String completeMessage = ChatMessageDTO.bot(
-                    botMessage.getJsonObject("data").getString("content"),
-                    botMessage.getJsonObject("data").getString("username"),
-                    botMessage.getJsonObject("data").getString("connectionId")
-            )
-            .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
-            .build()
-            .toJson();
-
-
-                                completionHandler.accept(completeMessage);
-                            } else {
-                                // Empty response — still signal completion so the UI is never left hanging
-                                LOGGER.warnf("[streamResponse] empty response from Claude userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
-                                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                            }
-                        }
-                    })
-                    .onCompleteFuture();
+                    completionHandler.accept(completeMessage);
+                } else {
+                    // Empty response — still signal completion so the UI is never left hanging
+                    LOGGER.warnf("[streamResponse] empty response from LLM userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
+                    completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                }
+            });
 
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
