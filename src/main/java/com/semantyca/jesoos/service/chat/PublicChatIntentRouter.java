@@ -35,22 +35,20 @@ public class PublicChatIntentRouter {
 
     private AnthropicClient anthropicClient;
 
-    @PostConstruct
-    void init() {
-        anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .build();
-    }
+    PublicChatIntentRouter() {}
 
-    /** Package-private constructor for unit tests — bypasses CDI and @PostConstruct. */
     PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicClient anthropicClient) {
         this.otsSessionManager = otsSessionManager;
         this.anthropicClient = anthropicClient;
         this.config = null;
     }
 
-    /** CDI no-arg constructor required by Quarkus. */
-    PublicChatIntentRouter() {}
+    @PostConstruct
+    void init() {
+        anthropicClient = AnthropicOkHttpClient.builder()
+                .apiKey(config.getAnthropicApiKey())
+                .build();
+    }
 
     /**
      * Decide intent for one user turn.

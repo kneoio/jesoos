@@ -257,7 +257,7 @@ public class PublicChatService extends ChatService {
     }
     
 
-    protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
+    protected Function<MessageCreateParams, Uni<Void>> createStreamFunction(
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
