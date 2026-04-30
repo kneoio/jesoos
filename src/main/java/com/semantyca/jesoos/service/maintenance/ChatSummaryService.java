@@ -1,6 +1,8 @@
 package com.semantyca.jesoos.service.maintenance;
 
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.external.AnthropicTextClient;
+import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.model.chat.ChatMessage;
 import com.semantyca.jesoos.model.chat.ChatSummary;
@@ -26,17 +28,20 @@ public class ChatSummaryService {
     private static final int MESSAGE_RETENTION_DAYS = 7;
 
     private final JesoosConfig config;
-    private final LlmTextClient llmTextClient;
+    private final AnthropicTextClient anthropicTextClient;
+    private final GroqTextClient groqTextClient;
     private final ChatRepository chatRepository;
     private final ChatSummaryRepository chatSummaryRepository;
 
     @Inject
     public ChatSummaryService(JesoosConfig config,
-                              LlmTextClient llmTextClient,
+                              AnthropicTextClient anthropicTextClient,
+                              GroqTextClient groqTextClient,
                               ChatRepository chatRepository,
                               ChatSummaryRepository chatSummaryRepository) {
         this.config = config;
-        this.llmTextClient = llmTextClient;
+        this.anthropicTextClient = anthropicTextClient;
+        this.groqTextClient = groqTextClient;
         this.chatRepository = chatRepository;
         this.chatSummaryRepository = chatSummaryRepository;
     }
@@ -207,11 +212,16 @@ public class ChatSummaryService {
 
         String provider = config.getSummaryLlmProvider();
         String model = "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
+        LlmTextClient llmTextClient = selectLlmClient(provider);
         return llmTextClient.createTextMessage(model, 500L, "You summarize chat history accurately.", prompt)
                 .map(response -> response.text())
                 .onFailure().recoverWithItem(error -> {
                     LOGGER.error("Failed to generate summary", error);
                     return "Summary generation failed";
                 });
+    }
+
+    private LlmTextClient selectLlmClient(String provider) {
+        return "groq".equals(provider) ? groqTextClient : anthropicTextClient;
     }
 }

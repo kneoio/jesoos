@@ -2,10 +2,12 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.external.LlmTextClient;
+import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
+import com.semantyca.jesoos.external.GroqTextClient;
+import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.external.TTSClient;
 import com.semantyca.jesoos.config.JesoosConfig;
@@ -52,7 +54,8 @@ public class IntroTtsGenerator {
     private final JesoosConfig config;
     private final FFmpegProvider ffmpegProvider;
     private final MetricPublisher metricPublisher;
-    private final LlmTextClient llmTextClient;
+    private final AnthropicTextClient anthropicTextClient;
+    private final GroqTextClient groqTextClient;
 
     @Inject
     public IntroTtsGenerator(
@@ -65,7 +68,8 @@ public class IntroTtsGenerator {
             JesoosConfig config,
             FFmpegProvider ffmpegProvider,
             MetricPublisher metricPublisher,
-            LlmTextClient llmTextClient
+            AnthropicTextClient anthropicTextClient,
+            GroqTextClient groqTextClient
     ) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
@@ -76,7 +80,8 @@ public class IntroTtsGenerator {
         this.config = config;
         this.ffmpegProvider = ffmpegProvider;
         this.metricPublisher = metricPublisher;
-        this.llmTextClient = llmTextClient;
+        this.anthropicTextClient = anthropicTextClient;
+        this.groqTextClient = groqTextClient;
     }
 
     @PostConstruct
@@ -232,6 +237,7 @@ public class IntroTtsGenerator {
         long maxTokens = 2048L;
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        LlmTextClient llmTextClient = selectLlmClient(provider);
         return llmTextClient.createTextMessage(
                         model,
                         maxTokens,
@@ -269,6 +275,10 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                             Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
                 });
+    }
+
+    private LlmTextClient selectLlmClient(String provider) {
+        return "groq".equals(provider) ? groqTextClient : anthropicTextClient;
     }
 
     private String getSystemPrompt() {

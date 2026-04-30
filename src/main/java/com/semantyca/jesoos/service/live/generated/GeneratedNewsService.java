@@ -2,7 +2,8 @@ package com.semantyca.jesoos.service.live.generated;
 
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
-import com.semantyca.jesoos.external.LlmTextClient;
+import com.semantyca.jesoos.external.AnthropicTextClient;
+import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
@@ -27,7 +28,8 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
             ModelslabClient modelslabClient,
             GCPTTSClient gcpttsClient,
             JesoosConfig config,
-            LlmTextClient llmTextClient,
+            AnthropicTextClient anthropicTextClient,
+            GroqTextClient groqTextClient,
             IntroTtsGenerator introTtsGenerator,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
@@ -42,14 +44,15 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
                 gcpttsClient,
                 introTtsGenerator,
                 config,
-                llmTextClient,
+                anthropicTextClient,
+                groqTextClient,
                 draftFactory,
                 aiAgentService,
                 ffmpegProvider);
     }
 
     GeneratedNewsService() {
-        super(null, null, null, null, null, null, null, null, null, null, null, null);
+        super(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Override

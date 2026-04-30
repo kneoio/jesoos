@@ -4,8 +4,10 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.WebHelper;
+import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
+import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
@@ -54,7 +56,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected final GCPTTSClient gcpttsClient;
     protected final IntroTtsGenerator introTtsGenerator;
     protected final JesoosConfig config;
-    protected final LlmTextClient llmTextClient;
+    protected final AnthropicTextClient anthropicTextClient;
+    protected final GroqTextClient groqTextClient;
     protected final DraftFactory draftFactory;
     protected final AiAgentService aiAgentService;
     protected final FFmpegProvider ffmpegProvider;
@@ -68,7 +71,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             GCPTTSClient gcpttsClient,
             IntroTtsGenerator introTtsGenerator,
             JesoosConfig config,
-            LlmTextClient llmTextClient,
+            AnthropicTextClient anthropicTextClient,
+            GroqTextClient groqTextClient,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
             FFmpegProvider ffmpegProvider
@@ -81,7 +85,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.gcpttsClient = gcpttsClient;
         this.introTtsGenerator = introTtsGenerator;
         this.config = config;
-        this.llmTextClient = llmTextClient;
+        this.anthropicTextClient = anthropicTextClient;
+        this.groqTextClient = groqTextClient;
         this.draftFactory = draftFactory;
         this.aiAgentService = aiAgentService;
         this.ffmpegProvider = ffmpegProvider;
@@ -235,6 +240,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                     long maxTokens = 2048L;
                     String provider = config.getGeneratedLlmProvider();
                     String model = "groq".equals(provider) ? config.getGeneratedGroqModel() : config.getGeneratedAnthropicModel();
+                    LlmTextClient llmTextClient = selectLlmClient(provider);
 
                     try {
                         var response = llmTextClient.createTextMessage(model, maxTokens, getSystemPrompt(), fullPrompt)
@@ -255,5 +261,9 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         throw e;
                     }
                 }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()));
+    }
+
+    private LlmTextClient selectLlmClient(String provider) {
+        return "groq".equals(provider) ? groqTextClient : anthropicTextClient;
     }
 }
