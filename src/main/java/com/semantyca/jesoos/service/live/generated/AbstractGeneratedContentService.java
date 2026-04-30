@@ -1,17 +1,12 @@
 package com.semantyca.jesoos.service.live.generated;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.Model;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
+import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
@@ -59,10 +54,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected final GCPTTSClient gcpttsClient;
     protected final IntroTtsGenerator introTtsGenerator;
     protected final JesoosConfig config;
+    protected final LlmTextClient llmTextClient;
     protected final DraftFactory draftFactory;
     protected final AiAgentService aiAgentService;
     protected final FFmpegProvider ffmpegProvider;
-    protected AnthropicClient anthropicClient;
 
     protected AbstractGeneratedContentService(
             PromptService promptService,
@@ -73,6 +68,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             GCPTTSClient gcpttsClient,
             IntroTtsGenerator introTtsGenerator,
             JesoosConfig config,
+            LlmTextClient llmTextClient,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
             FFmpegProvider ffmpegProvider
@@ -85,16 +81,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.gcpttsClient = gcpttsClient;
         this.introTtsGenerator = introTtsGenerator;
         this.config = config;
+        this.llmTextClient = llmTextClient;
         this.draftFactory = draftFactory;
         this.aiAgentService = aiAgentService;
         this.ffmpegProvider = ffmpegProvider;
-    }
-
-    protected void initAnthropicClient() {
-        anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .timeout(java.time.Duration.ofSeconds(60))
-                .build();
     }
 
     protected abstract String getSystemPrompt();
@@ -243,21 +233,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
                     String fullPrompt = prompt.getPrompt() + "\n\nDraft input:\n" + draftContent;
                     long maxTokens = 2048L;
-
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                            .maxTokens(maxTokens)
-                            .system(getSystemPrompt())
-                            .addUserMessage(fullPrompt)
-                            .build();
+                    String provider = config.getGeneratedLlmProvider();
+                    String model = "groq".equals(provider) ? config.getGeneratedGroqModel() : config.getGeneratedAnthropicModel();
 
                     try {
-                        Message response = anthropicClient.messages().create(params);
-                        String text = response.content().stream()
-                                .filter(ContentBlock::isText)
-                                .map(block -> block.asText().text())
-                                .findFirst()
-                                .orElseThrow(() -> new RuntimeException("No text generated from AI"));
+                        var response = llmTextClient.createTextMessage(model, maxTokens, getSystemPrompt(), fullPrompt)
+                                .await().indefinitely();
+                        String text = response.text();
 
                         if (text.contains("technical difficulty")
                                 || text.contains("technical error")
@@ -266,10 +248,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                             return null;
                         }
 
-                        LOGGER.infof("Generated text (%d tokens): %s", response.usage().outputTokens(), text);
+                        LOGGER.infof("Generated text (%d tokens): %s", response.outputTokens(), text);
                         return text;
                     } catch (Exception e) {
-                        LOGGER.errorf("Anthropic API call failed: %s", e.getMessage(), e);
+                        LOGGER.errorf("LLM API call failed: %s", e.getMessage(), e);
                         throw e;
                     }
                 }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()));

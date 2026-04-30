@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service.live.generated;
 
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
+import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
@@ -11,7 +12,6 @@ import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -27,6 +27,7 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
             ModelslabClient modelslabClient,
             GCPTTSClient gcpttsClient,
             JesoosConfig config,
+            LlmTextClient llmTextClient,
             IntroTtsGenerator introTtsGenerator,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
@@ -41,20 +42,14 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
                 gcpttsClient,
                 introTtsGenerator,
                 config,
+                llmTextClient,
                 draftFactory,
                 aiAgentService,
                 ffmpegProvider);
     }
 
     GeneratedNewsService() {
-        super(null, null, null, null, null, null, null, null, null, null, null);
-    }
-
-    @PostConstruct
-    void init() {
-        if (config != null) {
-            initAnthropicClient();
-        }
+        super(null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Override

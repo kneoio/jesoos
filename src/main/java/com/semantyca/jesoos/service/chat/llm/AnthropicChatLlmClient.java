@@ -13,10 +13,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
-public class AnthropicLlmClient {
+public class AnthropicChatLlmClient {
     private final AnthropicClient client;
 
-    public AnthropicLlmClient(String apiKey) {
+    public AnthropicChatLlmClient(String apiKey) {
         this.client = AnthropicOkHttpClient.builder()
                 .apiKey(apiKey)
                 .build();

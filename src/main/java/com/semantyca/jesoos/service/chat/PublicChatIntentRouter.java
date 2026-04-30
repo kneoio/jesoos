@@ -4,7 +4,7 @@ import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
+import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -33,11 +33,11 @@ public class PublicChatIntentRouter {
     @Inject
     JesoosConfig config;
 
-    private AnthropicLlmClient llmClient;
+    private AnthropicChatLlmClient llmClient;
 
     PublicChatIntentRouter() {}
 
-    PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicLlmClient llmClient) {
+    PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicChatLlmClient llmClient) {
         this.otsSessionManager = otsSessionManager;
         this.llmClient = llmClient;
         this.config = null;
@@ -45,7 +45,7 @@ public class PublicChatIntentRouter {
 
     @PostConstruct
     void init() {
-        llmClient = new AnthropicLlmClient(config.getAnthropicApiKey());
+        llmClient = new AnthropicChatLlmClient(config.getAnthropicApiKey());
         LOGGER.info("[router] classifier provider=anthropic");
     }
 

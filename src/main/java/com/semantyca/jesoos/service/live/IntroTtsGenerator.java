@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
-    private static final String ANTHROPIC_DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
     private final PromptService promptService;
     private final DraftFactory draftFactory;
@@ -231,7 +230,8 @@ public class IntroTtsGenerator {
         );
 
         long maxTokens = 2048L;
-        String model = "groq".equals(config.getLlmProvider()) ? config.getGroqModel() : ANTHROPIC_DEFAULT_MODEL;
+        String provider = config.getIntroTtsLlmProvider();
+        String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
         return llmTextClient.createTextMessage(
                         model,
                         maxTokens,
@@ -261,7 +261,7 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", text,
-                                    "llmProvider", config.getLlmProvider()), traceId);
+                                    "llmProvider", provider, "llmModel", model), traceId);
                     return text;
                 })
                 .onFailure().invoke(e -> {

@@ -1,13 +1,7 @@
 package com.semantyca.jesoos.service.maintenance;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.model.chat.ChatMessage;
 import com.semantyca.jesoos.model.chat.ChatSummary;
 import com.semantyca.jesoos.model.cnst.ChatType;
@@ -31,31 +25,24 @@ public class ChatSummaryService {
     private static final int USER_SUMMARY_THRESHOLD = 20;
     private static final int MESSAGE_RETENTION_DAYS = 7;
 
-    private final AnthropicClient anthropicClient;
+    private final JesoosConfig config;
+    private final LlmTextClient llmTextClient;
     private final ChatRepository chatRepository;
     private final ChatSummaryRepository chatSummaryRepository;
 
     @Inject
     public ChatSummaryService(JesoosConfig config,
+                              LlmTextClient llmTextClient,
                               ChatRepository chatRepository,
                               ChatSummaryRepository chatSummaryRepository) {
+        this.config = config;
+        this.llmTextClient = llmTextClient;
         this.chatRepository = chatRepository;
         this.chatSummaryRepository = chatSummaryRepository;
-        if (config != null && config.getAnthropicApiKey() != null) {
-            this.anthropicClient = AnthropicOkHttpClient.builder()
-                    .apiKey(config.getAnthropicApiKey())
-                    .build();
-        } else {
-            this.anthropicClient = null;
-        }
     }
 
     @Scheduled(every = "15m")
     public void scheduledBrandSummary() {
-        if (anthropicClient == null) {
-            return;
-        }
-
         chatRepository.getActiveBrands()
                 .subscribe().with(
                         brands -> brands.forEach(this::checkAndSummarizeBrand),
@@ -65,10 +52,6 @@ public class ChatSummaryService {
 
     @Scheduled(every = "15m")
     public void scheduledUserSummary() {
-        if (anthropicClient == null) {
-            return;
-        }
-
         chatRepository.getActiveUsers()
                 .subscribe().with(
                         users -> users.forEach(this::checkAndSummarizeUser),
@@ -201,10 +184,6 @@ public class ChatSummaryService {
     }
 
     private Uni<String> generateSummary(String messagesText, String summaryType) {
-        if (anthropicClient == null) {
-            return Uni.createFrom().item("Summary generation unavailable");
-        }
-
         String prompt;
         if ("BRAND".equals(summaryType)) {
             prompt = """
@@ -226,27 +205,13 @@ public class ChatSummaryService {
                     """ + messagesText;
         }
 
-        MessageCreateParams params = MessageCreateParams.builder()
-                .maxTokens(500L)
-                .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                .addMessage(MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(MessageParam.Content.ofString(prompt))
-                        .build())
-                .build();
-
-        return Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
-                .map(this::extractTextFromResponse)
+        String provider = config.getSummaryLlmProvider();
+        String model = "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
+        return llmTextClient.createTextMessage(model, 500L, "You summarize chat history accurately.", prompt)
+                .map(response -> response.text())
                 .onFailure().recoverWithItem(error -> {
                     LOGGER.error("Failed to generate summary", error);
                     return "Summary generation failed";
                 });
-    }
-
-    private String extractTextFromResponse(Message message) {
-        return message.content().stream()
-                .filter(ContentBlock::isText)
-                .map(block -> block.asText().text())
-                .collect(Collectors.joining("\n"));
     }
 }

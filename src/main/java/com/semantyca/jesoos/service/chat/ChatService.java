@@ -19,7 +19,7 @@ import com.semantyca.mixpla.model.filter.ScriptFilter;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
-import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
+import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import io.smallrye.mutiny.Uni;
@@ -41,7 +41,7 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 public abstract class ChatService {
     private static final Logger LOGGER = Logger.getLogger(ChatService.class);
     
-    protected final AnthropicLlmClient llmClient;
+    protected final AnthropicChatLlmClient llmClient;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
     protected final String followUpPrompt;
@@ -69,7 +69,7 @@ public abstract class ChatService {
     protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
             LOGGER.info("[llm] provider=anthropic");
-            this.llmClient = new AnthropicLlmClient(config.getAnthropicApiKey());
+            this.llmClient = new AnthropicChatLlmClient(config.getAnthropicApiKey());
             this.aiHelperService = aiHelperService;
             this.config = config;
             this.mainPrompt = loadPromptTemplate("prompts/mainPrompt.hbs");

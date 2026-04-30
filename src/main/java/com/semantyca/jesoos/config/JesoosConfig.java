@@ -60,8 +60,41 @@ public interface JesoosConfig {
     @WithName("groq.api-key")
     Optional<String> getGroqApiKey();
 
-    @WithName("groq.model")
-    String getGroqModel();
+    @WithName("summary.llm.provider")
+    @WithDefault("anthropic")
+    String getSummaryLlmProvider();
+
+    @WithName("summary.anthropic.model")
+    @WithDefault("claude-haiku-4-5-20251001")
+    String getSummaryAnthropicModel();
+
+    @WithName("summary.groq.model")
+    @WithDefault("llama-3.3-70b-versatile")
+    String getSummaryGroqModel();
+
+    @WithName("intro-tts.llm.provider")
+    @WithDefault("anthropic")
+    String getIntroTtsLlmProvider();
+
+    @WithName("intro-tts.anthropic.model")
+    @WithDefault("claude-haiku-4-5-20251001")
+    String getIntroTtsAnthropicModel();
+
+    @WithName("intro-tts.groq.model")
+    @WithDefault("llama-3.3-70b-versatile")
+    String getIntroTtsGroqModel();
+
+    @WithName("generated.llm.provider")
+    @WithDefault("anthropic")
+    String getGeneratedLlmProvider();
+
+    @WithName("generated.anthropic.model")
+    @WithDefault("claude-haiku-4-5-20251001")
+    String getGeneratedAnthropicModel();
+
+    @WithName("generated.groq.model")
+    @WithDefault("llama-3.3-70b-versatile")
+    String getGeneratedGroqModel();
 
     @WithName("modelslab.api-key")
     String getModelslabApiKey();
