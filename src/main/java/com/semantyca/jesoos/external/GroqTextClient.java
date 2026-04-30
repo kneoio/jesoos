@@ -8,9 +8,11 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
+@Typed(GroqTextClient.class)
 public class GroqTextClient implements LlmTextClient {
 
     private static final String CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";

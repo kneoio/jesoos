@@ -8,9 +8,11 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
+@Typed(AnthropicTextClient.class)
 public class AnthropicTextClient implements LlmTextClient {
 
     private static final String MESSAGES_URL = "https://api.anthropic.com/v1/messages";
