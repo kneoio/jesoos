@@ -75,21 +75,22 @@ public final class MergingTypeMeta {
      *   <li>→ weighted avg = <b>11.25 s/song</b></li>
      * </ul>
      *
-     * <p><b>No-intro path</b> — 50% SONG_CROSSFADE_SONG, 25% SONG_ONLY, 25% FILLER_JINGLE:
+     * <p><b>No-intro path</b> — 35% SONG_CROSSFADE_SONG, 32.5% SONG_ONLY, 32.5% FILLER_JINGLE
+     * (crossfade probability is 0.35 in {@code MixingTypeShuffler}):
      * <ul>
-     *   <li>SONG_CROSSFADE_SONG: −10 s / 2 songs = −5 s/song  (weight 0.50)</li>
-     *   <li>SONG_ONLY:             0 s / 1 song  =  0 s/song  (weight 0.25)</li>
-     *   <li>FILLER_JINGLE:        +10 s / 1 song = 10 s/song  (weight 0.25)</li>
-     *   <li>→ weighted avg = 0.50×(−5) + 0.25×0 + 0.25×10 = <b>0 s/song</b></li>
+     *   <li>SONG_CROSSFADE_SONG: −10 s / 2 songs = −5 s/song  (weight 0.35)</li>
+     *   <li>SONG_ONLY:             0 s / 1 song  =  0 s/song  (weight 0.325)</li>
+     *   <li>FILLER_JINGLE:        +10 s / 1 song = 10 s/song  (weight 0.325)</li>
+     *   <li>→ weighted avg = 0.35×(−5) + 0.325×0 + 0.325×10 = <b>+1.5 s/song</b></li>
      * </ul>
      *
-     * <p>Result: {@code talkativity × 11.25}
+     * <p>Result: {@code 1.5 + talkativity × 9.75}
      *
      * @param talkativity 0.0–1.0 probability of taking the TTS intro path per entry
      * @return expected extra seconds per song due to mixing overhead
      */
     public static double averageOverheadPerSong(double talkativity) {
-        return talkativity * 11.25;
+        return 1.5 + talkativity * 9.75;
     }
 
     private MergingTypeMeta() {}
