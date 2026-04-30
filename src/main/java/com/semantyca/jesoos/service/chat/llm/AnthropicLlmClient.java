@@ -13,7 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
-public class AnthropicLlmClient implements LlmClient {
+public class AnthropicLlmClient {
     private final AnthropicClient client;
 
     public AnthropicLlmClient(String apiKey) {
@@ -22,12 +22,12 @@ public class AnthropicLlmClient implements LlmClient {
                 .build();
     }
 
-    @Override
+
     public CompletionStage<Message> createMessage(MessageCreateParams params) {
         return client.async().messages().create(params);
     }
 
-    @Override
+
     public CompletionStage<String> streamText(MessageCreateParams params, Consumer<String> chunkConsumer) {
         StringBuilder fullResponse = new StringBuilder();
         boolean[] inThinking = {false};
