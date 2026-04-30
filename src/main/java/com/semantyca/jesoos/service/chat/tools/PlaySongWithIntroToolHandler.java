@@ -50,7 +50,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         String songIdStr = inputMap.getOrDefault("songId", JsonValue.from("")).toString().replace("\"", "");
         String textToTTSIntro = inputMap.getOrDefault("textToTTSIntro", JsonValue.from("")).toString().replace("\"", "");
 
-        int priority = 8;
+        int priority = 7;
         try {
             if (inputMap.containsKey("priority")) {
                 priority = Integer.parseInt(inputMap.get("priority").toString());
