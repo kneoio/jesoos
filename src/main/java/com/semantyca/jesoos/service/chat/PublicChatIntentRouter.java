@@ -110,6 +110,9 @@ public class PublicChatIntentRouter {
                     .orElse("")
                     .trim();
 
+            if (raw.startsWith("```")) {
+                raw = raw.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "").trim();
+            }
             final LlmClassifierPayload payload;
             try {
                 payload = OBJECT_MAPPER.readValue(raw, LlmClassifierPayload.class);
