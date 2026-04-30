@@ -12,6 +12,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.SceneService;
 import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.util.AiHelperUtils;
+import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
@@ -190,7 +191,7 @@ public class AgendaService {
                                     Map.of(
                                             "scene", liveScene.getSceneTitle(),
                                             "sceneId", liveScene.getSceneId().toString(),
-                                            "gapSeconds", liveScene.getFitSeconds()
+                                            "gapMinutes", TimeFormatUtil.toRoundedMinutes(liveScene.getFitSeconds())
                                     )
                             );
                         }

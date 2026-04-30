@@ -27,4 +27,8 @@ public final class TimeFormatUtil {
         );
         return formatDateTime(dt);
     }
+
+    public static double toRoundedMinutes(int seconds) {
+        return Math.round((seconds / 60.0) * 100.0) / 100.0;
+    }
 }
