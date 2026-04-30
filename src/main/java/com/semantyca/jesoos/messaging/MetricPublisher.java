@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
 public class MetricPublisher {
@@ -62,14 +63,14 @@ public class MetricPublisher {
         nextExpectedEmitAt.put(brandName, Instant.now().plusSeconds(entryDurationSeconds));
     }
 
-    @Scheduled(every = "60s", delay = 120, delayUnit = java.util.concurrent.TimeUnit.SECONDS)
+    @Scheduled(every = "60s", delay = 120, delayUnit = TimeUnit.SECONDS)
     void checkSilenceRisk() {
         Instant now = Instant.now();
         nextExpectedEmitAt.forEach((brand, expectedAt) -> {
             long secondsOverdue = now.getEpochSecond() - expectedAt.getEpochSecond() - SILENCE_GRACE_SECONDS;
-            if (secondsOverdue > 0) {
+            if (secondsOverdue > 15) {
                 LOGGER.warnf("Silence risk for brand '%s': %ds overdue", brand, secondsOverdue);
-                publishMetric(brand, MetricEventType.WARNING, ProcessType.FLOW, "silence_risk",
+                publishMetric(brand, MetricEventType.WARNING, ProcessType.CRON, "silence_risk",
                         Map.of("secondsOverdue", secondsOverdue));
             }
         });
