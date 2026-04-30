@@ -2,7 +2,7 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.external.AnthropicMessagesClient;
+import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
-    private static final String INTRO_SPOKEN_TEXT_MODEL = "claude-haiku-4-5-20251001";
+    private static final String ANTHROPIC_DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
     private final PromptService promptService;
     private final DraftFactory draftFactory;
@@ -53,7 +53,7 @@ public class IntroTtsGenerator {
     private final JesoosConfig config;
     private final FFmpegProvider ffmpegProvider;
     private final MetricPublisher metricPublisher;
-    private final AnthropicMessagesClient anthropicMessagesClient;
+    private final LlmTextClient llmTextClient;
 
     @Inject
     public IntroTtsGenerator(
@@ -66,7 +66,7 @@ public class IntroTtsGenerator {
             JesoosConfig config,
             FFmpegProvider ffmpegProvider,
             MetricPublisher metricPublisher,
-            AnthropicMessagesClient anthropicMessagesClient
+            LlmTextClient llmTextClient
     ) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
@@ -77,7 +77,7 @@ public class IntroTtsGenerator {
         this.config = config;
         this.ffmpegProvider = ffmpegProvider;
         this.metricPublisher = metricPublisher;
-        this.anthropicMessagesClient = anthropicMessagesClient;
+        this.llmTextClient = llmTextClient;
     }
 
     @PostConstruct
@@ -231,8 +231,9 @@ public class IntroTtsGenerator {
         );
 
         long maxTokens = 2048L;
-        return anthropicMessagesClient.createTextMessage(
-                        INTRO_SPOKEN_TEXT_MODEL,
+        String model = "groq".equals(config.getLlmProvider()) ? config.getGroqModel() : ANTHROPIC_DEFAULT_MODEL;
+        return llmTextClient.createTextMessage(
+                        model,
                         maxTokens,
                         getSystemPrompt(),
                         fullPrompt)

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.llm.AnthropicLlmClient;
-import com.semantyca.jesoos.service.chat.llm.LlmClient;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -34,11 +33,11 @@ public class PublicChatIntentRouter {
     @Inject
     JesoosConfig config;
 
-    private LlmClient llmClient;
+    private AnthropicLlmClient llmClient;
 
     PublicChatIntentRouter() {}
 
-    PublicChatIntentRouter(OtsSessionManager otsSessionManager, LlmClient llmClient) {
+    PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicLlmClient llmClient) {
         this.otsSessionManager = otsSessionManager;
         this.llmClient = llmClient;
         this.config = null;

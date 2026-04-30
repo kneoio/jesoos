@@ -11,7 +11,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class AnthropicMessagesClient {
+public class AnthropicTextClient implements LlmTextClient {
 
     private static final String MESSAGES_URL = "https://api.anthropic.com/v1/messages";
     private static final String ANTHROPIC_VERSION = "2023-06-01";
@@ -29,15 +29,8 @@ public class AnthropicMessagesClient {
         this.webClient = WebClient.create(vertx);
     }
 
-    /**
-     * Calls Anthropic Messages API with a single user text message and optional system prompt.
-     */
-    public Uni<AnthropicTextMessageResult> createTextMessage(
-            String model,
-            long maxTokens,
-            String systemPrompt,
-            String userMessage
-    ) {
+    @Override
+    public Uni<LlmTextResult> createTextMessage(String model, long maxTokens, String systemPrompt, String userMessage) {
         JsonObject body = new JsonObject()
                 .put("model", model)
                 .put("max_tokens", maxTokens)
@@ -56,8 +49,7 @@ public class AnthropicMessagesClient {
                 .sendJsonObject(body)
                 .map(response -> {
                     if (response.statusCode() != 200) {
-                        throw new RuntimeException(
-                                "Anthropic API error: " + response.statusCode() + " - " + response.bodyAsString());
+                        throw new RuntimeException("Anthropic API error: " + response.statusCode() + " - " + response.bodyAsString());
                     }
                     JsonObject json = response.bodyAsJsonObject();
                     if (json == null) {
@@ -76,12 +68,12 @@ public class AnthropicMessagesClient {
                         }
                     }
                     if (text == null) {
-                        throw new RuntimeException("No text generated from AI");
+                        throw new RuntimeException("No text generated from Anthropic");
                     }
                     JsonObject usage = json.getJsonObject("usage");
                     int inputTokens = usage != null ? usage.getInteger("input_tokens", 0) : 0;
                     int outputTokens = usage != null ? usage.getInteger("output_tokens", 0) : 0;
-                    return new AnthropicTextMessageResult(text, inputTokens, outputTokens);
+                    return new LlmTextResult(text, inputTokens, outputTokens);
                 });
     }
 }
