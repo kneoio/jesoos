@@ -58,7 +58,7 @@ public class AgendaTicker {
                 activeSceneFound = scene;
 
                 LiveScene currentActive = scenePool.getActiveScene(brandSlug);
-                if (currentActive != null && currentActive.getSceneId().equals(scene.getSceneId())) {
+                if (currentActive != null && currentActive == scene) {
                     LOGGER.debugf("Scene '%s' is already active for brand: %s",
                             scene.getSceneTitle(), brandSlug);
                     continue;
@@ -75,7 +75,7 @@ public class AgendaTicker {
             if (currentActiveScene != null && currentActiveScene.isOneTimeRun() && currentActiveScene.isFinished()) {
                 int currentIndex = -1;
                 for (int i = 0; i < scenes.size(); i++) {
-                    if (scenes.get(i).getSceneId().equals(currentActiveScene.getSceneId())) {
+                    if (scenes.get(i) == currentActiveScene) {
                         currentIndex = i;
                         break;
                     }
@@ -96,7 +96,7 @@ public class AgendaTicker {
                         brandSlug, currentActiveScene.getSceneTitle());
                 staggeredSongScheduler.cancelBrandTimers(brandSlug);
                 scenePool.removeActiveScene(brandSlug);
-            } else if (currentActiveScene != null && !currentActiveScene.getSceneId().equals(activeSceneFound.getSceneId())) {
+            } else if (currentActiveScene != null && currentActiveScene != activeSceneFound) {
                 LOGGER.infof("Active scene changed for brand: %s, removing old scene '%s' from pool",
                         brandSlug, currentActiveScene.getSceneTitle());
                 staggeredSongScheduler.cancelBrandTimers(brandSlug);

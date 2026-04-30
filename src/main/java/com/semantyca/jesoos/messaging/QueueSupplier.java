@@ -52,6 +52,16 @@ public class QueueSupplier {
                                 "supplied", TimeFormatUtil.formatEpochMillis(now)
                         ),
                         traceId);
+                int totalDuration = 0;
+                if (message.getSongs() != null) {
+                    totalDuration += message.getSongs().values().stream()
+                            .mapToInt(s -> s.getDurationSeconds()).sum();
+                }
+                if (message.getFilePaths() != null) {
+                    totalDuration += message.getFilePaths().values().stream()
+                            .mapToInt(i -> i.getDurationSeconds()).sum();
+                }
+                metricPublisher.trackEmission(brandSlug, totalDuration);
                 return null;
             } catch (Exception e) {
                 LOGGER.error("Failed to send - brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId, e);
