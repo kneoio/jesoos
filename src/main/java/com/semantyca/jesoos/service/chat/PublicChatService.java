@@ -224,7 +224,7 @@ public class PublicChatService extends ChatService {
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
             tools.add(GetBrandCatalogSummary.toTool());
-            tools.add(PerplexitySearchTool.toTool());
+            // tools.add(PerplexitySearchTool.toTool());
             tools.add(ListenerDataTool.toTool());
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(LiveStreamInfoTool.toTool());
@@ -235,6 +235,7 @@ public class PublicChatService extends ChatService {
             tools.add(SendUICommandTool.toTool());
             tools.add(LogoffTool.toTool());
         } else {
+            tools.add(LiveStreamInfoTool.toTool());
             tools.add(StartAuthTool.toTool());
             tools.add(VerifyCode.toTool());
         }
@@ -350,7 +351,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
-                    toolUse, inputMap, brandPool, scenePool, playlistQueueService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolUse, inputMap, playlistQueueService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "find_community_member" -> FindCommunityMemberToolHandler.handle(
                     toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
