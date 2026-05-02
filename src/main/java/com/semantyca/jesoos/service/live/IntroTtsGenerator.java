@@ -241,7 +241,7 @@ public class IntroTtsGenerator {
         return llmTextClient.createTextMessage(
                         model,
                         maxTokens,
-                        getSystemPrompt(),
+                        getSystemPrompt(agent),
                         fullPrompt)
                 .map(response -> {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
@@ -281,8 +281,12 @@ public class IntroTtsGenerator {
         return "groq".equals(provider) ? groqTextClient : anthropicTextClient;
     }
 
-    private String getSystemPrompt() {
-        return "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'";
+    private String getSystemPrompt(AiAgent agent) {
+        String base = "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'";
+        if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
+            return base + " Your manner: " + agent.getManner();
+        }
+        return base;
     }
 
     private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain) {
