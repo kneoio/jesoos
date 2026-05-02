@@ -12,6 +12,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.DraftService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.ProfileService;
+import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.jesoos.util.TimeContextUtil;
 import com.semantyca.mixpla.model.Draft;
 import com.semantyca.mixpla.model.Profile;
@@ -50,6 +51,7 @@ public class DraftFactory {
     private final WorldNewsApiClient worldNewsApiClient;
     private final PerplexityApiClient perplexityApiClient;
     private final ListenerService listenerService;
+    private final ChatSummaryService chatSummaryService;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
@@ -57,7 +59,7 @@ public class DraftFactory {
     public DraftFactory(GenreService genreService, ProfileService profileService, DraftService draftService,
                         AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
                         WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient,
-                        ListenerService listenerService) {
+                        ListenerService listenerService, ChatSummaryService chatSummaryService) {
         this.genreService = genreService;
         this.profileService = profileService;
         this.draftService = draftService;
@@ -66,6 +68,7 @@ public class DraftFactory {
         this.worldNewsApiClient = worldNewsApiClient;
         this.perplexityApiClient = perplexityApiClient;
         this.listenerService = listenerService;
+        this.chatSummaryService = chatSummaryService;
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
@@ -91,7 +94,8 @@ public class DraftFactory {
                         profileService.getById(stream.getProfileId()),
                         genresUni,
                         copilotUni,
-                        listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null)
+                        listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null),
+                        chatSummaryService.getLatestBrandSummary(stream.getSlugName())
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -101,6 +105,7 @@ public class DraftFactory {
                     List<String> genres = tuple.getItem3();
                     AiAgent copilot = tuple.getItem4();
                     List<BrandListenerDTO> listeners = tuple.getItem5();
+                    String chatSummary = tuple.getItem6();
 
                     if (template != null) {
                         return buildFromTemplate(
@@ -114,6 +119,7 @@ public class DraftFactory {
                                 listeners,
                                 selectedLanguage,
                                 userVariables,
+                                chatSummary,
                                 WebHelper.generateSlug(template.getTitle())
                         );
                     } else {
@@ -157,6 +163,7 @@ public class DraftFactory {
             List<BrandListenerDTO> listeners,
             LanguageTag selectedLanguage,
             Map<String, Object> userVariables,
+            String chatSummary,
             String draftSlug
     ) {
         CountryCode countryIso = stream.getCountry();
@@ -206,6 +213,7 @@ public class DraftFactory {
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
+        data.put("chatSummary", chatSummary != null ? chatSummary : "");
 
         if (song != null) {
             data.put("songTitle", song.getTitle());
