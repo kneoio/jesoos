@@ -306,6 +306,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setDescription(dto.getDescription());
         doc.setExpiresAt(dto.getExpiresAt());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
+        if (dto.getStatus() == 10) {
+            doc.setArchived(10);
+        }
         return doc;
     }
 
