@@ -425,7 +425,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                                          String connectionId, String slugName, IUser user) {
         return intentRouter.decide(connectionId, userMessage)
                 .flatMap(decision -> {
-                    if (decision.intent() == ChatIntent.START_OTS) {
+                    if (decision.intent() == ChatIntent.START_OTS && otsSessionManager.isActive(connectionId)) {
                         return executeOtsContinuation(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
                     }
                     return super.generateBotResponse(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
