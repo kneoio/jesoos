@@ -125,7 +125,7 @@ public class IntroTtsGenerator {
                 })
                 .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
-                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), liveScene.getTraceId(), stream.getSlugName()))
+                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, liveScene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain()));
     }
@@ -222,7 +222,7 @@ public class IntroTtsGenerator {
         });
     }
 
-    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, UUID traceId, String brandName) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
             return Uni.createFrom().item((String) null);
