@@ -6,6 +6,7 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LifecycleStatus;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
@@ -114,6 +115,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                     dto.setArtist(artist);
                                     dto.setType(PlaylistItemType.SONG);
                                     dto.setSource(SourceType.CONTRIBUTION);
+                                    dto.setStatus(LifecycleStatus.NOT_APPROVED.getCode());
                                     dto.setGenres(genreIds.isEmpty() ? List.of() : genreIds);
                                     dto.setDescription(description.isBlank() ? null : description);
                                     dto.setNewlyUploaded(List.of(tempFilename));
@@ -153,9 +155,10 @@ public class UploadSongToolHandler extends BaseToolHandler {
 
                                                         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
                                                                 .flatMap(agent -> {
+                                                                    LanguageCode primaryLang = agent.getPreferredLang().getFirst().getLanguageTag().toLanguageCode();
                                                                     PromptEntry promptEntry = new PromptEntry();
                                                                     promptEntry.setPromptId(UUID.randomUUID());
-                                                                    promptEntry.setLanguage(LanguageCode.en);
+                                                                    promptEntry.setLanguage(primaryLang);
 
                                                                     return soundFragmentService.getById(songId)
                                                                             .flatMap(soundFragment -> {
