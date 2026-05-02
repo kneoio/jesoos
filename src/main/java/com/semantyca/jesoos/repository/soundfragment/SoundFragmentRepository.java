@@ -15,6 +15,8 @@ import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
+import com.semantyca.core.model.cnst.RlsActionType;
+import com.semantyca.jesoos.dto.RlsActionDTO;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -192,7 +194,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .collect().asList();
     }
 
-    public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
+    public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, List<RlsActionDTO> rlsActions, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
@@ -217,7 +219,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             doc.setFileMetadataList(filesToProcess);
         }
 
-        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem(), representedInBrands)
+        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem(), representedInBrands, rlsActions)
                 .onItem().transformToUni(insertedDoc -> {
                     if (filesToProcess != null) {
                         FileMetadata meta = filesToProcess.getFirst();
@@ -239,7 +241,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     }
 
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
-                                                        Uni<Void> fileUploadCompletionUni, List<UUID> representedInBrands) {
+                                                        Uni<Void> fileUploadCompletionUni, List<UUID> representedInBrands,
+                                                        List<RlsActionDTO> rlsActions) {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
@@ -271,6 +274,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, id, doc.getGenres()))
                                 .onItem().transformToUni(ignored -> upsertLabels(tx, id, doc.getLabels()))
                                 .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
+                                .onItem().transformToUni(ignored -> applyRlsActions(tx, id, rlsActions))
                                 .onItem().transformToUni(ignored -> {
                                     assert brandHandler != null;
                                     return brandHandler.insertBrandAssociations(tx, id, representedInBrands, user);
@@ -279,6 +283,38 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     })
             );
         }).onItem().transformToUni(id -> findById(id, user.getId(), true, true));
+    }
+
+    private Uni<Void> applyRlsActions(SqlClient tx, UUID entityId, List<RlsActionDTO> actions) {
+        if (actions == null || actions.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        String grantSql = String.format(
+                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4) " +
+                "ON CONFLICT (reader, entity_id) DO UPDATE SET " +
+                "can_edit = EXCLUDED.can_edit, can_delete = EXCLUDED.can_delete, reading_time = now()",
+                entityData.getRlsName()
+        );
+        String revokeSql = String.format(
+                "DELETE FROM %s WHERE reader = $1 AND entity_id = $2",
+                entityData.getRlsName()
+        );
+        List<Uni<Void>> unis = new java.util.ArrayList<>();
+        for (RlsActionDTO action : actions) {
+            if (action.getAction() == RlsActionType.GRANT) {
+                unis.add(tx.preparedQuery(grantSql)
+                        .execute(Tuple.of(action.getUserId(), entityId, action.isCanEdit(), action.isCanDelete()))
+                        .onItem().ignore().andContinueWithNull());
+            } else if (action.getAction() == RlsActionType.REVOKE) {
+                unis.add(tx.preparedQuery(revokeSql)
+                        .execute(Tuple.of(action.getUserId(), entityId))
+                        .onItem().ignore().andContinueWithNull());
+            }
+        }
+        if (unis.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        return Uni.combine().all().unis(unis).discardItems();
     }
 
     private Uni<Void> insertGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {

@@ -6,7 +6,6 @@ import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
-import com.semantyca.core.service.maintenance.LocalFileCleanupService;
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.config.JesoosConfig;
@@ -41,15 +40,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final BrandService brandService;
     private final String uploadDir;
-    private final LocalFileCleanupService localFileCleanupService;
-
     @Inject
-    public SoundFragmentService(UserService userService, JesoosConfig config, SoundFragmentRepository repository, BrandService brandService, LocalFileCleanupService localFileCleanupService) {
+    public SoundFragmentService(UserService userService, JesoosConfig config, SoundFragmentRepository repository, BrandService brandService) {
         super(userService);
         this.repository = repository;
         this.brandService = brandService;
         uploadDir = config.getPathUploads() + "/chat-upload-controller";
-        this.localFileCleanupService = localFileCleanupService;
     }
 
     public Uni<Integer> getAllCount(final IUser user, final SoundFragmentFilter filter) {
@@ -239,29 +235,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (entity.getSource() == null) {
                 entity.setSource(SourceType.CONTRIBUTION);
             }
-            return repository.insert(entity, dto.getRepresentedInBrands(), user)
+            return repository.insert(entity, dto.getRepresentedInBrands(), dto.getRlsActions(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
                     .chain(doc -> mapToDTO(doc, true, null))
-                    .onFailure().invoke(failure -> {
-                        LOGGER.warnf("Entity creation failed, cleaning up temp files for user: %s", user.getUserName());
-                        localFileCleanupService.cleanupTempFilesForUser(user.getUserName())
-                                .subscribe().with(
-                                        ignored -> LOGGER.debug("Temp files cleaned up after failure"),
-                                        cleanupError -> LOGGER.warn("Failed to cleanup temp files")
-                                );
-                    });
+                    .onFailure().invoke(failure -> LOGGER.warnf("Entity creation failed for user: %s", user.getUserName()));
         } else {
             return repository.update(UUID.fromString(id), entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> mapToDTO(doc, true, null))
-                    .onFailure().invoke(failure -> {
-                        LOGGER.warnf("Entity update failed, cleaning up files for user: %s, entity: %s",
-                                user.getUserName(), id);
-                        localFileCleanupService.cleanupEntityFiles(user.getUserName(), id)
-                                .subscribe().with(
-                                        ignored -> LOGGER.debug("Entity files cleaned up after failure"),
-                                        cleanupError -> LOGGER.warnf("Failed to cleanup entity files")
-                                );
-                    });
+                    .onFailure().invoke(failure -> LOGGER.warnf("Entity update failed for user: %s, entity: %s", user.getUserName(), id));
         }
     }
 

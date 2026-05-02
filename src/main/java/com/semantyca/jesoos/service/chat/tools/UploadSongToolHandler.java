@@ -7,9 +7,11 @@ import com.anthropic.models.messages.ToolUseBlock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LifecycleStatus;
+import com.semantyca.core.model.cnst.RlsActionType;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.dto.RlsActionDTO;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
@@ -119,6 +121,12 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                     dto.setGenres(genreIds.isEmpty() ? List.of() : genreIds);
                                     dto.setDescription(description.isBlank() ? null : description);
                                     dto.setNewlyUploaded(List.of(tempFilename));
+                                    RlsActionDTO ownerAccess = new RlsActionDTO();
+                                    ownerAccess.setAction(RlsActionType.GRANT);
+                                    ownerAccess.setUserId(userId);
+                                    ownerAccess.setCanEdit(true);
+                                    ownerAccess.setCanDelete(true);
+                                    dto.getRlsActions().add(ownerAccess);
 
                                     return brandPool.get(brandName).flatMap(stream -> {
                                         Uni<java.util.UUID> brandIdUni = stream != null
