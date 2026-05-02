@@ -282,8 +282,7 @@ public class IntroTtsGenerator {
     }
 
     private String getSystemPrompt() {
-        return "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'. " +
-                "NEVER use song names from PAST CONTEXT.";
+        return "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'";
     }
 
     private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain) {
