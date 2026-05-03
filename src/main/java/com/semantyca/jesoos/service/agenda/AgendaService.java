@@ -16,7 +16,6 @@ import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
-import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
@@ -69,25 +68,23 @@ public class AgendaService {
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, UUID scriptId, IUser user) {
         return scriptService.getById(scriptId, user)
-                .chain(script ->
-                        sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
-                                .map(list -> new TreeSet<>(
-                                        Comparator.comparingInt(Scene::getSeqNum)
-                                                .thenComparing(Scene::getId)
-                                ) {{
-                                    addAll(list);
-                                }})
-                                .invoke(script::setScenes)
-                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier, user))
-                );
+                .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                        .map(AgendaService::orderedSceneSet)
+                        .chain(scenes -> buildAgenda(sourceBrand, scenes, scheduleSongSupplier, user)));
     }
 
-    private Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier, IUser user) {
+    private static NavigableSet<Scene> orderedSceneSet(List<Scene> list) {
+        NavigableSet<Scene> scenes = new TreeSet<>(
+                Comparator.comparingInt(Scene::getSeqNum).thenComparing(Scene::getId));
+        scenes.addAll(list);
+        return scenes;
+    }
+
+    private Uni<StreamAgenda> buildAgenda(Brand sourceBrand, NavigableSet<Scene> scenes, ScheduleSongSupplier songSupplier, IUser user) {
         ZoneId brandZone = sourceBrand.getTimeZone();
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
         schedule.setTimeZone(brandZone);
 
-        NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }
@@ -207,25 +204,16 @@ public class AgendaService {
 
     public Uni<StreamAgenda> buildOtsAgenda(Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
         return scriptService.getById(scriptId, user)
-                .chain(script ->
-                        sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
-                                .map(list -> new TreeSet<>(
-                                        Comparator.comparingInt(Scene::getSeqNum)
-                                                .thenComparing(Scene::getId)
-                                ) {{
-                                    addAll(list);
-                                }})
-                                .invoke(script::setScenes)
-                                .chain(x -> buildOtsAgendaFromScenes(script, brand, startTime, user))
-                );
+                .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                        .map(AgendaService::orderedSceneSet)
+                        .chain(scenes -> buildOtsAgendaFromScenes(brand, startTime, scenes, user)));
     }
 
-    private Uni<StreamAgenda> buildOtsAgendaFromScenes(Script script, Brand brand, LocalDateTime startTime, IUser user) {
+    private Uni<StreamAgenda> buildOtsAgendaFromScenes(Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
         ZoneId brandZone = brand.getTimeZone();
         StreamAgenda schedule = new StreamAgenda(startTime);
         schedule.setTimeZone(brandZone);
 
-        NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }
