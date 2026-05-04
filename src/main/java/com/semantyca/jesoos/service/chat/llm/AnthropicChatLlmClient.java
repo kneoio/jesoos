@@ -138,10 +138,16 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
     }
 
     static Map<String, Object> extractInput(JsonValue inputVal) {
-        return inputVal.asObject()
-                .orElse(Collections.emptyMap())
-                .entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> toObject(e.getValue())));
+        Object converted = toObject(inputVal);
+        if (!(converted instanceof Map<?, ?> map)) {
+            return Collections.emptyMap();
+        }
+        return map.entrySet().stream()
+                .filter(e -> e.getKey() instanceof String)
+                .collect(Collectors.toMap(
+                        e -> (String) e.getKey(),
+                        Map.Entry::getValue
+                ));
     }
 
     private static Object toObject(JsonValue value) {
@@ -152,10 +158,26 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
         var num = value.asNumber();
         if (num.isPresent()) return num.get();
         var arr = value.asArray();
-        if (arr.isPresent()) return arr.get().stream().map(AnthropicChatLlmClient::toObject).toList();
+        if (arr.isPresent()) {
+            Object rawArray = arr.get();
+            if (rawArray instanceof List<?> list) {
+                return list.stream()
+                        .map(item -> item instanceof JsonValue jsonValue ? toObject(jsonValue) : item)
+                        .toList();
+            }
+        }
         var obj = value.asObject();
-        if (obj.isPresent()) return obj.get().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> toObject(e.getValue())));
+        if (obj.isPresent()) {
+            Object rawObject = obj.get();
+            if (rawObject instanceof Map<?, ?> map) {
+                return map.entrySet().stream()
+                        .filter(e -> e.getKey() instanceof String)
+                        .collect(Collectors.toMap(
+                                e -> (String) e.getKey(),
+                                e -> e.getValue() instanceof JsonValue jsonValue ? toObject(jsonValue) : e.getValue()
+                        ));
+            }
+        }
         return null;
     }
 }

@@ -6,6 +6,7 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.JsonValue;
 import com.openai.core.http.AsyncStreamResponse;
+import com.openai.models.FunctionDefinition;
 import com.openai.models.chat.completions.*;
 import org.jetbrains.annotations.NotNull;
 
