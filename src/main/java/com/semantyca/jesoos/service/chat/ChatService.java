@@ -1,7 +1,5 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.model.user.IUser;
@@ -13,13 +11,18 @@ import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
-import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.LanguagePreference;
 import io.smallrye.mutiny.Uni;
@@ -40,8 +43,8 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 
 public abstract class ChatService {
     private static final Logger LOGGER = Logger.getLogger(ChatService.class);
-    
-    protected final AnthropicChatLlmClient llmClient;
+
+    protected final ChatLlmClient llmClient;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
     protected final String followUpPrompt;
@@ -150,11 +153,7 @@ public abstract class ChatService {
             );
 
             String sessionKey = ChatRepository.sessionKey(user.getId(), connectionId, getChatType());
-            MessageParam userMsg = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(MessageParam.Content.ofString(content))
-                    .build();
-            chatRepository.appendToConversation(sessionKey, userMsg);
+            chatRepository.appendToConversation(sessionKey, LlmMessage.text(LlmMessage.Role.USER, content));
 
             return ChatMessageDTO.user(content, username, connectionId).build().toJson();
         });
@@ -163,7 +162,6 @@ public abstract class ChatService {
     public Uni<String> getChatHistory(String brandName, int limit, String connectionId, IUser user) {
         return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, getChatType(), limit)
                 .map(recentMessages -> {
-
                     JsonArray messages = new JsonArray();
                     recentMessages.forEach(messages::add);
 
@@ -189,62 +187,59 @@ public abstract class ChatService {
                             : Uni.createFrom().item(() -> null);
                     return Uni.combine().all().unis(agentUni, buildOtsScriptsText()).asTuple()
                             .map(tuple -> {
-                        AiAgent agent = tuple.getItem1();
-                        String otsScripts = tuple.getItem2();
-                        assert station != null;
-                        String djName = agent.getName();
-                        String stationSlug = station.getSlugName();
-                        String djLanguages = agent.getPreferredLang().stream()
-                                .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                .map(lp -> lp.getLanguageTag().name())
-                                .reduce((a, b) -> a + "," + b).orElse("");
-                        String partialPrompt = getMainPrompt()
-                                .replace("{{djName}}", djName)
-                                .replace("{{radioStationName}}", radioStationName)
-                                .replace("{{radioStationSlug}}", stationSlug)
-                                .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
-                                .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
-                                .replace("{{radioStationDescription}}", station.getDescription())
-                                .replace("{{djLanguages}}", djLanguages)
-                                .replace("{{djCopilotName}}", "")
-                                .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata())
-                                .replace("{{otsScripts}}", otsScripts);
-                        BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
-                        brandStaticCache.put(slugName, data);
-                        return data;
-                    });
+                                AiAgent agent = tuple.getItem1();
+                                String otsScripts = tuple.getItem2();
+                                assert station != null;
+                                String djName = agent.getName();
+                                String stationSlug = station.getSlugName();
+                                String djLanguages = agent.getPreferredLang().stream()
+                                        .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
+                                        .map(lp -> lp.getLanguageTag().name())
+                                        .reduce((a, b) -> a + "," + b).orElse("");
+                                String partialPrompt = getMainPrompt()
+                                        .replace("{{djName}}", djName)
+                                        .replace("{{radioStationName}}", radioStationName)
+                                        .replace("{{radioStationSlug}}", stationSlug)
+                                        .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
+                                        .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
+                                        .replace("{{radioStationDescription}}", station.getDescription())
+                                        .replace("{{djLanguages}}", djLanguages)
+                                        .replace("{{djCopilotName}}", "")
+                                        .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata())
+                                        .replace("{{otsScripts}}", otsScripts);
+                                BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
+                                brandStaticCache.put(slugName, data);
+                                return data;
+                            });
                 });
 
         return staticDataUni.flatMap(staticData -> {
-                String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
-                String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
-                String renderedPrompt = staticData.partialPrompt()
-                        .replace("{{radioStationStatus}}", stationStatus)
-                        .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
-                        .replace("{{isAuthenticated}}", isAuthenticated);
+            String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
+            String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
+            String renderedPrompt = staticData.partialPrompt()
+                    .replace("{{radioStationStatus}}", stationStatus)
+                    .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
+                    .replace("{{isAuthenticated}}", isAuthenticated);
 
-                ChatLogger.request(slugName, user.getId(), user.getEmail(),
-                        Boolean.parseBoolean(isAuthenticated), stationStatus);
+            ChatLogger.request(slugName, user.getId(), user.getEmail(),
+                    Boolean.parseBoolean(isAuthenticated), stationStatus);
 
-                assistantNameByConnectionId.put(connectionId, staticData.djName());
-                assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
+            assistantNameByConnectionId.put(connectionId, staticData.djName());
+            assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
 
-                return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
-                        .<MessageCreateParams>map(history -> buildMessageCreateParams(renderedPrompt, history, user));
-        }).flatMap(params ->
-                Uni.createFrom().completionStage(() -> llmClient.createMessage(params))
-                        .flatMap(message -> {
-                            Optional<ToolUseBlock> toolUse = message.content().stream()
-                                    .flatMap(block -> block.toolUse().stream())
-                                    .findFirst();
-
-                            if (toolUse.isPresent()) {
-                                ChatLogger.firstCall(toolUse.get().name());
-                                List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
-                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
+            return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
+                    .<LlmRequest>map(history -> buildLlmRequest(renderedPrompt, history, user));
+        }).flatMap(request ->
+                Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
+                        .flatMap(response -> {
+                            if (response.toolCall().isPresent()) {
+                                LlmToolCall toolCall = response.toolCall().get();
+                                ChatLogger.firstCall(toolCall.name());
+                                List<LlmMessage> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
+                                return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
                                 ChatLogger.firstCallNoTool();
-                                return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                                return streamResponse(request, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
         ).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
@@ -256,98 +251,85 @@ public abstract class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user);
+    protected abstract LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user);
 
-    protected abstract List<Tool> getAvailableTools();
+    protected abstract List<LlmTool> getAvailableTools();
 
-    protected abstract Uni<Void> handleToolCall(ToolUseBlock toolUse,
+    protected abstract Uni<Void> handleToolCall(LlmToolCall toolCall,
                                                 Consumer<String> chunkHandler,
                                                 Consumer<String> completionHandler,
                                                 String connectionId,
                                                 String brandName,
                                                 long userId,
-                                                List<MessageParam> conversationHistory);
+                                                List<LlmMessage> conversationHistory);
 
-    protected Uni<Void> streamResponse(MessageCreateParams params,
-                                     Consumer<String> chunkHandler,
-                                     Consumer<String> completionHandler,
-                                     String connectionId,
-                                     String brandName,
-                                     long userId) {
+    protected Uni<Void> streamResponse(LlmRequest request,
+                                       Consumer<String> chunkHandler,
+                                       Consumer<String> completionHandler,
+                                       String connectionId,
+                                       String brandName,
+                                       long userId) {
 
-        return Uni.createFrom().completionStage(() -> {
-            return llmClient.streamText(
-                    params,
-                    text -> chunkHandler.accept(
-                            ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson()
-                    )
-            ).thenAccept(fullResponse -> {
-                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+        return Uni.createFrom().completionStage(() ->
+                llmClient.streamText(
+                        request,
+                        text -> chunkHandler.accept(
+                                ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson()
+                        )
+                ).thenAccept(fullResponse -> {
+                    chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
 
-                String responseText = fullResponse
-                        .replaceAll("(?s)<thinking>.*?</thinking>", "")
-                        .trim();
+                    String responseText = fullResponse
+                            .replaceAll("(?s)<thinking>.*?</thinking>", "")
+                            .trim();
 
-                if (!responseText.isEmpty()) {
-                    MessageParam assistantResponse = MessageParam.builder()
-                            .role(MessageParam.Role.ASSISTANT)
-                            .content(MessageParam.Content.ofString(responseText))
-                            .build();
+                    if (!responseText.isEmpty()) {
+                        chatRepository.appendToConversation(
+                                ChatRepository.sessionKey(userId, connectionId, getChatType()),
+                                LlmMessage.text(LlmMessage.Role.ASSISTANT, responseText));
 
-                    chatRepository.appendToConversation(ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantResponse);
+                        JsonObject botMessage = createMessage(
+                                MessageType.BOT,
+                                assistantNameByConnectionId.get(connectionId),
+                                responseText,
+                                System.currentTimeMillis(),
+                                connectionId
+                        );
 
-                    JsonObject botMessage = createMessage(
-                            MessageType.BOT,
-                            assistantNameByConnectionId.get(connectionId),
-                            responseText,
-                            System.currentTimeMillis(),
-                            connectionId
-                    );
+                        chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
+                                success -> {},
+                                failure -> LOGGER.error("Failed to save bot message", failure)
+                        );
 
-                    chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
-                            success -> {},
-                            failure -> LOGGER.error("Failed to save bot message", failure)
-                    );
+                        String completeMessage = ChatMessageDTO.bot(
+                                        botMessage.getJsonObject("data").getString("content"),
+                                        botMessage.getJsonObject("data").getString("username"),
+                                        botMessage.getJsonObject("data").getString("connectionId")
+                                )
+                                .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
+                                .build()
+                                .toJson();
 
-                    String completeMessage = ChatMessageDTO.bot(
-                                    botMessage.getJsonObject("data").getString("content"),
-                                    botMessage.getJsonObject("data").getString("username"),
-                                    botMessage.getJsonObject("data").getString("connectionId")
-                            )
-                            .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
-                            .build()
-                            .toJson();
-
-                    completionHandler.accept(completeMessage);
-                } else {
-                    // Empty response — still signal completion so the UI is never left hanging
-                    LOGGER.warnf("[streamResponse] empty response from LLM userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
-                    completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                }
-            });
-
-        }).runSubscriptionOn(getDefaultWorkerPool());
+                        completionHandler.accept(completeMessage);
+                    } else {
+                        LOGGER.warnf("[streamResponse] empty response from LLM userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
+                        completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    }
+                })
+        ).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected Uni<List<MessageParam>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, ChatType chatType) {
-        List<MessageParam> currentHistory = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, chatType));
-        
+    protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, ChatType chatType) {
+        List<LlmMessage> currentHistory = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, chatType));
+
         return chatSummaryService.getLatestUserSummary(userId, brandName, chatType)
                 .map(summaryText -> {
                     if (summaryText != null && !summaryText.isBlank() && currentHistory.size() > 10) {
-                        List<MessageParam> historyWithSummary = new ArrayList<>();
-                        
-                        MessageParam summaryMessage = MessageParam.builder()
-                                .role(MessageParam.Role.USER)
-                                .content(MessageParam.Content.ofString(
-                                        "[Previous conversation summary]\n" + summaryText + "\n[End of summary]"
-                                ))
-                                .build();
-                        historyWithSummary.add(summaryMessage);
-                        
+                        List<LlmMessage> historyWithSummary = new ArrayList<>();
+                        historyWithSummary.add(LlmMessage.text(LlmMessage.Role.USER,
+                                "[Previous conversation summary]\n" + summaryText + "\n[End of summary]"));
                         int recentMessagesStart = Math.max(0, currentHistory.size() - 10);
                         historyWithSummary.addAll(currentHistory.subList(recentMessagesStart, currentHistory.size()));
-                        
                         return historyWithSummary;
                     }
                     return currentHistory;
@@ -373,16 +355,9 @@ public abstract class ChatService {
         chatRepository.clearConversationHistory(key);
     }
 
-    public void syncConversationHistory(String connectionId, long userId, List<MessageParam> history) {
+    public void syncConversationHistory(String connectionId, long userId, List<LlmMessage> history) {
         String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
         LOGGER.infof("[session] syncing history key=%s size=%d", key, history.size());
         chatRepository.replaceConversationHistory(key, history);
     }
-
-    protected Map<String, JsonValue> extractInputMap(ToolUseBlock toolUse) {
-        JsonValue inputVal = toolUse._input();
-        Optional<Map<String, JsonValue>> maybeObj = inputVal.asObject();
-        return maybeObj.orElse(Collections.emptyMap());
-    }
-
 }

@@ -1,16 +1,17 @@
 package com.semantyca.jesoos.service.chat.tools.ots;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
 
 import java.util.List;
 import java.util.Map;
 
 public class StartOneTimeStreamTool {
 
-    public static Tool toTool() {
-        Tool.InputSchema schema = Tool.InputSchema.builder()
-                .properties(JsonValue.from(Map.of(
+    public static LlmTool toTool() {
+        return LlmTool.of(
+                "start_one_time_stream",
+                "Start a one-time radio stream on a brand station using a specific script",
+                Map.of(
                         "brandSlugName", Map.of(
                                 "type", "string",
                                 "description", "Slug name of the base radio station brand"),
@@ -23,14 +24,8 @@ public class StartOneTimeStreamTool {
                         "startImmediately", Map.of(
                                 "type", "boolean",
                                 "description", "Whether to start the stream immediately (default true)")
-                )))
-                .required(List.of("brandSlugName", "scriptId"))
-                .build();
-
-        return Tool.builder()
-                .name("start_one_time_stream")
-                .description("Start a one-time radio stream on a brand station using a specific script")
-                .inputSchema(schema)
-                .build();
+                ),
+                List.of("brandSlugName", "scriptId")
+        );
     }
 }

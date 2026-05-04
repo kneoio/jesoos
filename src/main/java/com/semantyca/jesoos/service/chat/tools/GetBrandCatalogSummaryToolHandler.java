@@ -1,9 +1,8 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logging.Logger;
@@ -18,17 +17,17 @@ public class GetBrandCatalogSummaryToolHandler extends BaseToolHandler {
     private static final Logger LOGGER = Logger.getLogger(GetBrandCatalogSummaryToolHandler.class);
 
     public static Uni<Void> handle(
-            ToolUseBlock toolUse,
-            Map<String, JsonValue> inputMap,
+            LlmToolCall toolCall,
+            Map<String, Object> inputMap,
             AiHelperService aiHelperService,
             Consumer<String> chunkHandler,
             String connectionId,
-            List<MessageParam> conversationHistory,
+            List<LlmMessage> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<LlmRequest, Uni<Void>> streamFn
     ) {
         GetBrandCatalogSummaryToolHandler handler = new GetBrandCatalogSummaryToolHandler();
-        String brandName = inputMap.getOrDefault("brandName", JsonValue.from("")).toString().replace("\"", "");
+        String brandName = (String) inputMap.getOrDefault("brandName", "");
 
         if (brandName.isEmpty()) {
             LOGGER.error("[CatalogSummary] brandName is required but was not provided");
@@ -40,13 +39,9 @@ public class GetBrandCatalogSummaryToolHandler extends BaseToolHandler {
 
         return aiHelperService.getBrandCatalogSummaryForAi(brandName)
                 .flatMap(summary -> {
-                    LOGGER.infof("[CatalogSummary] Summary loaded for brand '%s': %d total tracks", brandName, summary.getLong("totalTracks"));
-
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, summary.encode(), conversationHistory);
-
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
+                    handler.addToolUseToHistory(toolCall, conversationHistory);
+                    handler.addToolResultToHistory(toolCall, summary.encode(), conversationHistory);
+                    return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 }).onFailure().recoverWithUni(err -> {
                     LOGGER.errorf(err, "[CatalogSummary] Failed to load catalog summary for brand: %s", brandName);
                     handler.sendBotChunk(chunkHandler, connectionId, "bot", "I could not retrieve the catalog summary right now.");

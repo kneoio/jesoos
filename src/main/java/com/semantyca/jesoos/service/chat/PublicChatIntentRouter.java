@@ -1,10 +1,12 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.LlmModels;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -33,11 +35,11 @@ public class PublicChatIntentRouter {
     @Inject
     JesoosConfig config;
 
-    private AnthropicChatLlmClient llmClient;
+    private ChatLlmClient llmClient;
 
     PublicChatIntentRouter() {}
 
-    PublicChatIntentRouter(OtsSessionManager otsSessionManager, AnthropicChatLlmClient llmClient) {
+    PublicChatIntentRouter(OtsSessionManager otsSessionManager, ChatLlmClient llmClient) {
         this.otsSessionManager = otsSessionManager;
         this.llmClient = llmClient;
         this.config = null;
@@ -78,61 +80,57 @@ public class PublicChatIntentRouter {
     }
 
     Uni<IntentDecision> classifyWithLlm(String userMessage) {
-        MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(120)
-                    .system("""
-                            Classify the user message intent.
+        LlmRequest request = LlmRequest.builder()
+                .model(LlmModels.CLAUDE_HAIKU_4_5)
+                .maxTokens(120)
+                .system("""
+                        Classify the user message intent.
 
-                            START_OTS: user explicitly wants to create a personalised one-time radio stream (OTS) for a special occasion such as a birthday party, workout session, celebration, event, or gathering. They typically know what OTS means and ask for it directly.
-                            NORMAL_CHAT: anything else — browsing, asking questions, requesting a song, replying yes/no/ok to the bot, small talk, etc.
+                        START_OTS: user explicitly wants to create a personalised one-time radio stream (OTS) for a special occasion such as a birthday party, workout session, celebration, event, or gathering. They typically know what OTS means and ask for it directly.
+                        NORMAL_CHAT: anything else — browsing, asking questions, requesting a song, replying yes/no/ok to the bot, small talk, etc.
 
-                            When in doubt, choose NORMAL_CHAT. Only return START_OTS when the intent is unambiguous.
+                        When in doubt, choose NORMAL_CHAT. Only return START_OTS when the intent is unambiguous.
 
-                            Reply with ONLY a single JSON object, no markdown and no extra text.
-                            Required JSON fields:
-                            - intent: "START_OTS" or "NORMAL_CHAT"
-                            - confidence: number from 0 to 1
-                            - reason: short string
+                        Reply with ONLY a single JSON object, no markdown and no extra text.
+                        Required JSON fields:
+                        - intent: "START_OTS" or "NORMAL_CHAT"
+                        - confidence: number from 0 to 1
+                        - reason: short string
 
-                            Examples:
-                            User: "I want to create an OTS for my birthday party"
-                            {"intent":"START_OTS","confidence":0.98,"reason":"explicit OTS request for birthday party"}
+                        Examples:
+                        User: "I want to create an OTS for my birthday party"
+                        {"intent":"START_OTS","confidence":0.98,"reason":"explicit OTS request for birthday party"}
 
-                            User: "can we do ots now?"
-                            {"intent":"START_OTS","confidence":0.95,"reason":"direct OTS request using the term"}
+                        User: "can we do ots now?"
+                        {"intent":"START_OTS","confidence":0.95,"reason":"direct OTS request using the term"}
 
-                            User: "I need a custom stream for my gym workout"
-                            {"intent":"START_OTS","confidence":0.91,"reason":"requests personalised stream for specific occasion"}
+                        User: "I need a custom stream for my gym workout"
+                        {"intent":"START_OTS","confidence":0.91,"reason":"requests personalised stream for specific occasion"}
 
-                            User: "start one-time stream for my brand celebration"
-                            {"intent":"START_OTS","confidence":0.97,"reason":"explicit one-time stream request for an event"}
+                        User: "start one-time stream for my brand celebration"
+                        {"intent":"START_OTS","confidence":0.97,"reason":"explicit one-time stream request for an event"}
 
-                            User: "yes"
-                            {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"single-word reply, likely confirming something in conversation"}
+                        User: "yes"
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"single-word reply, likely confirming something in conversation"}
 
-                            User: "ok"
-                            {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"acknowledgement, not an OTS request"}
+                        User: "ok"
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"acknowledgement, not an OTS request"}
 
-                            User: "can I order a song?"
-                            {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"song request, not OTS"}
+                        User: "can I order a song?"
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"song request, not OTS"}
 
-                            User: "what's playing?"
-                            {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"status question"}
+                        User: "what's playing?"
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"status question"}
 
-                            User: "queue it"
-                            {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"queuing a song, not OTS"}
-                            """)
-                .addUserMessage(userMessage)
+                        User: "queue it"
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"queuing a song, not OTS"}
+                        """)
+                .addMessage(com.semantyca.jesoos.service.chat.llm.LlmMessage.text(
+                        com.semantyca.jesoos.service.chat.llm.LlmMessage.Role.USER, userMessage))
                 .build();
 
-        return Uni.createFrom().completionStage(() -> llmClient.createMessage(params)).map(response -> {
-            String raw = response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(b -> b.asText().text())
-                    .findFirst()
-                    .orElse("")
-                    .trim();
+        return Uni.createFrom().completionStage(() -> llmClient.createMessage(request)).map(response -> {
+            String raw = response.text().trim();
 
             if (raw.startsWith("```")) {
                 raw = raw.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "").trim();

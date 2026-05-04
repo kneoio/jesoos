@@ -1,16 +1,17 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
 
 import java.util.List;
 import java.util.Map;
 
 public class PlaySongWithIntroTool {
 
-    public static Tool toTool() {
-        Tool.InputSchema schema = Tool.InputSchema.builder()
-                .properties(JsonValue.from(Map.of(
+    public static LlmTool toTool() {
+        return LlmTool.of(
+                "play_song_with_intro",
+                "Queue a song with custom DJ intro speech",
+                Map.of(
                         "brandName", Map.of(
                                 "type", "string",
                                 "description", "The radio station slug name"),
@@ -23,14 +24,8 @@ public class PlaySongWithIntroTool {
                         "priority", Map.of(
                                 "type", "integer",
                                 "description", "Priority: 10=LAST, 9=HIGH, 8=INTERRUPT, 7=HARD_INTERRUPT")
-                )))
-                .required(List.of("brandName", "songId", "textToTTSIntro"))
-                .build();
-
-        return Tool.builder()
-                .name("play_song_with_intro")
-                .description("Queue a song with custom DJ intro speech")
-                .inputSchema(schema)
-                .build();
+                ),
+                List.of("brandName", "songId", "textToTTSIntro")
+        );
     }
 }

@@ -1,16 +1,17 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
 
 import java.util.List;
 import java.util.Map;
 
 public class ManageEventsTool {
 
-    public static Tool toTool() {
-        Tool.InputSchema schema = Tool.InputSchema.builder()
-                .properties(JsonValue.from(Map.of(
+    public static LlmTool toTool() {
+        return LlmTool.of(
+                "manage_events",
+                "Read station events (national holidays, birthdays, special moments) and add new ones that listeners share. Use 'list' to see what's scheduled, 'upsert' to save a new event or update an existing one. Events feed into on-air DJ intros automatically.",
+                Map.of(
                         "action", Map.of(
                                 "type", "string",
                                 "enum", new String[]{"list", "upsert"},
@@ -29,14 +30,8 @@ public class ManageEventsTool {
                                 "type", "string",
                                 "enum", new String[]{"LOW", "MEDIUM", "HIGH", "CRITICAL"},
                                 "description", "Event priority")
-                )))
-                .required(List.of("action"))
-                .build();
-
-        return Tool.builder()
-                .name("manage_events")
-                .description("Read station events (national holidays, birthdays, special moments) and add new ones that listeners share. Use 'list' to see what's scheduled, 'upsert' to save a new event or update an existing one. Events feed into on-air DJ intros automatically.")
-                .inputSchema(schema)
-                .build();
+                ),
+                List.of("action")
+        );
     }
 }

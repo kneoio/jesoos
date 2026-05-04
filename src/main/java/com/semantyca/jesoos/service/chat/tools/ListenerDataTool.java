@@ -1,16 +1,17 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
 
 import java.util.List;
 import java.util.Map;
 
 public class ListenerDataTool {
 
-    public static Tool toTool() {
-        Tool.InputSchema schema = Tool.InputSchema.builder()
-                .properties(JsonValue.from(Map.of(
+    public static LlmTool toTool() {
+        return LlmTool.of(
+                "listener_data",
+                "Manage listener data. Use 'get' to retrieve all listener information (profile + custom user_data + labels). The response includes has_artist_label (boolean) — use it for song upload eligibility. Use 'set' to store custom user data fields. Use 'remove' to delete specific fields. Use 'add_label' / 'remove_label' with label_identifier to manage labels (available: 'artist').",
+                Map.of(
                         "action", Map.of(
                                 "type", "string",
                                 "enum", new String[]{"get", "set", "remove", "add_label", "remove_label"},
@@ -25,14 +26,8 @@ public class ListenerDataTool {
                                 "type", "string",
                                 "enum", new String[]{"artist"},
                                 "description", "For 'add_label' or 'remove_label' actions: The label identifier to assign or remove. Available labels: 'artist'.")
-                )))
-                .required(List.of("action"))
-                .build();
-
-        return Tool.builder()
-                .name("listener_data")
-                .description("Manage listener data. Use 'get' to retrieve all listener information (profile + custom user_data + labels). The response includes has_artist_label (boolean) — use it for song upload eligibility. Use 'set' to store custom user data fields. Use 'remove' to delete specific fields. Use 'add_label' / 'remove_label' with label_identifier to manage labels (available: 'artist').")
-                .inputSchema(schema)
-                .build();
+                ),
+                List.of("action")
+        );
     }
 }

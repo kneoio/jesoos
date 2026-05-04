@@ -1,8 +1,7 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
 import com.semantyca.core.model.UserData;
+import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
@@ -18,6 +17,11 @@ import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.PlaylistQueueService;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmModels;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmTool;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.ots.OtsGraph;
 import com.semantyca.jesoos.service.chat.ots.OtsResult;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
@@ -38,7 +42,6 @@ import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
-import com.semantyca.core.model.cnst.MessageType;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -183,7 +186,7 @@ public class PublicChatService extends ChatService {
                 });
     }
 
-    public Function<MessageCreateParams, Uni<Void>> createAuthStreamFn(
+    public Function<LlmRequest, Uni<Void>> createAuthStreamFn(
             Consumer<String> chunkHandler, Consumer<String> completionHandler,
             String connectionId, String brandName, long userId) {
         return createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
@@ -211,16 +214,16 @@ public class PublicChatService extends ChatService {
                                             if (!currentStations.contains(station.getId())) {
                                                 return listenerService.addBrandToListener(listener.getId(), station.getId());
                                             }
-
                                             return Uni.createFrom().voidItem();
                                         });
                             });
                 });
     }
-    protected List<Tool> getToolsForUser(boolean isAuthenticated) {
-        List<Tool> tools = new ArrayList<>();
+
+    protected List<LlmTool> getToolsForUser(boolean isAuthenticated) {
+        List<LlmTool> tools = new ArrayList<>();
         tools.add(SendEmailToOwnerTool.toTool());
-        
+
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
             tools.add(GetBrandCatalogSummary.toTool());
@@ -239,34 +242,32 @@ public class PublicChatService extends ChatService {
             tools.add(StartAuthTool.toTool());
             tools.add(VerifyCode.toTool());
         }
-        
+
         return tools;
     }
 
     @Override
-    protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history, IUser user) {
+    protected LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user) {
         boolean isAuthenticated = user.getEmail() != null && !user.getEmail().isBlank();
-        return buildMessageCreateParamsForUser(renderedPrompt, history, isAuthenticated);
+        return buildLlmRequestForUser(renderedPrompt, history, isAuthenticated);
     }
 
-    protected MessageCreateParams buildMessageCreateParamsForUser(String renderedPrompt, List<MessageParam> history, boolean isAuthenticated) {
-        MessageCreateParams.Builder builder = MessageCreateParams.builder()
+    protected LlmRequest buildLlmRequestForUser(String renderedPrompt, List<LlmMessage> history, boolean isAuthenticated) {
+        List<LlmTool> tools = getToolsForUser(isAuthenticated);
+
+        ChatLogger.tools(isAuthenticated, history.size(),
+                tools.stream().map(LlmTool::name).reduce((a, b) -> a + "," + b).orElse("none"));
+
+        return LlmRequest.builder()
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
-                .model(Model.CLAUDE_SONNET_4_5_20250929);
-
-        List<Tool> tools = getToolsForUser(isAuthenticated);
-        tools.forEach(builder::addTool);
-
-        ChatLogger.tools(isAuthenticated, history.size(),
-                tools.stream().map(Tool::name).reduce((a, b) -> a + "," + b).orElse("none"));
-
-        return builder.build();
+                .model(LlmModels.CLAUDE_SONNET_4_5)
+                .tools(tools)
+                .build();
     }
-    
 
-    protected Function<MessageCreateParams, Uni<Void>> createStreamFunction(
+    protected Function<LlmRequest, Uni<Void>> createStreamFunction(
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
@@ -274,115 +275,104 @@ public class PublicChatService extends ChatService {
             long userId) {
         return params -> handleFollowUpWithToolDetection(params, chunkHandler, completionHandler, connectionId, brandName, userId);
     }
-    
 
     protected Uni<Void> handleFollowUpWithToolDetection(
-            MessageCreateParams params,
+            LlmRequest request,
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
             String brandName,
             long userId) {
-        
-        boolean isAuthenticated = userId != 0;
-        
-        MessageCreateParams.Builder builder = MessageCreateParams.builder()
-                .maxTokens(params.maxTokens())
-                .system(java.util.Objects.requireNonNull(params.system().orElse(null)))
-                .messages(params.messages())
-                .model(params.model());
-        
-        for (Tool tool : getToolsForUser(isAuthenticated)) {
-            builder.addTool(tool);
-        }
-        
-        MessageCreateParams paramsWithTools = builder.build();
-        
-        return Uni.createFrom().completionStage(() -> llmClient.createMessage(paramsWithTools))
-                .flatMap(message -> {
-                    Optional<ToolUseBlock> toolUse = message.content().stream()
-                            .flatMap(block -> block.toolUse().stream())
-                            .findFirst();
 
-                    if (toolUse.isPresent()) {
-                        ChatLogger.followUp(toolUse.get().name());
-                        List<MessageParam> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, getChatType()));
+        boolean isAuthenticated = userId != 0;
+
+        LlmRequest requestWithTools = request.toBuilder()
+                .tools(getToolsForUser(isAuthenticated))
+                .build();
+
+        return Uni.createFrom().completionStage(() -> llmClient.createMessage(requestWithTools))
+                .flatMap(response -> {
+                    if (response.toolCall().isPresent()) {
+                        LlmToolCall toolCall = response.toolCall().get();
+                        ChatLogger.followUp(toolCall.name());
+                        List<LlmMessage> history = chatRepository.getConversationHistory(
+                                ChatRepository.sessionKey(userId, connectionId, getChatType()));
                         LOGGER.infof("[followUp] tool=%s userId=%d historySize=%d lastRole=%s",
-                                toolUse.get().name(), userId, history.size(),
-                                history.isEmpty() ? "n/a" : history.getLast().role().toString());
-                        return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
+                                toolCall.name(), userId, history.size(),
+                                history.isEmpty() ? "n/a" : history.getLast().role().name());
+                        return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
-                        return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);
+                        return streamResponse(request, chunkHandler, completionHandler, connectionId, brandName, userId);
                     }
                 }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
 
     @Override
-    protected Uni<Void> handleToolCall(ToolUseBlock toolUse,
+    protected Uni<Void> handleToolCall(LlmToolCall toolCall,
                                        Consumer<String> chunkHandler,
                                        Consumer<String> completionHandler,
                                        String connectionId,
                                        String brandName,
                                        long userId,
-                                       List<MessageParam> conversationHistory) {
+                                       List<LlmMessage> conversationHistory) {
 
-        Map<String, JsonValue> inputMap = extractInputMap(toolUse);
-        Function<MessageCreateParams, Uni<Void>> streamFn =
+        Map<String, Object> inputMap = toolCall.input();
+        Function<LlmRequest, Uni<Void>> streamFn =
                 createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
         String djName = assistantNameByConnectionId.getOrDefault(connectionId, "");
         String resolvedFollowUpPrompt = getFollowUpPrompt().replace("{{djName}}", djName);
 
-        return switch (toolUse.name()) {
+        return switch (toolCall.name()) {
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "get_brand_catalog_summary" -> GetBrandCatalogSummaryToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "perplexity_search" -> PerplexitySearchToolHandler.handle(
-                    toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
-case "listener_data" -> ListenerDataToolHandler.handle(
-                    toolUse, inputMap, listenerService, listenerLabelCache, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            case "listener_data" -> ListenerDataToolHandler.handle(
+                    toolCall, inputMap, listenerService, listenerLabelCache, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "upload_song" -> UploadSongToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, listenerService, userService, soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService, listenerLabelCache, brandService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "live_stream_info" -> LiveStreamInfoToolHandler.handle(
-                    toolUse, inputMap, playlistQueueService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, playlistQueueService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "find_community_member" -> FindCommunityMemberToolHandler.handle(
-                    toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "send_email_to_owner" -> SendEmailToOwnerToolHandler.handle(
-                    toolUse, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, brandService, userService, reactiveMailer, config.getFromAddress(), userId, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_auth" -> StartAuthToolHandler.handle(
-                    toolUse, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, keycloakAuthService, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "verify_code" -> VerifyCodeToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, brandName, metricPublisher, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, sessionManager, userService, controller, this, brandName, metricPublisher, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
-                    toolUse, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
-                    toolUse, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph,
+                    toolCall, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph,
                     config.getHost(), assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
-                    toolUse, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "send_ui_command" -> SendUICommandToolHandler.handle(
-                    toolUse, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "logoff" -> LogoffToolHandler.handle(
-                    toolUse, inputMap, sessionManager, userService, controller, this, metricPublisher, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, sessionManager, userService, controller, this, metricPublisher, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
-            default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
+            default -> Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolCall.name()));
         };
     }
 
@@ -415,7 +405,7 @@ case "listener_data" -> ListenerDataToolHandler.handle(
     }
 
     @Override
-    protected List<Tool> getAvailableTools() {
+    protected List<LlmTool> getAvailableTools() {
         return getToolsForUser(true);
     }
 
@@ -460,12 +450,9 @@ case "listener_data" -> ListenerDataToolHandler.handle(
                     chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.chunk(text, djName, connectionId).build().toJson());
                     chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
 
-                    MessageParam assistantMsg = MessageParam.builder()
-                            .role(MessageParam.Role.ASSISTANT)
-                            .content(MessageParam.Content.ofString(text))
-                            .build();
                     chatRepository.appendToConversation(
-                            ChatRepository.sessionKey(userId, connectionId, getChatType()), assistantMsg);
+                            ChatRepository.sessionKey(userId, connectionId, getChatType()),
+                            LlmMessage.text(LlmMessage.Role.ASSISTANT, text));
 
                     JsonObject botMessage = createMessage(MessageType.BOT, djName, text, System.currentTimeMillis(), connectionId);
                     chatRepository.saveChatMessage(userId, slugName, getChatType(), botMessage)
@@ -481,5 +468,4 @@ case "listener_data" -> ListenerDataToolHandler.handle(
     protected ChatType getChatType() {
         return ChatType.PUBLIC;
     }
-
 }

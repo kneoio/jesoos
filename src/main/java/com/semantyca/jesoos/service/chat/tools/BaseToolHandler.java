@@ -1,13 +1,10 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.ToolResultBlockParam;
-import com.anthropic.models.messages.ToolUseBlock;
-import com.anthropic.models.messages.ToolUseBlockParam;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmModels;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,44 +28,20 @@ public abstract class BaseToolHandler {
         chunkHandler.accept(ChatMessageDTO.bot(message, username, connectionId).build().toJson());
     }
 
-    protected void addToolUseToHistory(ToolUseBlock toolUse, List<MessageParam> conversationHistory) {
-        MessageParam assistantToolUseMsg = MessageParam.builder()
-                .role(MessageParam.Role.ASSISTANT)
-                .content(MessageParam.Content.ofBlockParams(
-                        List.of(ContentBlockParam.ofToolUse(
-                                ToolUseBlockParam.builder()
-                                        .name(toolUse.name())
-                                        .id(toolUse.id())
-                                        .input(toolUse._input())
-                                        .build()
-                        ))
-                ))
-                .build();
-        conversationHistory.add(assistantToolUseMsg);
+    protected void addToolUseToHistory(LlmToolCall toolCall, List<LlmMessage> conversationHistory) {
+        conversationHistory.add(LlmMessage.toolUse(toolCall));
     }
 
-    protected void addToolResultToHistory(ToolUseBlock toolUse, String resultContent, List<MessageParam> conversationHistory) {
-        MessageParam toolResultMsg = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(MessageParam.Content.ofBlockParams(
-                        List.of(ContentBlockParam.ofToolResult(
-                                ToolResultBlockParam.builder()
-                                        .toolUseId(toolUse.id())
-                                        .content(resultContent)
-                                        .build()
-                        ))
-                ))
-                .build();
-        conversationHistory.add(toolResultMsg);
+    protected void addToolResultToHistory(LlmToolCall toolCall, String resultContent, List<LlmMessage> conversationHistory) {
+        conversationHistory.add(LlmMessage.toolResult(toolCall.id(), resultContent));
     }
 
-    protected MessageCreateParams buildFollowUpParams(String systemPrompt, List<MessageParam> conversationHistory) {
-        return MessageCreateParams.builder()
+    protected LlmRequest buildFollowUpParams(String systemPrompt, List<LlmMessage> conversationHistory) {
+        return LlmRequest.builder()
                 .maxTokens(1024L)
                 .system(systemPrompt)
                 .messages(conversationHistory)
-                .model(Model.CLAUDE_HAIKU_4_5_20251001)
+                .model(LlmModels.CLAUDE_HAIKU_4_5)
                 .build();
     }
-
 }

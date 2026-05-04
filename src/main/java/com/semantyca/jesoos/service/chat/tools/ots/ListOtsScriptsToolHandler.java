@@ -1,10 +1,9 @@
 package com.semantyca.jesoos.service.chat.tools.ots;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.service.ScriptService;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
@@ -24,17 +23,16 @@ public class ListOtsScriptsToolHandler extends BaseToolHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ListOtsScriptsToolHandler.class);
 
     public static Uni<Void> handle(
-            ToolUseBlock toolUse,
-            Map<String, JsonValue> inputMap,
+            LlmToolCall toolCall,
+            Map<String, Object> inputMap,
             ScriptService scriptService,
             Consumer<String> chunkHandler,
             String connectionId,
-            List<MessageParam> conversationHistory,
+            List<LlmMessage> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<LlmRequest, Uni<Void>> streamFn
     ) {
         ListOtsScriptsToolHandler handler = new ListOtsScriptsToolHandler();
-
         ScriptFilter filter = new ScriptFilter();
         filter.setTimingMode(SceneTimingMode.RELATIVE_TO_STREAM_START);
 
@@ -45,33 +43,25 @@ public class ListOtsScriptsToolHandler extends BaseToolHandler {
                         JsonObject entry = new JsonObject()
                                 .put("id", script.getId().toString())
                                 .put("name", script.getName());
-
                         if (script.getRequiredVariables() != null && !script.getRequiredVariables().isEmpty()) {
                             JsonArray vars = new JsonArray();
                             script.getRequiredVariables().forEach(v -> vars.add(new JsonObject()
-                                    .put("name", v.getName())
-                                    .put("description", v.getDescription())
-                                    .put("type", v.getType())
-                                    .put("required", v.isRequired())));
+                                    .put("name", v.getName()).put("description", v.getDescription())
+                                    .put("type", v.getType()).put("required", v.isRequired())));
                             entry.put("requiredVariables", vars);
                         }
-
                         result.add(entry);
                     });
-
                     LOGGER.info("[ListOtsScripts] Found {} scripts", scripts.size());
-
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, result.encode(), conversationHistory);
-
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
+                    handler.addToolUseToHistory(toolCall, conversationHistory);
+                    handler.addToolResultToHistory(toolCall, result.encode(), conversationHistory);
+                    return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 })
                 .onFailure().recoverWithUni(err -> {
                     LOGGER.error("[ListOtsScripts] Failed", err);
                     JsonObject errorPayload = new JsonObject().put("ok", false).put("error", err.getMessage());
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
+                    handler.addToolUseToHistory(toolCall, conversationHistory);
+                    handler.addToolResultToHistory(toolCall, errorPayload.encode(), conversationHistory);
                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 });
     }

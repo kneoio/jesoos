@@ -2,18 +2,18 @@ package com.semantyca.jesoos.service.chat.llm;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.core.JsonValue;
 import com.anthropic.core.http.AsyncStreamResponse;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.RawContentBlockDelta;
-import com.anthropic.models.messages.RawMessageStreamEvent;
+import com.anthropic.models.messages.*;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-public class AnthropicChatLlmClient {
+public class AnthropicChatLlmClient implements ChatLlmClient {
+
     private final AnthropicClient client;
 
     public AnthropicChatLlmClient(String apiKey) {
@@ -22,17 +22,18 @@ public class AnthropicChatLlmClient {
                 .build();
     }
 
-
-    public CompletionStage<Message> createMessage(MessageCreateParams params) {
-        return client.async().messages().create(params);
+    @Override
+    public CompletionStage<LlmResponse> createMessage(LlmRequest request) {
+        return client.async().messages().create(toMessageCreateParams(request))
+                .thenApply(AnthropicChatLlmClient::toResponse);
     }
 
-
-    public CompletionStage<String> streamText(MessageCreateParams params, Consumer<String> chunkConsumer) {
+    @Override
+    public CompletionStage<String> streamText(LlmRequest request, Consumer<String> chunkConsumer) {
         StringBuilder fullResponse = new StringBuilder();
         boolean[] inThinking = {false};
 
-        return client.async().messages().createStreaming(params)
+        return client.async().messages().createStreaming(toMessageCreateParams(request))
                 .subscribe(new AsyncStreamResponse.Handler<>() {
                     @Override
                     public void onNext(RawMessageStreamEvent chunk) {
@@ -42,30 +43,119 @@ public class AnthropicChatLlmClient {
                                 if (delta.text().isPresent()) {
                                     String text = delta.text().get().text();
                                     fullResponse.append(text);
-
-                                    if (text.contains("<thinking>")) {
-                                        inThinking[0] = true;
-                                    }
-                                    if (text.contains("</thinking>")) {
-                                        inThinking[0] = false;
-                                    }
-
-                                    if (!inThinking[0]
-                                            && !text.contains("<thinking>")
-                                            && !text.contains("</thinking>")) {
+                                    if (text.contains("<thinking>")) inThinking[0] = true;
+                                    if (text.contains("</thinking>")) inThinking[0] = false;
+                                    if (!inThinking[0] && !text.contains("<thinking>") && !text.contains("</thinking>")) {
                                         chunkConsumer.accept(text);
                                     }
                                 }
                             }
-                        } catch (Exception ignored) {
-                        }
+                        } catch (Exception ignored) {}
                     }
 
                     @Override
-                    public void onComplete(@NotNull Optional<Throwable> error) {
-                    }
+                    public void onComplete(@NotNull Optional<Throwable> error) {}
                 })
                 .onCompleteFuture()
                 .thenApply(ignored -> fullResponse.toString());
+    }
+
+    // ── Conversion helpers ────────────────────────────────────────────────────
+
+    private static MessageCreateParams toMessageCreateParams(LlmRequest request) {
+        MessageCreateParams.Builder builder = MessageCreateParams.builder()
+                .model(request.model())
+                .maxTokens(request.maxTokens());
+
+        if (request.system() != null) {
+            builder.system(request.system());
+        }
+
+        request.messages().forEach(msg -> builder.addMessage(toMessageParam(msg)));
+        request.tools().forEach(tool -> builder.addTool(toTool(tool)));
+
+        return builder.build();
+    }
+
+    private static MessageParam toMessageParam(LlmMessage msg) {
+        return switch (msg.kind()) {
+            case TEXT -> MessageParam.builder()
+                    .role(msg.role() == LlmMessage.Role.USER ? MessageParam.Role.USER : MessageParam.Role.ASSISTANT)
+                    .content(MessageParam.Content.ofString(msg.text()))
+                    .build();
+            case TOOL_USE -> MessageParam.builder()
+                    .role(MessageParam.Role.ASSISTANT)
+                    .content(MessageParam.Content.ofBlockParams(List.of(
+                            ContentBlockParam.ofToolUse(
+                                    ToolUseBlockParam.builder()
+                                            .name(msg.toolCall().name())
+                                            .id(msg.toolCall().id())
+                                            .input(JsonValue.from(msg.toolCall().input()))
+                                            .build()
+                            )
+                    )))
+                    .build();
+            case TOOL_RESULT -> MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(MessageParam.Content.ofBlockParams(List.of(
+                            ContentBlockParam.ofToolResult(
+                                    ToolResultBlockParam.builder()
+                                            .toolUseId(msg.toolResultId())
+                                            .content(msg.toolResultContent())
+                                            .build()
+                            )
+                    )))
+                    .build();
+        };
+    }
+
+    private static Tool toTool(LlmTool llmTool) {
+        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
+                .properties(JsonValue.from(llmTool.properties()));
+        if (!llmTool.required().isEmpty()) {
+            schemaBuilder.required(llmTool.required());
+        }
+        return Tool.builder()
+                .name(llmTool.name())
+                .description(llmTool.description())
+                .inputSchema(schemaBuilder.build())
+                .build();
+    }
+
+    private static LlmResponse toResponse(Message message) {
+        String text = message.content().stream()
+                .flatMap(block -> block.text().stream())
+                .map(TextBlock::text)
+                .findFirst().orElse("");
+
+        LlmToolCall toolCall = message.content().stream()
+                .flatMap(block -> block.toolUse().stream())
+                .findFirst()
+                .map(tu -> new LlmToolCall(tu.id(), tu.name(), extractInput(tu._input())))
+                .orElse(null);
+
+        return new LlmResponse(text, toolCall);
+    }
+
+    static Map<String, Object> extractInput(JsonValue inputVal) {
+        return inputVal.asObject()
+                .orElse(Collections.emptyMap())
+                .entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> toObject(e.getValue())));
+    }
+
+    private static Object toObject(JsonValue value) {
+        var str = value.asString();
+        if (str.isPresent()) return str.get();
+        var bool = value.asBoolean();
+        if (bool.isPresent()) return bool.get();
+        var num = value.asNumber();
+        if (num.isPresent()) return num.get();
+        var arr = value.asArray();
+        if (arr.isPresent()) return arr.get().stream().map(AnthropicChatLlmClient::toObject).toList();
+        var obj = value.asObject();
+        if (obj.isPresent()) return obj.get().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> toObject(e.getValue())));
+        return null;
     }
 }

@@ -1,10 +1,9 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.ToolUseBlock;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
@@ -19,26 +18,22 @@ public class SendUICommandToolHandler extends BaseToolHandler {
     private static final Logger LOGGER = Logger.getLogger(SendUICommandToolHandler.class);
 
     public static Uni<Void> handle(
-            ToolUseBlock toolUse,
-            Map<String, JsonValue> inputMap,
+            LlmToolCall toolCall,
+            Map<String, Object> inputMap,
             Consumer<String> chunkHandler,
             String connectionId,
-            List<MessageParam> conversationHistory,
+            List<LlmMessage> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<LlmRequest, Uni<Void>> streamFn
     ) {
         SendUICommandToolHandler handler = new SendUICommandToolHandler();
-
-        String command = inputMap.getOrDefault("command", JsonValue.from(""))
-                .toString().replace("\"", "").trim();
+        String command = ((String) inputMap.getOrDefault("command", "")).trim();
 
         JsonObject payload = new JsonObject();
         try {
-            if (inputMap.containsKey("payload")) {
-                String raw = inputMap.get("payload").toString();
-                if (!raw.isBlank() && !raw.equals("null")) {
-                    payload = new JsonObject(raw);
-                }
+            Object rawPayload = inputMap.get("payload");
+            if (rawPayload instanceof Map<?, ?> payloadMap) {
+                payloadMap.forEach((k, v) -> payload.put(k.toString(), v));
             }
         } catch (Exception e) {
             LOGGER.warnf("[SendUICommand] Invalid payload, using empty object: %s", e.getMessage());
@@ -46,20 +41,17 @@ public class SendUICommandToolHandler extends BaseToolHandler {
 
         if (command.isBlank()) {
             JsonObject err = new JsonObject().put("ok", false).put("error", "command is required");
-            handler.addToolUseToHistory(toolUse, conversationHistory);
-            handler.addToolResultToHistory(toolUse, err.encode(), conversationHistory);
+            handler.addToolUseToHistory(toolCall, conversationHistory);
+            handler.addToolResultToHistory(toolCall, err.encode(), conversationHistory);
             return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
         }
 
-        LOGGER.infof("[SendUICommand] Sending command '{}' to connection %s", command, connectionId);
+        LOGGER.infof("[SendUICommand] Sending command '%s' to connection %s", command, connectionId);
         chunkHandler.accept(ChatMessageDTO.command(command, payload, connectionId).build().toJson());
 
-        JsonObject result = new JsonObject()
-                .put("ok", true)
-                .put("command", command);
-
-        handler.addToolUseToHistory(toolUse, conversationHistory);
-        handler.addToolResultToHistory(toolUse, result.encode(), conversationHistory);
+        JsonObject result = new JsonObject().put("ok", true).put("command", command);
+        handler.addToolUseToHistory(toolCall, conversationHistory);
+        handler.addToolResultToHistory(toolCall, result.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
 }

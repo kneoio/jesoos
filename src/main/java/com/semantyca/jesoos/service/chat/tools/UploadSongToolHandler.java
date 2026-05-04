@@ -1,10 +1,5 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.ToolUseBlock;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LifecycleStatus;
 import com.semantyca.core.model.cnst.RlsActionType;
@@ -20,6 +15,9 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.SongEmitter;
@@ -32,6 +30,7 @@ import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,8 +42,8 @@ public class UploadSongToolHandler extends BaseToolHandler {
     private static final Logger LOGGER = Logger.getLogger(UploadSongToolHandler.class);
 
     public static Uni<Void> handle(
-            ToolUseBlock toolUse,
-            Map<String, JsonValue> inputMap,
+            LlmToolCall toolCall,
+            Map<String, Object> inputMap,
             ListenerService listenerService,
             UserService userService,
             SoundFragmentService soundFragmentService,
@@ -58,59 +57,44 @@ public class UploadSongToolHandler extends BaseToolHandler {
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
-            List<MessageParam> conversationHistory,
+            List<LlmMessage> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<LlmRequest, Uni<Void>> streamFn
     ) {
         UploadSongToolHandler handler = new UploadSongToolHandler();
+        String tempFilename = (String) inputMap.getOrDefault("temp_filename", "");
+        String title = (String) inputMap.getOrDefault("title", "");
+        String artist = (String) inputMap.getOrDefault("artist", "");
+        String description = (String) inputMap.getOrDefault("description", "");
+        String introText = (String) inputMap.getOrDefault("intro_text", "");
 
-        String tempFilename = inputMap.getOrDefault("temp_filename", JsonValue.from("")).toString().replace("\"", "");
-        String title = inputMap.getOrDefault("title", JsonValue.from("")).toString().replace("\"", "");
-        String artist = inputMap.getOrDefault("artist", JsonValue.from("")).toString().replace("\"", "");
-        String description = inputMap.getOrDefault("description", JsonValue.from("")).toString().replace("\"", "");
-        String introText = inputMap.getOrDefault("intro_text", JsonValue.from("")).toString().replace("\"", "");
-
-        List<String> genreNames = List.of();
-        try {
-            if (inputMap.containsKey("genre_names")) {
-                var node = new ObjectMapper().readTree(inputMap.get("genre_names").toString());
-                if (node.isArray()) {
-                    genreNames = new java.util.ArrayList<>();
-                    for (var n : node) genreNames.add(n.asText());
-                }
-            }
-        } catch (Exception ignored) {}
-
-        if (tempFilename.isEmpty() || title.isEmpty() || artist.isEmpty()) {
-            LOGGER.warnf("[UploadSong] Missing required fields — temp_filename='%s', title='%s', artist='%s'", tempFilename, title, artist);
-            return handler.error(toolUse, "temp_filename, title and artist are required", conversationHistory, systemPromptCall2, streamFn);
+        List<String> genreNames = new ArrayList<>();
+        if (inputMap.containsKey("genre_names") && inputMap.get("genre_names") instanceof List<?> list) {
+            list.forEach(g -> genreNames.add(g.toString()));
         }
 
-        final List<String> finalGenreNames = genreNames;
+        if (tempFilename.isEmpty() || title.isEmpty() || artist.isEmpty()) {
+            return handler.error(toolCall, "temp_filename, title and artist are required", conversationHistory, systemPromptCall2, streamFn);
+        }
 
         return listenerService.getByUserId(userId)
                 .flatMap(listener -> {
                     if (listener == null) {
-                        return handler.error(toolUse, "Listener not found.", conversationHistory, systemPromptCall2, streamFn);
+                        return handler.error(toolCall, "Listener not found.", conversationHistory, systemPromptCall2, streamFn);
                     }
-                    java.util.UUID artistLabelId = labelCache.get("artist");
-                    boolean isArtist = artistLabelId != null
-                            && listener.getLabels() != null
-                            && listener.getLabels().contains(artistLabelId);
-                    LOGGER.infof("[UploadSong] artistLabelId=%s, listenerLabels=%s, isArtist=%s", artistLabelId, listener.getLabels(), isArtist);
+                    UUID artistLabelId = labelCache.get("artist");
+                    boolean isArtist = artistLabelId != null && listener.getLabels() != null && listener.getLabels().contains(artistLabelId);
                     if (!isArtist) {
-                        return handler.error(toolUse,
-                                "Listener profile does not have the station 'artist' label yet (not the same as email or sign-in). If the user wants to upload, call listener_data add_label with label_identifier=artist after they confirm, then call upload_song again.",
+                        return handler.error(toolCall,
+                                "Listener profile does not have the station 'artist' label yet. If the user wants to upload, call listener_data add_label with label_identifier=artist after they confirm, then call upload_song again.",
                                 conversationHistory, systemPromptCall2, streamFn);
                     }
 
                     return userService.get(userId).flatMap(userOpt -> {
-                        if (userOpt.isEmpty()) {
-                            return handler.error(toolUse, "User not found.", conversationHistory, systemPromptCall2, streamFn);
-                        }
+                        if (userOpt.isEmpty()) return handler.error(toolCall, "User not found.", conversationHistory, systemPromptCall2, streamFn);
                         IUser user = userOpt.get();
 
-                        return aiHelperService.resolveGenreNamesToIds(finalGenreNames)
+                        return aiHelperService.resolveGenreNamesToIds(genreNames)
                                 .flatMap(genreIds -> {
                                     SoundFragmentDTO dto = new SoundFragmentDTO();
                                     dto.setTitle(title);
@@ -129,35 +113,23 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                     dto.getRlsActions().add(ownerAccess);
 
                                     return brandPool.get(brandName).flatMap(stream -> {
-                                        Uni<java.util.UUID> brandIdUni = stream != null
+                                        Uni<UUID> brandIdUni = stream != null
                                                 ? Uni.createFrom().item(stream.getId())
-                                                : brandService.getBySlugName(brandName)
-                                                        .map(brand -> brand != null ? brand.getId() : null);
+                                                : brandService.getBySlugName(brandName).map(brand -> brand != null ? brand.getId() : null);
 
                                         return brandIdUni.flatMap(brandId -> {
-                                            if (brandId != null) {
-                                                dto.setRepresentedInBrands(List.of(brandId));
-                                            }
-
-                                            LOGGER.infof("[UploadSong] Attempting upsert — file='%s', title='%s', artist='%s', genres=%s, stationActive=%s",
-                                                    tempFilename, title, artist, finalGenreNames, stream != null);
+                                            if (brandId != null) dto.setRepresentedInBrands(List.of(brandId));
                                             handler.sendProcessingChunk(chunkHandler, connectionId, "Saving your track...");
 
                                             return soundFragmentService.upsert("new", dto, user, LanguageCode.en)
                                                     .flatMap(saved -> {
                                                         UUID songId = saved.getId();
-                                                        LOGGER.infof("[UploadSong] Saved contribution '%s' by '%s' id=%s", title, artist, songId);
-
                                                         if (stream == null) {
-                                                            LOGGER.infof("[UploadSong] Station offline — song saved to catalog, broadcast skipped");
-                                                            JsonObject payload = new JsonObject()
-                                                                    .put("ok", true)
-                                                                    .put("song_id", songId.toString())
-                                                                    .put("title", title)
-                                                                    .put("artist", artist)
-                                                                    .put("queued", false);
-                                                            handler.addToolUseToHistory(toolUse, conversationHistory);
-                                                            handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                                                            JsonObject payload = new JsonObject().put("ok", true)
+                                                                    .put("song_id", songId.toString()).put("title", title)
+                                                                    .put("artist", artist).put("queued", false);
+                                                            handler.addToolUseToHistory(toolCall, conversationHistory);
+                                                            handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
                                                             return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                                                         }
 
@@ -167,49 +139,34 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                                     PromptEntry promptEntry = new PromptEntry();
                                                                     promptEntry.setPromptId(UUID.randomUUID());
                                                                     promptEntry.setLanguage(primaryLang);
-
                                                                     return soundFragmentService.getById(songId)
                                                                             .flatMap(soundFragment -> {
                                                                                 SongEntry songEntry = new SongEntry(soundFragment, promptEntry, 0);
-                                                                                TimelineEntry entry = new TimelineEntry(
-                                                                                        0, LocalDateTime.now(),
-                                                                                        List.of(songEntry),
-                                                                                        MixingType.INTRO_SONG, true, false
-                                                                                );
+                                                                                TimelineEntry entry = new TimelineEntry(0, LocalDateTime.now(), List.of(songEntry), MixingType.INTRO_SONG, true, false);
                                                                                 LiveScene liveScene = new LiveScene();
                                                                                 liveScene.setSceneId(UUID.randomUUID());
                                                                                 liveScene.setSceneTitle("chat-artist-contribution");
                                                                                 liveScene.setTimeZone(stream.getTimeZone());
                                                                                 liveScene.setTraceId(UUID.randomUUID());
                                                                                 liveScene.setTimeline(List.of(entry));
-
-                                                                                return songEmitter.sendWithCustomIntro(
-                                                                                        brandName, liveScene, entry,
+                                                                                return songEmitter.sendWithCustomIntro(brandName, liveScene, entry,
                                                                                         introText.isBlank() ? "A fresh track just arrived — " + title + " by " + artist + "!" : introText,
-                                                                                        agent, stream.getTimeZone(), 8
-                                                                                );
+                                                                                        agent, stream.getTimeZone(), 8);
                                                                             });
                                                                 })
-                                                                .onFailure().recoverWithItem(err -> {
-                                                                    LOGGER.warnf("[UploadSong] Song saved (id=%s) but broadcast scheduling failed: %s", songId, err.getMessage());
-                                                                    return null;
-                                                                })
+                                                                .onFailure().recoverWithItem(err -> null)
                                                                 .flatMap(broadcastResult -> {
-                                                                    JsonObject payload = new JsonObject()
-                                                                            .put("ok", true)
-                                                                            .put("song_id", songId.toString())
-                                                                            .put("title", title)
-                                                                            .put("artist", artist)
-                                                                            .put("queued", broadcastResult != null);
-
-                                                                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                                                                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+                                                                    JsonObject payload = new JsonObject().put("ok", true)
+                                                                            .put("song_id", songId.toString()).put("title", title)
+                                                                            .put("artist", artist).put("queued", broadcastResult != null);
+                                                                    handler.addToolUseToHistory(toolCall, conversationHistory);
+                                                                    handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
                                                                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                                                                 });
                                                     })
                                                     .onFailure().recoverWithUni(err -> {
                                                         LOGGER.error("[UploadSong] Failed", err);
-                                                        return handler.error(toolUse, "Failed to save song: " + err.getMessage(), conversationHistory, systemPromptCall2, streamFn);
+                                                        return handler.error(toolCall, "Failed to save song: " + err.getMessage(), conversationHistory, systemPromptCall2, streamFn);
                                                     });
                                         });
                                     });
@@ -218,12 +175,11 @@ public class UploadSongToolHandler extends BaseToolHandler {
                 });
     }
 
-    private Uni<Void> error(ToolUseBlock toolUse, String message,
-                             List<MessageParam> history, String followUp,
-                             Function<MessageCreateParams, Uni<Void>> streamFn) {
+    private Uni<Void> error(LlmToolCall toolCall, String message, List<LlmMessage> history, String followUp,
+                             Function<LlmRequest, Uni<Void>> streamFn) {
         JsonObject payload = new JsonObject().put("ok", false).put("error", message);
-        addToolUseToHistory(toolUse, history);
-        addToolResultToHistory(toolUse, payload.encode(), history);
+        addToolUseToHistory(toolCall, history);
+        addToolResultToHistory(toolCall, payload.encode(), history);
         return streamFn.apply(buildFollowUpParams(followUp, history));
     }
 }

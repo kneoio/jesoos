@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.repository;
 
-import com.anthropic.models.messages.MessageParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.core.repository.AsyncRepository;
@@ -8,6 +7,7 @@ import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.jesoos.model.chat.ChatMessage;
 import com.semantyca.jesoos.model.cnst.ChatType;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -35,7 +35,7 @@ public class ChatRepository extends AsyncRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChatRepository.class);
     private static final EntityData entityData = MixplaNameResolver.create().getEntityNames(CHAT_MESSAGE);
 
-    private final ConcurrentHashMap<String, List<MessageParam>> conversationHistoryCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<LlmMessage>> conversationHistoryCache = new ConcurrentHashMap<>();
 
     @Inject
     public ChatRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
@@ -48,7 +48,7 @@ public class ChatRepository extends AsyncRepository {
             data = message;
         }
 
-        String sql = "INSERT INTO " + entityData.getTableName() + 
+        String sql = "INSERT INTO " + entityData.getTableName() +
                 " (id, user_id, brand_name, chat_type, message_type, username, content, connection_id, timestamp) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
 
@@ -70,7 +70,7 @@ public class ChatRepository extends AsyncRepository {
                         .addString(connectionId)
                         .addLocalDateTime(timestamp))
                 .replaceWithVoid()
-                .onFailure().invoke(throwable -> 
+                .onFailure().invoke(throwable ->
                     LOGGER.error("Failed to save chat message for user {} and chatType {}", userId, chatType, throwable)
                 );
     }
@@ -107,11 +107,11 @@ public class ChatRepository extends AsyncRepository {
                 });
     }
 
-    public List<MessageParam> getConversationHistory(String sessionKey) {
+    public List<LlmMessage> getConversationHistory(String sessionKey) {
         return conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
     }
 
-    public void appendToConversation(String sessionKey, MessageParam message) {
+    public void appendToConversation(String sessionKey, LlmMessage message) {
         conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>()).add(message);
     }
 
@@ -119,9 +119,9 @@ public class ChatRepository extends AsyncRepository {
         conversationHistoryCache.remove(sessionKey);
     }
 
-    public void replaceConversationHistory(String sessionKey, List<MessageParam> history) {
-        List<MessageParam> snapshot = new ArrayList<>(history);
-        List<MessageParam> live = conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
+    public void replaceConversationHistory(String sessionKey, List<LlmMessage> history) {
+        List<LlmMessage> snapshot = new ArrayList<>(history);
+        List<LlmMessage> live = conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
         live.clear();
         live.addAll(snapshot);
     }
@@ -129,21 +129,23 @@ public class ChatRepository extends AsyncRepository {
     public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId, ChatType chatType) {
         String anonKey = sessionKey(0, connectionId, chatType);
         String userKey = sessionKey(newUserId, connectionId, chatType);
-        List<MessageParam> anonHistory = conversationHistoryCache.remove(anonKey);
-        List<MessageParam> existingUserHistory = conversationHistoryCache.get(userKey);
+        List<LlmMessage> anonHistory = conversationHistoryCache.remove(anonKey);
+        List<LlmMessage> existingUserHistory = conversationHistoryCache.get(userKey);
         LOGGER.info("[migrate] conn={} userId={} anonSize={} existingUserSize={}",
                 connectionId, newUserId,
                 anonHistory != null ? anonHistory.size() : 0,
                 existingUserHistory != null ? existingUserHistory.size() : 0);
         if (anonHistory != null && existingUserHistory != null && !existingUserHistory.isEmpty()) {
-            String lastAnonRole = anonHistory.isEmpty() ? "n/a" : anonHistory.get(anonHistory.size() - 1).role().toString();
-            String firstExistingRole = existingUserHistory.get(0).role().toString();
-            LOGGER.warn("[migrate] boundary roles: lastAnon={} firstExisting={} — consecutive same-role risk if equal",
-                    lastAnonRole, firstExistingRole);
+            LlmMessage lastAnon = anonHistory.isEmpty() ? null : anonHistory.get(anonHistory.size() - 1);
+            LlmMessage firstExisting = existingUserHistory.get(0);
+            if (lastAnon != null) {
+                LOGGER.warn("[migrate] boundary roles: lastAnon={} firstExisting={} — consecutive same-role risk if equal",
+                        lastAnon.role().name(), firstExisting.role().name());
+            }
         }
         if (anonHistory != null) {
             conversationHistoryCache.merge(userKey, anonHistory, (existing, migrated) -> {
-                List<MessageParam> merged = new ArrayList<>(migrated);
+                List<LlmMessage> merged = new ArrayList<>(migrated);
                 merged.addAll(existing);
                 LOGGER.info("[migrate] merged result size={}", merged.size());
                 return merged;
