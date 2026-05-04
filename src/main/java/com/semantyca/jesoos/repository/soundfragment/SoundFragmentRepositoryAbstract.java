@@ -117,7 +117,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     }
 
     private Uni<List<UUID>> loadLabels(UUID soundFragmentId) {
-        String sql = "SELECT label_id FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
+        String sql = "SELECT label_id FROM mixpla__sound_fragment_labels WHERE id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(soundFragmentId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -128,7 +128,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
 
     private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {
         String sql = "SELECT g.id FROM __genres g " +
-                "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
+                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
                 "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
 
         return client.preparedQuery(sql)
@@ -159,7 +159,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         StringBuilder conditions = new StringBuilder();
 
         if (filter.getGenre() != null && !filter.getGenre().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 ")
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_genres sfg2 ")
                     .append("WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
             for (int i = 0; i < filter.getGenre().size(); i++) {
                 if (i > 0) conditions.append(", ");
@@ -169,7 +169,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         }
 
         if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_labels sfl ")
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl ")
                     .append("WHERE sfl.id = t.id AND sfl.label_id IN (");
             for (int i = 0; i < filter.getLabels().size(); i++) {
                 if (i > 0) conditions.append(", ");

@@ -27,7 +27,7 @@ public class SoundFragmentBrandAssociationHandler {
             return Uni.createFrom().voidItem();
         }
 
-        String insertBrandsSql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
+        String insertBrandsSql = "INSERT INTO mixpla__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
         List<Tuple> insertParams = brandsToAdd.stream()
                 .map(brandId -> Tuple.of(brandId, soundFragmentId))
                 .collect(Collectors.toList());
@@ -42,7 +42,7 @@ public class SoundFragmentBrandAssociationHandler {
             return Uni.createFrom().voidItem();
         }
 
-        String getCurrentBrandsSql = "SELECT brand_id FROM kneobroadcaster__brand_sound_fragments WHERE sound_fragment_id = $1";
+        String getCurrentBrandsSql = "SELECT brand_id FROM mixpla__brand_sound_fragments WHERE sound_fragment_id = $1";
 
         return tx.preparedQuery(getCurrentBrandsSql)
                 .execute(Tuple.of(soundFragmentId))
@@ -70,7 +70,7 @@ public class SoundFragmentBrandAssociationHandler {
             return Uni.createFrom().voidItem();
         }
 
-        String deleteBrandsSql = "DELETE FROM kneobroadcaster__brand_sound_fragments WHERE sound_fragment_id = $1 AND brand_id = ANY($2)";
+        String deleteBrandsSql = "DELETE FROM mixpla__brand_sound_fragments WHERE sound_fragment_id = $1 AND brand_id = ANY($2)";
         UUID[] brandsArray = brandsToRemove.toArray(new UUID[0]);
         return tx.preparedQuery(deleteBrandsSql)
                 .execute(Tuple.of(soundFragmentId, brandsArray))

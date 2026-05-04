@@ -322,7 +322,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return Uni.createFrom().voidItem();
         }
 
-        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
+        String insertSql = "INSERT INTO mixpla__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
         List<Tuple> params = genreIds.stream()
                 .map(id -> Tuple.of(soundFragmentId, id))
                 .collect(Collectors.toList());
@@ -358,13 +358,13 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     private Uni<Void> upsertLabels(SqlClient tx, UUID fragmentId, List<UUID> labels) {
         if (labels == null || labels.isEmpty()) {
-            return tx.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")
+            return tx.preparedQuery("DELETE FROM mixpla__sound_fragment_labels WHERE id = $1")
                     .execute(Tuple.of(fragmentId))
                     .replaceWithVoid();
         }
 
-        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
-        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_labels (id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+        String deleteSql = "DELETE FROM mixpla__sound_fragment_labels WHERE id = $1";
+        String insertSql = "INSERT INTO mixpla__sound_fragment_labels (id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
 
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(fragmentId))
@@ -482,7 +482,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     }
 
     private Uni<Void> updateGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
-        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
+        String deleteSql = "DELETE FROM mixpla__sound_fragment_genres WHERE sound_fragment_id = $1";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(soundFragmentId))
                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIds));

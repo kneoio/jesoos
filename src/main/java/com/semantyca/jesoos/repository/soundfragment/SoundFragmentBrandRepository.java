@@ -47,7 +47,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(", similarity(t.search_name, $3) AS sim");
         }
         sql.append(" FROM ").append(entityData.getTableName()).append(" t ")
-                .append("JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ")
+                .append("JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ")
                 .append("JOIN ").append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
                 .append("WHERE bsf.brand_id = $1 AND rls.reader = $2 AND t.archived = 0");
 
@@ -79,20 +79,20 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
         String artistsSql = "SELECT t.artist, COUNT(*) AS song_count " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG' AND t.artist IS NOT NULL AND t.artist <> '' " +
                 "GROUP BY t.artist ORDER BY song_count DESC";
 
         String genresSql = "SELECT g.identifier, COUNT(DISTINCT t.id) AS song_count " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN kneobroadcaster__sound_fragment_genres sfg ON sfg.sound_fragment_id = t.id " +
+                "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN mixpla__sound_fragment_genres sfg ON sfg.sound_fragment_id = t.id " +
                 "JOIN __genres g ON g.id = sfg.genre_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG' " +
                 "GROUP BY g.identifier ORDER BY song_count DESC";
 
         String totalSql = "SELECT COUNT(*) AS total FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG'";
 
         Uni<RowSet<Row>> artistsUni = client.preparedQuery(artistsSql).execute(Tuple.of(brandId));
@@ -124,7 +124,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType, final int limit, final int offset) {
         String sql = "SELECT t.* " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = $2 " +
                 "ORDER BY bsf.played_by_brand_count";
 
@@ -171,7 +171,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     private Uni<List<LabelDTO>> loadLabels(UUID soundFragmentId) {
         String sql = "SELECT l.id, l.identifier, l.color, l.font_color FROM __labels l " +
-                "JOIN kneobroadcaster__sound_fragment_labels sfl ON l.id = sfl.label_id " +
+                "JOIN mixpla__sound_fragment_labels sfl ON l.id = sfl.label_id " +
                 "WHERE sfl.id = $1 ORDER BY l.identifier";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(soundFragmentId))
@@ -189,7 +189,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     private Uni<List<GenreDTO>> loadGenres(UUID soundFragmentId) {
         String sql = "SELECT g.id, g.identifier, g.color, g.font_color, g.rank FROM __genres g " +
-                "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
+                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
                 "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(soundFragmentId))
@@ -225,7 +225,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                         ));
                     }
 
-                    String selectSql = "SELECT rated_by_brand_count, last_rated_at FROM kneobroadcaster__brand_sound_fragments " +
+                    String selectSql = "SELECT rated_by_brand_count, last_rated_at FROM mixpla__brand_sound_fragments " +
                             "WHERE brand_id = $1 AND sound_fragment_id = $2";
 
                     return client.preparedQuery(selectSql)
@@ -264,7 +264,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                                     newRating = 200;
                                 }
 
-                                String updateSql = "UPDATE kneobroadcaster__brand_sound_fragments " +
+                                String updateSql = "UPDATE mixpla__brand_sound_fragments " +
                                         "SET rated_by_brand_count = $1, last_rated_at = NOW() " +
                                         "WHERE brand_id = $2 AND sound_fragment_id = $3";
 
@@ -280,7 +280,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
-        sql.append("JOIN kneobroadcaster__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
+        sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
 

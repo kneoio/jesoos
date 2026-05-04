@@ -154,7 +154,7 @@ public class AiAgentRepository extends AsyncRepository {
 
 
     private Uni<List<UUID>> loadLabels(UUID aiAgentId) {
-        String sql = "SELECT label_id FROM kneobroadcaster__ai_agent_labels WHERE ai_agent_id = $1";
+        String sql = "SELECT label_id FROM mixpla__ai_agent_labels WHERE ai_agent_id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(aiAgentId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))

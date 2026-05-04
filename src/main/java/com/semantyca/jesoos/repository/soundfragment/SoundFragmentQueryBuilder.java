@@ -49,7 +49,7 @@ public class SoundFragmentQueryBuilder {
         }
 
         if (filter.getGenre() != null && !filter.getGenre().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_genres sfg2 WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
             for (int i = 0; i < filter.getGenre().size(); i++) {
                 if (i > 0) conditions.append(", ");
                 conditions.append("'").append(filter.getGenre().get(i).toString()).append("'");
@@ -58,7 +58,7 @@ public class SoundFragmentQueryBuilder {
         }
 
         if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_labels sfl WHERE sfl.id = t.id AND sfl.label_id IN (");
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl WHERE sfl.id = t.id AND sfl.label_id IN (");
             for (int i = 0; i < filter.getLabels().size(); i++) {
                 if (i > 0) conditions.append(", ");
                 conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");

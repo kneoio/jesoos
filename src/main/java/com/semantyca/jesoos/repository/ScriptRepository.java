@@ -486,7 +486,7 @@ public class ScriptRepository extends AsyncRepository {
         String sql = "SELECT t.*, bs.rank, bs.active, bs.user_variables, " +
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
+                "JOIN mixpla__brand_scripts bs ON t.id = bs.script_id " +
                 "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
                 "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
 
@@ -515,7 +515,7 @@ public class ScriptRepository extends AsyncRepository {
     public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
         String sql = "SELECT COUNT(*) " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
+                "JOIN mixpla__brand_scripts bs ON t.id = bs.script_id " +
                 "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
                 "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
 

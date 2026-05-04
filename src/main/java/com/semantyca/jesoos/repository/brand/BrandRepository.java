@@ -220,7 +220,7 @@ public class BrandRepository extends AsyncRepository {
         return doc;
     }
     public Uni<List<BrandScriptEntry>> getScriptEntriesForBrand(UUID brandId) {
-        String sql = "SELECT script_id, user_variables FROM kneobroadcaster__brand_scripts WHERE brand_id = $1 ORDER BY rank";
+        String sql = "SELECT script_id, user_variables FROM mixpla__brand_scripts WHERE brand_id = $1 ORDER BY rank";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -238,7 +238,7 @@ public class BrandRepository extends AsyncRepository {
 
     public Uni<List<Brand>> getByLabelIds(List<UUID> labelIds) {
         String sql = "SELECT b.* FROM " + entityData.getTableName() + " b " +
-                "JOIN kneobroadcaster__brand_labels bl ON b.id = bl.brand_id " +
+                "JOIN mixpla__brand_labels bl ON b.id = bl.brand_id " +
                 "WHERE bl.label_id = ANY($1) AND b.archived = 0 " +
                 "GROUP BY b.id";
 
