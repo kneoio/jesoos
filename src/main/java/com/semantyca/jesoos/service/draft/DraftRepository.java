@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.service.draft;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
@@ -100,17 +99,6 @@ public class DraftRepository extends AsyncRepository {
         doc.setDescription(row.getString("description"));
         doc.setArchived(row.getInteger("archived"));
         doc.setEnabled(row.getBoolean("enabled"));
-        doc.setLocked(row.getBoolean("locked"));
-        UUID masterId = row.getUUID("master_id");
-        if (masterId != null) {
-            doc.setMasterId(masterId);
-        }
-
-        String languageCodeStr = row.getString("language_tag");
-        if (languageCodeStr != null) {
-            doc.setLanguageTag(LanguageTag.fromTag(languageCodeStr));
-        }
-
         doc.setVersion(row.getDouble("version"));
 
         return doc;

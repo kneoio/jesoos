@@ -62,7 +62,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
         }
 
-        Tuple params = hasKeyword ? Tuple.of(brandId, user.getId(), keyword) : Tuple.of(brandId, user.getId());
+        Tuple params = hasKeyword ? Tuple.of(brandId, user.getId(), keyword.toLowerCase()) : Tuple.of(brandId, user.getId());
 
         return client.preparedQuery(sql.toString())
                 .execute(params)

@@ -31,23 +31,8 @@ public class DraftQueryBuilder {
     String buildFilterConditions(DraftFilter filter) {
         StringBuilder conditions = new StringBuilder();
 
-        if (filter.getLanguageTag() != null) {
-            conditions.append(" AND t.language_tag = '")
-                    .append(filter.getLanguageTag().tag())
-                    .append("'");
-        }
-
-
         if (filter.isEnabled()) {
             conditions.append(" AND t.enabled = true");
-        }
-
-        if (filter.isMaster()) {
-            conditions.append(" AND t.is_master = true");
-        }
-
-        if (filter.isLocked()) {
-            conditions.append(" AND t.locked = true");
         }
 
         return conditions.toString();

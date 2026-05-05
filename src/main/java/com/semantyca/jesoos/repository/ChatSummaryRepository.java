@@ -67,7 +67,7 @@ public class ChatSummaryRepository extends AsyncRepository {
     public Uni<Optional<ChatSummary>> getLatestBrandSummary(String brandName) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
                 " WHERE brand_name = $1 AND summary_type = 'BRAND' " +
-                "ORDER BY created_at DESC LIMIT 1";
+                "ORDER BY created_at DESC LIMIT 3";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandName))
