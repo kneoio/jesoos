@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.cnst.SummaryType;
 import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
@@ -9,7 +10,6 @@ import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -96,7 +96,7 @@ public class ChatSummaryRepository extends AsyncRepository {
         ChatSummary entity = new ChatSummary();
         entity.setId(row.getUUID("id"));
         entity.setBrandName(row.getString("brand_name"));
-        entity.setSummaryType(ChatSummary.SummaryType.valueOf(row.getString("summary_type")));
+        entity.setSummaryType(SummaryType.valueOf(row.getString("summary_type")));
         Long userId = row.getLong("user_id");
         entity.setUserId(userId);
         String chatTypeStr = row.getString("chat_type");

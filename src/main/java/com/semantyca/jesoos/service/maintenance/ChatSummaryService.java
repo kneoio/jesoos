@@ -1,9 +1,11 @@
 package com.semantyca.jesoos.service.maintenance;
 
+import com.semantyca.core.model.cnst.SummaryType;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.LlmTextClient;
+import com.semantyca.jesoos.external.LlmTextResult;
 import com.semantyca.jesoos.model.chat.ChatMessage;
 import com.semantyca.jesoos.model.chat.ChatSummary;
 import com.semantyca.jesoos.model.cnst.ChatType;
@@ -117,7 +119,7 @@ public class ChatSummaryService {
                             .flatMap(summaryText -> {
                                 ChatSummary summary = new ChatSummary();
                                 summary.setBrandName(brandName);
-                                summary.setSummaryType(ChatSummary.SummaryType.BRAND);
+                                summary.setSummaryType(SummaryType.BRAND);
                                 summary.setSummary(summaryText);
                                 summary.setMessageCount(messages.size());
                                 summary.setPeriodStart(messages.getFirst().getTimestamp());
@@ -149,13 +151,13 @@ public class ChatSummaryService {
                             .flatMap(summaryText -> {
                                 ChatSummary summary = new ChatSummary();
                                 summary.setBrandName(brandName);
-                                summary.setSummaryType(ChatSummary.SummaryType.USER);
+                                summary.setSummaryType(SummaryType.USER);
                                 summary.setUserId(userId);
                                 summary.setChatType(chatType);
                                 summary.setSummary(summaryText);
                                 summary.setMessageCount(toSummarize.size());
-                                summary.setPeriodStart(toSummarize.get(0).getTimestamp());
-                                summary.setPeriodEnd(toSummarize.get(toSummarize.size() - 1).getTimestamp());
+                                summary.setPeriodStart(toSummarize.getFirst().getTimestamp());
+                                summary.setPeriodEnd(toSummarize.getLast().getTimestamp());
 
                                 return chatSummaryRepository.save(summary)
                                         .flatMap(summaryId -> {
@@ -214,7 +216,7 @@ public class ChatSummaryService {
         String model = "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
         LlmTextClient llmTextClient = selectLlmClient(provider);
         return llmTextClient.createTextMessage(model, 500L, "You summarize chat history accurately.", prompt)
-                .map(response -> response.text())
+                .map(LlmTextResult::text)
                 .onFailure().recoverWithItem(error -> {
                     LOGGER.error("Failed to generate summary", error);
                     return "Summary generation failed";
