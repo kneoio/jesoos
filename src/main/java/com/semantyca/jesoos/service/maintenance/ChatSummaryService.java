@@ -206,6 +206,9 @@ public class ChatSummaryService {
                     Summarize the following conversation history with a user.
                     Capture key topics discussed, user preferences, and any important context.
                     This summary will be used to maintain conversation context.
+                    Keep the summary neutral and role-based.
+                    Do not include or infer personal names, DJ persona names, usernames, or identity labels.
+                    Refer to participants generically (for example: "listener", "host", "participants").
                     Be concise but preserve important details.
                     
                     Conversation:
