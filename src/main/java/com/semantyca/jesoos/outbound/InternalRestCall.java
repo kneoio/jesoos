@@ -61,6 +61,7 @@ public class InternalRestCall {
 
         return webClient
                 .postAbs(endpoint)
+                .putHeader("X-Client-ID", "mixpla-web")
                 .putHeader("Content-Type", "application/json")
                 .sendJson(dto)
                 .onItem().transform(response -> {
