@@ -69,8 +69,7 @@ public class InternalRestCall {
 
         return webClient
                 .postAbs(endpoint)
-                .putHeader("Content-Type", "application/json")
-                .sendBuffer(io.vertx.mutiny.core.buffer.Buffer.buffer(body.encode()))
+                .sendJsonObject(body)
                 .onItem().transform(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         return null;
