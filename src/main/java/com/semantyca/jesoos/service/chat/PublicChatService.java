@@ -39,6 +39,8 @@ import com.semantyca.jesoos.service.chat.tools.ots.StartOneTimeStreamToolHandler
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.ScenePool;
+import com.semantyca.jesoos.outbound.InternalRestCall;
+import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -104,6 +106,12 @@ public class PublicChatService extends ChatService {
 
     @Inject
     SongEmitter songEmitter;
+
+    @Inject
+    IntroTtsGenerator introTtsGenerator;
+
+    @Inject
+    InternalRestCall internalRestCall;
 
     @Inject
     PlaylistQueueService playlistQueueService;
@@ -356,7 +364,7 @@ public class PublicChatService extends ChatService {
                     toolCall, inputMap, sessionManager, userService, controller, this, brandName, metricPublisher, chunkHandler, completionHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.handle(
-                    toolCall, inputMap, soundFragmentService, aiAgentService, brandPool, songEmitter, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                    toolCall, inputMap, aiAgentService, brandPool, introTtsGenerator, internalRestCall, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
                     toolCall, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph,

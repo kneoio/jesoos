@@ -49,4 +49,38 @@ public class InternalRestCall {
                     ));
                 });
     }
+
+    public Uni<Void> addSongToQueue(String brand, java.util.UUID songId, String mixingType, int priority, String introFilePath, float introGain) {
+        if (brand == null || brand.isBlank()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Brand must be provided"));
+        }
+
+        String endpoint = String.format("%s/aivox/command/queue", config.getAivoxUrl());
+
+        io.vertx.core.json.JsonObject body = new io.vertx.core.json.JsonObject()
+                .put("brand", brand)
+                .put("songId", songId.toString())
+                .put("mixingType", mixingType)
+                .put("priority", priority)
+                .put("introGain", introGain);
+        if (introFilePath != null) {
+            body.put("introFilePath", introFilePath);
+        }
+
+        return webClient
+                .postAbs(endpoint)
+                .putHeader("Content-Type", "application/json")
+                .sendBuffer(io.vertx.mutiny.core.buffer.Buffer.buffer(body.encode()))
+                .onItem().transform(response -> {
+                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                        return null;
+                    }
+                    throw new RuntimeException(String.format(
+                            "Failed to add song to queue for brand '%s'. HTTP %d: %s",
+                            brand,
+                            response.statusCode(),
+                            response.bodyAsString()
+                    ));
+                });
+    }
 }

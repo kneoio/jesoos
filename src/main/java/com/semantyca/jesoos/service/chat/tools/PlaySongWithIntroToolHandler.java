@@ -1,25 +1,19 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.jesoos.model.stream.LiveScene;
-import com.semantyca.jesoos.model.stream.PromptEntry;
-import com.semantyca.jesoos.model.stream.SongEntry;
-import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.live.BrandPool;
-import com.semantyca.jesoos.service.live.SongEmitter;
-import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.jesoos.service.live.IntroTtsGenerator;
+import com.semantyca.jesoos.util.AiHelperUtils;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,10 +27,10 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
     public static Uni<Void> handle(
             LlmToolCall toolCall,
             Map<String, Object> inputMap,
-            SoundFragmentService soundFragmentService,
             AiAgentService aiAgentService,
             BrandPool brandPool,
-            SongEmitter songEmitter,
+            IntroTtsGenerator introTtsGenerator,
+            InternalRestCall internalRestCall,
             Consumer<String> chunkHandler,
             String connectionId,
             List<LlmMessage> conversationHistory,
@@ -69,28 +63,23 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         return brandPool.get(brandName)
                 .chain(stream -> {
                     if (stream == null) return Uni.createFrom().failure(new RuntimeException("Station offline"));
-                    return soundFragmentService.getById(songId)
-                            .chain(soundFragment -> {
-                                if (soundFragment == null) return Uni.createFrom().failure(new RuntimeException("Song not found"));
-                                return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
-                                        .chain(agent -> {
-                                            PromptEntry promptEntry = new PromptEntry();
-                                            promptEntry.setPromptId(UUID.randomUUID());
-                                            LanguageCode primaryLang = agent.getPreferredLang().getFirst().getLanguageTag().toLanguageCode();
-                                            promptEntry.setLanguage(primaryLang);
-                                            SongEntry songEntry = new SongEntry(soundFragment, promptEntry, 0);
-                                            TimelineEntry entry = new TimelineEntry(0, LocalDateTime.now(), List.of(songEntry), MixingType.INTRO_SONG, true, false);
-                                            LiveScene liveScene = new LiveScene();
-                                            liveScene.setSceneId(UUID.randomUUID());
-                                            liveScene.setSceneTitle("chat-dj-request");
-                                            liveScene.setTimeZone(stream.getTimeZone());
-                                            liveScene.setTraceId(UUID.randomUUID());
-                                            liveScene.setTimeline(List.of(entry));
-                                            return songEmitter.sendWithCustomIntro(brandName, liveScene, entry, textToTTSIntro, agent, stream.getTimeZone(), finalPriority);
-                                        });
+                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
+                            .chain(agent -> {
+                                UUID traceId = UUID.randomUUID();
+                                return introTtsGenerator.generateCustomIntroAudioFile(
+                                        textToTTSIntro,
+                                        agent,
+                                        AiHelperUtils.selectLanguageByWeight(agent),
+                                        "chat-dj-request",
+                                        traceId,
+                                        brandName
+                                ).chain(introResult -> internalRestCall.addSongToQueue(
+                                        brandName, songId, "LISTENER_INTRO_SONG", finalPriority,
+                                        introResult.filePath(), introResult.gain()
+                                ));
                             });
                 })
-                .flatMap(result -> {
+                .chain(ignored -> {
                     JsonObject payload = new JsonObject().put("ok", true).put("brandName", brandName).put("songId", songIdStr);
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Song queued!");
                     handler.addToolUseToHistory(toolCall, conversationHistory);
