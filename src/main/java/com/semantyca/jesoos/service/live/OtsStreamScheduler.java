@@ -10,6 +10,7 @@ import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.cnst.StreamPriority;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
@@ -144,13 +145,13 @@ public class OtsStreamScheduler {
 
         if (entry.isGenerated()) {
             return aiAgentService.getById(scene.getAgentId(), SuperUser.build())
-                    .chain(agent -> generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, 9));
+                    .chain(agent -> generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue()));
         }
         if (entry.isHasJingle()) {
-            return jingleSongEmitter.send(masterBrandSlug, scene, entry, stream, zone, 9);
+            return jingleSongEmitter.send(masterBrandSlug, scene, entry, stream, zone, StreamPriority.PRIORITIZED.getValue());
         }
         return aiAgentService.getById(scene.getAgentId(), SuperUser.build())
-                .chain(agent -> songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, 9));
+                .chain(agent -> songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue()));
     }
 
     public void cancelOtsTimers(String otsSlugName) {

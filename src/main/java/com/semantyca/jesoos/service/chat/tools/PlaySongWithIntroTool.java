@@ -23,7 +23,7 @@ public class PlaySongWithIntroTool {
                                 "description", "DJ intro speech text — must be written in the station's primary broadcast language, regardless of what language the user wrote in"),
                         "priority", Map.of(
                                 "type", "integer",
-                                "description", "Priority: 10=LAST, 9=HIGH, 8=INTERRUPT, 7=HARD_INTERRUPT")
+                                "description", "Priority: 8=GENTLE_INTERRUPT, 7=HARD_INTERRUPT")
                 ),
                 List.of("brandName", "songId", "textToTTSIntro")
         );

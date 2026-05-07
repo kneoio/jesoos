@@ -10,6 +10,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import jakarta.annotation.PreDestroy;
@@ -193,7 +194,7 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
-        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? 8 : 9);
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? StreamPriority.PRIORITIZED_FRONT.getValue() : StreamPriority.PRIORITIZED.getValue());
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
