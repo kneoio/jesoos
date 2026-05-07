@@ -368,7 +368,7 @@ public class PublicChatService extends ChatService {
             );
             case "start_one_time_stream" -> StartOneTimeStreamToolHandler.handle(
                     toolCall, inputMap, oneTimeStreamService, scriptService, otsSessionManager, otsGraph,
-                    config.getHost(), assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
+                    config.getStreamerHost(), assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(

@@ -80,7 +80,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
                                         userVariables.get(v.getName()) == null ||
                                         userVariables.get(v.getName()).toString().isBlank())
                                 .map(ScriptVariable::getName)
-                                .collect(Collectors.toList());
+                                .toList();
 
                         if (!missing.isEmpty()) {
                             handler.sendProcessingChunk(chunkHandler, connectionId, "Setting up stream...");

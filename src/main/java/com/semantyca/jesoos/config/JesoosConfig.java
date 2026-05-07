@@ -3,19 +3,15 @@ package com.semantyca.jesoos.config;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.util.List;
 import java.util.Optional;
 
 @ConfigMapping(prefix = "jesoos")
 public interface JesoosConfig {
-    @WithName("host")
-    @WithDefault("localhost")
-    String getHost();
+    @WithName("streamer")
+    String getStreamerHost();
 
     @WithName("aivox.url")
-    @WithDefault("http://localhost:38798")
     String getAivoxUrl();
 
     @WithName("controller.upload.files.path")
