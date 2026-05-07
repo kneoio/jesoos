@@ -9,18 +9,14 @@ import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.util.AiHelperUtils;
-import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
-import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
-import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
-import com.semantyca.mixpla.dto.queue.livestream.SongKey;
-import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
+import com.semantyca.mixpla.dto.queue.livestream.*;
 import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -48,7 +44,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         String brandName = (String) inputMap.getOrDefault("brandName", "");
         String songIdStr = (String) inputMap.getOrDefault("songId", "");
         String textToTTSIntro = (String) inputMap.getOrDefault("textToTTSIntro", "");
-        int priority = 7;
+        int priority = StreamPriority.GENTLE_INTERRUPT.getValue();
         try {
             if (inputMap.containsKey("priority")) priority = ((Number) inputMap.get("priority")).intValue();
         } catch (Exception ignored) {}

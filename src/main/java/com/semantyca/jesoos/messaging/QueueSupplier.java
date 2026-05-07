@@ -3,6 +3,8 @@ package com.semantyca.jesoos.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.util.TimeContextUtil;
 import com.semantyca.jesoos.util.TimeFormatUtil;
+import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -55,11 +57,11 @@ public class QueueSupplier {
                 int totalDuration = 0;
                 if (message.getSongs() != null) {
                     totalDuration += message.getSongs().values().stream()
-                            .mapToInt(s -> s.getDurationSeconds()).sum();
+                            .mapToInt(SongInfoDTO::getDurationSeconds).sum();
                 }
                 if (message.getFilePaths() != null) {
                     totalDuration += message.getFilePaths().values().stream()
-                            .mapToInt(i -> i.getDurationSeconds()).sum();
+                            .mapToInt(IntroInfoDTO::getDurationSeconds).sum();
                 }
                 metricPublisher.trackEmission(brandSlug, totalDuration);
                 return null;

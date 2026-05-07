@@ -3,6 +3,7 @@ package com.semantyca.jesoos.outbound;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
@@ -60,6 +61,7 @@ public class InternalRestCall {
 
         return webClient
                 .postAbs(endpoint)
+                .putHeader("Content-Type", "application/json")
                 .sendJson(dto)
                 .onItem().transform(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
