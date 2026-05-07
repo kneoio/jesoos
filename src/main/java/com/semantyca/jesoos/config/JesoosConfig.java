@@ -14,13 +14,9 @@ public interface JesoosConfig {
     @WithDefault("localhost")
     String getHost();
 
-    @WithName("agent.url")
-    @WithDefault("http://localhost:38799")
-    String getAgentUrl();
-
-    @WithName("song.buffer-seconds")
-    @WithDefault("60")
-    int bufferSeconds();
+    @WithName("aivox.url")
+    @WithDefault("http://localhost:38798")
+    String getAivoxUrl();
 
     @WithName("controller.upload.files.path")
     @WithDefault("controller-uploads")
