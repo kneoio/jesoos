@@ -46,7 +46,10 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         String textToTTSIntro = (String) inputMap.getOrDefault("textToTTSIntro", "");
         int priority = StreamPriority.GENTLE_INTERRUPT.getValue();
         try {
-            if (inputMap.containsKey("priority")) priority = ((Number) inputMap.get("priority")).intValue();
+            if (inputMap.containsKey("priority")) {
+                int p = ((Number) inputMap.get("priority")).intValue();
+                priority = (p == StreamPriority.HARD_INTERRUPT.getValue()) ? StreamPriority.HARD_INTERRUPT.getValue() : StreamPriority.GENTLE_INTERRUPT.getValue();
+            }
         } catch (Exception ignored) {}
 
         if (brandName.isEmpty() || songIdStr.isEmpty() || textToTTSIntro.isEmpty()) {
