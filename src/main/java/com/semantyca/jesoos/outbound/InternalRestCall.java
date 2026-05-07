@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.outbound;
 
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
@@ -50,33 +51,23 @@ public class InternalRestCall {
                 });
     }
 
-    public Uni<Void> addSongToQueue(String brand, java.util.UUID songId, String mixingType, int priority, String introFilePath, float introGain) {
-        if (brand == null || brand.isBlank()) {
+    public Uni<Void> addSongToQueue(SongQueueMessageDTO dto) {
+        if (dto.getBrandSlug() == null || dto.getBrandSlug().isBlank()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Brand must be provided"));
         }
 
         String endpoint = String.format("%s/aivox/command/queue", config.getAivoxUrl());
 
-        io.vertx.core.json.JsonObject body = new io.vertx.core.json.JsonObject()
-                .put("brand", brand)
-                .put("songId", songId.toString())
-                .put("mixingType", mixingType)
-                .put("priority", priority)
-                .put("introGain", introGain);
-        if (introFilePath != null) {
-            body.put("introFilePath", introFilePath);
-        }
-
         return webClient
                 .postAbs(endpoint)
-                .sendJsonObject(body)
+                .sendJson(dto)
                 .onItem().transform(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         return null;
                     }
                     throw new RuntimeException(String.format(
                             "Failed to add song to queue for brand '%s'. HTTP %d: %s",
-                            brand,
+                            dto.getBrandSlug(),
                             response.statusCode(),
                             response.bodyAsString()
                     ));
