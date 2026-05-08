@@ -12,6 +12,7 @@ import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.dto.BrandListenerDTO;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.repository.ListenersRepository;
+import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.mixpla.model.BrandListener;
 import com.semantyca.mixpla.model.Listener;
 import com.semantyca.mixpla.model.brand.Brand;
@@ -21,7 +22,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -211,7 +211,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     private Uni<Long> ensureUserExists(Listener listener, String email) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         return userService.findByEmail(normalizedEmail)
                 .chain(existingUser -> {
                     if (existingUser.getId() != UndefinedUser.ID) {
@@ -223,16 +223,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
 
     private Uni<Long> createNewUser(Listener listener, String email) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         UserDTO userDTO = new UserDTO();
         String slugName = WebHelper.generateSlug(normalizedEmail);
         userDTO.setLogin(slugName);
         userDTO.setEmail(normalizedEmail);
         return userService.add(userDTO, true);
-    }
-
-    private static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {

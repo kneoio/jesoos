@@ -2,6 +2,7 @@ package com.semantyca.jesoos.external;
 
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
+import com.semantyca.jesoos.util.EmailUtil;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -17,7 +18,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
-import java.util.Locale;
 
 @ApplicationScoped
 public class KeycloakAuthService {
@@ -62,7 +62,7 @@ public class KeycloakAuthService {
     }
 
     private Uni<String> findOrCreateUser(String email, String adminToken) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         String searchUrl = config.keycloak().getUrl() + "/admin/realms/" + config.keycloak().getRealm()
                 + "/users?email=" + normalizedEmail + "&exact=true";
 
@@ -115,7 +115,7 @@ public class KeycloakAuthService {
     }
 
     public Uni<KeycloakAuthResult> verifyAuth(String email, String code) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         return Uni.createFrom().item(() -> {
             boolean valid = sessionManager.verifyAndConsumePendingOtp(normalizedEmail, code);
             if (!valid) {
@@ -128,7 +128,7 @@ public class KeycloakAuthService {
     }
 
     public Uni<Boolean> startAuth(String email) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         return getAdminToken()
                 .flatMap(adminToken -> findOrCreateUser(normalizedEmail, adminToken))
                 .flatMap(userId -> {
@@ -173,7 +173,4 @@ public class KeycloakAuthService {
                 });
     }
 
-    private static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
-    }
 }

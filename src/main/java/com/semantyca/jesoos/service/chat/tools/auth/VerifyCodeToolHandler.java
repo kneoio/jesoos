@@ -8,6 +8,7 @@ import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
+import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.jesoos.ws.PublicChatController;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -16,7 +17,6 @@ import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,7 +42,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         VerifyCodeToolHandler handler = new VerifyCodeToolHandler();
-        String email = ((String) inputMap.getOrDefault("email", "")).trim().toLowerCase(Locale.ROOT);
+        String email = EmailUtil.normalize((String) inputMap.getOrDefault("email", ""));
         String code = ((String) inputMap.getOrDefault("code", "")).trim();
         String preferredName = ((String) inputMap.getOrDefault("preferred_name", "")).trim();
 

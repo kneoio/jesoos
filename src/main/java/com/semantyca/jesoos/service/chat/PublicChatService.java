@@ -42,6 +42,7 @@ import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -137,7 +138,7 @@ public class PublicChatService extends ChatService {
     private PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailUtil.normalize(email);
         String userToken = UUID.randomUUID().toString();
         return sessionManager.storeUserToken(userToken, normalizedEmail)
                 .chain(() -> userService.findByEmail(normalizedEmail))
@@ -184,7 +185,7 @@ public class PublicChatService extends ChatService {
                     if (email == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
                     }
-                    return userService.findByEmail(normalizeEmail(email))
+                    return userService.findByEmail(EmailUtil.normalize(email))
                             .onItem().transformToUni(user -> {
                                 if (user == null || user.getId() == 0) {
                                     return Uni.createFrom().item(AnonymousUser.build());
@@ -192,10 +193,6 @@ public class PublicChatService extends ChatService {
                                 return Uni.createFrom().item(user);
                             });
                 });
-    }
-
-    private static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     public Function<LlmRequest, Uni<Void>> createAuthStreamFn(
