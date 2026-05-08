@@ -164,7 +164,7 @@ public class PublicChatIntentRouter {
 
     private String resolveClassifierModel() {
         if (llmProviderAdapter == null) {
-            return com.semantyca.jesoos.service.chat.llm.LlmModels.CLAUDE_HAIKU_4_5;
+            throw new IllegalStateException("LLM provider adapter not initialised — check llm.provider config");
         }
         return llmProviderAdapter.modelFor(LlmUseCase.INTENT_CLASSIFIER);
     }

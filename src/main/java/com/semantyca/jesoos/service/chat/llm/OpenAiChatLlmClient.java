@@ -10,12 +10,15 @@ import com.openai.models.FunctionDefinition;
 import com.openai.models.chat.completions.*;
 import org.jetbrains.annotations.NotNull;
 
+import org.jboss.logging.Logger;
+
 import java.util.*;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 public class OpenAiChatLlmClient implements ChatLlmClient {
 
+    private static final Logger LOGGER = Logger.getLogger(OpenAiChatLlmClient.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final OpenAIClient client;
@@ -40,18 +43,18 @@ public class OpenAiChatLlmClient implements ChatLlmClient {
                 .subscribe(new AsyncStreamResponse.Handler<>() {
                     @Override
                     public void onNext(ChatCompletionChunk chunk) {
-                        try {
-                            if (!chunk.choices().isEmpty()) {
-                                chunk.choices().get(0).delta().content().ifPresent(text -> {
-                                    fullResponse.append(text);
-                                    chunkConsumer.accept(text);
-                                });
-                            }
-                        } catch (Exception ignored) {}
+                        if (!chunk.choices().isEmpty()) {
+                            chunk.choices().get(0).delta().content().ifPresent(text -> {
+                                fullResponse.append(text);
+                                chunkConsumer.accept(text);
+                            });
+                        }
                     }
 
                     @Override
-                    public void onComplete(@NotNull Optional<Throwable> error) {}
+                    public void onComplete(@NotNull Optional<Throwable> error) {
+                        error.ifPresent(e -> LOGGER.errorf(e, "[openai] stream completed with error"));
+                    }
                 })
                 .onCompleteFuture()
                 .thenApply(ignored -> fullResponse.toString());
