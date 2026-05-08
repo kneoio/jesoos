@@ -313,7 +313,7 @@ public class PublicChatService extends ChatService {
                         return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
-                        return streamResponse(request, chunkHandler, completionHandler, connectionId, brandName, userId);
+                        return streamResponse(requestWithTools, chunkHandler, completionHandler, connectionId, brandName, userId);
                     }
                 }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }

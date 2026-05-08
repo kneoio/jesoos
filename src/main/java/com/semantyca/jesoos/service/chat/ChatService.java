@@ -14,8 +14,10 @@ import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
-import com.semantyca.jesoos.service.chat.llm.LlmModels;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import com.semantyca.jesoos.service.chat.llm.LlmTool;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.llm.OpenAiChatLlmClient;
@@ -47,6 +49,7 @@ public abstract class ChatService {
     private static final Logger LOGGER = Logger.getLogger(ChatService.class);
 
     protected final ChatLlmClient llmClient;
+    protected final LlmProviderAdapter llmProviderAdapter;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
     protected final String followUpPrompt;
@@ -75,15 +78,15 @@ public abstract class ChatService {
         if (config != null) {
             String provider = config.getLlmProvider();
             LOGGER.infof("[llm] provider=%s", provider);
-            this.llmClient = "openai".equalsIgnoreCase(provider)
-                    ? new OpenAiChatLlmClient(config.getOpenAiApiKey())
-                    : new AnthropicChatLlmClient(config.getAnthropicApiKey());
+            this.llmProviderAdapter = LlmProviderRegistry.resolve(provider);
+            this.llmClient = llmProviderAdapter.createClient(config);
             this.aiHelperService = aiHelperService;
             this.config = config;
             this.mainPrompt = loadPromptTemplate("prompts/mainPrompt.hbs");
             this.followUpPrompt = loadPromptTemplate("prompts/followUpPrompt.hbs");
         } else {
             this.llmClient = null;
+            this.llmProviderAdapter = null;
             this.aiHelperService = null;
             this.config = null;
             this.mainPrompt = null;
@@ -114,15 +117,11 @@ public abstract class ChatService {
     protected abstract ChatType getChatType();
 
     protected String resolveMainModel() {
-        return "openai".equalsIgnoreCase(config.getLlmProvider())
-                ? LlmModels.GPT_4_1
-                : LlmModels.CLAUDE_SONNET_4_5;
+        return llmProviderAdapter.modelFor(LlmUseCase.MAIN_CHAT);
     }
 
     protected String resolveFollowUpModel() {
-        return "openai".equalsIgnoreCase(config.getLlmProvider())
-                ? LlmModels.GPT_4_1_MINI
-                : LlmModels.CLAUDE_HAIKU_4_5;
+        return llmProviderAdapter.modelFor(LlmUseCase.FOLLOW_UP);
     }
 
     private Uni<String> buildOtsScriptsText() {

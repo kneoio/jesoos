@@ -3,11 +3,11 @@ package com.semantyca.jesoos.service.chat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
-import com.semantyca.jesoos.service.chat.llm.OpenAiChatLlmClient;
-import com.semantyca.jesoos.service.chat.llm.LlmModels;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -37,6 +37,7 @@ public class PublicChatIntentRouter {
     JesoosConfig config;
 
     private ChatLlmClient llmClient;
+    private LlmProviderAdapter llmProviderAdapter;
 
     PublicChatIntentRouter() {}
 
@@ -49,9 +50,8 @@ public class PublicChatIntentRouter {
     @PostConstruct
     void init() {
         String provider = config.getLlmProvider();
-        llmClient = "openai".equalsIgnoreCase(provider)
-                ? new OpenAiChatLlmClient(config.getOpenAiApiKey())
-                : new AnthropicChatLlmClient(config.getAnthropicApiKey());
+        llmProviderAdapter = LlmProviderRegistry.resolve(provider);
+        llmClient = llmProviderAdapter.createClient(config);
         LOGGER.infof("[router] classifier provider=%s", provider);
     }
 
@@ -85,7 +85,7 @@ public class PublicChatIntentRouter {
 
     Uni<IntentDecision> classifyWithLlm(String userMessage) {
         LlmRequest request = LlmRequest.builder()
-                .model(LlmModels.CLAUDE_HAIKU_4_5)
+                .model(resolveClassifierModel())
                 .maxTokens(120)
                 .system("""
                         Classify the user message intent.
@@ -160,6 +160,13 @@ public class PublicChatIntentRouter {
 
             throw new IllegalStateException("unknown LLM intent in JSON output: " + raw);
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    private String resolveClassifierModel() {
+        if (llmProviderAdapter == null) {
+            return com.semantyca.jesoos.service.chat.llm.LlmModels.CLAUDE_HAIKU_4_5;
+        }
+        return llmProviderAdapter.modelFor(LlmUseCase.INTENT_CLASSIFIER);
     }
 
     private record LlmClassifierPayload(String intent, Double confidence, String reason) {}
