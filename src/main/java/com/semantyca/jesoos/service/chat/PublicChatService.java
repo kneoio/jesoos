@@ -138,13 +138,14 @@ public class PublicChatService extends ChatService {
     private PublicChatController controller;
 
     public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
+        String normalizedEmail = normalizeEmail(email);
         String userToken = UUID.randomUUID().toString();
-        return sessionManager.storeUserToken(userToken, email)
-                .chain(() -> userService.findByEmail(email))
+        return sessionManager.storeUserToken(userToken, normalizedEmail)
+                .chain(() -> userService.findByEmail(normalizedEmail))
                 .chain(user -> {
                     if (user == null || user.getId() == 0) {
                         ListenerDTO dto = new ListenerDTO();
-                        dto.setEmail(email);
+                        dto.setEmail(normalizedEmail);
                         if (preferredName != null && !preferredName.isBlank()) {
                             dto.setUserData(Map.of("preferred_name", preferredName));
                         }
@@ -164,7 +165,7 @@ public class PublicChatService extends ChatService {
                                             .replaceWith(new RegistrationResult(user.getId(), userToken));
                                 }
                                 ListenerDTO dto = new ListenerDTO();
-                                dto.setEmail(email);
+                                dto.setEmail(normalizedEmail);
                                 if (preferredName != null && !preferredName.isBlank()) {
                                     dto.setUserData(Map.of("preferred_name", preferredName));
                                 }
@@ -184,7 +185,7 @@ public class PublicChatService extends ChatService {
                     if (email == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
                     }
-                    return userService.findByEmail(email)
+                    return userService.findByEmail(normalizeEmail(email))
                             .onItem().transformToUni(user -> {
                                 if (user == null || user.getId() == 0) {
                                     return Uni.createFrom().item(AnonymousUser.build());
@@ -192,6 +193,10 @@ public class PublicChatService extends ChatService {
                                 return Uni.createFrom().item(user);
                             });
                 });
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     public Function<LlmRequest, Uni<Void>> createAuthStreamFn(

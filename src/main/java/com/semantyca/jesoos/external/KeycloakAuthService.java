@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
+import java.util.Locale;
 
 @ApplicationScoped
 public class KeycloakAuthService {
@@ -61,8 +62,9 @@ public class KeycloakAuthService {
     }
 
     private Uni<String> findOrCreateUser(String email, String adminToken) {
+        String normalizedEmail = normalizeEmail(email);
         String searchUrl = config.keycloak().getUrl() + "/admin/realms/" + config.keycloak().getRealm()
-                + "/users?email=" + email + "&exact=true";
+                + "/users?email=" + normalizedEmail + "&exact=true";
 
         return webClient.getAbs(searchUrl)
                 .putHeader("Authorization", "Bearer " + adminToken)
@@ -82,14 +84,14 @@ public class KeycloakAuthService {
                     }
                     if (!users.isEmpty()) {
                         String userId = users.getJsonObject(0).getString("id");
-                        LOG.info("Found existing Keycloak user {} for email {}", userId, email);
+                        LOG.info("Found existing Keycloak user {} for email {}", userId, normalizedEmail);
                         return Uni.createFrom().item(userId);
                     }
 
-                    LOG.info("User not found, creating Keycloak account for {}", email);
+                    LOG.info("User not found, creating Keycloak account for {}", normalizedEmail);
                     JsonObject newUser = new JsonObject()
-                            .put("username", email)
-                            .put("email", email)
+                            .put("username", normalizedEmail)
+                            .put("email", normalizedEmail)
                             .put("emailVerified", false)
                             .put("enabled", true);
 
@@ -106,31 +108,33 @@ public class KeycloakAuthService {
                                 }
                                 String location = createResp.getHeader("Location");
                                 String userId = location.substring(location.lastIndexOf('/') + 1);
-                                LOG.info("Created Keycloak user {} for email {}", userId, email);
+                                LOG.info("Created Keycloak user {} for email {}", userId, normalizedEmail);
                                 return userId;
                             });
                 });
     }
 
     public Uni<KeycloakAuthResult> verifyAuth(String email, String code) {
+        String normalizedEmail = normalizeEmail(email);
         return Uni.createFrom().item(() -> {
-            boolean valid = sessionManager.verifyAndConsumePendingOtp(email, code);
+            boolean valid = sessionManager.verifyAndConsumePendingOtp(normalizedEmail, code);
             if (!valid) {
                 return new KeycloakAuthResult(false, "Invalid or expired code");
             }
             String token = java.util.UUID.randomUUID().toString();
-            sessionManager.storeUserToken(token, email);
+            sessionManager.storeUserToken(token, normalizedEmail);
             return new KeycloakAuthResult(true, token);
         });
     }
 
     public Uni<Boolean> startAuth(String email) {
+        String normalizedEmail = normalizeEmail(email);
         return getAdminToken()
-                .flatMap(adminToken -> findOrCreateUser(email, adminToken))
+                .flatMap(adminToken -> findOrCreateUser(normalizedEmail, adminToken))
                 .flatMap(userId -> {
                     String code = String.format("%06d", RANDOM.nextInt(1_000_000));
-                    sessionManager.storePendingOtp(email, code);
-                    LOG.info("OTP generated and stored for {}", email);
+                    sessionManager.storePendingOtp(normalizedEmail, code);
+                    LOG.info("OTP generated and stored for {}", normalizedEmail);
 
                     String htmlBody = "<!DOCTYPE html>"
                             + "<html><head><style>"
@@ -156,16 +160,20 @@ public class KeycloakAuthService {
                             + "</div></body></html>";
 
                     Mail mail = Mail.withHtml(
-                            email,
+                            normalizedEmail,
                             "Your Mixpla verification code",
                             htmlBody
                     ).setFrom(config.getFromAddress());
 
                     return mailer.send(mail)
                             .map(v -> {
-                                LOG.info("OTP email sent to {}", email);
+                                LOG.info("OTP email sent to {}", normalizedEmail);
                                 return true;
                             });
                 });
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 }

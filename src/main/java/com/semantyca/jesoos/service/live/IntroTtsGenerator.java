@@ -35,7 +35,9 @@ import org.jboss.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
 import com.semantyca.mixpla.model.aiagent.Voice;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -106,7 +108,7 @@ public class IntroTtsGenerator {
 
         UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
         AtomicBoolean fallBacked = new AtomicBoolean(false);
-        
+
         return promptService.getById(selectedPromptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
                     if (masterPrompt.getLanguageTag() == language) { //if it is ENG
@@ -139,7 +141,7 @@ public class IntroTtsGenerator {
             String brandName
     ) {
         LOGGER.infof("Generating custom intro audio for scene '%s' with text: '%s'", sceneTitle, customIntroText);
-        
+
         return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName)
                 .chain(filePath -> calculateDuration(filePath, language, false, agent.getTtsSetting().getDj().getGain()));
     }
@@ -154,7 +156,7 @@ public class IntroTtsGenerator {
 
         TTSClient ttsClient;
         String modelId;
-        String finalText = text;
+        String finalText;
 
         String beforeHr = text.contains("---") ? text.substring(0, text.indexOf("---")) : text;
         String trimmed = beforeHr.replaceAll("(?m)^#+\\s.*$", "").replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
@@ -174,6 +176,7 @@ public class IntroTtsGenerator {
             finalText = trimmed;
             LOGGER.infof("Using Fish Audio TTS for scene '%s'", sceneTitle);
         } else {
+            finalText = text;
             ttsClient = elevenLabsClient;
             modelId = config.getElevenLabsModelId();
             LOGGER.infof("Using ElevenLabs TTS for scene '%s' with model: %s", sceneTitle, modelId);
@@ -191,8 +194,14 @@ public class IntroTtsGenerator {
 
                         LOGGER.infof("Intro TTS audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
                         metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
-                                Map.of("engineType", engineType.toString(), "sceneTitle", sceneTitle,
-                                        "audioSize", audioBytes.length, "textLength", text.length()), traceId);
+                                Map.of(
+                                        "engineType", engineType.toString(),
+                                        "sceneTitle", sceneTitle,
+                                        "audioSize", audioBytes.length,
+                                        "textLength", text.length(),
+                                        "text_to_tts", finalText),
+                                traceId);
+
                         return audioFilePath.toString();
                     } catch (IOException e) {
                         LOGGER.error("Failed to save TTS audio for scene '{}'", sceneTitle, e);
@@ -203,7 +212,7 @@ public class IntroTtsGenerator {
                 })
                 .onFailure().invoke(e -> {
                     LOGGER.error("TTS generation failed for scene '{}'", sceneTitle, e);
-                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,"intro_tts_audio_generation_failed",
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_generation_failed",
                             Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
                 });
     }

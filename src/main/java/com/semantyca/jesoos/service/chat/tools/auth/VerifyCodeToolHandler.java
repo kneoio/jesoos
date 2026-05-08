@@ -16,6 +16,7 @@ import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -41,7 +42,7 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         VerifyCodeToolHandler handler = new VerifyCodeToolHandler();
-        String email = ((String) inputMap.getOrDefault("email", "")).trim();
+        String email = ((String) inputMap.getOrDefault("email", "")).trim().toLowerCase(Locale.ROOT);
         String code = ((String) inputMap.getOrDefault("code", "")).trim();
         String preferredName = ((String) inputMap.getOrDefault("preferred_name", "")).trim();
 

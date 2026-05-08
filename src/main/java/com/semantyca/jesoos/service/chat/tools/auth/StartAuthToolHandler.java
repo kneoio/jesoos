@@ -10,6 +10,7 @@ import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -29,7 +30,7 @@ public class StartAuthToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         StartAuthToolHandler handler = new StartAuthToolHandler();
-        String email = ((String) inputMap.getOrDefault("email", "")).trim();
+        String email = ((String) inputMap.getOrDefault("email", "")).trim().toLowerCase(Locale.ROOT);
 
         if (email.isBlank()) {
             return handleError(toolCall, "Email address is required", handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
