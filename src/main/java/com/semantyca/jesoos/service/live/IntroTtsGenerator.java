@@ -256,7 +256,7 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
                             response.inputTokens(), response.outputTokens());
 
-                    String text = response.text();
+                    String text = stripEmoji(response.text());
                     if (response.outputTokens() >= maxTokens * 0.95) {
                         LOGGER.warnf("Content generation used %s tokens (%s%% of max %s). Response may be truncated.",
                                 response.outputTokens(),
@@ -312,5 +312,13 @@ public class IntroTtsGenerator {
                 return new IntroAudioResult(filePath, 10, languageTag, fallBacked, gain);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    private static String stripEmoji(String input) {
+        return input.codePoints()
+                .filter(cp -> Character.getType(cp) != Character.OTHER_SYMBOL
+                        && !(cp >= 0x1F000 && cp <= 0x1FFFF))
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString().replaceAll(" {2,}", " ").trim();
     }
 }
