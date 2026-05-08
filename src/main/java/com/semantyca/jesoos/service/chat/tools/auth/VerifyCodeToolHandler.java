@@ -77,26 +77,18 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                             chatService.createAuthStreamFn(chunkHandler, completionHandler, connectionId, brandSlug, user.getId());
 
                     return chatService.registerListener(email, brandSlug, preferredName)
-                            .onFailure().recoverWithItem(err -> {
-                                LOG.warnf("[VerifyCode] Listener registration failed for %s, continuing anyway: %s", email, err.getMessage());
-                                return null;
-                            })
+                            .onFailure().invoke(err -> LOG.errorf(err, "[VerifyCode] Listener registration failed for %s", email))
                             .onItem().transformToUni(registrationResult -> {
-                                boolean registered = registrationResult != null;
-                                if (registered) {
-                                    metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
-                                            "login_success", Map.of("email", email, "userId", user.getId(),
-                                                    "connectionId", connectionId, "historySize", conversationHistory.size()));
-                                    controller.sendToConnection(connectionId, new JsonObject()
-                                            .put("type", "session_token")
-                                            .put("token", registrationResult.userToken())
-                                            .put("userName", user.getLogin())
-                                            .encode());
-                                }
+                                metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                        "login_success", Map.of("email", email, "userId", user.getId(),
+                                                "connectionId", connectionId, "historySize", conversationHistory.size()));
+                                controller.sendToConnection(connectionId, new JsonObject()
+                                        .put("type", "session_token")
+                                        .put("token", registrationResult.userToken())
+                                        .put("userName", user.getLogin())
+                                        .encode());
 
-                                String message = registered
-                                        ? "Authentication successful! You now have access to all features and personalization."
-                                        : "Authentication successful! You now have access to all features.";
+                                String message = "Authentication successful! You now have access to all features and personalization.";
 
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true).put("email", email).put("userId", user.getId()).put("message", message);

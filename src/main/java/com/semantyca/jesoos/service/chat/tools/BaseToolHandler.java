@@ -2,7 +2,6 @@ package com.semantyca.jesoos.service.chat.tools;
 
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
-import com.semantyca.jesoos.service.chat.llm.LlmModels;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import org.slf4j.Logger;
@@ -41,7 +40,6 @@ public abstract class BaseToolHandler {
                 .maxTokens(1024L)
                 .system(systemPrompt)
                 .messages(conversationHistory)
-                .model(LlmModels.CLAUDE_HAIKU_4_5)
                 .build();
     }
 }
