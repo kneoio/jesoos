@@ -208,7 +208,7 @@ public abstract class ChatService {
                                 String stationSlug = station.getSlugName();
                                 String djLanguages = agent.getPreferredLang().stream()
                                         .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                        .map(lp -> lp.getLanguageTag().name())
+                                        .map(lp -> lp.getLanguageTag().tag())
                                         .reduce((a, b) -> a + "," + b).orElse("");
                                 String partialPrompt = getMainPrompt()
                                         .replace("{{djName}}", djName)
