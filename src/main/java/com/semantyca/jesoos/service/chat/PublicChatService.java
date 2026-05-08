@@ -229,7 +229,7 @@ public class PublicChatService extends ChatService {
                 });
     }
 
-    protected List<LlmTool> getToolsForUser(boolean isAuthenticated) {
+    protected List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages) {
         List<LlmTool> tools = new ArrayList<>();
         tools.add(SendEmailToOwnerTool.toTool());
 
@@ -241,7 +241,7 @@ public class PublicChatService extends ChatService {
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(LiveStreamInfoTool.toTool());
             tools.add(UploadSongTool.toTool());
-            tools.add(PlaySongWithIntroTool.toTool());
+            tools.add(PlaySongWithIntroTool.toTool(djLanguages));
             tools.add(StartOneTimeStreamTool.toTool());
             tools.add(ManageEventsTool.toTool());
             tools.add(SendUICommandTool.toTool());
@@ -256,13 +256,13 @@ public class PublicChatService extends ChatService {
     }
 
     @Override
-    protected LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user) {
+    protected LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user, String djLanguages) {
         boolean isAuthenticated = user.getEmail() != null && !user.getEmail().isBlank();
-        return buildLlmRequestForUser(renderedPrompt, history, isAuthenticated);
+        return buildLlmRequestForUser(renderedPrompt, history, isAuthenticated, djLanguages);
     }
 
-    protected LlmRequest buildLlmRequestForUser(String renderedPrompt, List<LlmMessage> history, boolean isAuthenticated) {
-        List<LlmTool> tools = getToolsForUser(isAuthenticated);
+    protected LlmRequest buildLlmRequestForUser(String renderedPrompt, List<LlmMessage> history, boolean isAuthenticated, String djLanguages) {
+        List<LlmTool> tools = getToolsForUser(isAuthenticated, djLanguages);
 
         ChatLogger.tools(isAuthenticated, history.size(),
                 tools.stream().map(LlmTool::name).reduce((a, b) -> a + "," + b).orElse("none"));
@@ -294,9 +294,10 @@ public class PublicChatService extends ChatService {
             long userId) {
 
         boolean isAuthenticated = userId != 0;
+        String djLanguages = assistantNameByConnectionId.getOrDefault(connectionId + "_lang", "");
 
         LlmRequest requestWithTools = request.toBuilder()
-                .tools(getToolsForUser(isAuthenticated))
+                .tools(getToolsForUser(isAuthenticated, djLanguages))
                 .model(resolveFollowUpModel())
                 .build();
 
@@ -416,7 +417,7 @@ public class PublicChatService extends ChatService {
 
     @Override
     protected List<LlmTool> getAvailableTools() {
-        return getToolsForUser(true);
+        return getToolsForUser(true, "");
     }
 
     @Override

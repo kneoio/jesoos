@@ -55,7 +55,7 @@ public abstract class ChatService {
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
 
-    private record BrandStaticData(String djName, String djPrimaryVoices, String partialPrompt) {}
+    private record BrandStaticData(String djName, String djPrimaryVoices, String djLanguages, String partialPrompt) {}
 
     @Inject
     protected ScenePool scenePool;
@@ -221,7 +221,7 @@ public abstract class ChatService {
                                         .replace("{{djCopilotName}}", "")
                                         .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata())
                                         .replace("{{otsScripts}}", otsScripts);
-                                BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), partialPrompt);
+                                BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
                                 brandStaticCache.put(slugName, data);
                                 return data;
                             });
@@ -240,9 +240,10 @@ public abstract class ChatService {
 
             assistantNameByConnectionId.put(connectionId, staticData.djName());
             assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
+            assistantNameByConnectionId.put(connectionId + "_lang", staticData.djLanguages());
 
             return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
-                    .<LlmRequest>map(history -> buildLlmRequest(renderedPrompt, history, user));
+                    .<LlmRequest>map(history -> buildLlmRequest(renderedPrompt, history, user, staticData.djLanguages()));
         }).flatMap(request ->
                 Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
                         .flatMap(response -> {
@@ -265,7 +266,7 @@ public abstract class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected abstract LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user);
+    protected abstract LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user, String djLanguages);
 
     protected abstract List<LlmTool> getAvailableTools();
 

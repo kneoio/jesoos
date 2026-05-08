@@ -7,7 +7,10 @@ import java.util.Map;
 
 public class PlaySongWithIntroTool {
 
-    public static LlmTool toTool() {
+    public static LlmTool toTool(String djLanguages) {
+        String langHint = djLanguages != null && !djLanguages.isBlank()
+                ? "MUST be written in: " + djLanguages + ". Never use the user's chat language."
+                : "Must be written in the station's primary broadcast language, never the user's chat language.";
         return LlmTool.of(
                 "play_song_with_intro",
                 "Queue a song with custom DJ intro speech",
@@ -20,7 +23,7 @@ public class PlaySongWithIntroTool {
                                 "description", "UUID of the song from search results"),
                         "textToTTSIntro", Map.of(
                                 "type", "string",
-                                "description", "DJ intro speech text — must be written in the station's primary broadcast language, regardless of what language the user wrote in"),
+                                "description", "DJ intro speech text — " + langHint),
                         "priority", Map.of(
                                 "type", "integer",
                                 "description", "Priority: 8=normal, 7=high")
