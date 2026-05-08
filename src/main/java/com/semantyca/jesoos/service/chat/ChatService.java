@@ -14,9 +14,11 @@ import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmModels;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmTool;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
+import com.semantyca.jesoos.service.chat.llm.OpenAiChatLlmClient;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.mixpla.model.cnst.SceneTimingMode;
 import com.semantyca.mixpla.model.filter.ScriptFilter;
@@ -71,8 +73,11 @@ public abstract class ChatService {
 
     protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
-            LOGGER.info("[llm] provider=anthropic");
-            this.llmClient = new AnthropicChatLlmClient(config.getAnthropicApiKey());
+            String provider = config.getLlmProvider();
+            LOGGER.infof("[llm] provider=%s", provider);
+            this.llmClient = "openai".equalsIgnoreCase(provider)
+                    ? new OpenAiChatLlmClient(config.getOpenAiApiKey())
+                    : new AnthropicChatLlmClient(config.getAnthropicApiKey());
             this.aiHelperService = aiHelperService;
             this.config = config;
             this.mainPrompt = loadPromptTemplate("prompts/mainPrompt.hbs");
@@ -107,6 +112,18 @@ public abstract class ChatService {
     }
 
     protected abstract ChatType getChatType();
+
+    protected String resolveMainModel() {
+        return "openai".equalsIgnoreCase(config.getLlmProvider())
+                ? LlmModels.GPT_4_1
+                : LlmModels.CLAUDE_SONNET_4_5;
+    }
+
+    protected String resolveFollowUpModel() {
+        return "openai".equalsIgnoreCase(config.getLlmProvider())
+                ? LlmModels.GPT_4_1_MINI
+                : LlmModels.CLAUDE_HAIKU_4_5;
+    }
 
     private Uni<String> buildOtsScriptsText() {
         ScriptFilter filter = new ScriptFilter();

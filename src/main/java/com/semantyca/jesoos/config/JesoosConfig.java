@@ -45,6 +45,10 @@ public interface JesoosConfig {
     @WithName("anthropic.api-key")
     String getAnthropicApiKey();
 
+    @WithName("openai.api-key")
+    @WithDefault("")
+    String getOpenAiApiKey();
+
     @WithName("llm.provider")
     @WithDefault("anthropic")
     String getLlmProvider();

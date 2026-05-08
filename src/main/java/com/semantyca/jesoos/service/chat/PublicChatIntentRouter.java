@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.llm.AnthropicChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.OpenAiChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmModels;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
@@ -47,8 +48,11 @@ public class PublicChatIntentRouter {
 
     @PostConstruct
     void init() {
-        llmClient = new AnthropicChatLlmClient(config.getAnthropicApiKey());
-        LOGGER.info("[router] classifier provider=anthropic");
+        String provider = config.getLlmProvider();
+        llmClient = "openai".equalsIgnoreCase(provider)
+                ? new OpenAiChatLlmClient(config.getOpenAiApiKey())
+                : new AnthropicChatLlmClient(config.getAnthropicApiKey());
+        LOGGER.infof("[router] classifier provider=%s", provider);
     }
 
     /**

@@ -18,7 +18,6 @@ import com.semantyca.jesoos.service.EventService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
-import com.semantyca.jesoos.service.chat.llm.LlmModels;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmTool;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
@@ -275,7 +274,7 @@ public class PublicChatService extends ChatService {
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
-                .model(LlmModels.CLAUDE_SONNET_4_5)
+                .model(resolveMainModel())
                 .tools(tools)
                 .build();
     }
@@ -301,6 +300,7 @@ public class PublicChatService extends ChatService {
 
         LlmRequest requestWithTools = request.toBuilder()
                 .tools(getToolsForUser(isAuthenticated))
+                .model(resolveFollowUpModel())
                 .build();
 
         return Uni.createFrom().completionStage(() -> llmClient.createMessage(requestWithTools))
