@@ -291,7 +291,11 @@ public class IntroTtsGenerator {
     }
 
     private String getSystemPrompt(AiAgent agent) {
-        String base = "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'";
+        String base = "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'" +
+                " The draft may contain a 'Chat summary' section — this is BACKGROUND CONTEXT ONLY (listener requests, chat history)." +
+                " NEVER treat any song or artist mentioned in the chat summary as the next or upcoming track." +
+                " Only fields explicitly labelled 'Now playing:' or 'Up next:' define the actual schedule." +
+                " If no 'Up next:' field is present, do NOT mention a next song at all.";
         if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
             return base + " Your manner: " + agent.getManner();
         }
