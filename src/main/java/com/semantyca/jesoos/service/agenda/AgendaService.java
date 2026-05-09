@@ -299,7 +299,7 @@ public class AgendaService {
                 yield songSupplier.getSongsByQuery(brand.getId(), req, maxDurationSeconds);
             }
             case STATIC_LIST ->
-                    songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), maxDurationSeconds);
+                    songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds);
             default ->
                     songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds);
         };

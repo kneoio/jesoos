@@ -8,6 +8,7 @@ import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -45,7 +46,7 @@ public class TimelineBuilder {
         LocalTime nowTime = LocalTime.now(scene.getTimeZone());
         LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
         if (scene.getOriginalStartTime().isAfter(nowTime)) {
-            long minutesUntilStart = java.time.Duration.between(nowTime, scene.getOriginalStartTime()).toMinutes();
+            long minutesUntilStart = Duration.between(nowTime, scene.getOriginalStartTime()).toMinutes();
             if (minutesUntilStart > 12 * 60) {
                 sceneDate = sceneDate.minusDays(1);
             }

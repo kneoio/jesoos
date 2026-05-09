@@ -288,7 +288,9 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY RANDOM() ");
+        sql.append(" ORDER BY COALESCE(t.boost, 0) DESC, ")
+                .append("COALESCE(bsf.played_by_brand_count, 0) ASC, ")
+                .append("t.id ASC ");
 
         if (limit > 0) {
             sql.append("LIMIT ").append(limit);

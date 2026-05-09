@@ -9,12 +9,11 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class ModelslabClient implements TTSClient {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ModelslabClient.class);
+    private static final Logger LOGGER = Logger.getLogger(ModelslabClient.class);
 
     @Inject
     JesoosConfig config;
@@ -30,7 +29,7 @@ public class ModelslabClient implements TTSClient {
     }
 
     public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag) {
-        LOGGER.info("Starting Modelslab TTS generation - Voice: {}, Text length: {} chars", voiceId, text.length());
+        LOGGER.infof("Starting Modelslab TTS generation - Voice: %s, Text length: %s chars", voiceId, text.length());
 
         String langTag = getLangString(languageTag);
         JsonObject payload = new JsonObject()
@@ -62,7 +61,7 @@ public class ModelslabClient implements TTSClient {
                         String fetchUrl = jsonResponse.getString("fetch_result");
                         return pollForCompletion(fetchUrl, 200, 2000);
                     } else {
-                        LOGGER.error("Modelslab failed. voice: {}, language: {}", voiceId, langTag);
+                        LOGGER.errorf("Modelslab failed. voice: %s, language: %s", voiceId, langTag);
                         throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
                     }
                 });
@@ -93,7 +92,7 @@ public class ModelslabClient implements TTSClient {
         
         // Log progress every 20 attempts
         if (attempt % 20 == 0 && attempt > 0) {
-            LOGGER.info("Modelslab TTS polling progress: {}/{} attempts ({} seconds elapsed)", 
+            LOGGER.infof("Modelslab TTS polling progress: %s/%s attempts (%s seconds elapsed)",
                     attempt, maxAttempts, (attempt * delayMs) / 1000);
         }
 

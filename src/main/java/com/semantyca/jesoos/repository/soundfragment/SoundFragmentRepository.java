@@ -194,6 +194,32 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .collect().asList();
     }
 
+    /**
+     * Loads fragments by id for scheduling; orders by higher {@code boost}, then fewer
+     * {@code played_by_brand_count} for this brand (fragments without a brand row sort like 0 plays).
+     */
+    public Uni<List<SoundFragment>> findByIdsForBrand(UUID brandId, List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+        String placeholders = ids.stream()
+                .map(id -> "'" + id.toString() + "'")
+                .collect(Collectors.joining(","));
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t "
+                + "LEFT JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id "
+                + "AND bsf.brand_id = '" + brandId + "' "
+                + "WHERE t.id IN (" + placeholders + ") AND t.archived = 0 "
+                + "ORDER BY COALESCE(t.boost, 0) DESC, "
+                + "COALESCE(bsf.played_by_brand_count, 0) ASC, "
+                + "t.id ASC";
+        return client.query(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
+
     public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, List<RlsActionDTO> rlsActions, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();
