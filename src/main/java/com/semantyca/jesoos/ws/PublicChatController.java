@@ -16,15 +16,16 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static java.util.UUID.randomUUID;
-
 @ApplicationScoped
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
     private static final Logger LOG = Logger.getLogger(PublicChatController.class);
+    private static final SecureRandom CONNECTION_ID_RANDOM = new SecureRandom();
     private final PublicChatService publicChatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
@@ -117,7 +118,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         String connectionId = (isAnonymous(user) && isValidAnonId(anonId))
                 ? anonId
-                : randomUUID().toString();
+                : newConnectionId();
         activeConnections.put(connectionId, webSocket);
         UserHolder userHolder = new UserHolder(user);
         connectionUsers.put(connectionId, userHolder);
@@ -241,12 +242,29 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private boolean isValidAnonId(String anonId) {
         if (anonId == null || anonId.isBlank()) return false;
+        if (anonId.length() == 16 && anonId.chars().allMatch(PublicChatController::isBase64UrlChar)) {
+            return true;
+        }
         try {
             java.util.UUID.fromString(anonId);
             return true;
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    private static boolean isBase64UrlChar(int c) {
+        return (c >= 'A' && c <= 'Z')
+                || (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9')
+                || c == '-'
+                || c == '_';
+    }
+
+    private static String newConnectionId() {
+        byte[] buf = new byte[12];
+        CONNECTION_ID_RANDOM.nextBytes(buf);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
     }
 
     public void upgradeUserSession(String connectionId, IUser newUser) {

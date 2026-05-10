@@ -21,7 +21,6 @@ public class ScriptDTO extends AbstractDTO {
     private UUID defaultProfileId;
     @NotBlank
     private String description;
-    private Integer accessLevel = 0;
     @NotBlank
     private String languageTag;
     @NotNull
