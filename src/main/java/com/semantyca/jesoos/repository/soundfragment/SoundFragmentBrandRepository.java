@@ -346,7 +346,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY RAND() ");
+        sql.append(" ORDER BY RANDOM() ");
 
         if (limit > 0) {
             sql.append("LIMIT ").append(limit);
