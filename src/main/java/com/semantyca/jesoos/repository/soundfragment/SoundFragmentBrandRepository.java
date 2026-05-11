@@ -26,6 +26,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -277,12 +278,23 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 });
     }
 
+    private String buildExcludeClause(Set<UUID> excludeIds) {
+        if (excludeIds == null || excludeIds.isEmpty()) return "";
+        String inList = excludeIds.stream().map(id -> "'" + id + "'").collect(java.util.stream.Collectors.joining(", "));
+        return "AND t.id NOT IN (" + inList + ") ";
+    }
+
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
+        return findByFilter(brandId, filter, limit, Set.of());
+    }
+
+    public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
             sql.append(buildFilterConditions(filter));
@@ -307,11 +319,16 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     }
 
     public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit) {
+        return findByFilterOldest(brandId, filter, limit, Set.of());
+    }
+
+    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
             sql.append(buildFilterConditions(filter));
@@ -336,11 +353,16 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
     }
 
     public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit) {
+        return findByFilterRandom(brandId, filter, limit, Set.of());
+    }
+
+    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
             sql.append(buildFilterConditions(filter));

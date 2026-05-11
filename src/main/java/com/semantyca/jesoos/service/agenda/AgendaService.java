@@ -31,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AgendaService {
@@ -112,94 +113,80 @@ public class AgendaService {
                 break;
             }
         }
-
         if (shiftIndex > 0) {
             Collections.rotate(timeSlots, -shiftIndex);
         }
 
-        List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
+        Uni<AiAgent> agentUni = (sourceBrand.getAiAgentId() != null)
+                ? aiAgentService.getById(sourceBrand.getAiAgentId(), SuperUser.build())
+                : Uni.createFrom().nullItem();
 
-        for (int i = 0; i < timeSlots.size(); i++) {
-            SceneTimeSlot slot = timeSlots.get(i);
-            Scene scene = slot.scene();
-            LocalTime sceneOriginalStart = slot.startTime();
+        record BuildState(List<LiveScene> liveScenes, Set<UUID> usedIds) {}
 
-            int nextIndex = (i + 1) % timeSlots.size();
-            LocalTime sceneOriginalEnd = timeSlots.get(nextIndex).startTime();
-            int durationSeconds = calculateDurationUntilNext(sceneOriginalStart, sceneOriginalEnd);
+        return agentUni.chain(agent -> {
+            Uni<BuildState> chain = Uni.createFrom().item(new BuildState(new ArrayList<>(), new HashSet<>()));
 
-            TimelineBuilder timelineBuilder = new TimelineBuilder();
+            for (int i = 0; i < timeSlots.size(); i++) {
+                final Uni<BuildState> prev = chain;
+                final SceneTimeSlot slot = timeSlots.get(i);
+                final Scene scene = slot.scene();
+                final LocalTime sceneOriginalStart = slot.startTime();
+                final int nextIndex = (i + 1) % timeSlots.size();
+                final int durationSeconds = calculateDurationUntilNext(sceneOriginalStart, timeSlots.get(nextIndex).startTime());
 
-            Uni<AiAgent> agentUni = (sourceBrand.getAiAgentId() != null)
-                    ? aiAgentService.getById(sourceBrand.getAiAgentId(), SuperUser.build())
-                    : Uni.createFrom().nullItem();
+                chain = prev.chain(state ->
+                        fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
+                                .map(soundFragments -> {
+                                    soundFragments.forEach(sf -> state.usedIds().add(sf.getId()));
 
-            sceneUnis.add(
-                    Uni.combine().all().unis(
-                                    fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier),
-                                    agentUni
-                            ).asTuple()
-                            .map(tuple -> {
-                                List<SoundFragment> soundFragments = tuple.getItem1();
-                                AiAgent agent = tuple.getItem2();
-                                UUID traceId = UUID.randomUUID();
+                                    LiveScene liveScene = new LiveScene();
+                                    liveScene.setSceneId(scene.getId());
+                                    liveScene.setSceneTitle(scene.getTitle());
+                                    liveScene.setOriginalStartTime(sceneOriginalStart);
+                                    liveScene.setTraceId(UUID.randomUUID());
+                                    liveScene.setTimeZone(brandZone);
+                                    liveScene.setAgentId(sourceBrand.getAiAgentId());
+                                    liveScene.setContentStatus(ContentStatus.PENDING);
+                                    liveScene.setOneTimeRun(scene.isOneTimeRun());
+                                    if (scene.getPlaylistRequest() != null && isGeneratedContentScene(scene.getPlaylistRequest())) {
+                                        liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                    }
+                                    liveScene.setIntroPrompts(scene.getIntroPrompts());
 
-                                LiveScene liveScene = new LiveScene();
-                                liveScene.setSceneId(scene.getId());
-                                liveScene.setSceneTitle(scene.getTitle());
-                                liveScene.setOriginalStartTime(sceneOriginalStart);
-                                liveScene.setTraceId(traceId);
-                                liveScene.setTimeZone(brandZone);
-                                liveScene.setAgentId(sourceBrand.getAiAgentId());
-                                liveScene.setContentStatus(ContentStatus.PENDING);
-                                liveScene.setOneTimeRun(scene.isOneTimeRun());
-                                if (scene.getPlaylistRequest() != null
-                                        && isGeneratedContentScene(scene.getPlaylistRequest())) {
-                                    liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
-                                }
-                                liveScene.setIntroPrompts(scene.getIntroPrompts());
+                                    List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
+                                    liveScene.setTimeline(new TimelineBuilder().buildTimeline(
+                                            liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts()));
 
-                                List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
+                                    state.liveScenes().add(liveScene);
+                                    return state;
+                                })
+                );
+            }
 
-                                List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
-                                        liveScene,
-                                        songEntries,
-                                        durationSeconds,
-                                        scene.getTalkativity(),
-                                        scene.getIntroPrompts()
-                                );
-
-                                liveScene.setTimeline(timeline);
-                                return liveScene;
-                            })
-            );
-        }
-
-        return Uni.join().all(sceneUnis).andFailFast()
-                .map(liveScenes -> {
-                    for (LiveScene liveScene : liveScenes) {
-                        schedule.addScene(liveScene);
-                        if (liveScene.getFitSeconds() > 360) {
-                            metricPublisher.publishMetric(
-                                    sourceBrand.getSlugName(),
-                                    MetricEventType.WARNING,
-                                    ProcessType.INDEPENDENT,
-                                    "scene_content_gap",
-                                    Map.of(
-                                            "scene", liveScene.getSceneTitle(),
-                                            "sceneId", liveScene.getSceneId().toString(),
-                                            "gapMinutes", TimeFormatUtil.toRoundedMinutes(liveScene.getFitSeconds())
-                                    )
-                            );
-                        }
+            return chain.map(state -> {
+                for (LiveScene liveScene : state.liveScenes()) {
+                    schedule.addScene(liveScene);
+                    if (liveScene.getFitSeconds() > 360) {
+                        metricPublisher.publishMetric(
+                                sourceBrand.getSlugName(),
+                                MetricEventType.WARNING,
+                                ProcessType.INDEPENDENT,
+                                "scene_content_gap",
+                                Map.of(
+                                        "scene", liveScene.getSceneTitle(),
+                                        "sceneId", liveScene.getSceneId().toString(),
+                                        "gapMinutes", TimeFormatUtil.toRoundedMinutes(liveScene.getFitSeconds())
+                                )
+                        );
                     }
-                    return schedule;
-                })
-                .invoke(agenda -> agendaPersistenceService.persist(agenda, sourceBrand.getId(), user.getId())
-                        .subscribe().with(
-                                id -> LOGGER.debugf("Agenda persisted async for brand %s, config id: %s", sourceBrand.getId(), id),
-                                e -> LOGGER.warnf("Agenda persistence failed for brand %s: %s", sourceBrand.getId(), e.getMessage())
-                        ));
+                }
+                return schedule;
+            });
+        }).invoke(agenda -> agendaPersistenceService.persist(agenda, sourceBrand.getId(), user.getId())
+                .subscribe().with(
+                        id -> LOGGER.debugf("Agenda persisted async for brand %s, config id: %s", sourceBrand.getId(), id),
+                        e -> LOGGER.warnf("Agenda persistence failed for brand %s: %s", sourceBrand.getId(), e.getMessage())
+                ));
     }
 
     public Uni<StreamAgenda> buildOtsAgenda(Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
@@ -284,6 +271,10 @@ public class AgendaService {
     }
 
     private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
+        return fetchSongsForSceneWithDuration(brand, scene, maxDurationSeconds, songSupplier, Set.of());
+    }
+
+    private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
@@ -301,7 +292,7 @@ public class AgendaService {
             case STATIC_LIST ->
                     songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds);
             default ->
-                    songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds);
+                    songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds, excludeIds);
         };
 
         int effectiveDuration = isGeneratedContentScene(playlistRequest)

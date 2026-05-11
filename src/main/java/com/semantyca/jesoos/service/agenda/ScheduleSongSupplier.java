@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,6 +28,10 @@ public class ScheduleSongSupplier {
     }
 
     public Uni<List<SoundFragment>> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity) {
+        return getSongsForBrand(brandId, type, quantity, Set.of());
+    }
+
+    public Uni<List<SoundFragment>> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
 
@@ -36,9 +41,9 @@ public class ScheduleSongSupplier {
 
         return Uni.combine().all()
                 .unis(
-                        repository.findByFilter(brandId, filter, newest),
-                        repository.findByFilterOldest(brandId, filter, oldest),
-                        repository.findByFilterRandom(brandId, filter, random)
+                        repository.findByFilter(brandId, filter, newest, excludeIds),
+                        repository.findByFilterOldest(brandId, filter, oldest, excludeIds),
+                        repository.findByFilterRandom(brandId, filter, random, excludeIds)
                 )
                 .asTuple()
                 .map(tuple -> {
