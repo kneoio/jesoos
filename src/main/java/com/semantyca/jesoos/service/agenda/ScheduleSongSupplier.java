@@ -39,11 +39,13 @@ public class ScheduleSongSupplier {
         int oldest = Math.max(1, (int) Math.ceil(quantity * 0.2));
         int random = Math.max(1, quantity - newest - oldest);
 
+        Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
+
         return Uni.combine().all()
                 .unis(
-                        repository.findByFilter(brandId, filter, newest, excludeIds),
-                        repository.findByFilterOldest(brandId, filter, oldest, excludeIds),
-                        repository.findByFilterRandom(brandId, filter, random, excludeIds)
+                        repository.findByFilter(brandId, filter, newest, effective),
+                        repository.findByFilterOldest(brandId, filter, oldest, effective),
+                        repository.findByFilterRandom(brandId, filter, random, effective)
                 )
                 .asTuple()
                 .map(tuple -> {

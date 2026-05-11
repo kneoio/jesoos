@@ -136,6 +136,14 @@ public class AgendaService {
 
                 chain = prev.chain(state ->
                         fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
+                                .chain(songs -> {
+                                    if (songs.isEmpty() && !state.usedIds().isEmpty()) {
+                                        LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set", scene.getTitle());
+                                        state.usedIds().clear();
+                                        return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
+                                    }
+                                    return Uni.createFrom().item(songs);
+                                })
                                 .map(soundFragments -> {
                                     soundFragments.forEach(sf -> state.usedIds().add(sf.getId()));
 
