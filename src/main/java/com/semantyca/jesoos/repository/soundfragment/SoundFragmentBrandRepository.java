@@ -305,4 +305,60 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .concatenate()
                 .collect().asList();
     }
+
+    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
+        sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
+        sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
+        sql.append("AND t.archived = 0 ");
+
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+
+        sql.append(" ORDER BY COALESCE(t.boost, 0) DESC, ")
+                .append("COALESCE(bsf.played_by_brand_count, 0) DESC, ")
+                .append("t.id ASC ");
+
+        if (limit > 0) {
+            sql.append("LIMIT ").append(limit);
+        }
+
+        LOGGER.debugf("findByFilterOldest SQL: %s", sql);
+
+        return client.query(sql.toString())
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
+        sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
+        sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
+        sql.append("AND t.archived = 0 ");
+
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+
+        sql.append(" ORDER BY RAND() ");
+
+        if (limit > 0) {
+            sql.append("LIMIT ").append(limit);
+        }
+
+        LOGGER.debugf("findByFilterRandom SQL: %s", sql);
+
+        return client.query(sql.toString())
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
 }

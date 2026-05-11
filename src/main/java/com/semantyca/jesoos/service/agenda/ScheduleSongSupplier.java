@@ -10,7 +10,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,8 +29,25 @@ public class ScheduleSongSupplier {
     public Uni<List<SoundFragment>> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
-        return repository.findByFilter(brandId, filter, quantity)
-                .map(fragments -> limitQuantity(fragments, quantity));
+
+        int newest = Math.max(1, (int) Math.ceil(quantity * 0.6));
+        int oldest = Math.max(1, (int) Math.ceil(quantity * 0.2));
+        int random = Math.max(1, quantity - newest - oldest);
+
+        return Uni.combine().all()
+                .unis(
+                        repository.findByFilter(brandId, filter, newest),
+                        repository.findByFilterOldest(brandId, filter, oldest),
+                        repository.findByFilterRandom(brandId, filter, random)
+                )
+                .asTuple()
+                .map(tuple -> {
+                    Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
+                    tuple.getItem1().forEach(s -> merged.put(s.getId(), s));
+                    tuple.getItem2().forEach(s -> merged.putIfAbsent(s.getId(), s));
+                    tuple.getItem3().forEach(s -> merged.putIfAbsent(s.getId(), s));
+                    return new ArrayList<>(merged.values());
+                });
     }
 
     public Uni<List<SoundFragment>> getSongsByQuery(UUID brandId, PlaylistRequest playlistRequest, int quantity) {
