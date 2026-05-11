@@ -25,6 +25,7 @@ public class CommandResource extends AbstractResource {
         router.route(HttpMethod.POST, path + "/:brand/enable-dj").handler(this::handleEnableDj);
         router.route(HttpMethod.POST, path + "/:brand/disable-dj").handler(this::handleDisableDj);
         router.route(HttpMethod.POST, path + "/:brand/emit-timeline-entry/:sceneId/:sequenceNumber").handler(this::handleEmitTimelineEntry);
+        router.route(HttpMethod.POST, path + "/:brand/backpressure").handler(this::handleBackpressure);
         router.route(HttpMethod.POST, path + "/ots/:otsSlug/start").handler(this::handleOtsStart);
         router.route(HttpMethod.POST, path + "/ots/:otsSlug/stop").handler(this::handleOtsStop);
     }
@@ -75,6 +76,17 @@ public class CommandResource extends AbstractResource {
                             .end(response.encode());
                 })
                 .onFailure(failure -> handleCommandFailure(rc, slugName, "disable-dj", failure));
+    }
+
+    private void handleBackpressure(RoutingContext rc) {
+        String slugName = rc.pathParam("brand").toLowerCase();
+        commandService.backpressure(slugName)
+                .subscribe().with(
+                        response -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode()),
+                        failure -> handleCommandFailure(rc, slugName, "backpressure", failure));
     }
 
     private void handleEmitTimelineEntry(RoutingContext rc) {

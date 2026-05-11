@@ -95,6 +95,19 @@ public class CommandService {
         });
     }
 
+    public Uni<JsonObject> backpressure(String brand) {
+        if (brand == null || brand.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
+        }
+        return Uni.createFrom().item(() -> {
+            int pending = staggeredSongScheduler.backpressure(brand);
+            return new JsonObject()
+                    .put("success", true)
+                    .put("brand", brand)
+                    .put("pendingSkips", pending);
+        });
+    }
+
     public Uni<Boolean> getDjStatus(String brand) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));

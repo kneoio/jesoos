@@ -37,7 +37,9 @@ public class StaggeredSongScheduler {
     private final SongEmitter songEmitter;
     private final JingleSongEmitter jingleSongEmitter;
     private final GeneratedContentEmitter generatedContentEmitter;
+    private final DjStateService djStateService;
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> brandTimers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> skipCounters = new ConcurrentHashMap<>();
     private final JesoosConfig config;
 
     @Inject
@@ -47,6 +49,7 @@ public class StaggeredSongScheduler {
                                   MetricPublisher metricPublisher,
                                   SongEmitter songEmitter,
                                   JingleSongEmitter jingleSongEmitter, GeneratedContentEmitter generatedContentEmitter,
+                                  DjStateService djStateService,
                                   JesoosConfig config) {
         this.brandPool = brandPool;
         this.vertx = vertx;
@@ -55,6 +58,7 @@ public class StaggeredSongScheduler {
         this.songEmitter = songEmitter;
         this.jingleSongEmitter = jingleSongEmitter;
         this.generatedContentEmitter = generatedContentEmitter;
+        this.djStateService = djStateService;
         this.config = config;
     }
 
@@ -122,6 +126,14 @@ public class StaggeredSongScheduler {
                     .toEpochMilli();
 
             if (System.currentTimeMillis() >= deadline) {
+                entry.setStatus(TimelineEntryStatus.SKIPPED);
+                return;
+            }
+
+            java.util.concurrent.atomic.AtomicInteger skipCounter = skipCounters.get(brandName);
+            if (skipCounter != null && skipCounter.get() > 0 && skipCounter.decrementAndGet() >= 0) {
+                LOGGER.infof("Backpressure skip: entry #%d for brand '%s' skipped (%d remaining)",
+                        entry.getSequenceNumber(), brandName, skipCounter.get());
                 entry.setStatus(TimelineEntryStatus.SKIPPED);
                 return;
             }
@@ -194,7 +206,8 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
-        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? StreamPriority.PRIORITIZED_FRONT.getValue() : StreamPriority.PRIORITIZED.getValue());
+        StreamPriority songPriority = djStateService.isDjEnabled(brandName) ? StreamPriority.PRIORITIZED : StreamPriority.NORMAL;
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? StreamPriority.PRIORITIZED_FRONT.getValue() : songPriority.getValue());
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
@@ -226,6 +239,13 @@ public class StaggeredSongScheduler {
                                     "Song emitter failed for entry #%d scene '%s': %s",
                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                 });
+    }
+
+    public int backpressure(String brandName) {
+        int pending = skipCounters.computeIfAbsent(brandName, k -> new java.util.concurrent.atomic.AtomicInteger(0))
+                .incrementAndGet();
+        LOGGER.infof("Backpressure signal received for brand '%s': %d skip(s) queued", brandName, pending);
+        return pending;
     }
 
     public void cancelBrandTimers(String brandName) {
