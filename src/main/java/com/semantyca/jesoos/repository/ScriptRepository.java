@@ -245,7 +245,6 @@ public class ScriptRepository extends AsyncRepository {
                         .addString(script.getSlugName())
                         .addUUID(script.getDefaultProfileId())
                         .addString(script.getDescription())
-                        .addInteger(script.getAccessLevel())
                         .addString(script.getLanguageTag().tag())
                         .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                         .addJsonArray(requiredVarsJson);
@@ -347,7 +346,6 @@ public class ScriptRepository extends AsyncRepository {
         doc.setSlugName(row.getString("slug_name"));
         doc.setDefaultProfileId(row.getUUID("default_profile_id"));
         doc.setDescription(row.getString("description"));
-        doc.setAccessLevel(row.getInteger("access_level"));
         doc.setArchived(row.getInteger("archived"));
         String lang = row.getString("language_tag");
         doc.setLanguageTag(LanguageTag.fromTag(lang));
