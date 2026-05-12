@@ -10,6 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,8 +36,8 @@ public class ScheduleSongSupplier {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
 
-        int newest = Math.max(1, (int) Math.ceil(quantity * 0.6));
-        int oldest = Math.max(1, (int) Math.ceil(quantity * 0.2));
+        int newest = Math.max(1, (int) Math.ceil(quantity * 0.3));
+        int oldest = Math.max(1, (int) Math.ceil(quantity * 0.4));
         int random = Math.max(1, quantity - newest - oldest);
 
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
@@ -53,7 +54,9 @@ public class ScheduleSongSupplier {
                     tuple.getItem1().forEach(s -> merged.put(s.getId(), s));
                     tuple.getItem2().forEach(s -> merged.putIfAbsent(s.getId(), s));
                     tuple.getItem3().forEach(s -> merged.putIfAbsent(s.getId(), s));
-                    return new ArrayList<>(merged.values());
+                    List<SoundFragment> result = new ArrayList<>(merged.values());
+                    Collections.shuffle(result);
+                    return result;
                 });
     }
 

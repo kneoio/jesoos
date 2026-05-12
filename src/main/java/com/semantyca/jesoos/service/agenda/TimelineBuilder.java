@@ -81,11 +81,12 @@ public class TimelineBuilder {
         MixingType lastMixingType = null;
         int consecutiveMixingCount = 0;
         int consecutive2SongCount = 0;
+        int consecutiveIntroCount = 0;
         while (true) {
             assert songs != null;
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
-            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount);
+            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
@@ -115,6 +116,7 @@ public class TimelineBuilder {
                 consecutiveMixingCount = 1;
             }
             consecutive2SongCount = songList.size() == 2 ? consecutive2SongCount + 1 : 0;
+            consecutiveIntroCount = strategy.needsIntros() ? consecutiveIntroCount + 1 : 0;
 
             int stride = entry.getEstimatedDurationSeconds()
                     - MergingTypeMeta.of(strategy.mergingType()).crossfadeOverlapSeconds();

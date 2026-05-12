@@ -168,6 +168,7 @@ public class StaggeredSongScheduler {
                                         ),
                                         scene.getTraceId()
                                 );
+                                triggerNextEntry(brandName, scene, entry, brandZone);
                             }
                     );
         };
@@ -270,6 +271,32 @@ public class StaggeredSongScheduler {
                 ),
                 scene.getTraceId()
         );
+    }
+
+    private void triggerNextEntry(String brandName, LiveScene scene, TimelineEntry failed, ZoneId brandZone) {
+        List<TimelineEntry> timeline = scene.getTimeline();
+        if (timeline == null) return;
+        int nextSeq = failed.getSequenceNumber() + 1;
+        timeline.stream()
+                .filter(e -> e.getSequenceNumber() == nextSeq && e.getStatus() == TimelineEntryStatus.SCHEDULED)
+                .findFirst()
+                .ifPresent(next -> {
+                    ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+                    if (timers != null) {
+                        Long timerId = timers.remove(next.getSequenceNumber());
+                        if (timerId != null) {
+                            vertx.cancelTimer(timerId);
+                        }
+                    }
+                    LOGGER.infof("Entry #%d failed — triggering next entry #%d immediately for brand '%s'",
+                            failed.getSequenceNumber(), next.getSequenceNumber(), brandName);
+                    next.setStatus(TimelineEntryStatus.EMITTING);
+                    emitTimelineEntry(brandName, scene, next, brandZone)
+                            .subscribe().with(
+                                    v -> next.setStatus(TimelineEntryStatus.COMPLETED),
+                                    err -> next.setStatus(TimelineEntryStatus.FAILED)
+                            );
+                });
     }
 
     private Throwable rootCause(Throwable t) {
