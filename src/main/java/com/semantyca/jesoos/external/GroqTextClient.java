@@ -34,8 +34,8 @@ public class GroqTextClient implements LlmTextClient {
     public Uni<LlmTextResult> createTextMessage(String model, long maxTokens, String systemPrompt, String userMessage) {
         JsonObject body = new JsonObject()
                 .put("model", model)
-                //.put("max_tokens", (int) maxTokens)  //for the old llms
-                .put("max_completion_tokens", (int) maxTokens)
+                .put("max_tokens", (int) maxTokens)  //for the old llms
+                //.put("max_completion_tokens", (int) maxTokens)
                 .put("messages", new JsonArray()
                         .add(new JsonObject().put("role", "system").put("content", systemPrompt))
                         .add(new JsonObject().put("role", "user").put("content", userMessage)));

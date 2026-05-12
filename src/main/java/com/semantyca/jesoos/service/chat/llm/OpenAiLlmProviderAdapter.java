@@ -16,8 +16,8 @@ public final class OpenAiLlmProviderAdapter implements LlmProviderAdapter {
     @Override
     public String modelFor(LlmUseCase useCase) {
         return switch (useCase) {
-            //case MAIN_CHAT -> LlmModels.GPT_4_1;
-            case MAIN_CHAT -> LlmModels.GPT_5_4_MINI;
+            case MAIN_CHAT -> LlmModels.GPT_4_1;
+            //case MAIN_CHAT -> LlmModels.GPT_5_4_MINI;
             case FOLLOW_UP, INTENT_CLASSIFIER -> LlmModels.GPT_4_1_MINI;
         };
     }
