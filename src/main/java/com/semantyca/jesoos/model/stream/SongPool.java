@@ -1,10 +1,9 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public record SongPool(List<SoundFragment> songs, Map<UUID, Owner> sharerMap) {}
+public record SongPool(List<SoundFragment> songs, Map<UUID, String> sharerMap) {}

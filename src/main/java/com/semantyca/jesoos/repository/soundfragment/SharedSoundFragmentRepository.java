@@ -3,7 +3,6 @@ package com.semantyca.jesoos.repository.soundfragment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.jesoos.model.stream.SharedSongEntry;
-import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Multi;
@@ -48,12 +47,8 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
     }
 
     private Uni<SharedSongEntry> fromRow(Row row) {
-        return from(row, false, false, false).map(sf -> {
-            Owner sharedBy = new Owner();
-            sharedBy.setName(row.getString("source_user_name"));
-            sharedBy.setEmail(row.getString("source_user_email"));
-            return new SharedSongEntry(sf, sharedBy);
-        });
+        return from(row, false, false, false)
+                .map(sf -> new SharedSongEntry(sf, row.getString("source_user_name")));
     }
 
     private String buildQuery(UUID brandId, PlaylistItemType type, Set<UUID> excludeIds, String orderBy, int limit) {

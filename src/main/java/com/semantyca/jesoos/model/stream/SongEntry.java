@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import lombok.Getter;
 
@@ -13,13 +12,13 @@ public class SongEntry {
     private final PromptEntry promptEntry;
     private final int sequenceNumber;
     private final int durationSeconds;
-    private final Owner sharedBy;
+    private final String sharerName;
 
     public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber) {
         this(soundFragment, promptEntry, sequenceNumber, null);
     }
 
-    public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, Owner sharedBy) {
+    public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName) {
         this.promptEntry = promptEntry;
         this.id = UUID.randomUUID();
         this.soundFragment = soundFragment;
@@ -27,10 +26,10 @@ public class SongEntry {
         this.durationSeconds = soundFragment.getLength() != null
                 ? (int) soundFragment.getLength().toSeconds()
                 : 180;
-        this.sharedBy = sharedBy;
+        this.sharerName = sharerName;
     }
 
     public boolean isShared() {
-        return sharedBy != null;
+        return sharerName != null;
     }
 }

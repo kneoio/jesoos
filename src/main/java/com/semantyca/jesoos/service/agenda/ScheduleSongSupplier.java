@@ -5,7 +5,6 @@ import com.semantyca.jesoos.model.stream.SongPool;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.mixpla.model.PlaylistRequest;
-import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -63,11 +62,11 @@ public class ScheduleSongSupplier {
                     tuple.getItem2().forEach(s -> merged.putIfAbsent(s.getId(), s));
                     tuple.getItem3().forEach(s -> merged.putIfAbsent(s.getId(), s));
 
-                    Map<UUID, Owner> sharerMap = new HashMap<>();
+                    Map<UUID, String> sharerMap = new HashMap<>();
                     for (SharedSongEntry entry : tuple.getItem4()) {
                         UUID id = entry.soundFragment().getId();
                         merged.putIfAbsent(id, entry.soundFragment());
-                        sharerMap.put(id, entry.sharedBy());
+                        sharerMap.put(id, entry.sharerName());
                     }
 
                     List<SoundFragment> result = new ArrayList<>(merged.values());

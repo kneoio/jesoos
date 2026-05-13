@@ -18,7 +18,6 @@ import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
-import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
@@ -367,7 +366,7 @@ public class AgendaService {
     }
 
 
-    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent, Map<UUID, Owner> sharerMap) {
+    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent, Map<UUID, String> sharerMap) {
         List<SongEntry> songEntries = new ArrayList<>();
 
         List<ScenePrompt> activePrompts = (introPrompts != null)
@@ -385,8 +384,8 @@ public class AgendaService {
                 promptEntry.setLanguage(languageTag.toLanguageCode());
             }
 
-            Owner sharedBy = sharerMap != null ? sharerMap.get(sf.getId()) : null;
-            songEntries.add(new SongEntry(sf, promptEntry, i, sharedBy));
+            String sharerName = sharerMap != null ? sharerMap.get(sf.getId()) : null;
+            songEntries.add(new SongEntry(sf, promptEntry, i, sharerName));
         }
         return songEntries;
     }
