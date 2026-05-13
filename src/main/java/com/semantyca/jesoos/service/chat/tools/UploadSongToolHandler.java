@@ -114,7 +114,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
 
                                     return brandPool.get(brandName).flatMap(stream -> {
                                         Uni<UUID> brandIdUni = stream != null
-                                                ? Uni.createFrom().item(stream.getId())
+                                                ? Uni.createFrom().item(stream.getMasterBrandId())
                                                 : brandService.getBySlugName(brandName).map(brand -> brand != null ? brand.getId() : null);
 
                                         return brandIdUni.flatMap(brandId -> {

@@ -20,7 +20,7 @@ public class OneTimeStreamPool extends AbstractStreamPool<OneTimeStream> {
 
     public void add(OneTimeStream stream) {
         pool.put(stream.getSlugName(), stream);
-        LOGGER.infof("OneTimeStreamPool: stream '%s' added (id=%s)", stream.getSlugName(), stream.getId());
+        LOGGER.infof("OneTimeStreamPool: stream '%s' added (streamId=%s)", stream.getSlugName(), stream.getStreamId());
     }
 
     @Override

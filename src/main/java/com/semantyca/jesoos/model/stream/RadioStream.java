@@ -17,7 +17,7 @@ public class RadioStream extends AbstractStream {
 
     public RadioStream(Brand brand) {
         this.masterBrand = brand;
-        this.id = brand.getId();
+        this.streamId = brand.getId().toString();
         this.slugName = brand.getSlugName();
         this.localizedName = new EnumMap<>(brand.getLocalizedName());
         this.timeZone = brand.getTimeZone();
@@ -38,12 +38,12 @@ public class RadioStream extends AbstractStream {
 
     @Override
     public String toString() {
-        return String.format("RadioStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, masterBrand.getSlugName());
+        return String.format("RadioStream[streamId: %s, slug: %s, baseBrand: %s]", streamId, slugName, masterBrand.getSlugName());
     }
 
     @Override
     public UUID getMasterBrandId() {
-        return id;
+        return masterBrand.getId();
     }
 
     @Override

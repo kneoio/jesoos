@@ -36,7 +36,7 @@ public class OneTimeStream extends AbstractStream {
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;
-        this.id = UUID.randomUUID();
+        this.streamId = UUID.randomUUID().toString();
         this.script = script;
         this.userVariables = userVariables;
         this.createdAt = LocalDateTime.now();

@@ -87,18 +87,18 @@ public class OneTimeStreamService {
         return pool.get(slugName);
     }
 
-    public Uni<OneTimeStream> getById(UUID id) {
-        return repository.findById(id);
+    public Uni<OneTimeStream> getById(String streamId) {
+        return repository.findById(streamId);
     }
 
-    public Uni<Void> delete(UUID id) {
-        return repository.findById(id)
+    public Uni<Void> delete(String streamId) {
+        return repository.findById(streamId)
                 .chain(stream -> {
                     if (stream == null) {
-                        return Uni.createFrom().failure(new RuntimeException("Stream not found: " + id));
+                        return Uni.createFrom().failure(new RuntimeException("Stream not found: " + streamId));
                     }
                     return pool.stopAndRemove(stream.getSlugName())
-                            .chain(ignored -> repository.delete(id));
+                            .chain(ignored -> repository.delete(streamId));
                 });
     }
 }

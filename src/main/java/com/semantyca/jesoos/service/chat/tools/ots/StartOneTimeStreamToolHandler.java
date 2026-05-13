@@ -112,7 +112,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
                                 String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
                                 JsonObject payload = new JsonObject()
                                         .put("ok", true).put("slugName", stream.getSlugName())
-                                        .put("id", stream.getId().toString()).put("status", stream.getStatus().name())
+                                        .put("id", stream.getStreamId()).put("status", stream.getStatus().name())
                                         .put("hlsUrl", hlsUrl).put("mixplaUrl", mixplaUrl);
                                 handler.sendProcessingChunk(chunkHandler, connectionId, "Stream started: " + stream.getSlugName());
                                 handler.addToolUseToHistory(toolCall, conversationHistory);

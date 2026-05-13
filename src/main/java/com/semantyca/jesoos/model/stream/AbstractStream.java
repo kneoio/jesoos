@@ -28,7 +28,7 @@ import java.util.UUID;
 @Setter
 @Getter
 public abstract class AbstractStream implements IStream, ILiveStream {
-    protected UUID id;
+    protected String streamId;
     protected Brand masterBrand;
     protected String slugName;
     protected EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);

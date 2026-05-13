@@ -43,7 +43,7 @@ public class JingleSongEmitter {
                           IStream stream,
                           ZoneId brandZone,
                           int priority) {
-        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
+        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
                     long sceneDeadlineForAivoxAwareness = scene.getEndTime()

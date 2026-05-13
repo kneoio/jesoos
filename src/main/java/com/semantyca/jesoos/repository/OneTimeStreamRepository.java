@@ -8,8 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-
 @ApplicationScoped
 public class OneTimeStreamRepository {
 
@@ -19,10 +17,10 @@ public class OneTimeStreamRepository {
         return Uni.createFrom().item(inMemoryRepository.get(slugName));
     }
 
-    public Uni<OneTimeStream> findById(UUID id) {
+    public Uni<OneTimeStream> findById(String streamId) {
         return Uni.createFrom().item(
                 inMemoryRepository.values().stream()
-                        .filter(s -> s.getId() != null && s.getId().equals(id))
+                        .filter(s -> s.getStreamId() != null && s.getStreamId().equals(streamId))
                         .findFirst()
                         .orElse(null)
         );
@@ -32,15 +30,15 @@ public class OneTimeStreamRepository {
         inMemoryRepository.put(doc.getSlugName(), doc);
     }
 
-    public Uni<OneTimeStream> update(UUID id, OneTimeStream doc) {
+    public Uni<OneTimeStream> update(String streamId, OneTimeStream doc) {
         OneTimeStream existing = inMemoryRepository.values().stream()
-                .filter(s -> s.getId() != null && s.getId().equals(id))
+                .filter(s -> s.getStreamId() != null && s.getStreamId().equals(streamId))
                 .findFirst()
                 .orElse(null);
         
         if (existing != null) {
             inMemoryRepository.remove(existing.getSlugName());
-            doc.setId(id);
+            doc.setStreamId(streamId);
             inMemoryRepository.put(doc.getSlugName(), doc);
             return Uni.createFrom().item(doc);
         }
@@ -59,9 +57,9 @@ public class OneTimeStreamRepository {
         return Uni.createFrom().item(inMemoryRepository.size());
     }
 
-    public Uni<Void> delete(UUID id) {
+    public Uni<Void> delete(String streamId) {
         inMemoryRepository.values().stream()
-                .filter(s -> s.getId().equals(id))
+                .filter(s -> s.getStreamId().equals(streamId))
                 .findFirst()
                 .ifPresent(s -> inMemoryRepository.remove(s.getSlugName()));
         return Uni.createFrom().voidItem();

@@ -71,11 +71,11 @@ public class GeneratedContentEmitter {
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
         Uni<List<SoundFragment>> jinglesUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getId())
+                .getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         Uni<List<SoundFragment>> songsUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getId())
+                .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         Uni<SoundFragment> generatedUni =
