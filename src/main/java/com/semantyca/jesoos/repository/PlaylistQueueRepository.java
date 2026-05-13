@@ -41,6 +41,13 @@ public class PlaylistQueueRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
+    public Uni<Void> resetQueue(String brandSlug) {
+        return client.preparedQuery(
+                        "UPDATE mixpla__playlist_queue_state SET full_queue = '[]', updated_at = NOW() WHERE brand_slug = $1")
+                .execute(Tuple.of(brandSlug))
+                .replaceWithVoid();
+    }
+
     public Uni<JsonArray> getQueueByBrandSlug(String brandSlug) {
         return client.preparedQuery(QUEUE_DJ_ONLY_SQL)
                 .execute(Tuple.of(brandSlug))

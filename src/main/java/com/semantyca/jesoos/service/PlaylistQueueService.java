@@ -12,6 +12,10 @@ public class PlaylistQueueService {
     @Inject
     PlaylistQueueRepository repository;
 
+    public Uni<Void> resetQueue(String brandSlug) {
+        return repository.resetQueue(brandSlug);
+    }
+
     public Uni<JsonArray> getQueueByBrandSlug(String brandSlug) {
         return repository.getQueueByBrandSlug(brandSlug);
     }

@@ -294,7 +294,23 @@ public class StaggeredSongScheduler {
                     emitTimelineEntry(brandName, scene, next, brandZone)
                             .subscribe().with(
                                     v -> next.setStatus(TimelineEntryStatus.COMPLETED),
-                                    err -> next.setStatus(TimelineEntryStatus.FAILED)
+                                    err -> {
+                                        next.setStatus(TimelineEntryStatus.FAILED);
+                                        LOGGER.errorf("Cascade failure: entry #%d also failed for brand '%s'", next.getSequenceNumber(), brandName);
+                                        metricPublisher.publishMetric(
+                                                brandName,
+                                                MetricEventType.FATAL_ERROR,
+                                                ProcessType.FLOW,
+                                                "cascade_entry_failed",
+                                                Map.of(
+                                                        "failedSeq", failed.getSequenceNumber(),
+                                                        "cascadeSeq", next.getSequenceNumber(),
+                                                        "scene", scene.getSceneTitle(),
+                                                        "error", err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName()
+                                                ),
+                                                scene.getTraceId()
+                                        );
+                                    }
                             );
                 });
     }
