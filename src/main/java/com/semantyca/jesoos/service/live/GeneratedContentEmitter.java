@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
@@ -11,6 +12,8 @@ import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
@@ -42,16 +45,19 @@ public class GeneratedContentEmitter {
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
     private final IntroTtsGenerator introTtsGenerator;
+    private final MetricPublisher metricPublisher;
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
-                                   IntroTtsGenerator introTtsGenerator) {
+                                   IntroTtsGenerator introTtsGenerator,
+                                   MetricPublisher metricPublisher) {
         this.generatedNewsService = generatedNewsService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
         this.introTtsGenerator = introTtsGenerator;
+        this.metricPublisher = metricPublisher;
     }
 
     public Uni<Void> send(String brandName,
@@ -96,10 +102,18 @@ public class GeneratedContentEmitter {
 
                     if (jingles.isEmpty()) {
                         LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,
+                                "no_jingles_for_generated_content",
+                                Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
+                                scene.getTraceId());
                         return Uni.createFrom().voidItem();
                     }
                     if (songs.isEmpty()) {
                         LOGGER.warnf("No songs available for background for brand '%s', skipping generated content", brandName);
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,
+                                "no_background_songs_for_generated_content",
+                                Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
+                                scene.getTraceId());
                         return Uni.createFrom().voidItem();
                     }
 
