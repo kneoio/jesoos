@@ -103,6 +103,11 @@ public class ModelslabClient implements TTSClient {
                         .putHeader("Content-Type", "application/json")
                         .sendJsonObject(new JsonObject().put("key", config.getModelslabApiKey()))
                         .flatMap(response -> {
+                            if (isTransientHttpError(response.statusCode())) {
+                                LOGGER.warnf("Modelslab fetch transient HTTP %s, retrying poll (%s/%s)",
+                                        response.statusCode(), attempt + 1, maxAttempts);
+                                return pollOnce(fetchUrl, attempt + 1, maxAttempts, delayMs);
+                            }
                             if (response.statusCode() != 200) {
                                 throw new RuntimeException("Modelslab fetch error - HTTP " + response.statusCode());
                             }
@@ -132,6 +137,10 @@ public class ModelslabClient implements TTSClient {
                         throw new RuntimeException("Failed to download audio from Modelslab URL: " + audioUrl);
                     }
                 });
+    }
+
+    private static boolean isTransientHttpError(int statusCode) {
+        return statusCode == 502 || statusCode == 503 || statusCode == 504;
     }
 
     private static String getLangString(LanguageTag tag) {
