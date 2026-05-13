@@ -68,10 +68,9 @@ public class MetricPublisher {
         Instant now = Instant.now();
         nextExpectedEmitAt.forEach((brand, expectedAt) -> {
             long secondsOverdue = now.getEpochSecond() - expectedAt.getEpochSecond() - SILENCE_GRACE_SECONDS;
-            if (secondsOverdue > 15) {
+            if (secondsOverdue > 60) {
                 LOGGER.warnf("Silence risk for brand '%s': %ds overdue", brand, secondsOverdue);
-                publishMetric(brand, MetricEventType.WARNING, ProcessType.CRON, "silence_risk",
-                        Map.of("secondsOverdue", secondsOverdue));
+                publishMetric(brand, MetricEventType.WARNING, ProcessType.CRON, "silence_risk", Map.of("secondsOverdue", secondsOverdue));
             }
         });
     }
