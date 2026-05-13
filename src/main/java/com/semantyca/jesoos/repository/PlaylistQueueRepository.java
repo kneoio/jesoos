@@ -13,10 +13,6 @@ import jakarta.inject.Inject;
 @ApplicationScoped
 public class PlaylistQueueRepository extends AsyncRepository {
 
-    /**
-     * Expands {@code full_queue} in the database and returns only each element's {@code dj} object,
-     * preserving order and avoiding transfer of {@code tech} fields.
-     */
     private static final String QUEUE_DJ_ONLY_SQL = """
             SELECT COALESCE(
                 (
