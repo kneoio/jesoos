@@ -18,6 +18,7 @@ import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
+import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
@@ -136,16 +137,16 @@ public class AgendaService {
 
                 chain = prev.chain(state ->
                         fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
-                                .chain(songs -> {
-                                    if (songs.isEmpty() && !state.usedIds().isEmpty()) {
+                                .chain(pool -> {
+                                    if (pool.songs().isEmpty() && !state.usedIds().isEmpty()) {
                                         LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set", scene.getTitle());
                                         state.usedIds().clear();
                                         return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
                                     }
-                                    return Uni.createFrom().item(songs);
+                                    return Uni.createFrom().item(pool);
                                 })
-                                .map(soundFragments -> {
-                                    soundFragments.forEach(sf -> state.usedIds().add(sf.getId()));
+                                .map(pool -> {
+                                    pool.songs().forEach(sf -> state.usedIds().add(sf.getId()));
 
                                     LiveScene liveScene = new LiveScene();
                                     liveScene.setSceneId(scene.getId());
@@ -161,7 +162,7 @@ public class AgendaService {
                                     }
                                     liveScene.setIntroPrompts(scene.getIntroPrompts());
 
-                                    List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
+                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), agent, pool.sharerMap());
                                     liveScene.setTimeline(new TimelineBuilder().buildTimeline(
                                             liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts()));
 
@@ -232,7 +233,7 @@ public class AgendaService {
                                     agentUni
                             ).asTuple()
                             .map(tuple -> {
-                                List<SoundFragment> soundFragments = tuple.getItem1();
+                                SongPool pool = tuple.getItem1();
                                 AiAgent agent = tuple.getItem2();
 
                                 LiveScene liveScene = new LiveScene();
@@ -250,7 +251,7 @@ public class AgendaService {
                                 }
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());
 
-                                List<SongEntry> songEntries = convertToSongEntries(soundFragments, scene.getIntroPrompts(), agent);
+                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), agent, pool.sharerMap());
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
                                         liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts());
                                 liveScene.setTimeline(timeline);
@@ -278,16 +279,20 @@ public class AgendaService {
         }
     }
 
-    private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
+    private Uni<SongPool> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
         return fetchSongsForSceneWithDuration(brand, scene, maxDurationSeconds, songSupplier, Set.of());
     }
 
-    private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
+    private Uni<SongPool> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
-        Uni<List<SoundFragment>> songsPoolUni = switch (sourcing) {
-            case GENERATED -> Uni.createFrom().item(List.of());
+        int effectiveDuration = isGeneratedContentScene(playlistRequest)
+                ? maxDurationSeconds - MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS
+                : maxDurationSeconds;
+
+        return switch (sourcing) {
+            case GENERATED -> Uni.createFrom().item(new SongPool(List.of(), Map.of()));
             case QUERY -> {
                 PlaylistRequest req = new PlaylistRequest();
                 req.setSearchTerm(playlistRequest.getSearchTerm());
@@ -295,20 +300,14 @@ public class AgendaService {
                 req.setLabels(playlistRequest.getLabels());
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
-                yield songSupplier.getSongsByQuery(brand.getId(), req, maxDurationSeconds);
+                yield songSupplier.getSongsByQuery(brand.getId(), req, maxDurationSeconds)
+                        .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
             }
-            case STATIC_LIST ->
-                    songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds);
-            default ->
-                    songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds, excludeIds);
+            case STATIC_LIST -> songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds)
+                    .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
+            default -> songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds, excludeIds)
+                    .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
         };
-
-        int effectiveDuration = isGeneratedContentScene(playlistRequest)
-                ? maxDurationSeconds - MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS
-                : maxDurationSeconds;
-
-        return songsPoolUni.map(songsPool ->
-                stripSongsToFitDurationWithTalkativity(songsPool, effectiveDuration, scene.getTalkativity()));
     }
 
     private List<SoundFragment> stripSongsToFitDurationWithTalkativity(List<SoundFragment> songsPool, int sceneDurationSeconds, double talkativity) {
@@ -368,7 +367,7 @@ public class AgendaService {
     }
 
 
-    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent) {
+    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent, Map<UUID, Owner> sharerMap) {
         List<SongEntry> songEntries = new ArrayList<>();
 
         List<ScenePrompt> activePrompts = (introPrompts != null)
@@ -376,6 +375,7 @@ public class AgendaService {
                 : new ArrayList<>();
 
         for (int i = 0; i < soundFragments.size(); i++) {
+            SoundFragment sf = soundFragments.get(i);
             PromptEntry promptEntry = new PromptEntry();
 
             if (!activePrompts.isEmpty() && agent != null) {
@@ -385,7 +385,8 @@ public class AgendaService {
                 promptEntry.setLanguage(languageTag.toLanguageCode());
             }
 
-            songEntries.add(new SongEntry(soundFragments.get(i), promptEntry, i));
+            Owner sharedBy = sharerMap != null ? sharerMap.get(sf.getId()) : null;
+            songEntries.add(new SongEntry(sf, promptEntry, i, sharedBy));
         }
         return songEntries;
     }

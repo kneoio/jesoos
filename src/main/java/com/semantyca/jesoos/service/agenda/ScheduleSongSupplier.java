@@ -1,7 +1,11 @@
 package com.semantyca.jesoos.service.agenda;
 
+import com.semantyca.jesoos.model.stream.SharedSongEntry;
+import com.semantyca.jesoos.model.stream.SongPool;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
+import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.mixpla.model.PlaylistRequest;
+import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -11,6 +15,7 @@ import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,17 +27,19 @@ import java.util.stream.Collectors;
 public class ScheduleSongSupplier {
 
     private final SoundFragmentRepository repository;
+    private final SharedSoundFragmentService sharedSoundFragmentService;
 
     @Inject
-    public ScheduleSongSupplier(SoundFragmentRepository repository) {
+    public ScheduleSongSupplier(SoundFragmentRepository repository, SharedSoundFragmentService sharedSoundFragmentService) {
         this.repository = repository;
+        this.sharedSoundFragmentService = sharedSoundFragmentService;
     }
 
-    public Uni<List<SoundFragment>> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity) {
+    public Uni<SongPool> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity) {
         return getSongsForBrand(brandId, type, quantity, Set.of());
     }
 
-    public Uni<List<SoundFragment>> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
+    public Uni<SongPool> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
 
@@ -46,7 +53,8 @@ public class ScheduleSongSupplier {
                 .unis(
                         repository.findByFilter(brandId, filter, newest, effective),
                         repository.findByFilterOldest(brandId, filter, oldest, effective),
-                        repository.findByFilterRandom(brandId, filter, random, effective)
+                        repository.findByFilterRandom(brandId, filter, random, effective),
+                        sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
                 )
                 .asTuple()
                 .map(tuple -> {
@@ -54,9 +62,17 @@ public class ScheduleSongSupplier {
                     tuple.getItem1().forEach(s -> merged.put(s.getId(), s));
                     tuple.getItem2().forEach(s -> merged.putIfAbsent(s.getId(), s));
                     tuple.getItem3().forEach(s -> merged.putIfAbsent(s.getId(), s));
+
+                    Map<UUID, Owner> sharerMap = new HashMap<>();
+                    for (SharedSongEntry entry : tuple.getItem4()) {
+                        UUID id = entry.soundFragment().getId();
+                        merged.putIfAbsent(id, entry.soundFragment());
+                        sharerMap.put(id, entry.sharedBy());
+                    }
+
                     List<SoundFragment> result = new ArrayList<>(merged.values());
                     Collections.shuffle(result);
-                    return result;
+                    return new SongPool(result, sharerMap);
                 });
     }
 
@@ -74,7 +90,6 @@ public class ScheduleSongSupplier {
                 .map(fragments -> limitQuantity(fragments, quantity));
     }
 
-    /** Preserves repository order (boost, then fewer plays for the brand). */
     private List<SoundFragment> limitQuantity(List<SoundFragment> fragments, int quantity) {
         if (fragments == null || fragments.isEmpty()) {
             return List.of();
