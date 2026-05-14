@@ -1,13 +1,19 @@
 package com.semantyca.jesoos.service.live;
 
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.util.TimeFormatUtil;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import lombok.Getter;
 import lombok.AccessLevel;
+import lombok.Getter;
 import org.jboss.logging.Logger;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
@@ -16,6 +22,9 @@ public class ScenePool {
     private static final Logger LOGGER = Logger.getLogger(ScenePool.class);
 
     private final ConcurrentHashMap<String, LiveScene> activeScenes = new ConcurrentHashMap<>();
+
+    @Inject
+    private MetricPublisher metricPublisher;
 
     @Inject
     @Getter(AccessLevel.NONE)
@@ -33,14 +42,27 @@ public class ScenePool {
         LiveScene removed = activeScenes.remove(brandName);
         if (removed != null) {
             staggeredSongScheduler.cancelBrandTimers(brandName);
-            staggeredSongScheduler.publishSceneSummary(brandName, removed);
+            publishSceneSummary(brandName, removed);
             LOGGER.infof("Removed active scene '%s' for brand: {}",
                     removed.getSceneTitle(), brandName);
         }
     }
 
-    public void clear() {
-        activeScenes.clear();
+    private void publishSceneSummary(String brandName, LiveScene scene) {
+        List<String> summary = scene.getTimeline().stream()
+                .map(e -> "#" + e.getSequenceNumber() + "@" + TimeFormatUtil.formatTime(e.getScheduledEmissionTime()) + "[" + e.getStatus() + "]")
+                .toList();
+        metricPublisher.publishMetric(
+                brandName,
+                MetricEventType.INFORMATION,
+                ProcessType.FLOW,
+                "scene_stopped",
+                Map.of(
+                        "scene", scene.getSceneTitle(),
+                        "entries", summary
+                ),
+                scene.getTraceId()
+        );
     }
 
     @PreDestroy

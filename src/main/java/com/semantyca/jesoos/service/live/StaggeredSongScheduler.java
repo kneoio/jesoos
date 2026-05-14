@@ -256,23 +256,6 @@ public class StaggeredSongScheduler {
         }
     }
 
-    public void publishSceneSummary(String brandName, LiveScene scene) {
-        List<String> summary = scene.getTimeline().stream()
-                .map(e -> "#" + e.getSequenceNumber() + "@" + TimeFormatUtil.formatTime(e.getScheduledEmissionTime()) + "[" + e.getStatus() + "]")
-                .toList();
-        metricPublisher.publishMetric(
-                brandName,
-                MetricEventType.INFORMATION,
-                ProcessType.FLOW,
-                "scene_stopped",
-                Map.of(
-                        "scene", scene.getSceneTitle(),
-                        "entries", summary
-                ),
-                scene.getTraceId()
-        );
-    }
-
     private void triggerNextEntry(String brandName, LiveScene scene, TimelineEntry failed, ZoneId brandZone) {
         List<TimelineEntry> timeline = scene.getTimeline();
         if (timeline == null) return;
