@@ -223,14 +223,12 @@ public class DraftFactory {
             data.put("songArtist", song.getArtist());
             data.put("songDescription", song.getDescription());
             data.put("songGenres", genres);
-            data.put("songShared", sharerName != null);
             data.put("songSharerName", sharerName != null ? sharerName : "");
         } else {
             data.put("songTitle", "");
             data.put("songArtist", "");
             data.put("songDescription", "");
             data.put("songGenres", List.of());
-            data.put("songShared", false);
             data.put("songSharerName", "");
         }
 
