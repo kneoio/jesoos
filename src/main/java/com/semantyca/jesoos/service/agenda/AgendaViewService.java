@@ -91,8 +91,9 @@ public class AgendaViewService {
                                         songEntry.getPromptEntry().getLanguage() != null
                                         ? songEntry.getPromptEntry().getLanguage().name()
                                         : null
-
                         )
+                        .shared(songEntry.isShared())
+                        .sharerName(songEntry.getSharerName())
                         .build())
                 .collect(Collectors.toList());
 

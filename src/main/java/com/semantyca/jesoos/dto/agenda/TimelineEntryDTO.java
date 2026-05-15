@@ -46,5 +46,7 @@ public class TimelineEntryDTO {
         private String artist;
         private int durationSeconds;
         private String language;
+        private boolean shared;
+        private String sharerName;
     }
 }
