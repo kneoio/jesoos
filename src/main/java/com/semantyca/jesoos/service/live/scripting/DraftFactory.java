@@ -78,7 +78,8 @@ public class DraftFactory {
             IStream stream,
             UUID draftId,
             LanguageTag selectedLanguage,  //always EN
-            Map<String, Object> userVariables
+            Map<String, Object> userVariables,
+            String sharerName
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
@@ -120,7 +121,8 @@ public class DraftFactory {
                                 selectedLanguage,
                                 userVariables,
                                 chatSummary,
-                                WebHelper.generateSlug(template.getTitle())
+                                WebHelper.generateSlug(template.getTitle()),
+                                sharerName
                         );
                     } else {
                         String msg = "No draft template found. Fallbacks are disabled.";
@@ -164,7 +166,8 @@ public class DraftFactory {
             LanguageTag selectedLanguage,
             Map<String, Object> userVariables,
             String chatSummary,
-            String draftSlug
+            String draftSlug,
+            String sharerName
     ) {
         CountryCode countryIso = stream.getCountry();
         Map<String, Object> data = new HashMap<>();
@@ -220,11 +223,15 @@ public class DraftFactory {
             data.put("songArtist", song.getArtist());
             data.put("songDescription", song.getDescription());
             data.put("songGenres", genres);
+            data.put("songShared", sharerName != null);
+            data.put("songSharerName", sharerName != null ? sharerName : "");
         } else {
             data.put("songTitle", "");
             data.put("songArtist", "");
             data.put("songDescription", "");
             data.put("songGenres", List.of());
+            data.put("songShared", false);
+            data.put("songSharerName", "");
         }
 
         return groovyEngine.render(template, data, draftSlug).trim();

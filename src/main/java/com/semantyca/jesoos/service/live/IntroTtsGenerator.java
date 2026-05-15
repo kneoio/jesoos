@@ -125,7 +125,7 @@ public class IntroTtsGenerator {
                                 }
                             });
                 })
-                .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), agent, stream)
+                .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, liveScene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
@@ -217,14 +217,15 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, AiAgent agent, IStream stream) {
+    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, String sharerName, AiAgent agent, IStream stream) {
         return draftFactory.createDraft(
                 song,
                 agent,
                 stream,
                 prompt.getDraftId(),
                 LanguageTag.EN_US,
-                new HashMap<>()
+                new HashMap<>(),
+                sharerName
         ).map(draft -> {
             LOGGER.infof("Draft content received: %s", draft);
             return draft;
