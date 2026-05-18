@@ -46,7 +46,7 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final ScriptFilter filter) {
         String sql = """
-                    SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
+                    SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla__script_labels sl WHERE sl.script_id = t.id) AS labels
                     FROM %s t
                     JOIN %s rls ON t.id = rls.entity_id
                     WHERE rls.reader = %s
@@ -119,7 +119,7 @@ public class ScriptRepository extends AsyncRepository {
         }
 
         if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla_script_labels sl2 WHERE sl2.script_id = t.id AND sl2.label_id IN (");
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__script_labels sl2 WHERE sl2.script_id = t.id AND sl2.label_id IN (");
             for (int i = 0; i < filter.getLabels().size(); i++) {
                 if (i > 0) {
                     conditions.append(", ");
@@ -142,7 +142,7 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user, final ScriptFilter filter) {
         String sql = """
-                    SELECT t.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
+                    SELECT t.*, ARRAY(SELECT label_id FROM mixpla__script_labels sl WHERE sl.script_id = t.id) AS labels
                     FROM %s t
                     WHERE (t.access_level = 1 OR EXISTS (
                         SELECT 1 FROM %s rls WHERE rls.entity_id = t.id AND rls.reader = %s
@@ -200,7 +200,7 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<Script> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = """
-                    SELECT theTable.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = theTable.id) AS labels
+                    SELECT theTable.*, rls.*, ARRAY(SELECT label_id FROM mixpla__script_labels sl WHERE sl.script_id = theTable.id) AS labels
                     FROM %s theTable
                     JOIN %s rls ON theTable.id = rls.entity_id
                     WHERE rls.reader = $1 AND theTable.id = $2
@@ -321,13 +321,13 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     private Uni<Void> upsertLabels(SqlClient tx, UUID scriptId, List<UUID> labels) {
-        String deleteSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
+        String deleteSql = "DELETE FROM mixpla__script_labels WHERE script_id = $1";
         if (labels == null || labels.isEmpty()) {
             return tx.preparedQuery(deleteSql)
                     .execute(Tuple.of(scriptId))
                     .replaceWithVoid();
         }
-        String insertSql = "INSERT INTO mixpla_script_labels (script_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+        String insertSql = "INSERT INTO mixpla__script_labels (script_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(scriptId))
                 .chain(() -> Multi.createFrom().iterable(labels)
@@ -376,10 +376,6 @@ public class ScriptRepository extends AsyncRepository {
         return doc;
     }
 
-    public Uni<Integer> archive(UUID id, IUser user) {
-        return archive(id, entityData, user);
-    }
-
     public Uni<Integer> delete(UUID id, IUser user) {
         return delete(id, user, false);
     }
@@ -414,9 +410,9 @@ public class ScriptRepository extends AsyncRepository {
 
     private Uni<Integer> performDelete(UUID id) {
         return client.withTransaction(tx -> {
-            String deleteScenePromptsSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id IN (SELECT id FROM mixpla_script_scenes WHERE script_id = $1)";
-            String deleteScenesSql = "DELETE FROM mixpla_script_scenes WHERE script_id = $1";
-            String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
+            String deleteScenePromptsSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id IN (SELECT id FROM mixpla__script_scenes WHERE script_id = $1)";
+            String deleteScenesSql = "DELETE FROM mixpla__script_scenes WHERE script_id = $1";
+            String deleteLabelsSql = "DELETE FROM mixpla__script_labels WHERE script_id = $1";
             String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
             String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
 
@@ -436,153 +432,5 @@ public class ScriptRepository extends AsyncRepository {
                     )
                     .onItem().transform(RowSet::rowCount);
         });
-    }
-
-    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData, user);
-    }
-
-    public Uni<List<BrandScript>> findForBrand(UUID brandId, final int limit, final int offset,
-                                               boolean includeArchived, IUser user) {
-        String sql = "SELECT t.*, bs.rank, bs.active, bs.user_variables, " +
-                "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN mixpla__brand_scripts bs ON t.id = bs.script_id " +
-                "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
-
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-
-        sql += " ORDER BY bs.rank ASC, t.name ASC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> {
-                    BrandScript brandScript = createBrandScript(row, brandId);
-                    Script script = from(row);
-                    brandScript.setScript(script);
-                    return brandScript;
-                })
-                .collect().asList();
-    }
-
-    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
-        String sql = "SELECT COUNT(*) " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN mixpla__brand_scripts bs ON t.id = bs.script_id " +
-                "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
-    private BrandScript createBrandScript(Row row, UUID brandId) {
-        BrandScript brandScript = new BrandScript();
-        brandScript.setId(row.getUUID("id"));
-        brandScript.setDefaultBrandId(brandId);
-        brandScript.setRank(row.getInteger("rank"));
-        brandScript.setActive(row.getBoolean("active"));
-
-        JsonObject userVarsJson = row.getJsonObject("user_variables");
-        if (userVarsJson != null && !userVarsJson.isEmpty()) {
-            try {
-                Map<String, Object> userVars = mapper.readValue(userVarsJson.encode(), new TypeReference<>() {
-                });
-                brandScript.setUserVariables(userVars);
-            } catch (JsonProcessingException e) {
-                brandScript.setUserVariables(null);
-            }
-        }
-        return brandScript;
-    }
-
-    public Uni<List<BrandScript>> findForBrandByName(String brandName, final int limit, final int offset, IUser user) {
-        String sql = "SELECT t.*, " +
-                "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
-                "FROM " + entityData.getTableName() + " t " +
-                "WHERE (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() +
-                ")) AND t.archived = 0" +
-                " ORDER BY t.access_level ASC, t.last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.query(sql)
-                .execute()
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> {
-                    BrandScript brandScript = new BrandScript();
-                    brandScript.setId(row.getUUID("id"));
-                    Script script = from(row);
-                    brandScript.setScript(script);
-                    return brandScript;
-                })
-                .collect().asList();
-    }
-
-    public Uni<Integer> findForBrandByNameCount(String brandName, IUser user) {
-        String sql = "SELECT COUNT(*) " +
-                "FROM " + entityData.getTableName() + " t " +
-                "WHERE (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() +
-                ")) AND t.archived = 0";
-
-        return client.query(sql)
-                .execute()
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
-    public Uni<Void> patchRequiredVariables(UUID scriptId, List<ScriptVariable> requiredVariables) {
-        String sql = "UPDATE " + entityData.getTableName() + " SET required_variables = $1 WHERE id = $2";
-        JsonArray jsonArray = null;
-        if (requiredVariables != null && !requiredVariables.isEmpty()) {
-            try {
-                jsonArray = new JsonArray(mapper.writeValueAsString(requiredVariables));
-            } catch (JsonProcessingException e) {
-                return Uni.createFrom().failure(e);
-            }
-        }
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(jsonArray, scriptId))
-                .replaceWithVoid();
-    }
-
-    public Uni<List<UUID>> findScriptIdsByDraftId(UUID draftId) {
-        String sql = "SELECT DISTINCT ss.script_id FROM mixpla_script_scenes ss " +
-                "JOIN mixpla__script_scene_actions ssa ON ssa.script_scene_id = ss.id " +
-                "JOIN mixpla_prompts p ON p.id = ssa.prompt_id " +
-                "WHERE p.draft_id = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(draftId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("script_id"))
-                .collect().asList();
-    }
-
-    public Uni<List<UUID>> findDraftIdsForScript(UUID scriptId) {
-        String sql = "SELECT DISTINCT p.draft_id FROM mixpla_script_scenes ss " +
-                "JOIN mixpla__script_scene_actions ssa ON ssa.script_scene_id = ss.id " +
-                "JOIN mixpla_prompts p ON p.id = ssa.prompt_id " +
-                "WHERE ss.script_id = $1 AND p.draft_id IS NOT NULL";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(scriptId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("draft_id"))
-                .collect().asList();
     }
 }
