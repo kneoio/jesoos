@@ -15,6 +15,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -34,7 +36,7 @@ public class AgendaRepository extends AsyncRepository {
     }
 
     public Uni<UUID> save(StreamAgenda agenda, UUID brandId, long authorId) {
-        LocalDateTime now = LocalDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         UUID configId = UUID.randomUUID();
 
         String configSql = "INSERT INTO " + TABLE_CONFIGURATIONS +
@@ -43,14 +45,18 @@ public class AgendaRepository extends AsyncRepository {
 
         String timezone = agenda.getTimeZone() != null ? agenda.getTimeZone().getId() : "UTC";
 
+        OffsetDateTime createdAt = agenda.getCreatedAt() != null
+                ? agenda.getCreatedAt().atOffset(ZoneOffset.UTC)
+                : now;
+
         Tuple configParams = Tuple.of(configId)
                 .addLong(authorId)
-                .addLocalDateTime(now)
+                .addOffsetDateTime(now)
                 .addLong(authorId)
-                .addLocalDateTime(now)
+                .addOffsetDateTime(now)
                 .addString(timezone)
                 .addString("XX")
-                .addLocalDateTime(agenda.getCreatedAt())
+                .addOffsetDateTime(createdAt)
                 .addInteger(agenda.getTotalScenes())
                 .addUUID(brandId);
 
@@ -70,11 +76,11 @@ public class AgendaRepository extends AsyncRepository {
         List<Uni<Void>> sceneUnis = new ArrayList<>();
         for (LiveScene scene : scenes) {
             UUID sceneId = UUID.randomUUID();
-            LocalDateTime firstEmission = scene.getActualStartTime() != null
-                    ? scene.getActualStartTime()
-                    : LocalDateTime.now();
-            LocalDateTime lastEmission = scene.getActualEndTime() != null
-                    ? scene.getActualEndTime()
+            OffsetDateTime firstEmission = scene.getActualStartTime() != null
+                    ? scene.getActualStartTime().atOffset(ZoneOffset.UTC)
+                    : OffsetDateTime.now(ZoneOffset.UTC);
+            OffsetDateTime lastEmission = scene.getActualEndTime() != null
+                    ? scene.getActualEndTime().atOffset(ZoneOffset.UTC)
                     : firstEmission.plusSeconds(scene.getDurationSeconds());
 
             String sceneSql = "INSERT INTO " + TABLE_SCENES +
@@ -83,8 +89,8 @@ public class AgendaRepository extends AsyncRepository {
 
             Tuple sceneParams = Tuple.of(sceneId, configId)
                     .addString(scene.getSceneTitle() != null ? scene.getSceneTitle() : "")
-                    .addLocalDateTime(firstEmission)
-                    .addLocalDateTime(lastEmission)
+                    .addOffsetDateTime(firstEmission)
+                    .addOffsetDateTime(lastEmission)
                     .addInteger(scene.getDurationSeconds())
                     .addInteger(countSongs(scene))
                     .addBoolean(scene.isTimelineBuild())
@@ -114,9 +120,13 @@ public class AgendaRepository extends AsyncRepository {
                     " (id, scene_id, sequence_number, scheduled_emission_time, duration_seconds, mixing_strategy, has_intro, has_jingle, generated, batch_id, status) " +
                     "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)";
 
+            OffsetDateTime scheduledTime = entry.getScheduledEmissionTime() != null
+                    ? entry.getScheduledEmissionTime().atOffset(ZoneOffset.UTC)
+                    : OffsetDateTime.now(ZoneOffset.UTC);
+
             Tuple eventParams = Tuple.of(eventId, sceneId)
                     .addInteger(entry.getSequenceNumber())
-                    .addLocalDateTime(entry.getScheduledEmissionTime() != null ? entry.getScheduledEmissionTime() : LocalDateTime.now())
+                    .addOffsetDateTime(scheduledTime)
                     .addInteger(entry.getEstimatedDurationSeconds())
                     .addString(entry.getMixingStrategy() != null ? entry.getMixingStrategy().name() : "SONG_ONLY")
                     .addBoolean(entry.isHasIntro())
