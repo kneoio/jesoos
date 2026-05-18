@@ -268,7 +268,7 @@ public class PromptRepository extends AsyncRepository {
                     }
 
                     // Check if prompt is used in any scenes
-                    String checkUsageSql = "SELECT COUNT(*) FROM mixpla__script_scene_actions WHERE prompt_id = $1";
+                    String checkUsageSql = "SELECT COUNT(*) FROM mixpla__script_scene_prompts WHERE prompt_id = $1";
                     return client.preparedQuery(checkUsageSql)
                             .execute(Tuple.of(id))
                             .onItem().transformToUni(rows -> {
@@ -316,7 +316,7 @@ public class PromptRepository extends AsyncRepository {
     }
 
     public Uni<List<ScenePrompt>> getPromptsForScene(UUID sceneId) {
-        String sql = "SELECT prompt_id, rank, weight, active FROM mixpla__script_scene_actions WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
+        String sql = "SELECT prompt_id, rank, weight, active FROM mixpla__script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -332,7 +332,7 @@ public class PromptRepository extends AsyncRepository {
     }
 
     public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<ScenePrompt> prompts) {
-        String deleteSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id = $1";
+        String deleteSql = "DELETE FROM mixpla__script_scene_prompts WHERE script_scene_id = $1";
         if (prompts == null || prompts.isEmpty()) {
             return tx.preparedQuery(deleteSql)
                     .execute(Tuple.of(sceneId))
@@ -349,7 +349,7 @@ public class PromptRepository extends AsyncRepository {
                     .replaceWithVoid();
         }
 
-        String insertSql = "INSERT INTO mixpla__script_scene_actions (script_scene_id, prompt_id, rank, weight, active) VALUES ($1, $2, $3, $4, $5)";
+        String insertSql = "INSERT INTO mixpla__script_scene_prompts (script_scene_id, prompt_id, rank, weight, active) VALUES ($1, $2, $3, $4, $5)";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(sceneId))
                 .chain(() -> {

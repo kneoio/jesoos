@@ -410,7 +410,7 @@ public class ScriptRepository extends AsyncRepository {
 
     private Uni<Integer> performDelete(UUID id) {
         return client.withTransaction(tx -> {
-            String deleteScenePromptsSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id IN (SELECT id FROM mixpla__script_scenes WHERE script_id = $1)";
+            String deleteScenePromptsSql = "DELETE FROM mixpla__script_scene_prompts WHERE script_scene_id IN (SELECT id FROM mixpla__script_scenes WHERE script_id = $1)";
             String deleteScenesSql = "DELETE FROM mixpla__script_scenes WHERE script_id = $1";
             String deleteLabelsSql = "DELETE FROM mixpla__script_labels WHERE script_id = $1";
             String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
