@@ -68,7 +68,7 @@
         <dependency>
             <groupId>com.semantyca</groupId>
             <artifactId>2next</artifactId>
-            <version>1.3.81</version>
+            <version>1.3.82</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
