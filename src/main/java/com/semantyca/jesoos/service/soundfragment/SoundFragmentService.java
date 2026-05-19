@@ -109,7 +109,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setId(doc.getId());
                     dto.setSoundFragmentDTO(soundFragmentDTO);
                     dto.setPlayedByBrandCount(doc.getPlayedByBrandCount());
-                    dto.setRatedByBrandCount(doc.getRatedByBrandCount());
                     dto.setLastTimePlayedByBrand(doc.getPlayedTime());
                     dto.setDefaultBrandId(doc.getDefaultBrandId());
                     dto.setRepresentedInBrands(doc.getRepresentedInBrands());

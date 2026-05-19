@@ -22,7 +22,6 @@ import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 
 import java.time.Duration;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -60,7 +59,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
         doc.setDescription(row.getString("description"));
-        doc.setExpiresAt(row.getLocalDateTime("expires_at"));
+        doc.setExpiresAt(row.getOffsetDateTime("expires_at"));
 
         Uni<SoundFragment> uni = Uni.createFrom().item(doc);
 
@@ -91,13 +90,13 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                         for (Row fileRow : rowSet) {
                             FileMetadata fileMetadata = new FileMetadata();
                             fileMetadata.setId(fileRow.getLong("id"));
-                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
-                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                            fileMetadata.setRegDate(fileRow.getOffsetDateTime("reg_date").toZonedDateTime());
+                            fileMetadata.setLastModifiedDate(fileRow.getOffsetDateTime("last_mod_date").toZonedDateTime());
                             fileMetadata.setParentTable(fileRow.getString("parent_table"));
                             fileMetadata.setParentId(fileRow.getUUID("parent_id"));
                             fileMetadata.setArchived(fileRow.getInteger("archived"));
-                            if (fileRow.getLocalDateTime("archived_date") != null)
-                                fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
+                            if (fileRow.getOffsetDateTime("archived_date") != null)
+                                fileMetadata.setArchivedDate(fileRow.getOffsetDateTime("archived_date"));
                             fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
                             fileMetadata.setMimeType(fileRow.getString("mime_type"));
                             fileMetadata.setSlugName(fileRow.getString("slug_name"));

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +16,6 @@ public class BrandSoundFragmentDTO {
     @JsonProperty("soundfragment")
     private SoundFragmentDTO soundFragmentDTO;
     private int playedByBrandCount;
-    private int ratedByBrandCount;
-    private LocalDateTime lastTimePlayedByBrand;
+    private OffsetDateTime lastTimePlayedByBrand;
     private List<UUID> representedInBrands;
 }

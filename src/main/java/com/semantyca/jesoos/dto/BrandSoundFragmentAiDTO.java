@@ -3,7 +3,7 @@ package com.semantyca.jesoos.dto;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,5 +18,5 @@ public class BrandSoundFragmentAiDTO {
     private String album;
     private String description;
     private int playedByBrandCount;
-    private LocalDateTime lastTimePlayedByBrand;
+    private OffsetDateTime lastTimePlayedByBrand;
 }
