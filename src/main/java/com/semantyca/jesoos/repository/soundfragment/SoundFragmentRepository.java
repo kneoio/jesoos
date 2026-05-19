@@ -555,7 +555,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .addLong(doc.getLength() != null ? doc.getLength().toMillis() : null)
                 .addString(doc.getDescription())
                 .addString(doc.getSlugName())
-                .addLocalDateTime(doc.getExpiresAt())
+                .addOffsetDateTime(doc.getExpiresAt())
                 .addUUID(id);
 
         return tx.preparedQuery(updateSql).execute(params);
