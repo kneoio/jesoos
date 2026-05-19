@@ -39,6 +39,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -187,7 +188,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 dto.setGenres(List.of());
                 dto.setLabels(List.of());
                 dto.setSource(SourceType.TEMPORARY_MIX);
-                dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
+                dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC));
                 dto.setLength(Duration.ofSeconds(durationSeconds));
                 LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, promptId=%s, newlyUploaded=%s", brandId, promptId, fileName);
                 if (brandId == null) {

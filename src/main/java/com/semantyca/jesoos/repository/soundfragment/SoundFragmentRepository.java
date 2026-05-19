@@ -315,7 +315,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .addLong(lengthMillis)
                     .addString(doc.getDescription())
                     .addString(doc.getSlugName())
-                    .addLocalDateTime(doc.getExpiresAt());
+                    .addOffsetDateTime(doc.getExpiresAt());
 
             return client.withTransaction(tx -> tx.preparedQuery(sql)
                     .execute(params)
