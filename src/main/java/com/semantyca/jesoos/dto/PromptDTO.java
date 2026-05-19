@@ -20,7 +20,6 @@ public class PromptDTO extends AbstractDTO {
     private boolean locked;
     private String title;
     private JsonObject backup;
-    private boolean podcast;
     private UUID draftId;
     private UUID masterId;
     private double version;
