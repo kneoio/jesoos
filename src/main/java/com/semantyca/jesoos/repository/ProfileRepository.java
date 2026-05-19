@@ -77,18 +77,6 @@ public class ProfileRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<Profile> findByName(String name) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE name = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(name))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) return from(iterator.next());
-                    throw new DocumentHasNotFoundException(name);
-                });
-    }
-
-
     public Uni<Integer> getAllCount(IUser user) {
         return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
     }

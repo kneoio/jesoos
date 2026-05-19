@@ -128,21 +128,6 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                 .collect().asList();
     }
 
-    public Uni<Integer> findForBrandCount(String brandSlugName, IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(e.id) " +
-                "FROM " + entityData.getTableName() + " e " +
-                "JOIN " + entityData.getRlsName() + " rls ON e.id = rls.entity_id " +
-                "WHERE e.brand_id = $1 AND rls.reader = $2";
-
-        if (!includeArchived) {
-            sql += " AND (e.archived IS NULL OR e.archived = 0)";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandSlugName, user.getId()))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
     public Uni<Event> insert(Event event, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
@@ -310,10 +295,6 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                     doc.setScenePrompts(actions);
                     return doc;
                 });
-    }
-
-    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData, user);
     }
 
     public Uni<List<ScenePrompt>> getActionsForEvent(UUID eventId) {

@@ -114,17 +114,6 @@ public class SceneRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<Integer> countByScript(UUID scriptId, boolean includeArchived, IUser user) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = $1 AND t.script_id = $2";
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(user.getId(), scriptId))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
     public Uni<Scene> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id WHERE rls.reader = $1 AND theTable.id = $2";
         if (!includeArchived) {

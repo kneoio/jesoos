@@ -141,69 +141,6 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .collect().asList();
     }
 
-    private Uni<BrandSoundFragmentFlat> createBrandSoundFragmentFlat(Row row, UUID brandId) {
-        UUID soundFragmentId = row.getUUID("id");
-
-        Uni<List<LabelDTO>> labelsUni = loadLabels(soundFragmentId);  //directly DTO
-        Uni<List<GenreDTO>> genresUni = loadGenres(soundFragmentId);  //directly DTO
-
-        return Uni.combine().all().unis(labelsUni, genresUni).asTuple()
-                .onItem().transform(tuple -> {
-                    List<LabelDTO> labels = tuple.getItem1();
-                    List<GenreDTO> genres = tuple.getItem2();
-
-                    BrandSoundFragmentFlat flat = new BrandSoundFragmentFlat();
-                    flat.setId(soundFragmentId);
-                    flat.setDefaultBrandId(brandId);
-                    flat.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-                    flat.setPlayedTime(row.getOffsetDateTime("last_time_played_by_brand"));
-                    flat.setTitle(row.getString("title"));
-                    flat.setArtist(row.getString("artist"));
-                    flat.setAlbum(row.getString("album"));
-                    flat.setSource(SourceType.valueOf(row.getString("source")));
-                    flat.setLabels(labels);
-                    flat.setGenres(genres);
-                    return flat;
-                });
-    }
-
-    private Uni<List<LabelDTO>> loadLabels(UUID soundFragmentId) {
-        String sql = "SELECT l.id, l.identifier, l.color, l.font_color FROM __labels l " +
-                "JOIN mixpla__sound_fragment_labels sfl ON l.id = sfl.label_id " +
-                "WHERE sfl.id = $1 ORDER BY l.identifier";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(soundFragmentId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> {
-                    LabelDTO dto = new LabelDTO();
-                    dto.setId(row.getUUID("id"));
-                    dto.setIdentifier(row.getString("identifier"));
-                    dto.setColor(row.getString("color"));
-                    dto.setFontColor(row.getString("font_color"));
-                    return dto;
-                })
-                .collect().asList();
-    }
-
-    private Uni<List<GenreDTO>> loadGenres(UUID soundFragmentId) {
-        String sql = "SELECT g.id, g.identifier, g.color, g.font_color, g.rank FROM __genres g " +
-                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
-                "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(soundFragmentId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> {
-                    GenreDTO dto = new GenreDTO();
-                    dto.setId(row.getUUID("id"));
-                    dto.setIdentifier(row.getString("identifier"));
-                    dto.setColor(row.getString("color"));
-                    dto.setFontColor(row.getString("font_color"));
-                    dto.setRank(row.getInteger("rank"));
-                    return dto;
-                })
-                .collect().asList();
-    }
-
     private BrandSoundFragment createBrandSoundFragment(Row row, UUID brandId) {
         BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
         brandSoundFragment.setId(row.getUUID("id"));

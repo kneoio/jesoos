@@ -30,11 +30,11 @@ public class PromptService extends AbstractService<DjPrompt, PromptDTO> {
     }
 
     public Uni<Integer> getAllCount(final IUser user, final PromptFilter filter) {
-        return repository.getAllCount(user, false, filter);
+        return repository.getAllCount(user, filter);
     }
 
     public Uni<DjPrompt> getById(UUID id, IUser user) {
-        return repository.findById(id, user, false);
+        return repository.findById(id, user);
     }
 
    public Uni<DjPrompt> findByLanguage(UUID masterId, LanguageTag languageCode) {

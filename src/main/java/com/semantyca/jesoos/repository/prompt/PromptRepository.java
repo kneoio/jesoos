@@ -2,7 +2,6 @@ package com.semantyca.jesoos.repository.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.core.model.embedded.DocumentAccessInfo;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
@@ -64,13 +63,10 @@ public class PromptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, final PromptFilter filter) {
+    public Uni<Integer> getAllCount(IUser user, final PromptFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId() + " AND t.archived = 0";
 
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
 
         if (filter != null && filter.isActivated()) {
             sql += queryBuilder.buildFilterConditions(filter);
@@ -81,15 +77,12 @@ public class PromptRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<DjPrompt> findById(UUID id, IUser user, boolean includeArchived) {
+    public Uni<DjPrompt> findById(UUID id, IUser user) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
+                "WHERE rls.reader = $1 AND theTable.id = $2 AND theTable.archived = 0";
 
-        if (!includeArchived) {
-            sql += " AND theTable.archived = 0";
-        }
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(user.getId(), id))
@@ -101,32 +94,6 @@ public class PromptRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                     }
                 });
-    }
-
-    public Uni<List<DjPrompt>> findByIds(List<UUID> ids, IUser user) {
-        if (ids == null || ids.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        String placeholders = ids.stream()
-                .map(id -> "$" + (ids.indexOf(id) + 2))
-                .collect(java.util.stream.Collectors.joining(","));
-
-        String sql = "SELECT theTable.* " +
-                "FROM " + entityData.getTableName() + " theTable " +
-                "JOIN " + entityData.getRlsName() + " rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id IN (" + placeholders + ") AND theTable.archived = 0";
-
-        Tuple params = Tuple.tuple().addLong(user.getId());
-        for (UUID id : ids) {
-            params.addUUID(id);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(params)
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
     }
 
     public Uni<DjPrompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag) {
@@ -184,7 +151,7 @@ public class PromptRepository extends AsyncRepository {
                                                         .onItem().transform(ignored -> id)
                                         )
                         )
-                        .onItem().transformToUni(id -> findById(id, user, true));
+                        .onItem().transformToUni(id -> findById(id, user));
             } catch (Exception e) {
                 return Uni.createFrom().failure(e);
             }
@@ -229,7 +196,7 @@ public class PromptRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return findById(id, user, true);
+                                        return findById(id, user);
                                     });
                         });
             } catch (Exception e) {
@@ -257,35 +224,6 @@ public class PromptRepository extends AsyncRepository {
         return doc;
     }
 
-    public Uni<Integer> archive(UUID id, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
-                    }
-
-                    // Check if prompt is used in any scenes
-                    String checkUsageSql = "SELECT COUNT(*) FROM mixpla__script_scene_prompts WHERE prompt_id = $1";
-                    return client.preparedQuery(checkUsageSql)
-                            .execute(Tuple.of(id))
-                            .onItem().transformToUni(rows -> {
-                                int usageCount = rows.iterator().next().getInteger(0);
-                                if (usageCount > 0) {
-                                    return Uni.createFrom().failure(
-                                            new IllegalStateException("Cannot archive prompt: it is currently used in " + usageCount + " scene(s)")
-                                    );
-                                }
-
-                                String sql = String.format("UPDATE %s SET archived = 1, last_mod_user = $1, last_mod_date = $2 WHERE id = $3", entityData.getTableName());
-                                OffsetDateTime now = OffsetDateTime.now();
-
-                                return client.preparedQuery(sql)
-                                        .execute(Tuple.of(user.getId(), now, id))
-                                        .onItem().transform(RowSet::rowCount);
-                            });
-                });
-    }
-
     public Uni<Integer> delete(UUID id, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
@@ -308,12 +246,9 @@ public class PromptRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData, user);
-    }
-
     public Uni<List<ScenePrompt>> getPromptsForScene(UUID sceneId) {
-        String sql = "SELECT prompt_id, rank, weight, active FROM mixpla__script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
+        String sql = "SELECT prompt_id, rank, weight, active FROM mixpla__script_scene_prompts " +
+                "WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -326,43 +261,5 @@ public class PromptRepository extends AsyncRepository {
                     return scenePrompt;
                 })
                 .collect().asList();
-    }
-
-    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<ScenePrompt> prompts) {
-        String deleteSql = "DELETE FROM mixpla__script_scene_prompts WHERE script_scene_id = $1";
-        if (prompts == null || prompts.isEmpty()) {
-            return tx.preparedQuery(deleteSql)
-                    .execute(Tuple.of(sceneId))
-                    .replaceWithVoid();
-        }
-
-        List<ScenePrompt> validPrompts = prompts.stream()
-                .filter(p -> p != null && p.getPromptId() != null)
-                .toList();
-
-        if (validPrompts.isEmpty()) {
-            return tx.preparedQuery(deleteSql)
-                    .execute(Tuple.of(sceneId))
-                    .replaceWithVoid();
-        }
-
-        String insertSql = "INSERT INTO mixpla__script_scene_prompts (script_scene_id, prompt_id, rank, weight, active) VALUES ($1, $2, $3, $4, $5)";
-        return tx.preparedQuery(deleteSql)
-                .execute(Tuple.of(sceneId))
-                .chain(() -> {
-                    List<Tuple> batches = new java.util.ArrayList<>();
-                    for (int i = 0; i < validPrompts.size(); i++) {
-                        ScenePrompt prompt = validPrompts.get(i);
-                        batches.add(Tuple.of(
-                                sceneId,
-                                prompt.getPromptId(),
-                                prompt.getRank() != 0 ? prompt.getRank() : i,
-                                prompt.getWeight(),
-                                prompt.isActive()
-                        ));
-                    }
-                    return tx.preparedQuery(insertSql).executeBatch(batches);
-                })
-                .replaceWithVoid();
     }
 }

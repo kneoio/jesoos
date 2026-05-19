@@ -430,10 +430,6 @@ public class ListenersRepository extends AsyncRepository {
         return out;
     }
 
-    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData, user);
-    }
-
     public Uni<List<Listener>> findByUserDataFieldInBrand(String brandSlug, UUID excludeListenerId, String fieldName, String fieldValue) {
         String sql = "SELECT l.* FROM " + entityData.getTableName() + " l " +
                 "JOIN mixpla__listener_brands lb ON l.id = lb.listener_id " +
@@ -468,21 +464,6 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
-    }
-
-    public Uni<Listener> findByUserDataField(String fieldName, String fieldValue) {
-        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.user_data->$1 = $2 LIMIT 1";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(fieldName, fieldValue))
-                .onItem().transformToUni(rows -> {
-                    var it = rows.iterator();
-                    if (it.hasNext()) {
-                        return Uni.createFrom().item(from(it.next()));
-                    } else {
-                        return Uni.createFrom().nullItem();
-                    }
-                });
     }
 
     public Uni<Listener> findByUserId(Long userId) {
