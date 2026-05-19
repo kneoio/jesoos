@@ -39,6 +39,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -102,8 +103,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime endOfDay = startOfDay.plusDays(1);
         String lookupKey = stream.getSlugName() + "_" + promptId;
 
         return soundFragmentRepository.findByArtistAndDate(lookupKey, startOfDay, endOfDay)

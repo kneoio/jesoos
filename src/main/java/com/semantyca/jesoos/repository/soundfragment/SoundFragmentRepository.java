@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -139,7 +140,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 });
     }
 
-    public Uni<SoundFragment> findByArtistAndDate(String artist, LocalDateTime startOfDay, LocalDateTime endOfDay) {
+    public Uni<SoundFragment> findByArtistAndDate(String artist, OffsetDateTime startOfDay, OffsetDateTime endOfDay) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " " +
                 "WHERE artist = $1 AND reg_date >= $2 AND reg_date < $3 AND archived = 0 " +
                 "ORDER BY reg_date DESC LIMIT 1";
