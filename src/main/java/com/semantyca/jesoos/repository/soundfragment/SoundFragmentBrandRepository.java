@@ -2,7 +2,6 @@ package com.semantyca.jesoos.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.user.IUser;
-import com.semantyca.core.repository.exception.DocumentModificationAccessException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
@@ -19,7 +18,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
-import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -43,7 +41,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         boolean hasKeyword = keyword != null && !keyword.isBlank();
 
         StringBuilder sql = new StringBuilder()
-                .append("SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand");
+                .append("SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand");
         if (hasKeyword) {
             sql.append(", similarity(t.search_name, $3) AS sim");
         }
@@ -158,8 +156,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                     flat.setId(soundFragmentId);
                     flat.setDefaultBrandId(brandId);
                     flat.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-                    flat.setRatedByBrandCount(row.getInteger("rated_by_brand_count"));
-                    flat.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
+                    flat.setPlayedTime(row.getOffsetDateTime("last_time_played_by_brand"));
                     flat.setTitle(row.getString("title"));
                     flat.setArtist(row.getString("artist"));
                     flat.setAlbum(row.getString("album"));
@@ -212,70 +209,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         brandSoundFragment.setId(row.getUUID("id"));
         brandSoundFragment.setDefaultBrandId(brandId);
         brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-        brandSoundFragment.setRatedByBrandCount(row.getInteger("rated_by_brand_count"));
-        brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
+        brandSoundFragment.setPlayedTime(row.getOffsetDateTime("last_time_played_by_brand"));
         return brandSoundFragment;
-    }
-
-    public Uni<Integer> updateRatedByBrandCount(UUID brandId, UUID soundFragmentId, int delta, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), soundFragmentId)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException(
-                                "User does not have edit permission", user.getUserName(), soundFragmentId
-                        ));
-                    }
-
-                    String selectSql = "SELECT rated_by_brand_count, last_rated_at FROM mixpla__brand_sound_fragments " +
-                            "WHERE brand_id = $1 AND sound_fragment_id = $2";
-
-                    return client.preparedQuery(selectSql)
-                            .execute(Tuple.of(brandId, soundFragmentId))
-                            .onItem().transformToUni(rowSet -> {
-                                int currentRating = 100;
-                                java.time.LocalDateTime lastRatedAt = null;
-
-                                if (rowSet.iterator().hasNext()) {
-                                    Row row = rowSet.iterator().next();
-                                    Integer dbValue = row.getInteger("rated_by_brand_count");
-                                    if (dbValue != null) {
-                                        currentRating = dbValue;
-                                    }
-                                    lastRatedAt = row.getLocalDateTime("last_rated_at");
-                                }
-
-                                if (lastRatedAt != null) {
-                                    java.time.LocalDateTime now = java.time.LocalDateTime.now();
-                                    long secondsSinceLastRating = java.time.Duration.between(lastRatedAt, now).getSeconds();
-
-                                    if (secondsSinceLastRating < 2) {
-                                        boolean sameDirection = (delta > 0 && currentRating > 100) || (delta < 0 && currentRating < 100);
-                                        if (sameDirection) {
-                                            return Uni.createFrom().failure(new IllegalStateException(
-                                                    "Please wait before rating again."
-                                            ));
-                                        }
-                                    }
-                                }
-
-                                int newRating = currentRating + delta;
-                                if (newRating < 0) {
-                                    newRating = 0;
-                                } else if (newRating > 200) {
-                                    newRating = 200;
-                                }
-
-                                String updateSql = "UPDATE mixpla__brand_sound_fragments " +
-                                        "SET rated_by_brand_count = $1, last_rated_at = NOW() " +
-                                        "WHERE brand_id = $2 AND sound_fragment_id = $3";
-
-                                Tuple updateParams = Tuple.of(newRating, brandId, soundFragmentId);
-
-                                return client.preparedQuery(updateSql)
-                                        .execute(updateParams)
-                                        .onItem().transform(SqlResult::rowCount);
-                            });
-                });
     }
 
     private String buildExcludeClause(Set<UUID> excludeIds) {
