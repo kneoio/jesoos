@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Getter
@@ -23,7 +23,7 @@ public class ChatMessage extends DataEntity<UUID> {
     private String username;
     private String content;
     private String connectionId;
-    private LocalDateTime timestamp;
-    private LocalDateTime summarizedAt;
+    private OffsetDateTime timestamp;
+    private OffsetDateTime summarizedAt;
     private UUID summaryId;
 }

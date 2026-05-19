@@ -21,7 +21,8 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -59,16 +60,14 @@ public class ChatRepository extends AsyncRepository {
         String content = data.getString("content");
         String connectionId = data.getString("connectionId");
         Long timestampMillis = data.getLong("timestamp", System.currentTimeMillis());
-        LocalDateTime timestamp = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(timestampMillis),
-                java.time.ZoneOffset.UTC
-        );
+        OffsetDateTime timestamp = java.time.Instant.ofEpochMilli(timestampMillis)
+                .atOffset(ZoneOffset.UTC);
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id, userId, brandName, chatType.name(), messageType.name(), username)
                         .addString(content)
                         .addString(connectionId)
-                        .addLocalDateTime(timestamp))
+                        .addOffsetDateTime(timestamp))
                 .replaceWithVoid()
                 .onFailure().invoke(throwable ->
                     LOGGER.error("Failed to save chat message for user {} and chatType {}", userId, chatType, throwable)
@@ -171,8 +170,7 @@ public class ChatRepository extends AsyncRepository {
                         .put("brandName", row.getString("brand_name"))
                         .put("username", row.getString("username"))
                         .put("content", row.getString("content"))
-                        .put("timestamp", row.getLocalDateTime("timestamp")
-                                .atZone(java.time.ZoneOffset.UTC)
+                        .put("timestamp", row.getOffsetDateTime("timestamp")
                                 .toInstant()
                                 .toEpochMilli())
                         .put("connectionId", row.getString("connection_id"))
@@ -189,8 +187,8 @@ public class ChatRepository extends AsyncRepository {
         entity.setUsername(row.getString("username"));
         entity.setContent(row.getString("content"));
         entity.setConnectionId(row.getString("connection_id"));
-        entity.setTimestamp(row.getLocalDateTime("timestamp"));
-        entity.setSummarizedAt(row.getLocalDateTime("summarized_at"));
+        entity.setTimestamp(row.getOffsetDateTime("timestamp"));
+        entity.setSummarizedAt(row.getOffsetDateTime("summarized_at"));
         entity.setSummaryId(row.getUUID("summary_id"));
         return Uni.createFrom().item(entity);
     }
@@ -253,7 +251,7 @@ public class ChatRepository extends AsyncRepository {
                 " SET summarized_at = $1, summary_id = $2 WHERE id IN (" + placeholders + ")";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(LocalDateTime.now(), summaryId))
+                .execute(Tuple.of(OffsetDateTime.now(ZoneOffset.UTC), summaryId))
                 .replaceWithVoid()
                 .onFailure().invoke(throwable ->
                         LOGGER.error("Failed to mark messages as summarized", throwable)
@@ -264,7 +262,7 @@ public class ChatRepository extends AsyncRepository {
         String sql = "DELETE FROM " + entityData.getTableName() +
                 " WHERE summarized_at IS NOT NULL AND summarized_at < $1";
 
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(daysOld);
+        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusDays(daysOld);
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(cutoff))
