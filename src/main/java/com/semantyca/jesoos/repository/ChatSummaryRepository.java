@@ -18,7 +18,8 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,7 +42,7 @@ public class ChatSummaryRepository extends AsyncRepository {
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
         UUID id = UUID.randomUUID();
-        LocalDateTime now = LocalDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(
@@ -52,9 +53,9 @@ public class ChatSummaryRepository extends AsyncRepository {
                         summary.getChatType() != null ? summary.getChatType().name() : null,
                         summary.getSummary()
                 ).addInteger(summary.getMessageCount())
-                 .addLocalDateTime(summary.getPeriodStart())
-                 .addLocalDateTime(summary.getPeriodEnd())
-                 .addLocalDateTime(now))
+                 .addOffsetDateTime(summary.getPeriodStart())
+                 .addOffsetDateTime(summary.getPeriodEnd())
+                 .addOffsetDateTime(now))
                 .onItem().transform(rows -> {
                     Row row = rows.iterator().next();
                     return row.getUUID("id");
@@ -105,9 +106,9 @@ public class ChatSummaryRepository extends AsyncRepository {
         }
         entity.setSummary(row.getString("summary"));
         entity.setMessageCount(row.getInteger("message_count"));
-        entity.setPeriodStart(row.getLocalDateTime("period_start"));
-        entity.setPeriodEnd(row.getLocalDateTime("period_end"));
-        entity.setCreatedAt(row.getLocalDateTime("created_at"));
+        entity.setPeriodStart(row.getOffsetDateTime("period_start"));
+        entity.setPeriodEnd(row.getOffsetDateTime("period_end"));
+        entity.setCreatedAt(row.getOffsetDateTime("created_at"));
         return Uni.createFrom().item(entity);
     }
 }
