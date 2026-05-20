@@ -205,6 +205,12 @@ public class PublicChatService extends ChatService {
         return listenerService.resolveDisplayName(userId, fallback);
     }
 
+    @Override
+    protected Uni<String> resolveUserLabel(IUser user) {
+        if (user.getId() == 0) return Uni.createFrom().item("");
+        return listenerService.resolveDisplayName(user.getId(), null);
+    }
+
     public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
         return listenerService.getByUserId(userId)
                 .chain(listener -> {

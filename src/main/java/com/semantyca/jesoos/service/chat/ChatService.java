@@ -227,12 +227,12 @@ public abstract class ChatService {
                             });
                 });
 
-        return staticDataUni.flatMap(staticData -> {
+        return staticDataUni.flatMap(staticData -> resolveUserLabel(user).flatMap(userLabel -> {
             String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
             String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
             String renderedPrompt = staticData.partialPrompt()
                     .replace("{{radioStationStatus}}", stationStatus)
-                    .replace("{{userName}}", user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : user.getUserName())
+                    .replace("{{userName}}", userLabel != null ? userLabel : "")
                     .replace("{{isAuthenticated}}", isAuthenticated);
 
             ChatLogger.request(slugName, user.getId(), user.getEmail(),
@@ -257,13 +257,17 @@ public abstract class ChatService {
                                 return streamResponse(request, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
-        ).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
+        )).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
             chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
             completionHandler.accept(ChatMessageDTO.error("Something went wrong, please try again.", "system", connectionId).build().toJson());
             return Uni.createFrom().voidItem();
         }).runSubscriptionOn(getDefaultWorkerPool());
+    }
+
+    protected Uni<String> resolveUserLabel(IUser user) {
+        return Uni.createFrom().item("");
     }
 
     protected abstract LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user, String djLanguages);

@@ -140,12 +140,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return getByUserId(userId)
                 .map(listener -> {
                     if (listener == null) return fallback;
-                    if (listener.getLocalizedName() != null) {
-                        String name = listener.getLocalizedName().get(LanguageCode.en);
+                    if (listener.getUserData() != null && listener.getUserData().getData() != null) {
+                        String name = (String) listener.getUserData().getData().get("preferred_name");
                         if (name != null && !name.isBlank()) return name;
                     }
-                    if (listener.getUserData() != null) {
-                        String name = (String) listener.getUserData().getData().get("name");
+                    if (listener.getLocalizedName() != null) {
+                        String name = listener.getLocalizedName().get(LanguageCode.en);
                         if (name != null && !name.isBlank()) return name;
                     }
                     if (listener.getNickName() != null) {
