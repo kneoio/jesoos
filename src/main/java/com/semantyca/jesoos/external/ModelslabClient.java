@@ -61,8 +61,8 @@ public class ModelslabClient implements TTSClient {
                         String fetchUrl = jsonResponse.getString("fetch_result");
                         return pollForCompletion(fetchUrl, 200, 2000);
                     } else {
-                        LOGGER.errorf("Modelslab failed. voice: %s, language: %s", voiceId, langTag);
-                        throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
+                        LOGGER.errorf("Modelslab failed. voice: %s, language: %s, textLength: %d chars", voiceId, langTag, text.length());
+                        throw new RuntimeException("Modelslab API failed (textLength=" + text.length() + " chars): " + jsonResponse.encode());
                     }
                 });
     }
