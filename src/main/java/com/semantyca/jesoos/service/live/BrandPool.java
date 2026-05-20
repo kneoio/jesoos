@@ -62,12 +62,19 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
                                 newStream.setStatus(StreamStatus.WARMING_UP);
                                 return agendaService.getStreamAgenda(brand, SuperUser.build())
                                         .invoke(schedule -> {
+                                            if (schedule.getTotalScenes() == 0) {
+                                                throw new RuntimeException("Station '" + name + "' created with 0 scenes — agenda is empty");
+                                            }
                                             newStream.setAgenda(schedule);
                                             pool.put(name, newStream);
                                             LOGGER.infof("BrandPool: Station '%s' created with %s scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
                                         .map(schedule -> (ILiveStream) newStream)
-                                        .onFailure().invoke(e -> LOGGER.errorf("Agenda build failed for brand '%s': %s", name, e.getMessage()));
+                                        .onFailure().invoke(e -> {
+                                            LOGGER.errorf("Agenda build failed for brand '%s': %s", name, e.getMessage());
+                                            metricPublisher.publishMetric(name, MetricEventType.ERROR, ProcessType.INDEPENDENT,
+                                                    "agenda_empty_or_failed", Map.of("brand", name), null);
+                                        });
                             });
                 })
                 .onItem().invoke(stream -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", stream.getStatus().name())))
