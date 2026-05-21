@@ -63,7 +63,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     public void setupRoutes(Router router) {
         String path = "/jesoos/chat";
-        router.route(path + "*").handler(BodyHandler.create().setBodyLimit(-1));
+        router.route(path + "*").handler(BodyHandler.create().setBodyLimit(65536));
         router.route(path + "*").handler(this::addHeaders);
         
         router.route("/jesoos/ws/chat").handler(rc -> {
@@ -170,6 +170,10 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             sendError(webSocket, "Message content cannot be empty");
             return;
         }
+        if (content.length() > 2000) {
+            sendError(webSocket, "Message too long (max 2000 characters)");
+            return;
+        }
 
         Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
 
@@ -183,7 +187,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
 
         Uni<String> resolvedUsername = isAnonymous(user)
-                ? Uni.createFrom().item(msgJson.getString("username", "anonymous"))
+                ? Uni.createFrom().item(sanitizeUsername(msgJson.getString("username", "anonymous")))
                 : publicChatService.resolveDisplayName(user.getId(), user.getEmail());
 
         ensureRegistration
@@ -296,6 +300,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         if (ws != null && !ws.isClosed()) {
             ws.writeTextMessage(message);
         }
+    }
+
+    private static String sanitizeUsername(String raw) {
+        if (raw == null || raw.isBlank()) return "anonymous";
+        String cleaned = raw.replaceAll("[\\r\\n\\t\\x00-\\x1F\\x7F]", "").trim();
+        return cleaned.isEmpty() ? "anonymous" : cleaned.substring(0, Math.min(cleaned.length(), 64));
     }
 
     private void sendError(ServerWebSocket webSocket, Throwable err) {

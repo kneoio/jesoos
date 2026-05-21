@@ -86,6 +86,15 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 });
     }
 
+    private static String sanitizeUserDataValue(String value) {
+        if (value == null) return null;
+        return value
+                .replaceAll("[\\r\\n\\t]", " ")
+                .replaceAll("\\{\\{.*?}}", "")
+                .replaceAll("[\\x00-\\x1F\\x7F]", "")
+                .trim();
+    }
+
     private static Uni<Void> handleSet(LlmToolCall toolCall, Listener listener, String fieldName, String fieldValue,
                                        ListenerService listenerService, ListenerDataToolHandler handler,
                                        Consumer<String> chunkHandler, String connectionId,
@@ -93,9 +102,13 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         if (fieldName.isEmpty() || fieldValue.isEmpty()) {
             return handleError(toolCall, "field_name and field_value are required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
+        String sanitizedValue = sanitizeUserDataValue(fieldValue);
+        if (sanitizedValue == null || sanitizedValue.isEmpty()) {
+            return handleError(toolCall, "field_value is empty after sanitization", handler, conversationHistory, systemPromptCall2, streamFn);
+        }
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
         if (listener.getUserData() == null) listener.setUserData(new UserData(new HashMap<>()));
-        listener.getUserData().put(fieldName, fieldValue);
+        listener.getUserData().put(fieldName, sanitizedValue);
         return listenerService.updateUserData(listener.getId(), listener.getUserData())
                 .flatMap(ignored -> {
                     JsonObject payload = new JsonObject().put("ok", true).put("action", "set")

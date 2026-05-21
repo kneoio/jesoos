@@ -211,16 +211,16 @@ public abstract class ChatService {
                                         .map(lp -> lp.getLanguageTag().tag())
                                         .reduce((a, b) -> a + "," + b).orElse("");
                                 String partialPrompt = getMainPrompt()
-                                        .replace("{{djName}}", djName)
-                                        .replace("{{radioStationName}}", radioStationName)
-                                        .replace("{{radioStationSlug}}", stationSlug)
-                                        .replace("{{radioStationCountry}}", station.getCountry().getCountryName())
-                                        .replace("{{radioStationTimeZone}}", station.getTimeZone().getId())
-                                        .replace("{{radioStationDescription}}", station.getDescription())
-                                        .replace("{{djLanguages}}", djLanguages)
+                                        .replace("{{djName}}", sanitizePromptValue(djName))
+                                        .replace("{{radioStationName}}", sanitizePromptValue(radioStationName))
+                                        .replace("{{radioStationSlug}}", sanitizePromptValue(stationSlug))
+                                        .replace("{{radioStationCountry}}", sanitizePromptValue(station.getCountry().getCountryName()))
+                                        .replace("{{radioStationTimeZone}}", sanitizePromptValue(station.getTimeZone().getId()))
+                                        .replace("{{radioStationDescription}}", sanitizePromptValue(station.getDescription()))
+                                        .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
                                         .replace("{{djCopilotName}}", "")
-                                        .replace("{{musicMetadata}}", aiHelperService.getCachedMusicMetadata())
-                                        .replace("{{otsScripts}}", otsScripts);
+                                        .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
+                                        .replace("{{otsScripts}}", sanitizePromptValue(otsScripts));
                                 BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
                                 brandStaticCache.put(slugName, data);
                                 return data;
@@ -378,5 +378,13 @@ public abstract class ChatService {
         String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
         LOGGER.infof("[session] syncing history key=%s size=%d", key, history.size());
         chatRepository.replaceConversationHistory(key, history);
+    }
+
+    protected static String sanitizePromptValue(String value) {
+        if (value == null) return "";
+        return value
+                .replaceAll("\\{\\{.*?}}", "")
+                .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "")
+                .trim();
     }
 }
