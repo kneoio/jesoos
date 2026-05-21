@@ -1,15 +1,19 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.DjStateService;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
+import com.semantyca.mixpla.dto.queue.command.CommandDTO;
+import com.semantyca.mixpla.dto.queue.command.CommandType;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
@@ -30,19 +34,57 @@ public class CommandService {
     private final OneTimeStreamService oneTimeStreamService;
     private final OtsStreamScheduler otsStreamScheduler;
     private final MetricPublisher metricPublisher;
+    private final BrandService brandService;
+    private final AgendaService agendaService;
 
     @Inject
     public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
                           StaggeredSongScheduler staggeredSongScheduler,
                           OneTimeStreamService oneTimeStreamService,
                           OtsStreamScheduler otsStreamScheduler,
-                          MetricPublisher metricPublisher) {
+                          MetricPublisher metricPublisher,
+                          BrandService brandService,
+                          AgendaService agendaService) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
         this.oneTimeStreamService = oneTimeStreamService;
         this.otsStreamScheduler = otsStreamScheduler;
         this.metricPublisher = metricPublisher;
+        this.brandService = brandService;
+        this.agendaService = agendaService;
+    }
+
+    public Uni<Void> handleQueueCommand(CommandDTO dto) {
+        if (dto.type() == CommandType.FLOW_RESTART && "brand_saved".equals(dto.command())) {
+            return handleBrandSaved(dto);
+        }
+        LOGGER.debugf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
+        return Uni.createFrom().voidItem();
+    }
+
+    private Uni<Void> handleBrandSaved(CommandDTO dto) {
+        Object rawSlug = dto.payload() != null ? dto.payload().get("slug") : null;
+        if (rawSlug == null) {
+            LOGGER.warn("brand_saved command missing slug in payload");
+            return Uni.createFrom().voidItem();
+        }
+        String slug = rawSlug.toString();
+        return brandPool.get(slug)
+                .chain(stream -> {
+                    if (stream == null) {
+                        LOGGER.infof("Brand %s not active, skipping agenda rebuild", slug);
+                        return Uni.createFrom().voidItem();
+                    }
+                    return brandService.getBySlugName(slug)
+                            .chain(brand -> agendaService.getStreamAgenda(brand, SuperUser.build())
+                                    .invoke(newAgenda -> {
+                                        stream.setAgenda(newAgenda);
+                                        LOGGER.infof("Rebuilt agenda for brand %s with %d scenes",
+                                                slug, newAgenda.getTotalScenes());
+                                    })
+                                    .replaceWithVoid());
+                });
     }
 
     public Uni<JsonObject> startBrand(String brand) {
