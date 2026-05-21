@@ -18,11 +18,13 @@ public class PublicChatSessionManager {
 
     private static final long SESSION_EXPIRY_SECONDS = 86400 * 30;
     private static final long OTP_EXPIRY_SECONDS = 600;
+    private static final long UPLOAD_GATE_EXPIRY_SECONDS = 1800;
 
     private static final String TABLE = "mixpla__chat_sessions";
 
     private final Pool client;
     private final ConcurrentHashMap<String, PendingOtp> pendingOtps = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Instant> uploadGates = new ConcurrentHashMap<>();
 
     public record PendingOtp(String code, Instant expiresAt) {
         boolean isExpired() { return Instant.now().isAfter(expiresAt); }
@@ -52,6 +54,21 @@ public class PublicChatSessionManager {
     public String getPendingOtp(String email) {
         PendingOtp otp = pendingOtps.get(email.toLowerCase());
         return (otp != null && !otp.isExpired()) ? otp.code() : null;
+    }
+
+    // ---- Upload gates (in-memory, per userId) ----
+
+    public void grantUploadPermission(long userId) {
+        uploadGates.put(userId, Instant.now().plusSeconds(UPLOAD_GATE_EXPIRY_SECONDS));
+    }
+
+    public boolean hasUploadPermission(long userId) {
+        Instant expiry = uploadGates.get(userId);
+        if (expiry == null || Instant.now().isAfter(expiry)) {
+            uploadGates.remove(userId);
+            return false;
+        }
+        return true;
     }
 
     // ---- Session tokens (PostgreSQL-backed) ----
@@ -112,5 +129,6 @@ public class PublicChatSessionManager {
                 rows -> {},
                 err -> {}
             );
+        uploadGates.entrySet().removeIf(e -> Instant.now().isAfter(e.getValue()));
     }
 }

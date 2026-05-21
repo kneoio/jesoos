@@ -383,9 +383,14 @@ public class PublicChatService extends ChatService {
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolCall, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
-            case "send_ui_command" -> SendUICommandToolHandler.handle(
-                    toolCall, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
-            );
+            case "send_ui_command" -> {
+                if ("show_upload_button".equals(inputMap.getOrDefault("command", ""))) {
+                    sessionManager.grantUploadPermission(userId);
+                }
+                yield SendUICommandToolHandler.handle(
+                        toolCall, inputMap, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+                );
+            }
             case "logoff" -> LogoffToolHandler.handle(
                     toolCall, inputMap, sessionManager, userService, controller, this, metricPublisher, brandName, userId, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );

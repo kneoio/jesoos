@@ -3,6 +3,7 @@ package com.semantyca.jesoos.rest;
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.PublicChatService;
+import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -29,6 +30,9 @@ public class ChatUploadResource extends AbstractResource {
     PublicChatService publicChatService;
 
     @Inject
+    PublicChatSessionManager sessionManager;
+
+    @Inject
     JesoosConfig config;
 
     public void setupRoutes(Router router) {
@@ -47,6 +51,13 @@ public class ChatUploadResource extends AbstractResource {
         publicChatService.authenticateUserFromToken(token)
                 .subscribe().with(
                         user -> {
+                            if (user.getId() == 0 || !sessionManager.hasUploadPermission(user.getId())) {
+                                rc.response().setStatusCode(403)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject().put("error", "Upload not available — ask the DJ first").encode());
+                                return;
+                            }
+
                             var uploads = rc.fileUploads();
                             if (uploads == null || uploads.isEmpty()) {
                                 rc.response().setStatusCode(400)
