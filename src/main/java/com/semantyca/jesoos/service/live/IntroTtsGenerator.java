@@ -277,7 +277,7 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", text,
-                                    "llmProvider", provider, "llmModel", model), traceId);
+                                    "llmProvider", provider, "llmModel", model, "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
                 .onFailure().invoke(e -> {

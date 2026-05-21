@@ -6,7 +6,6 @@ import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
-import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.DjStateService;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
@@ -35,7 +34,6 @@ public class CommandService {
     private final OtsStreamScheduler otsStreamScheduler;
     private final MetricPublisher metricPublisher;
     private final BrandService brandService;
-    private final AgendaService agendaService;
 
     @Inject
     public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
@@ -43,8 +41,7 @@ public class CommandService {
                           OneTimeStreamService oneTimeStreamService,
                           OtsStreamScheduler otsStreamScheduler,
                           MetricPublisher metricPublisher,
-                          BrandService brandService,
-                          AgendaService agendaService) {
+                          BrandService brandService) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
@@ -52,7 +49,6 @@ public class CommandService {
         this.otsStreamScheduler = otsStreamScheduler;
         this.metricPublisher = metricPublisher;
         this.brandService = brandService;
-        this.agendaService = agendaService;
     }
 
     public Uni<Void> handleQueueCommand(CommandDTO dto) {
@@ -77,13 +73,11 @@ public class CommandService {
                         return Uni.createFrom().voidItem();
                     }
                     return brandService.getBySlugName(slug)
-                            .chain(brand -> agendaService.getStreamAgenda(brand, SuperUser.build())
-                                    .invoke(newAgenda -> {
-                                        stream.setAgenda(newAgenda);
-                                        LOGGER.infof("Rebuilt agenda for brand %s with %d scenes",
-                                                slug, newAgenda.getTotalScenes());
-                                    })
-                                    .replaceWithVoid());
+                            .invoke(brand -> {
+                                stream.setAiAgentId(brand.getAiAgentId());
+                                LOGGER.infof("Updated DJ agent for brand %s to %s", slug, brand.getAiAgentId());
+                            })
+                            .replaceWithVoid();
                 });
     }
 
