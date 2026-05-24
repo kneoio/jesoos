@@ -247,18 +247,18 @@ public class DraftFactory {
 
         return genresUni.map(genres -> {
             Map<String, Object> ctx = new HashMap<>();
-            ctx.put("songTitle", song != null && song.getTitle() != null ? song.getTitle() : "");
-            ctx.put("songArtist", song != null && song.getArtist() != null ? song.getArtist() : "");
-            ctx.put("description", song != null && song.getDescription() != null ? song.getDescription() : "");
+            ctx.put("songTitle", song.getTitle());
+            ctx.put("songArtist", song.getArtist());
+            ctx.put("description", song.getDescription());
             ctx.put("genre", String.join(", ", genres));
-            ctx.put("country", stream.getCountry() != null ? stream.getCountry().toString() : "");
+            ctx.put("country", stream.getCountry().getCountryName());
             String brand = stream.getLocalizedName().get(language.toLanguageCode());
             if (brand == null && !stream.getLocalizedName().isEmpty()) {
                 brand = stream.getLocalizedName().values().iterator().next();
             }
-            ctx.put("stationBrand", brand != null ? brand : "");
-            ctx.put("djName", agent != null && agent.getName() != null ? agent.getName() : "");
-            java.time.ZoneId tz = stream.getTimeZone() != null ? stream.getTimeZone() : java.time.ZoneId.of("UTC");
+            ctx.put("stationBrand",brand);
+            ctx.put("djName", agent.getName());
+            java.time.ZoneId tz =  stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
