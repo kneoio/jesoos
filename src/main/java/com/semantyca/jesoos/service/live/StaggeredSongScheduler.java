@@ -154,6 +154,11 @@ public class StaggeredSongScheduler {
                                         err.getClass().getSimpleName(), errorMsg,
                                         rootCause.getClass().getSimpleName(), rootMsg
                                 ), err);
+                                StackTraceElement[] frames = rootCause.getStackTrace();
+                                StringBuilder stackSnippet = new StringBuilder();
+                                for (int i = 0; i < Math.min(5, frames.length); i++) {
+                                    stackSnippet.append(frames[i].toString()).append("\n");
+                                }
                                 metricPublisher.publishMetric(
                                         brandName,
                                         MetricEventType.ERROR,
@@ -164,7 +169,8 @@ public class StaggeredSongScheduler {
                                                 "scene", scene.getSceneTitle(),
                                                 "errorType", err.getClass().getSimpleName(),
                                                 "error", errorMsg,
-                                                "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg
+                                                "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg,
+                                                "stackTrace", stackSnippet.toString().trim()
                                         ),
                                         scene.getTraceId()
                                 );

@@ -8,6 +8,7 @@ import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.jesoos.repository.prompt.PromptRepository;
+import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.filter.SceneFilter;
@@ -185,6 +186,15 @@ public class SceneRepository extends AsyncRepository {
                 doc.setPlaylistRequest(playlistRequest);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse stage_playlist JSON for scene: {}", row.getUUID("id"), e);
+            }
+        }
+        JsonArray actionsJson = row.getJsonArray("actions");
+        if (actionsJson != null && !actionsJson.isEmpty()) {
+            try {
+                List<CustomAction> actions = mapper.convertValue(actionsJson.getList(), mapper.getTypeFactory().constructCollectionType(List.class, CustomAction.class));
+                doc.setActions(actions);
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse actions JSON for scene: {}", row.getUUID("id"), e);
             }
         }
         return doc;
