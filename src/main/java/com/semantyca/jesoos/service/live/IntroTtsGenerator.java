@@ -19,6 +19,7 @@ import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
@@ -105,6 +106,9 @@ public class IntroTtsGenerator {
             IStream stream,
             LanguageTag language
     ) {
+        if (songEntry.getPromptEntry().isAction()) {
+            return generateIntroFromAction(liveScene, songEntry, agent, stream, language);
+        }
 
         UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
         AtomicBoolean fallBacked = new AtomicBoolean(false);
@@ -130,6 +134,23 @@ public class IntroTtsGenerator {
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, liveScene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain()));
+    }
+
+    private Uni<IntroAudioResult> generateIntroFromAction(
+            LiveScene liveScene,
+            SongEntry songEntry,
+            AiAgent agent,
+            IStream stream,
+            LanguageTag language
+    ) {
+        CustomAction action = songEntry.getPromptEntry().getCustomAction();
+        return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language)
+                .chain(ctx -> {
+                    String rendered = renderHandlebars(action.getInstruction(), ctx);
+                    return generateSpokenTextFromAction(rendered, action, agent, liveScene.getTraceId(), stream.getSlugName());
+                })
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
+                .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain()));
     }
 
     public Uni<IntroAudioResult> generateCustomIntroAudioFile(
@@ -285,6 +306,59 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                             Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
                 });
+    }
+
+    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, AiAgent agent, UUID traceId, String brandName) {
+        long maxTokens = 2048L;
+        String provider = config.getIntroTtsLlmProvider();
+        String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        LlmTextClient llmTextClient = selectLlmClient(provider);
+        return llmTextClient.createTextMessage(
+                        model,
+                        maxTokens,
+                        getSystemPrompt(agent),
+                        renderedInstruction)
+                .map(response -> {
+                    LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
+                            response.inputTokens(), response.outputTokens());
+
+                    String text = stripEmoji(response.text());
+                    if (response.outputTokens() >= maxTokens * 0.95) {
+                        LOGGER.warnf("Content generation used %s tokens (%s%% of max %s). Response may be truncated.",
+                                response.outputTokens(),
+                                Math.round((response.outputTokens() / (double) maxTokens) * 100),
+                                maxTokens);
+                    }
+
+                    if (text.contains("technical difficulty")
+                            || text.contains("technical error")
+                            || text.contains("technical issue")) {
+                        metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                                Map.of("reason", "technical_difficulty_detected", "actionName", action.getName()), traceId);
+                        return null;
+                    }
+
+                    LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
+                    metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
+                            Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
+                                    "actionName", action.getName(), "instruction", action.getInstruction(), "spokenText", text,
+                                    "llmProvider", provider, "llmModel", model, "djName", agent != null ? agent.getName() : "unknown"), traceId);
+                    return text;
+                })
+                .onFailure().invoke(e -> {
+                    LOGGER.errorf("LLM call failed for action '%s' - Type: %s, Message: %s", action.getName(), e.getClass().getSimpleName(), e.getMessage(), e);
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                            Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "actionName", action.getName()), traceId);
+                });
+    }
+
+    private static String renderHandlebars(String template, Map<String, Object> context) {
+        if (template == null) return "";
+        String result = template;
+        for (Map.Entry<String, Object> entry : context.entrySet()) {
+            result = result.replace("{{" + entry.getKey() + "}}", entry.getValue() != null ? entry.getValue().toString() : "");
+        }
+        return result;
     }
 
     private LlmTextClient selectLlmClient(String provider) {

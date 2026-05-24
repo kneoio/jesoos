@@ -235,6 +235,44 @@ public class DraftFactory {
         return groovyEngine.render(template, data, draftSlug).trim();
     }
 
+    public Uni<Map<String, Object>> buildActionContext(
+            SoundFragment song,
+            IStream stream,
+            List<String> contextVars,
+            LanguageTag language
+    ) {
+        if (contextVars == null || contextVars.isEmpty()) {
+            return Uni.createFrom().item(new HashMap<>());
+        }
+
+        boolean needsGenre = contextVars.contains("genre");
+        Uni<List<String>> genresUni = (needsGenre && song != null)
+                ? resolveGenreNames(song, language.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
+        return genresUni.map(genres -> {
+            Map<String, Object> ctx = new HashMap<>();
+            for (String var : contextVars) {
+                switch (var) {
+                    case "songTitle" -> ctx.put("songTitle", song != null && song.getTitle() != null ? song.getTitle() : "");
+                    case "songArtist" -> ctx.put("songArtist", song != null && song.getArtist() != null ? song.getArtist() : "");
+                    case "description" -> ctx.put("description", song != null && song.getDescription() != null ? song.getDescription() : "");
+                    case "genre" -> ctx.put("genre", String.join(", ", genres));
+                    case "country" -> ctx.put("country", stream.getCountry() != null ? stream.getCountry().toString() : "");
+                    case "stationBrand" -> {
+                        String brand = stream.getLocalizedName().get(language.toLanguageCode());
+                        if (brand == null && !stream.getLocalizedName().isEmpty()) {
+                            brand = stream.getLocalizedName().values().iterator().next();
+                        }
+                        ctx.put("stationBrand", brand != null ? brand : "");
+                    }
+                    default -> LOGGER.warn("Unknown contextVar '{}' in CustomAction — ignored", var);
+                }
+            }
+            return ctx;
+        });
+    }
+
     private Uni<List<String>> resolveGenreNames(SoundFragment song, LanguageCode selectedLanguage) {
         List<UUID> genreIds = song.getGenres();
         if (genreIds == null || genreIds.isEmpty()) {

@@ -4,6 +4,7 @@ import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import org.jboss.logging.Logger;
@@ -30,7 +31,8 @@ public class TimelineBuilder {
                                              List<SongEntry> songs,
                                              int sceneDurationSeconds,
                                              double talkativity,
-                                             List<ScenePrompt> introPrompts) {
+                                             List<ScenePrompt> introPrompts,
+                                             List<CustomAction> actions) {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
@@ -52,8 +54,10 @@ public class TimelineBuilder {
             }
         }
         LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
-        boolean allowIntros = introPrompts != null && !introPrompts.isEmpty() &&
-                             introPrompts.stream().anyMatch(ScenePrompt::isActive);
+        boolean hasActivePrompts = introPrompts != null && !introPrompts.isEmpty()
+                && introPrompts.stream().anyMatch(ScenePrompt::isActive);
+        boolean hasActiveActions = actions != null && !actions.isEmpty();
+        boolean allowIntros = hasActivePrompts || hasActiveActions;
 
         /*LOGGER.infof("Building timeline for scene '%s' with talkativity=%.2f, allowIntros=%s",
                 scene.getSceneTitle(), talkativity, allowIntros);*/

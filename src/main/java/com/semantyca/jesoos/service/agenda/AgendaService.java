@@ -13,6 +13,10 @@ import com.semantyca.jesoos.service.SceneService;
 import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.jesoos.util.TimeFormatUtil;
+import com.semantyca.jesoos.model.stream.ActionIntroSource;
+import com.semantyca.jesoos.model.stream.IntroSource;
+import com.semantyca.jesoos.model.stream.PromptIntroSource;
+import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
 import com.semantyca.mixpla.model.ScenePrompt;
@@ -160,10 +164,11 @@ public class AgendaService {
                                         liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
                                     }
                                     liveScene.setIntroPrompts(scene.getIntroPrompts());
+                                    liveScene.setActions(scene.getActions());
 
-                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), agent, pool.sharerMap());
+                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap());
                                     liveScene.setTimeline(new TimelineBuilder().buildTimeline(
-                                            liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts()));
+                                            liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions()));
 
                                     state.liveScenes().add(liveScene);
                                     return state;
@@ -249,10 +254,11 @@ public class AgendaService {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
                                 }
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());
+                                liveScene.setActions(scene.getActions());
 
-                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), agent, pool.sharerMap());
+                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap());
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
-                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts());
+                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
                                 liveScene.setTimeline(timeline);
                                 return liveScene;
                             })
@@ -366,22 +372,31 @@ public class AgendaService {
     }
 
 
-    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, AiAgent agent, Map<UUID, String> sharerMap) {
+    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, List<CustomAction> actions, AiAgent agent, Map<UUID, String> sharerMap) {
         List<SongEntry> songEntries = new ArrayList<>();
 
-        List<ScenePrompt> activePrompts = (introPrompts != null)
-                ? introPrompts.stream().filter(ScenePrompt::isActive).toList()
-                : new ArrayList<>();
+        List<IntroSource> pool = new ArrayList<>();
+        if (introPrompts != null) {
+            introPrompts.stream().filter(ScenePrompt::isActive)
+                    .map(PromptIntroSource::new)
+                    .forEach(pool::add);
+        }
+        if (actions != null) {
+            actions.stream().map(ActionIntroSource::new).forEach(pool::add);
+        }
 
         for (int i = 0; i < soundFragments.size(); i++) {
             SoundFragment sf = soundFragments.get(i);
             PromptEntry promptEntry = new PromptEntry();
 
-            if (!activePrompts.isEmpty() && agent != null) {
-                ScenePrompt selectedScenePrompt = activePrompts.get(random.nextInt(activePrompts.size()));
+            if (!pool.isEmpty() && agent != null) {
+                IntroSource selected = pool.get(random.nextInt(pool.size()));
                 LanguageTag languageTag = AiHelperUtils.selectLanguageByWeight(agent);
-                promptEntry.setPromptId(selectedScenePrompt.getPromptId());
                 promptEntry.setLanguage(languageTag.toLanguageCode());
+                switch (selected) {
+                    case PromptIntroSource p -> promptEntry.setPromptId(p.scenePrompt().getPromptId());
+                    case ActionIntroSource a -> promptEntry.setCustomAction(a.customAction());
+                }
             }
 
             String sharerName = sharerMap != null ? sharerMap.get(sf.getId()) : null;
