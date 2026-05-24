@@ -147,7 +147,7 @@ public class IntroTtsGenerator {
         return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language)
                 .chain(ctx -> {
                     String rendered = renderHandlebars(action.getInstruction(), ctx);
-                    return generateSpokenTextFromAction(rendered, action, agent, liveScene.getTraceId(), stream.getSlugName());
+                    return generateSpokenTextFromAction(rendered, action, ctx, agent, liveScene.getTraceId(), stream.getSlugName());
                 })
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain()));
@@ -308,7 +308,7 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, AiAgent agent, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, Map<String, Object> ctx, AiAgent agent, UUID traceId, String brandName) {
         long maxTokens = 2048L;
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
@@ -341,8 +341,9 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
-                                    "actionName", action.getName(), "instruction", renderedInstruction, "spokenText", text,
-                                    "llmProvider", provider, "llmModel", model, "djName", agent != null ? agent.getName() : "unknown"), traceId);
+                                    "actionName", action.getName(), "template", action.getInstruction(), "variables", ctx,
+                                    "spokenText", text, "llmProvider", provider, "llmModel", model,
+                                    "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
                 .onFailure().invoke(e -> {
