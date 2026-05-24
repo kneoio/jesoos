@@ -249,6 +249,7 @@ public class DraftFactory {
             Map<String, Object> ctx = new HashMap<>();
             ctx.put("songTitle", song != null && song.getTitle() != null ? song.getTitle() : "");
             ctx.put("songArtist", song != null && song.getArtist() != null ? song.getArtist() : "");
+            ctx.put("description", song != null && song.getDescription() != null ? song.getDescription() : "");
             ctx.put("genre", String.join(", ", genres));
             ctx.put("country", stream.getCountry() != null ? stream.getCountry().toString() : "");
             String brand = stream.getLocalizedName().get(language.toLanguageCode());
