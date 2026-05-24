@@ -144,7 +144,7 @@ public class IntroTtsGenerator {
             LanguageTag language
     ) {
         CustomAction action = songEntry.getPromptEntry().getCustomAction();
-        return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language)
+        return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language, agent)
                 .chain(ctx -> {
                     String rendered = renderHandlebars(action.getInstruction(), ctx);
                     return generateSpokenTextFromAction(rendered, action, ctx, agent, liveScene.getTraceId(), stream.getSlugName());

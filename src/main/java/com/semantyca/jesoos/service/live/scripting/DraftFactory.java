@@ -238,7 +238,8 @@ public class DraftFactory {
             SoundFragment song,
             IStream stream,
             List<String> contextVars,
-            LanguageTag language
+            LanguageTag language,
+            AiAgent agent
     ) {
         Uni<List<String>> genresUni = song != null
                 ? resolveGenreNames(song, language.toLanguageCode())
@@ -248,7 +249,6 @@ public class DraftFactory {
             Map<String, Object> ctx = new HashMap<>();
             ctx.put("songTitle", song != null && song.getTitle() != null ? song.getTitle() : "");
             ctx.put("songArtist", song != null && song.getArtist() != null ? song.getArtist() : "");
-            ctx.put("description", song != null && song.getDescription() != null ? song.getDescription() : "");
             ctx.put("genre", String.join(", ", genres));
             ctx.put("country", stream.getCountry() != null ? stream.getCountry().toString() : "");
             String brand = stream.getLocalizedName().get(language.toLanguageCode());
@@ -256,6 +256,9 @@ public class DraftFactory {
                 brand = stream.getLocalizedName().values().iterator().next();
             }
             ctx.put("stationBrand", brand != null ? brand : "");
+            ctx.put("djName", agent != null && agent.getName() != null ? agent.getName() : "");
+            java.time.ZoneId tz = stream.getTimeZone() != null ? stream.getTimeZone() : java.time.ZoneId.of("UTC");
+            ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
         });
