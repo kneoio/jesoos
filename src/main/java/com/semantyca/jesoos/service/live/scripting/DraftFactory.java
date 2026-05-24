@@ -92,7 +92,7 @@ public class DraftFactory {
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName()),  //the drafts always un ENG
-                        profileService.getById(stream.getProfileId()),
+                        stream.getProfileId() != null ? profileService.getById(stream.getProfileId()) : Uni.createFrom().nullItem(),
                         genresUni,
                         copilotUni,
                         listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null),
