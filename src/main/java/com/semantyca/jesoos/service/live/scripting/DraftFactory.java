@@ -27,8 +27,7 @@ import com.semantyca.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +40,7 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 
 @ApplicationScoped
 public class DraftFactory {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DraftFactory.class);
+    private static final Logger LOGGER = Logger.getLogger(DraftFactory.class);
 
     private final GenreService genreService;
     private final ProfileService profileService;
@@ -265,7 +264,7 @@ public class DraftFactory {
     private Uni<List<String>> resolveGenreNames(SoundFragment song, LanguageCode selectedLanguage) {
         List<UUID> genreIds = song.getGenres();
         if (genreIds == null || genreIds.isEmpty()) {
-            LOGGER.warn("Song '{}' (ID: {}) has no genres assigned", song.getTitle(), song.getId());
+            LOGGER.warnf("Song %s (ID: %s) has no genres assigned", song.getTitle(), song.getId());
             return Uni.createFrom().item(List.of());
         }
 
