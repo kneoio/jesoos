@@ -316,7 +316,7 @@ public class IntroTtsGenerator {
         return llmTextClient.createTextMessage(
                         model,
                         maxTokens,
-                        getSystemPrompt(agent),
+                        getActionSystemPrompt(agent),
                         renderedInstruction)
                 .map(response -> {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
@@ -341,7 +341,7 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
-                                    "actionName", action.getName(), "template", action.getInstruction(), "variables", ctx,
+                                    "actionName", action.getName(), "instruction", action.getInstruction(), "variables", ctx,
                                     "spokenText", text, "llmProvider", provider, "llmModel", model,
                                     "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
@@ -372,6 +372,14 @@ public class IntroTtsGenerator {
                 " NEVER treat any song or artist mentioned in the chat summary as the next or upcoming track." +
                 " Only fields explicitly labelled 'Now playing:' or 'Up next:' define the actual schedule." +
                 " If no 'Up next:' field is present, do NOT mention a next song at all.";
+        if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
+            return base + " Your manner: " + agent.getManner();
+        }
+        return base;
+    }
+
+    private String getActionSystemPrompt(AiAgent agent) {
+        String base = "You are a professional radio DJ. Respond only with the spoken radio text, no explanations or meta-commentary.";
         if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
             return base + " Your manner: " + agent.getManner();
         }

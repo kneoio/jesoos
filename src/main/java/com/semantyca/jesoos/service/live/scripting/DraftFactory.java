@@ -257,6 +257,7 @@ public class DraftFactory {
                 brand = stream.getLocalizedName().values().iterator().next();
             }
             ctx.put("stationBrand", brand != null ? brand : "");
+            LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
         });
     }
