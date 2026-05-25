@@ -170,8 +170,8 @@ public class ChatRepository extends AsyncRepository {
                         .put("brandName", row.getString("brand_name"))
                         .put("username", row.getString("username"))
                         .put("content", row.getString("content"))
-                        .put("timestamp", row.getOffsetDateTime("timestamp")
-                                .toInstant()
+                        .put("timestamp", row.getLocalDateTime("timestamp")
+                                .toInstant(ZoneOffset.UTC)
                                 .toEpochMilli())
                         .put("connectionId", row.getString("connection_id"))
                 );
@@ -187,8 +187,9 @@ public class ChatRepository extends AsyncRepository {
         entity.setUsername(row.getString("username"));
         entity.setContent(row.getString("content"));
         entity.setConnectionId(row.getString("connection_id"));
-        entity.setTimestamp(row.getOffsetDateTime("timestamp"));
-        entity.setSummarizedAt(row.getOffsetDateTime("summarized_at"));
+        entity.setTimestamp(row.getLocalDateTime("timestamp").atOffset(ZoneOffset.UTC));
+        java.time.LocalDateTime summarizedAtRaw = row.getLocalDateTime("summarized_at");
+        entity.setSummarizedAt(summarizedAtRaw != null ? summarizedAtRaw.atOffset(ZoneOffset.UTC) : null);
         entity.setSummaryId(row.getUUID("summary_id"));
         return Uni.createFrom().item(entity);
     }
