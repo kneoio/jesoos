@@ -23,6 +23,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -146,7 +147,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         brandSoundFragment.setId(row.getUUID("id"));
         brandSoundFragment.setDefaultBrandId(brandId);
         brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-        brandSoundFragment.setPlayedTime(row.getOffsetDateTime("last_time_played_by_brand"));
+        java.time.LocalDateTime playedTimeRaw = row.getLocalDateTime("last_time_played_by_brand");
+        brandSoundFragment.setPlayedTime(playedTimeRaw != null ? playedTimeRaw.atOffset(ZoneOffset.UTC) : null);
         return brandSoundFragment;
     }
 

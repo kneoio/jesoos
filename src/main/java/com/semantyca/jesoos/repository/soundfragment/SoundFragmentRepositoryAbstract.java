@@ -59,7 +59,8 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
         doc.setDescription(row.getString("description"));
-        doc.setExpiresAt(row.getOffsetDateTime("expires_at"));
+        java.time.LocalDateTime expiresAtRaw = row.getLocalDateTime("expires_at");
+        doc.setExpiresAt(expiresAtRaw != null ? expiresAtRaw.atOffset(ZoneOffset.UTC) : null);
 
         Uni<SoundFragment> uni = Uni.createFrom().item(doc);
 
@@ -90,13 +91,14 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                         for (Row fileRow : rowSet) {
                             FileMetadata fileMetadata = new FileMetadata();
                             fileMetadata.setId(fileRow.getLong("id"));
-                            fileMetadata.setRegDate(fileRow.getOffsetDateTime("reg_date").toZonedDateTime());
-                            fileMetadata.setLastModifiedDate(fileRow.getOffsetDateTime("last_mod_date").toZonedDateTime());
+                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneOffset.UTC));
+                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneOffset.UTC));
                             fileMetadata.setParentTable(fileRow.getString("parent_table"));
                             fileMetadata.setParentId(fileRow.getUUID("parent_id"));
                             fileMetadata.setArchived(fileRow.getInteger("archived"));
-                            if (fileRow.getOffsetDateTime("archived_date") != null)
-                                fileMetadata.setArchivedDate(fileRow.getOffsetDateTime("archived_date"));
+                            java.time.LocalDateTime archivedDateRaw = fileRow.getLocalDateTime("archived_date");
+                            if (archivedDateRaw != null)
+                                fileMetadata.setArchivedDate(archivedDateRaw.atOffset(ZoneOffset.UTC));
                             fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
                             fileMetadata.setMimeType(fileRow.getString("mime_type"));
                             fileMetadata.setSlugName(fileRow.getString("slug_name"));
