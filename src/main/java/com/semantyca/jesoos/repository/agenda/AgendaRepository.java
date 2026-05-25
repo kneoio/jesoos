@@ -191,7 +191,7 @@ public class AgendaRepository extends AsyncRepository {
     public Uni<Integer> deleteOlderThan(LocalDateTime cutoff) {
         String sql = "DELETE FROM " + TABLE_CONFIGURATIONS + " WHERE reg_date < $1";
         return client.preparedQuery(sql)
-                .execute(Tuple.of(cutoff))
+                .execute(Tuple.tuple().addOffsetDateTime(cutoff.atOffset(ZoneOffset.UTC)))
                 .onItem().transform(rows -> rows.rowCount());
     }
 

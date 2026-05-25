@@ -23,9 +23,8 @@ import io.vertx.mutiny.sqlclient.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -186,18 +185,18 @@ public class ListenersRepository extends AsyncRepository {
 
 
     public Uni<Void> addBrandToListener(UUID listenerId, UUID brandId) {
-        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        OffsetDateTime nowTime = OffsetDateTime.now(ZoneOffset.UTC);
         String sql = "INSERT INTO mixpla__listener_brands (listener_id, brand_id, reg_date, rank) " +
                 "VALUES ($1, $2, $3, $4) " +
                 "ON CONFLICT (listener_id, brand_id) DO NOTHING";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(listenerId, brandId, nowTime, 99))
+                .execute(Tuple.tuple().addUUID(listenerId).addUUID(brandId).addOffsetDateTime(nowTime).addInteger(99))
                 .replaceWithVoid();
     }
 
     public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
-        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        OffsetDateTime nowTime = OffsetDateTime.now(ZoneOffset.UTC);
 
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, user_data, archived) " +
@@ -210,9 +209,9 @@ public class ListenersRepository extends AsyncRepository {
         Tuple params = Tuple.tuple()
                 .addLong(listener.getUserId())
                 .addLong(user.getId())
-                .addLocalDateTime(nowTime)
+                .addOffsetDateTime(nowTime)
                 .addLong(user.getId())
-                .addLocalDateTime(nowTime)
+                .addOffsetDateTime(nowTime)
                 .addJsonObject(localizedNameJson)
                 .addJsonObject(localizedNickNameJson)
                 .addJsonObject(userDataJson)
@@ -256,14 +255,14 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<Void> insertBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+    private Uni<Void> insertBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, OffsetDateTime nowTime) {
         if (representedInBrands == null || representedInBrands.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
         String insertBrandsSql = "INSERT INTO mixpla__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
         List<Tuple> insertParams = representedInBrands.stream()
-                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                .map(brandId -> Tuple.tuple().addUUID(listenerId).addUUID(brandId).addOffsetDateTime(nowTime).addInteger(99))
                 .collect(Collectors.toList());
 
         return tx.preparedQuery(insertBrandsSql)
@@ -282,7 +281,7 @@ public class ListenersRepository extends AsyncRepository {
                                         "User does not have edit permission", user.getUserName(), id));
                             }
 
-                            LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+                            OffsetDateTime nowTime = OffsetDateTime.now(ZoneOffset.UTC);
                             JsonObject localizedNameJson = JsonObject.mapFrom(doc.getLocalizedName());
                             JsonObject localizedNickNameJson = toNickNameJson(doc.getNickName());
                             JsonObject userDataJson = toUserDataJson(doc.getUserData());
@@ -297,7 +296,7 @@ public class ListenersRepository extends AsyncRepository {
                                         .addJsonObject(localizedNickNameJson)
                                         .addJsonObject(userDataJson)
                                         .addLong(user.getId())
-                                        .addLocalDateTime(nowTime)
+                                        .addOffsetDateTime(nowTime)
                                         .addUUID(id);
 
                                 return tx.preparedQuery(sql)
@@ -319,7 +318,7 @@ public class ListenersRepository extends AsyncRepository {
         });
     }
 
-    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, OffsetDateTime nowTime) {
         if (representedInBrands == null) {
             return Uni.createFrom().voidItem();
         }
@@ -334,7 +333,7 @@ public class ListenersRepository extends AsyncRepository {
                         return Uni.createFrom().voidItem();
                     }
                     List<Tuple> insertParams = representedInBrands.stream()
-                            .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                            .map(brandId -> Tuple.tuple().addUUID(listenerId).addUUID(brandId).addOffsetDateTime(nowTime).addInteger(99))
                             .collect(Collectors.toList());
                     return tx.preparedQuery(insertSql)
                             .executeBatch(insertParams)
