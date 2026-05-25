@@ -53,7 +53,7 @@ public class QueueSupplier {
                                 "message", message,
                                 "supplied", TimeFormatUtil.formatEpochMillis(now)
                         ),
-                        traceId);
+                        UUID.randomUUID());
                 int totalDuration = 0;
                 if (message.getSongs() != null) {
                     totalDuration += message.getSongs().values().stream()
