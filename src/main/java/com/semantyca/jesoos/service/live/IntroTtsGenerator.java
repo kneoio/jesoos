@@ -147,7 +147,7 @@ public class IntroTtsGenerator {
         return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language, agent)
                 .chain(ctx -> {
                     String rendered = renderHandlebars(action.getInstruction(), ctx);
-                    return generateSpokenTextFromAction(rendered, action, ctx, agent, liveScene.getTraceId(), stream.getSlugName());
+                    return generateSpokenTextFromAction(rendered, action, ctx, agent, language, liveScene.getTraceId(), stream.getSlugName());
                 })
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain()));
@@ -308,7 +308,7 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, Map<String, Object> ctx, AiAgent agent, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, Map<String, Object> ctx, AiAgent agent, LanguageTag language, UUID traceId, String brandName) {
         long maxTokens = 2048L;
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
@@ -316,7 +316,7 @@ public class IntroTtsGenerator {
         return llmTextClient.createTextMessage(
                         model,
                         maxTokens,
-                        getActionSystemPrompt(agent),
+                        getActionSystemPrompt(agent, language),
                         renderedInstruction)
                 .map(response -> {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
@@ -378,8 +378,14 @@ public class IntroTtsGenerator {
         return base;
     }
 
-    private String getActionSystemPrompt(AiAgent agent) {
-        String base = "You are a professional radio DJ. Respond only with the spoken radio text, no explanations or meta-commentary.";
+    private String getActionSystemPrompt(AiAgent agent, LanguageTag language) {
+        String langName = language != null ? language.tag() : null;
+        String langInstruction = langName != null
+                ? " CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + langName + "' — never switch to any other language regardless of input."
+                : "";
+        String base = "You are a professional radio DJ." + langInstruction +
+                " Do NOT introduce or mention your own name; only use your name if it is explicitly stated in the user's instruction." +
+                " Respond only with the spoken radio text, no explanations or meta-commentary.";
         if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
             return base + " Your manner: " + agent.getManner();
         }
