@@ -3,9 +3,12 @@ package com.semantyca.jesoos.service.live;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
+import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
+import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
@@ -66,6 +69,7 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
                                                 throw new RuntimeException("Station '" + name + "' created with 0 scenes — agenda is empty");
                                             }
                                             newStream.setAgenda(schedule);
+                                            forceIntroOnFirstEntry(schedule, name);
                                             pool.put(name, newStream);
                                             LOGGER.infof("BrandPool: Station '%s' created with %s scenes", newStream.getSlugName(), schedule.getTotalScenes());
                                         })
@@ -82,6 +86,21 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
                         .onFailure().invoke(err -> LOGGER.warnf("Failed to reset playlist queue for brand '%s': %s", brandName, err.getMessage()))
                         .onFailure().recoverWithNull())
                 .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
+    }
+
+    private void forceIntroOnFirstEntry(StreamAgenda schedule, String brandName) {
+        if (schedule.getLiveScenes().isEmpty()) return;
+        LiveScene firstScene = schedule.getLiveScenes().get(0);
+        if (firstScene.getTimeline() == null || firstScene.getTimeline().isEmpty()) return;
+        TimelineEntry entry = firstScene.getTimeline().get(0);
+        entry.setHasIntro(true);
+        MixingType strategy = entry.getMixingStrategy();
+        if (strategy == MixingType.SONG_ONLY || strategy == MixingType.SONG_CROSSFADE_SONG || strategy == MixingType.FILLER_JINGLE) {
+            entry.setMixingStrategy(entry.getSongs().size() >= 2 ? MixingType.SONG_INTRO_SONG : MixingType.INTRO_SONG);
+            LOGGER.infof("BrandPool: Warmup intro forced for '%s' (strategy upgraded to %s)", brandName, entry.getMixingStrategy());
+        } else {
+            LOGGER.infof("BrandPool: Warmup intro forced for '%s' (strategy %s already supports intro)", brandName, strategy);
+        }
     }
 
     public Map<String, StreamAgenda> getAll() {

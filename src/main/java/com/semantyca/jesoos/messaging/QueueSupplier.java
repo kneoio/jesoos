@@ -34,9 +34,10 @@ public class QueueSupplier {
     Emitter<byte[]> songEmitter;
 
     public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID traceId) {
+        UUID emissionTraceId = UUID.randomUUID();
         message.setBrandSlug(brandSlug);
         message.setMessageId(UUID.randomUUID());
-        message.setTraceId(traceId);
+        message.setTraceId(emissionTraceId);
         long now = System.currentTimeMillis();
         message.setTimestamp(now);
 
@@ -53,7 +54,7 @@ public class QueueSupplier {
                                 "message", message,
                                 "supplied", TimeFormatUtil.formatEpochMillis(now)
                         ),
-                        UUID.randomUUID());
+                        emissionTraceId);
                 int totalDuration = 0;
                 if (message.getSongs() != null) {
                     totalDuration += message.getSongs().values().stream()
