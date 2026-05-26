@@ -194,7 +194,7 @@ public class IntroTtsGenerator {
         } else if (engineType == TTSEngineType.FISH_AUDIO) {
             ttsClient = fishAudioClient;
             modelId = config.getFishAudioModelId();
-            finalText = trimmed;
+            finalText = text;
             LOGGER.infof("Using Fish Audio TTS for scene '%s'", sceneTitle);
         } else {
             finalText = text;
