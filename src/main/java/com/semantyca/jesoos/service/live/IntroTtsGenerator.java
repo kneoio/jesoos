@@ -133,7 +133,7 @@ public class IntroTtsGenerator {
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, liveScene.getTraceId(), stream.getSlugName()))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
-                .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain()));
+                .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
     private Uni<IntroAudioResult> generateIntroFromAction(
@@ -150,7 +150,7 @@ public class IntroTtsGenerator {
                     return generateSpokenTextFromAction(rendered, action, ctx, agent, language, liveScene.getTraceId(), stream.getSlugName());
                 })
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
-                .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain()));
+                .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
     public Uni<IntroAudioResult> generateCustomIntroAudioFile(
@@ -164,7 +164,7 @@ public class IntroTtsGenerator {
         LOGGER.infof("Generating custom intro audio for scene '%s' with text: '%s'", sceneTitle, customIntroText);
 
         return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName)
-                .chain(filePath -> calculateDuration(filePath, language, false, agent.getTtsSetting().getDj().getGain()));
+                .chain(filePath -> calculateDuration(filePath, language, false, agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
     public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
@@ -278,7 +278,8 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
                             response.inputTokens(), response.outputTokens());
 
-                    String text = stripEmoji(response.text());
+                    String rawGenerated = response.text();
+                    String text = stripEmoji(rawGenerated);
                     if (response.outputTokens() >= maxTokens * 0.95) {
                         LOGGER.warnf("Content generation used %s tokens (%s%% of max %s). Response may be truncated.",
                                 response.outputTokens(),
@@ -297,7 +298,7 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
-                                    "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", text,
+                                    "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", rawGenerated,
                                     "llmProvider", provider, "llmModel", model, "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
@@ -322,7 +323,8 @@ public class IntroTtsGenerator {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
                             response.inputTokens(), response.outputTokens());
 
-                    String text = stripEmoji(response.text());
+                    String rawGenerated = response.text();
+                    String text = stripEmoji(rawGenerated);
                     if (response.outputTokens() >= maxTokens * 0.95) {
                         LOGGER.warnf("Content generation used %s tokens (%s%% of max %s). Response may be truncated.",
                                 response.outputTokens(),
@@ -342,7 +344,7 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "actionName", action.getName(), "instruction", action.getInstruction(), "variables", ctx,
-                                    "spokenText", text, "llmProvider", provider, "llmModel", model,
+                                    "spokenText", rawGenerated, "llmProvider", provider, "llmModel", model,
                                     "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
@@ -392,7 +394,7 @@ public class IntroTtsGenerator {
         return base;
     }
 
-    private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain) {
+    private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain, TTSEngineType engineType) {
         return Uni.createFrom().item(() -> {
             try {
                 FFmpegProbeResult probeResult =
@@ -400,10 +402,10 @@ public class IntroTtsGenerator {
                 double durationSeconds = probeResult.getFormat().duration;
                 int roundedDuration = (int) Math.ceil(durationSeconds);
                 LOGGER.infof("Intro audio duration: %s seconds (file: %s)", roundedDuration, filePath);
-                return new IntroAudioResult(filePath, roundedDuration, languageTag, fallBacked, gain);
+                return new IntroAudioResult(filePath, roundedDuration, languageTag, fallBacked, gain, engineType);
             } catch (Exception e) {
                 LOGGER.warnf("Failed to probe intro audio duration for %s, using default 10s", filePath, e);
-                return new IntroAudioResult(filePath, 10, languageTag, fallBacked, gain);
+                return new IntroAudioResult(filePath, 10, languageTag, fallBacked, gain, engineType);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }

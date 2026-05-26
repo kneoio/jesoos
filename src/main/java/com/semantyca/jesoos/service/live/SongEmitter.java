@@ -84,6 +84,7 @@ public class SongEmitter {
                             if (intro != null) {
                                 IntroInfoDTO introDto = new IntroInfoDTO(intro.filePath(), intro.durationSeconds());
                                 introDto.setGain(intro.gain());
+                                introDto.setEngineType(intro.engineType());
                                 introMap.put(getIntroKeyByIndex(introIndex++), introDto);
                             }
 
@@ -170,6 +171,7 @@ public class SongEmitter {
             Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
             IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
             introDto.setGain(introResult.gain());
+            introDto.setEngineType(introResult.engineType());
             introMap.put(IntroKey.INTRO_1, introDto);
 
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();

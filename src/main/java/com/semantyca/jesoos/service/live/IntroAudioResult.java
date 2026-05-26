@@ -1,11 +1,13 @@
 package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.mixpla.model.cnst.TTSEngineType;
 
 public record IntroAudioResult(
         String filePath,
         int durationSeconds,
         LanguageTag languageTag,
         boolean fallBacked,
-        float gain) {
+        float gain,
+        TTSEngineType engineType) {
 }

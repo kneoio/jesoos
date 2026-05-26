@@ -82,6 +82,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                                 ).chain(introResult -> {
                                     IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
                                     introDto.setGain(introResult.gain());
+                                    introDto.setEngineType(introResult.engineType());
 
                                     SongQueueMessageDTO dto = new SongQueueMessageDTO();
                                     dto.setMessageId(UUID.randomUUID());

@@ -142,6 +142,7 @@ public class GeneratedContentEmitter {
                                     Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
                                     IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
                                     introDto.setGain(introResult.gain());
+                                    introDto.setEngineType(introResult.engineType());
                                     introMap.put(IntroKey.INTRO_1, introDto);
                                     dto.setFilePaths(introMap);
                                     dto.setSongs(songMap);
