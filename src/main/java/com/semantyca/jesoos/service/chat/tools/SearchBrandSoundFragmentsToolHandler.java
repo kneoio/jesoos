@@ -9,7 +9,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -38,14 +38,7 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
             return Uni.createFrom().failure(new IllegalArgumentException("brandName is required"));
         }
 
-        List<String> genres = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        if (inputMap.containsKey("genres") && inputMap.get("genres") instanceof List<?> genreList) {
-            genreList.forEach(g -> genres.add(g.toString()));
-        }
-        if (inputMap.containsKey("labels") && inputMap.get("labels") instanceof List<?> labelList) {
-            labelList.forEach(l -> labels.add(l.toString()));
-        }
+        String combinedKeyword = keyword;
 
         Integer limit = null;
         Integer offset = null;
@@ -56,13 +49,13 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
             if (inputMap.containsKey("offset")) offset = ((Number) inputMap.get("offset")).intValue();
         } catch (Exception ignored) {}
 
-        LOGGER.infof("[SearchSoundFragments] AI requested search - brandName: '%s', keyword: '%s', genres: %s, labels: %s, limit: %s, offset: %s",
-                brandName, keyword, genres, labels, limit, offset);
+        LOGGER.infof("[SearchSoundFragments] AI requested search - brandName: '%s', combinedKeyword: '%s', limit: %s, offset: %s",
+                brandName, combinedKeyword, limit, offset);
 
-        String progressMsg = keyword.isBlank() ? "Browsing song library..." : "Searching for songs: " + keyword + "...";
+        String progressMsg = combinedKeyword.isBlank() ? "Browsing song library..." : "Searching for songs: " + combinedKeyword + "...";
         handler.sendProcessingChunk(chunkHandler, connectionId, progressMsg);
 
-        return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, genres, labels, limit, offset)
+        return aiHelperService.searchBrandSoundFragmentsForAi(brandName, combinedKeyword, Collections.emptyList(), Collections.emptyList(), limit, offset)
                 .flatMap(list -> {
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + list.size() + " songs");
 

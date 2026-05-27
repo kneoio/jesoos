@@ -91,15 +91,24 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG' " +
                 "GROUP BY g.identifier ORDER BY song_count DESC";
 
+        String labelsSql = "SELECT l.identifier, COUNT(DISTINCT t.id) AS song_count " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN mixpla__sound_fragment_labels sfl ON sfl.sound_fragment_id = t.id " +
+                "JOIN __labels l ON l.id = sfl.label_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG' " +
+                "GROUP BY l.identifier ORDER BY song_count DESC";
+
         String totalSql = "SELECT COUNT(*) AS total FROM " + entityData.getTableName() + " t " +
                 "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG'";
 
         Uni<RowSet<Row>> artistsUni = client.preparedQuery(artistsSql).execute(Tuple.of(brandId));
         Uni<RowSet<Row>> genresUni = client.preparedQuery(genresSql).execute(Tuple.of(brandId));
+        Uni<RowSet<Row>> labelsUni = client.preparedQuery(labelsSql).execute(Tuple.of(brandId));
         Uni<RowSet<Row>> totalUni = client.preparedQuery(totalSql).execute(Tuple.of(brandId));
 
-        return Uni.combine().all().unis(artistsUni, genresUni, totalUni).asTuple()
+        return Uni.combine().all().unis(artistsUni, genresUni, labelsUni, totalUni).asTuple()
                 .map(tuple -> {
                     JsonArray artists = new JsonArray();
                     tuple.getItem1().forEach(row -> artists.add(
@@ -113,11 +122,18 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                                     .put("genre", row.getString("identifier"))
                                     .put("songCount", row.getLong("song_count"))
                     ));
-                    long total = tuple.getItem3().iterator().next().getLong("total");
+                    JsonArray labels = new JsonArray();
+                    tuple.getItem3().forEach(row -> labels.add(
+                            new JsonObject()
+                                    .put("label", row.getString("identifier"))
+                                    .put("songCount", row.getLong("song_count"))
+                    ));
+                    long total = tuple.getItem4().iterator().next().getLong("total");
                     return new JsonObject()
                             .put("totalTracks", total)
                             .put("artists", artists)
-                            .put("genres", genres);
+                            .put("genres", genres)
+                            .put("labels", labels);
                 });
     }
 
