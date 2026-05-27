@@ -58,7 +58,7 @@ public class SoundFragmentQueryBuilder {
         }
 
         if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl WHERE sfl.sound_fragment_id = t.id AND sfl.label_id IN (");
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl WHERE sfl.id = t.id AND sfl.label_id IN (");
             for (int i = 0; i < filter.getLabels().size(); i++) {
                 if (i > 0) conditions.append(", ");
                 conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");

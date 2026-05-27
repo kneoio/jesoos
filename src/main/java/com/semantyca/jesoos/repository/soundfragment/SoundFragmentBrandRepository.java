@@ -94,7 +94,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         String labelsSql = "SELECT l.identifier, COUNT(DISTINCT t.id) AS song_count " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN mixpla__sound_fragment_labels sfl ON sfl.sound_fragment_id = t.id " +
+                "JOIN mixpla__sound_fragment_labels sfl ON sfl.id = t.id " +
                 "JOIN __labels l ON l.id = sfl.label_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = 'SONG' " +
                 "GROUP BY l.identifier ORDER BY song_count DESC";
