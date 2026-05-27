@@ -394,9 +394,10 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return Uni.createFrom().voidItem();
         }
 
+        OffsetDateTime nowTime = OffsetDateTime.now(ZoneOffset.UTC);
         String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
-                "mime_type, file_original_name, file_key, file_bin, slug_name) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+                "mime_type, file_original_name, file_key, file_bin, slug_name, reg_date, last_mod_date) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
         List<Tuple> filesParams = doc.getFileMetadataList().stream()
                 .map(meta -> Tuple.of(
                                         entityData.getTableName(),
@@ -408,6 +409,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                 )
                                 .addValue(meta.getFileBin())
                                 .addValue(meta.getSlugName())
+                                .addValue(nowTime)
+                                .addValue(nowTime)
                 ).collect(Collectors.toList());
 
         return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
@@ -520,9 +523,10 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return Uni.createFrom().voidItem();
         }
 
+        OffsetDateTime nowTime = OffsetDateTime.now(ZoneOffset.UTC);
         String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
-                "mime_type, file_original_name, file_key, file_bin, slug_name) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+                "mime_type, file_original_name, file_key, file_bin, slug_name, reg_date, last_mod_date) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
         FileMetadata meta = newFiles.getFirst();
         Tuple fileParams = Tuple.of(
                         entityData.getTableName(),
@@ -533,7 +537,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                         meta.getFileKey()
                 )
                 .addValue(meta.getFileBin())
-                .addValue(meta.getSlugName());
+                .addValue(meta.getSlugName())
+                .addValue(nowTime)
+                .addValue(nowTime);
 
         return tx.preparedQuery(filesSql).execute(fileParams).onItem().ignore().andContinueWithNull();
     }

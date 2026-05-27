@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import io.vertx.core.json.JsonObject;
 import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.FishAudioClient;
@@ -353,6 +354,19 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                             Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "actionName", action.getName()), traceId);
                 });
+    }
+
+    public Uni<JsonObject> debugInstruction(String instruction, Map<String, Object> contextVars, AiAgent agent, LanguageTag language) {
+        String rendered = renderHandlebars(instruction, contextVars);
+        String provider = config.getIntroTtsLlmProvider();
+        String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        LlmTextClient llmTextClient = selectLlmClient(provider);
+        return llmTextClient.createTextMessage(model, 2048L, getActionSystemPrompt(agent, language), rendered)
+                .map(response -> new JsonObject()
+                        .put("rendered", rendered)
+                        .put("llmResponse", stripEmoji(response.text()))
+                        .put("inputTokens", response.inputTokens())
+                        .put("outputTokens", response.outputTokens()));
     }
 
     private static String renderHandlebars(String template, Map<String, Object> context) {
