@@ -24,6 +24,7 @@ import com.semantyca.mixpla.model.stream.IStream;
 import com.semantyca.mixpla.template.GroovyTemplateEngine;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import com.semantyca.officeframe.service.GenreService;
+import com.semantyca.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -43,6 +44,7 @@ public class DraftFactory {
     private static final Logger LOGGER = Logger.getLogger(DraftFactory.class);
 
     private final GenreService genreService;
+    private final LabelService labelService;
     private final ProfileService profileService;
     private final DraftService draftService;
     private final AiAgentService aiAgentService;
@@ -55,11 +57,13 @@ public class DraftFactory {
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(GenreService genreService, ProfileService profileService, DraftService draftService,
-                        AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
-                        WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient,
+    public DraftFactory(GenreService genreService, LabelService labelService, ProfileService profileService,
+                        DraftService draftService, AiAgentService aiAgentService,
+                        WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient,
+                        PerplexityApiClient perplexityApiClient,
                         ListenerService listenerService, ChatSummaryService chatSummaryService) {
         this.genreService = genreService;
+        this.labelService = labelService;
         this.profileService = profileService;
         this.draftService = draftService;
         this.aiAgentService = aiAgentService;
@@ -88,6 +92,10 @@ public class DraftFactory {
                 ? resolveGenreNames(song, selectedLanguage.toLanguageCode())
                 : Uni.createFrom().item(List.of());
 
+        Uni<List<String>> labelsUni = song != null
+                ? resolveLabels(song, selectedLanguage.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName()),  //the drafts always un ENG
@@ -99,7 +107,7 @@ public class DraftFactory {
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
-                .map(tuple -> {
+                .chain(tuple -> labelsUni.map(labels -> {
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
                     List<String> genres = tuple.getItem3();
@@ -116,6 +124,7 @@ public class DraftFactory {
                                 stream,
                                 profile,
                                 genres,
+                                labels,
                                 listeners,
                                 selectedLanguage,
                                 userVariables,
@@ -128,7 +137,7 @@ public class DraftFactory {
                         LOGGER.error(msg);
                         throw new IllegalStateException(msg);
                     }
-                });
+                }));
     }
 
 
@@ -161,6 +170,7 @@ public class DraftFactory {
             IStream stream,
             Profile profile,
             List<String> genres,
+            List<String> labels,
             List<BrandListenerDTO> listeners,
             LanguageTag selectedLanguage,
             Map<String, Object> userVariables,
@@ -178,6 +188,7 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", listeners);
+        data.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
             brand = stream.getLocalizedName().values().iterator().next();
@@ -245,7 +256,17 @@ public class DraftFactory {
                 ? resolveGenreNames(song, language.toLanguageCode())
                 : Uni.createFrom().item(List.of());
 
-        return genresUni.map(genres -> {
+        Uni<List<BrandListenerDTO>> listenersUni = listenerService.getBrandListeners(
+                stream.getSlugName(), 500, 0, SuperUser.build(), null);
+
+        Uni<List<String>> labelsUni = song != null
+                ? resolveLabels(song, language.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
+        return Uni.combine().all().unis(genresUni, listenersUni, labelsUni).asTuple().map(tuple -> {
+            List<String> genres = tuple.getItem1();
+            List<BrandListenerDTO> listeners = tuple.getItem2();
+            List<String> labels = tuple.getItem3();
             Map<String, Object> ctx = new HashMap<>();
             ctx.put("songTitle", song.getTitle());
             ctx.put("songArtist", song.getArtist());
@@ -256,10 +277,12 @@ public class DraftFactory {
             if (brand == null && !stream.getLocalizedName().isEmpty()) {
                 brand = stream.getLocalizedName().values().iterator().next();
             }
-            ctx.put("stationBrand",brand);
+            ctx.put("stationBrand", brand);
             ctx.put("djName", agent.getName());
-            java.time.ZoneId tz =  stream.getTimeZone();
+            java.time.ZoneId tz = stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
+            ctx.put("listeners", listeners);
+            ctx.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
         });
@@ -278,6 +301,20 @@ public class DraftFactory {
                 .collect(Collectors.toList());
 
         return Uni.join().all(genreUnis).andFailFast();
+    }
+
+    private Uni<List<String>> resolveLabels(SoundFragment song, LanguageCode selectedLanguage) {
+        List<UUID> labelIds = song.getLabels();
+        if (labelIds == null || labelIds.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<String>> labelUnis = labelIds.stream()
+                .map(labelId -> labelService.getById(labelId)
+                        .map(label -> label.getLocalizedName(selectedLanguage)))
+                .collect(Collectors.toList());
+
+        return Uni.join().all(labelUnis).andFailFast();
     }
 
 }
