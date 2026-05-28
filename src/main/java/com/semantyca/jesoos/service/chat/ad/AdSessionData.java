@@ -12,6 +12,7 @@ public class AdSessionData {
 
     private final String brandSlug;
     private final UUID brandId;
+    private final UUID aiAgentId;
     private final long userId;
     private Map<String, String> collectedVars = new HashMap<>();
     @Setter
@@ -19,9 +20,10 @@ public class AdSessionData {
     @Setter
     private String djName = "DJ";
 
-    public AdSessionData(String brandSlug, UUID brandId, long userId) {
+    public AdSessionData(String brandSlug, UUID brandId, UUID aiAgentId, long userId) {
         this.brandSlug = brandSlug;
         this.brandId = brandId;
+        this.aiAgentId = aiAgentId;
         this.userId = userId;
     }
 

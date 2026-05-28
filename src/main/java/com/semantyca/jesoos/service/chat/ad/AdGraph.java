@@ -12,7 +12,6 @@ import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.service.AiAgentService;
-import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
@@ -65,9 +64,6 @@ public class AdGraph {
 
     @Inject
     UserAdRepository userAdRepository;
-
-    @Inject
-    BrandPool brandPool;
 
     @Inject
     AiAgentService aiAgentService;
@@ -247,13 +243,7 @@ public class AdGraph {
         return userAdRepository.insert(ad, user)
                 .flatMap(adId -> {
                     LOGGER.infof("[AdGraph] UserAd saved id=%s, generating TTS", adId);
-                    return brandPool.get(session.getBrandSlug())
-                            .flatMap(stream -> {
-                                if (stream == null) {
-                                    return Uni.createFrom().failure(new RuntimeException("Brand not live: " + session.getBrandSlug()));
-                                }
-                                return aiAgentService.getById(stream.getAiAgentId(), com.semantyca.core.model.user.SuperUser.build());
-                            })
+                    return aiAgentService.getById(session.getAiAgentId(), com.semantyca.core.model.user.SuperUser.build())
                             .flatMap(agent -> {
                                 LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
                                 String adText = title + ". " + description + ". " + contacts;

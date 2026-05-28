@@ -393,7 +393,7 @@ public class PublicChatService extends ChatService {
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "create_ad" -> CreateAdToolHandler.handle(
-                    toolCall, inputMap, brandPool, adSessionManager, adGraph,
+                    toolCall, inputMap, brandService, adSessionManager, adGraph,
                     userId, brandName, assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );

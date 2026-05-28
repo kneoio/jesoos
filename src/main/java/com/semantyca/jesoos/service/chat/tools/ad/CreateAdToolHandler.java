@@ -1,14 +1,13 @@
 package com.semantyca.jesoos.service.chat.tools.ad;
 
+import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.chat.ad.AdGraph;
-import com.semantyca.jesoos.service.chat.ad.AdResult;
 import com.semantyca.jesoos.service.chat.ad.AdSessionData;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
-import com.semantyca.jesoos.service.live.BrandPool;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -19,7 +18,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-
 public class CreateAdToolHandler extends BaseToolHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CreateAdToolHandler.class);
@@ -27,7 +25,7 @@ public class CreateAdToolHandler extends BaseToolHandler {
     public static Uni<Void> handle(
             LlmToolCall toolCall,
             Map<String, Object> inputMap,
-            BrandPool brandPool,
+            BrandService brandService,
             AdSessionManager adSessionManager,
             AdGraph adGraph,
             long userId,
@@ -40,17 +38,12 @@ public class CreateAdToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         CreateAdToolHandler handler = new CreateAdToolHandler();
-
         handler.sendProcessingChunk(chunkHandler, connectionId, "Setting up your ad...");
 
-        String brandSlugName = brandName;
-
-        return brandPool.get(brandSlugName)
-                .flatMap(stream -> {
-                    if (stream == null) {
-                        return handler.handleError(toolCall, "Station not found: " + brandSlugName, conversationHistory, systemPromptCall2, streamFn);
-                    }
-                    AdSessionData session = new AdSessionData(brandSlugName, stream.getMasterBrandId(), userId);
+        return brandService.getBySlugName(brandName)
+                .flatMap(brand -> {
+                    AdSessionData session = new AdSessionData(
+                            brandName, brand.getId(), brand.getAiAgentId(), userId);
                     session.setDjName(djName);
                     adSessionManager.start(connectionId, session);
 
