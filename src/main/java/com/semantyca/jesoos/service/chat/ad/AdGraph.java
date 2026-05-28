@@ -236,8 +236,8 @@ public class AdGraph {
                             .addUserMessage("Write a short 3-5 word title summarizing this ad. Reply with the title only, no punctuation: " + description)
                             .build());
             return response.content().stream()
-                    .filter(b -> b instanceof ContentBlock.Text)
-                    .map(b -> ((ContentBlock.Text) b).text().text().trim())
+                    .filter(ContentBlock::isText)
+                    .map(b -> b.asText().text().trim())
                     .findFirst()
                     .orElse(description.length() > 50 ? description.substring(0, 50).trim() : description);
         } catch (Exception e) {
