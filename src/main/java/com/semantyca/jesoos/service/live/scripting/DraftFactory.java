@@ -53,6 +53,7 @@ public class DraftFactory {
     private final PerplexityApiClient perplexityApiClient;
     private final ListenerService listenerService;
     private final ChatSummaryService chatSummaryService;
+    private final io.vertx.mutiny.sqlclient.Pool dbClient;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
@@ -61,7 +62,8 @@ public class DraftFactory {
                         DraftService draftService, AiAgentService aiAgentService,
                         WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient,
                         PerplexityApiClient perplexityApiClient,
-                        ListenerService listenerService, ChatSummaryService chatSummaryService) {
+                        ListenerService listenerService, ChatSummaryService chatSummaryService,
+                        io.vertx.mutiny.sqlclient.Pool dbClient) {
         this.genreService = genreService;
         this.labelService = labelService;
         this.profileService = profileService;
@@ -72,6 +74,7 @@ public class DraftFactory {
         this.perplexityApiClient = perplexityApiClient;
         this.listenerService = listenerService;
         this.chatSummaryService = chatSummaryService;
+        this.dbClient = dbClient;
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
@@ -225,6 +228,7 @@ public class DraftFactory {
         data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
+        data.put("ads", new UserAdHelper(dbClient));
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");
 

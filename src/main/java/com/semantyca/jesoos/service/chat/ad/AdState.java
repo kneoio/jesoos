@@ -16,6 +16,7 @@ public class AdState extends AgentState {
     public static final String ACTION          = "action";
     public static final String NEXT_QUESTION   = "nextQuestion";
     public static final String SAVED_AD_ID     = "savedAdId";
+    public static final String USER_DATA       = "userData";
 
     public AdState(Map<String, Object> initData) {
         super(initData);
@@ -30,6 +31,11 @@ public class AdState extends AgentState {
     @SuppressWarnings("unchecked")
     public Map<String, String> collectedVars() {
         return (Map<String, String>) this.data().getOrDefault(COLLECTED_VARS, new HashMap<>());
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, String> userData() {
+        return (Map<String, String>) this.data().getOrDefault(USER_DATA, new HashMap<>());
     }
 
     @SuppressWarnings("unchecked")

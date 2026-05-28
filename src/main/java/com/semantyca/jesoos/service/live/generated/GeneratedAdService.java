@@ -1,8 +1,8 @@
 package com.semantyca.jesoos.service.live.generated;
 
+import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
-import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
@@ -18,10 +18,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class GeneratedNewsService extends AbstractGeneratedContentService {
+public class GeneratedAdService extends AbstractGeneratedContentService {
 
     @Inject
-    public GeneratedNewsService(
+    public GeneratedAdService(
             PromptService promptService,
             SoundFragmentService soundFragmentService,
             SoundFragmentRepository soundFragmentRepository,
@@ -52,17 +52,18 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
                 ffmpegProvider);
     }
 
-    GeneratedNewsService() {
+    GeneratedAdService() {
         super(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Override
     protected String getSystemPrompt() {
-        return "You are a professional radio news presenter";
+        return "You are a radio host reading a listener's advertisement on air. " +
+                "Read it naturally and professionally, as if introducing a sponsor. Keep it concise.";
     }
 
     @Override
     protected PlaylistItemType getFragmentType() {
-        return PlaylistItemType.NEWS;
+        return PlaylistItemType.ADVERTISEMENT;
     }
 }

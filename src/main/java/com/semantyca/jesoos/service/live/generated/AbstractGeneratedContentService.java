@@ -96,6 +96,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     protected abstract String getSystemPrompt();
 
+    protected abstract PlaylistItemType getFragmentType();
+
     public Uni<SoundFragment> generateAudio(
             UUID promptId,
             AiAgent agent,
@@ -182,7 +184,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 int durationSeconds = probeDuration(ttsFilePath);
 
                 SoundFragmentDTO dto = new SoundFragmentDTO();
-                dto.setType(PlaylistItemType.NEWS);
+                dto.setType(getFragmentType());
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                 dto.setTitle(prompt.getTitle() + " " + currentDate);
                 dto.setArtist(brandSlug + "_" + promptId);

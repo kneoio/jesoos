@@ -8,7 +8,11 @@ import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
+import com.semantyca.jesoos.service.PromptService;
+import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
+import com.semantyca.jesoos.service.live.generated.GeneratedAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
+import com.semantyca.mixpla.model.cnst.PromptType;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
@@ -42,6 +46,8 @@ public class GeneratedContentEmitter {
     private static final int DEFAULT_BACKGROUND_DURATION = 180;
 
     private final GeneratedNewsService generatedNewsService;
+    private final GeneratedAdService generatedAdService;
+    private final PromptService promptService;
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
     private final IntroTtsGenerator introTtsGenerator;
@@ -49,11 +55,15 @@ public class GeneratedContentEmitter {
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
+                                   GeneratedAdService generatedAdService,
+                                   PromptService promptService,
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
                                    IntroTtsGenerator introTtsGenerator,
                                    MetricPublisher metricPublisher) {
         this.generatedNewsService = generatedNewsService;
+        this.generatedAdService = generatedAdService;
+        this.promptService = promptService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
         this.introTtsGenerator = introTtsGenerator;
@@ -84,8 +94,14 @@ public class GeneratedContentEmitter {
                 .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
-        Uni<SoundFragment> generatedUni =
-                generatedNewsService.generateAudio(promptId, agent, stream, lang, scene);
+        Uni<SoundFragment> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
+                .flatMap(prompt -> {
+                    AbstractGeneratedContentService service =
+                            PromptType.ADVERTISEMENT.equals(prompt.getPromptType())
+                                    ? generatedAdService
+                                    : generatedNewsService;
+                    return service.generateAudio(promptId, agent, stream, lang, scene);
+                });
 
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();

@@ -43,7 +43,7 @@ public class CreateAdToolHandler extends BaseToolHandler {
         return brandService.getBySlugName(brandName)
                 .flatMap(brand -> {
                     AdSessionData session = new AdSessionData(
-                            brandName, brand.getId(), brand.getAiAgentId(), userId);
+                            brandName, brand.getId(), userId);
                     session.setDjName(djName);
                     adSessionManager.start(connectionId, session);
 
