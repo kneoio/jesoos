@@ -227,11 +227,30 @@ public class AdGraph {
                 "What would you like to advertise? Tell me what you're promoting, key details, and your contact info.");
     }
 
+    private String generateTitle(String description) {
+        try {
+            var response = anthropicClient.messages().create(
+                    MessageCreateParams.builder()
+                            .model("claude-haiku-4-5-20251001")
+                            .maxTokens(30)
+                            .addUserMessage("Write a short 3-5 word title summarizing this ad. Reply with the title only, no punctuation: " + description)
+                            .build());
+            return response.content().stream()
+                    .filter(b -> b instanceof ContentBlock.Text)
+                    .map(b -> ((ContentBlock.Text) b).text().text().trim())
+                    .findFirst()
+                    .orElse(description.length() > 50 ? description.substring(0, 50).trim() : description);
+        } catch (Exception e) {
+            LOGGER.warnf("Title generation failed: %s", e.getMessage());
+            return description.length() > 50 ? description.substring(0, 50).trim() : description;
+        }
+    }
+
     private Uni<UUID> saveAd(AdSessionData session, AdState state) {
         Map<String, String> vars = state.collectedVars();
         String description = vars.getOrDefault("description", "");
         String contacts = vars.getOrDefault("contacts", "");
-        String title = description.length() > 50 ? description.substring(0, 50).trim() + "…" : description;
+        String title = generateTitle(description);
 
         UserAd ad = new UserAd();
         ad.setUserId(session.getUserId());

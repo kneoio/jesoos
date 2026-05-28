@@ -98,6 +98,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     protected abstract PlaylistItemType getFragmentType();
 
+    protected abstract com.semantyca.mixpla.model.aiagent.Voice getVoice(AiAgent agent);
+
     public Uni<SoundFragment> generateAudio(
             UUID promptId,
             AiAgent agent,
@@ -149,7 +151,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                 return Uni.createFrom().failure(
                                         new RuntimeException("Text generation failed for scene: " + sceneTitle));
                             }
-                            return introTtsGenerator.generateTtsAudio(text, agent.getTtsSetting().getNewsReporter(), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                            return introTtsGenerator.generateTtsAudio(text, getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
                                     .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()));
                         })
                 );

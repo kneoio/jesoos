@@ -66,4 +66,9 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
     protected PlaylistItemType getFragmentType() {
         return PlaylistItemType.ADVERTISEMENT;
     }
+
+    @Override
+    protected com.semantyca.mixpla.model.aiagent.Voice getVoice(com.semantyca.mixpla.model.aiagent.AiAgent agent) {
+        return agent.getTtsSetting().getAdReader();
+    }
 }

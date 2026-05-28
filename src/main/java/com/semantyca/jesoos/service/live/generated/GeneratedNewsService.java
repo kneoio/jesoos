@@ -65,4 +65,9 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
     protected PlaylistItemType getFragmentType() {
         return PlaylistItemType.NEWS;
     }
+
+    @Override
+    protected com.semantyca.mixpla.model.aiagent.Voice getVoice(com.semantyca.mixpla.model.aiagent.AiAgent agent) {
+        return agent.getTtsSetting().getNewsReporter();
+    }
 }

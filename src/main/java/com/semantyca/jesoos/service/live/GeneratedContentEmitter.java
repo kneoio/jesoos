@@ -94,27 +94,30 @@ public class GeneratedContentEmitter {
                 .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
-        Uni<SoundFragment> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
-                .flatMap(prompt -> {
-                    AbstractGeneratedContentService service =
-                            PromptType.ADVERTISEMENT.equals(prompt.getPromptType())
-                                    ? generatedAdService
-                                    : generatedNewsService;
-                    return service.generateAudio(promptId, agent, stream, lang, scene);
-                });
-
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
         boolean canUseIntro = !activeIntroPrompts.isEmpty();
-        MixingType mixingType = canUseIntro && ThreadLocalRandom.current().nextBoolean()
-                ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
-                : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
+
+        record GeneratedResult(SoundFragment fragment, MixingType mixingType) {}
+
+        Uni<GeneratedResult> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
+                .flatMap(prompt -> {
+                    boolean isAd = PromptType.ADVERTISEMENT.equals(prompt.getPromptType());
+                    AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
+                    MixingType mixingType = isAd ? MixingType.JINGLE_GENERATED_JINGLE
+                            : canUseIntro && ThreadLocalRandom.current().nextBoolean()
+                                    ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
+                                    : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
+                    return service.generateAudio(promptId, agent, stream, lang, scene)
+                            .map(sf -> new GeneratedResult(sf, mixingType));
+                });
 
         return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()
                 .chain(tuple -> {
                     List<SoundFragment> jingles = tuple.getItem1();
                     List<SoundFragment> songs = tuple.getItem2();
-                    SoundFragment generated = tuple.getItem3();
+                    SoundFragment generated = tuple.getItem3().fragment();
+                    MixingType mixingType = tuple.getItem3().mixingType();
 
                     if (jingles.isEmpty()) {
                         LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);
@@ -142,8 +145,10 @@ public class GeneratedContentEmitter {
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                     songMap.put(JINGLE_INTRO, new SongInfoDTO(jingle1.getId(), jingleDuration(jingle1)));
                     songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
-                    songMap.put(BACKGROUND_MUSIC, new SongInfoDTO(background.getId(), songDuration(background)));
                     songMap.put(GENERATED_CONTENT, new SongInfoDTO(generated.getId(), songDuration(generated)));
+                    if (mixingType != MixingType.JINGLE_GENERATED_JINGLE) {
+                        songMap.put(BACKGROUND_MUSIC, new SongInfoDTO(background.getId(), songDuration(background)));
+                    }
 
                     if (mixingType == MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND) {
                         ScenePrompt selectedIntroPrompt = activeIntroPrompts.get(
