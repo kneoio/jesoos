@@ -233,7 +233,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     }
 
     private Uni<String> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
-        return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), airLanguage, new HashMap<>(), null)
+        return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
                 .chain(draftContent -> Uni.createFrom().item(() -> {
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                         LOGGER.errorf("Draft content contains error, skipping: %s", draftContent);

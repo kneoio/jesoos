@@ -245,7 +245,6 @@ public class IntroTtsGenerator {
                 agent,
                 stream,
                 prompt.getDraftId(),
-                LanguageTag.EN_US,
                 new HashMap<>(),
                 sharerName
         ).map(draft -> {

@@ -83,10 +83,11 @@ public class DraftFactory {
             AiAgent agent,
             IStream stream,
             UUID draftId,
-            LanguageTag selectedLanguage,  //always EN
             Map<String, Object> userVariables,
             String sharerName
     ) {
+        LanguageTag selectedLanguage = com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent);
+
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
                 : Uni.createFrom().nullItem();
@@ -144,6 +145,51 @@ public class DraftFactory {
     }
 
 
+
+    public Uni<String> renderCode(
+            String templateCode,
+            SoundFragment song,
+            AiAgent agent,
+            IStream stream,
+            String sharerName
+    ) {
+        LanguageTag selectedLanguage = com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent);
+
+        Uni<AiAgent> copilotUni = agent.getCopilot() != null
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
+                : Uni.createFrom().nullItem();
+
+        Uni<List<String>> genresUni = song != null
+                ? resolveGenreNames(song, selectedLanguage.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
+        Uni<List<String>> labelsUni = song != null
+                ? resolveLabels(song, selectedLanguage.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
+        return Uni.combine().all()
+                .unis(
+                        stream.getProfileId() != null ? profileService.getById(stream.getProfileId()) : Uni.createFrom().nullItem(),
+                        genresUni,
+                        copilotUni,
+                        listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null),
+                        chatSummaryService.getLatestBrandSummary(stream.getSlugName())
+                )
+                .asTuple()
+                .emitOn(getDefaultWorkerPool())
+                .chain(tuple -> labelsUni.map(labels -> {
+                    Profile profile = tuple.getItem1();
+                    List<String> genres = tuple.getItem2();
+                    AiAgent copilot = tuple.getItem3();
+                    List<BrandListenerDTO> listeners = tuple.getItem4();
+                    String chatSummary = tuple.getItem5();
+                    return buildFromTemplate(
+                            templateCode, song, agent, copilot, stream, profile,
+                            genres, labels, listeners, selectedLanguage, null, chatSummary,
+                            "debug-draft", sharerName
+                    );
+                }));
+    }
 
     private Uni<Draft> getDraftTemplate(UUID id, String stationSlug) {
         if (id == null) {

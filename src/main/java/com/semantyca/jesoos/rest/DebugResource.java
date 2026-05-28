@@ -2,9 +2,12 @@ package com.semantyca.jesoos.rest;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
+import com.semantyca.jesoos.service.live.scripting.DraftFactory;
+import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -30,11 +33,17 @@ public class DebugResource extends AbstractResource {
     @Inject
     IntroTtsGenerator introTtsGenerator;
 
+    @Inject
+    DraftFactory draftFactory;
+
     public void setupRoutes(Router router) {
         String path = "/jesoos/debug";
         router.route(HttpMethod.POST, path + "/:brand/instruction")
                 .handler(BodyHandler.create())
                 .handler(this::handleDebugInstruction);
+        router.route(HttpMethod.POST, path + "/:brand/draft")
+                .handler(BodyHandler.create())
+                .handler(this::handleDebugDraft);
     }
 
     private void handleDebugInstruction(RoutingContext rc) {
@@ -84,6 +93,58 @@ public class DebugResource extends AbstractResource {
                                 .putHeader("Content-Type", "application/json")
                                 .end(result.encode()),
                         failure -> handleCommandFailure(rc, brand, "debug instruction", failure)
+                );
+    }
+
+    private void handleDebugDraft(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        JsonObject body;
+        try {
+            body = rc.body().asJsonObject();
+        } catch (Exception e) {
+            rc.response().setStatusCode(400)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", "invalid JSON body").encode());
+            return;
+        }
+
+        String code = body.getString("code");
+        if (code == null || code.isBlank()) {
+            rc.response().setStatusCode(400)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", "code is required").encode());
+            return;
+        }
+
+        String finalCode = code;
+
+        String songTitle = body.getString("songTitle");
+        String songArtist = body.getString("songArtist");
+        String songDescription = body.getString("songDescription");
+        String sharerName = body.getString("sharerName");
+
+        SoundFragment song = null;
+        if (songTitle != null || songArtist != null || songDescription != null) {
+            song = new SoundFragment();
+            song.setTitle(songTitle != null ? songTitle : "");
+            song.setArtist(songArtist != null ? songArtist : "");
+            song.setDescription(songDescription != null ? songDescription : "");
+        }
+        SoundFragment finalSong = song;
+        String finalSharerName = sharerName;
+
+        brandService.getBySlugName(brand)
+                .flatMap(b -> aiAgentService.getById(b.getAiAgentId(), SuperUser.build())
+                        .flatMap(agent -> {
+                            RadioStream stream = new RadioStream(b);
+                            return draftFactory.renderCode(finalCode, finalSong, agent, stream, finalSharerName);
+                        }))
+                .subscribe().with(
+                        draft -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(new JsonObject().put("draft", draft).encode()),
+                        failure -> handleCommandFailure(rc, brand, "debug draft", failure)
                 );
     }
 }
