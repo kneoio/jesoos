@@ -52,9 +52,8 @@ public class AdGraph {
 
     private static final Logger LOGGER = Logger.getLogger(AdGraph.class);
 
-    private static final List<String> REQUIRED_VARS = List.of("title", "description", "contacts");
+    private static final List<String> REQUIRED_VARS = List.of("description", "contacts");
     private static final Map<String, String> VAR_DESCRIPTIONS = Map.of(
-            "title", "the title or name of your advertisement",
             "description", "the ad text or message you want to broadcast",
             "contacts", "contact information (phone, website, email, etc.)"
     );
@@ -130,12 +129,10 @@ public class AdGraph {
                             Already collected: """ + alreadyCollected + (pending != null && !pending.isBlank() ? "\nThe user was asked for: " + pending : "") + """
 
                             Extract from the user message and return ONLY a JSON object:
-                            - title: 2-6 word name/headline of what is advertised (e.g. "Mercedes SLK for sale", "Guitar lessons")
-                            - description: full details — model, year, condition, location, price, features, etc.
-                            - contacts: ALL contact info found — phone numbers, email, website. Keep numbers as-is.
+                            - description: full ad text — what is being sold/offered, model, year, condition, location, price, features, etc. Do NOT include contact info here.
+                            - contacts: ALL contact info found — phone numbers, email, website. Keep numbers exactly as-is.
 
                             Rules:
-                            - Never put contact info in title or description
                             - Never put "yes", "no", "ok" as a field value — those are confirmations, not data
                             - If a field is not present, use ""
                             - Do not repeat already-collected fields unless the user is providing a correction
@@ -190,7 +187,6 @@ public class AdGraph {
     private CompletableFuture<Map<String, Object>> askQuestionNode(AdState state) {
         String varName = state.pendingVar();
         String question = switch (varName) {
-            case "title" -> "What's the title of your ad?";
             case "description" -> "What should the ad say?";
             case "contacts" -> "What contact info should listeners use?";
             default -> "What is the " + varName + "?";
@@ -244,9 +240,9 @@ public class AdGraph {
 
     private Uni<UUID> saveAdAndGenerateTts(AdSessionData session, AdState state) {
         Map<String, String> vars = state.collectedVars();
-        String title = vars.getOrDefault("title", "Advertisement");
         String description = vars.getOrDefault("description", "");
         String contacts = vars.getOrDefault("contacts", "");
+        String title = description.length() > 50 ? description.substring(0, 50).trim() + "…" : description;
 
         IUser user = new AnonymousUser();
 
