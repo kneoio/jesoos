@@ -102,7 +102,9 @@ public class GeneratedContentEmitter {
 
         Uni<GeneratedResult> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
                 .flatMap(prompt -> {
-                    boolean isAd = PromptType.ADVERTISEMENT.equals(prompt.getPromptType());
+                    boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
+                            && prompt.getTitle() != null
+                            && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
                     MixingType mixingType = isAd ? MixingType.JINGLE_GENERATED_JINGLE
                             : canUseIntro && ThreadLocalRandom.current().nextBoolean()
