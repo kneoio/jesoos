@@ -112,14 +112,67 @@ public class AdGraph {
     }
 
     private CompletableFuture<Map<String, Object>> collectTurnNode(AdState state) {
-        String pending = state.pendingVar();
-        if (pending == null || pending.isBlank() || state.userMessage().isBlank()) {
+        if (state.userMessage().isBlank()) {
             return CompletableFuture.completedFuture(Map.of());
         }
-        Map<String, String> updated = new HashMap<>(state.collectedVars());
-        updated.put(pending, state.userMessage().trim());
-        LOGGER.infof("[AdGraph] collected var=%s", pending);
-        return CompletableFuture.completedFuture(Map.of(AdState.COLLECTED_VARS, updated));
+        return Uni.createFrom().item(() -> {
+            String pending = state.pendingVar();
+            Map<String, String> current = new HashMap<>(state.collectedVars());
+
+            if (pending != null && !pending.isBlank() && hasOneMissingField(current)) {
+                current.put(pending, state.userMessage().trim());
+                LOGGER.infof("[AdGraph] stored single field var=%s", pending);
+                return Map.<String, Object>of(AdState.COLLECTED_VARS, current);
+            }
+
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
+                    .maxTokens(200)
+                    .system("""
+                            Extract ad fields from the user message. Return ONLY a JSON object with these fields:
+                            - title: short name/title of what is being advertised (required)
+                            - description: what is being sold/offered with key details (required)
+                            - contacts: phone, email, website, or any contact info (required)
+                            If a field is not present in the message, use an empty string "".
+                            Return ONLY the JSON, no markdown, no explanation.""")
+                    .addUserMessage(state.userMessage())
+                    .build();
+
+            Message response = anthropicClient.messages().create(params);
+            String raw = response.content().stream()
+                    .filter(ContentBlock::isText)
+                    .map(b -> b.asText().text())
+                    .findFirst().orElse("{}").trim();
+            if (raw.startsWith("```")) {
+                raw = raw.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "").trim();
+            }
+
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, String> extracted = new com.fasterxml.jackson.databind.ObjectMapper().readValue(raw, Map.class);
+                for (String field : REQUIRED_VARS) {
+                    String val = extracted.getOrDefault(field, "");
+                    if (val != null && !val.isBlank()) {
+                        current.put(field, val);
+                    }
+                }
+                LOGGER.infof("[AdGraph] extracted fields: %s", current.keySet());
+            } catch (Exception e) {
+                LOGGER.warnf("[AdGraph] extraction failed, storing as pending: %s", e.getMessage());
+                if (pending != null && !pending.isBlank()) {
+                    current.put(pending, state.userMessage().trim());
+                }
+            }
+            return Map.<String, Object>of(AdState.COLLECTED_VARS, current);
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .subscribeAsCompletionStage();
+    }
+
+    private boolean hasOneMissingField(Map<String, String> vars) {
+        long missing = REQUIRED_VARS.stream()
+                .filter(v -> !vars.containsKey(v) || vars.get(v).isBlank())
+                .count();
+        return missing == 1;
     }
 
     private CompletableFuture<Map<String, Object>> checkMissingNode(AdState state) {
@@ -141,34 +194,14 @@ public class AdGraph {
 
     private CompletableFuture<Map<String, Object>> askQuestionNode(AdState state) {
         String varName = state.pendingVar();
-        String description = VAR_DESCRIPTIONS.getOrDefault(varName, varName);
-
-        return Uni.createFrom().item(() -> {
-            String collected = state.collectedVars().entrySet().stream()
-                    .map(e -> e.getKey() + "=" + e.getValue())
-                    .reduce((a, b) -> a + ", " + b).orElse("none yet");
-
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(80)
-                    .system("You are a friendly radio DJ helping a listener create a short advertisement. " +
-                            "You are collecting: title, description, and contacts. " +
-                            "Already collected: " + collected + ". " +
-                            "Ask for: " + description + ". Keep it short and friendly.")
-                    .addUserMessage("Ask the question.")
-                    .build();
-
-            Message response = anthropicClient.messages().create(params);
-            String question = response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(b -> b.asText().text())
-                    .findFirst()
-                    .orElse("What is the " + description + "?");
-
-            LOGGER.infof("[AdGraph] question for var=%s: %s", varName, question);
-            return Map.<String, Object>of(AdState.NEXT_QUESTION, question);
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .subscribeAsCompletionStage();
+        String question = switch (varName) {
+            case "title" -> "What's the title of your ad?";
+            case "description" -> "What should the ad say?";
+            case "contacts" -> "What contact info should listeners use?";
+            default -> "What is the " + varName + "?";
+        };
+        LOGGER.infof("[AdGraph] asking for var=%s", varName);
+        return CompletableFuture.completedFuture(Map.of(AdState.NEXT_QUESTION, question));
     }
 
     private CompletableFuture<Map<String, Object>> saveAndGenerateNode(AdState state) {
@@ -210,20 +243,8 @@ public class AdGraph {
     }
 
     public Uni<String> generateFirstQuestion(AdSessionData session) {
-        Map<String, Object> initData = buildStateMap(session, "");
-
-        return Uni.createFrom().item(() -> {
-            try {
-                return compiledGraph.invoke(initData)
-                        .orElseThrow(() -> new RuntimeException("AdGraph returned empty state"));
-            } catch (Exception e) {
-                throw new RuntimeException("AdGraph execution failed", e);
-            }
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .map(finalState -> {
-                    session.setPendingVar(finalState.pendingVar());
-                    return finalState.nextQuestion();
-                });
+        return Uni.createFrom().item(
+                "What would you like to advertise? Tell me what you're promoting, key details, and your contact info.");
     }
 
     private Uni<UUID> saveAdAndGenerateTts(AdSessionData session, AdState state) {
