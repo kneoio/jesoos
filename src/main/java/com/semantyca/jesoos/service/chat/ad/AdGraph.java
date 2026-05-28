@@ -248,23 +248,27 @@ public class AdGraph {
                 .flatMap(adId -> {
                     LOGGER.infof("[AdGraph] UserAd saved id=%s, generating TTS", adId);
                     return brandPool.get(session.getBrandSlug())
-                            .flatMap(stream -> aiAgentService.getById(stream.getAiAgentId(), com.semantyca.core.model.user.SuperUser.build())
-                                    .flatMap(agent -> {
-                                        LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-                                        String adText = title + ". " + description + ". " + contacts;
-                                        UUID traceId = UUID.randomUUID();
-                                        return introTtsGenerator.generateTtsAudio(
-                                                adText,
-                                                agent.getTtsSetting().getNewsReporter(),
-                                                lang,
-                                                title,
-                                                traceId,
-                                                session.getBrandSlug()
-                                        ).flatMap(filePath -> saveSoundFragment(
-                                                filePath, title, adId, session.getBrandSlug(), session.getBrandId(), agent
-                                        ));
-                                    })
-                            );
+                            .flatMap(stream -> {
+                                if (stream == null) {
+                                    return Uni.createFrom().failure(new RuntimeException("Brand not live: " + session.getBrandSlug()));
+                                }
+                                return aiAgentService.getById(stream.getAiAgentId(), com.semantyca.core.model.user.SuperUser.build());
+                            })
+                            .flatMap(agent -> {
+                                LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
+                                String adText = title + ". " + description + ". " + contacts;
+                                UUID traceId = UUID.randomUUID();
+                                return introTtsGenerator.generateTtsAudio(
+                                        adText,
+                                        agent.getTtsSetting().getNewsReporter(),
+                                        lang,
+                                        title,
+                                        traceId,
+                                        session.getBrandSlug()
+                                ).flatMap(filePath -> saveSoundFragment(
+                                        filePath, title, adId, session.getBrandSlug(), session.getBrandId(), agent
+                                ));
+                            });
                 });
     }
 
