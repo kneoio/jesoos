@@ -116,25 +116,30 @@ public class AdGraph {
             return CompletableFuture.completedFuture(Map.of());
         }
         return Uni.createFrom().item(() -> {
-            String pending = state.pendingVar();
             Map<String, String> current = new HashMap<>(state.collectedVars());
-
-            if (pending != null && !pending.isBlank() && hasOneMissingField(current)) {
-                current.put(pending, state.userMessage().trim());
-                LOGGER.infof("[AdGraph] stored single field var=%s", pending);
-                return Map.<String, Object>of(AdState.COLLECTED_VARS, current);
-            }
+            String pending = state.pendingVar();
+            String alreadyCollected = current.isEmpty() ? "none" : current.entrySet().stream()
+                    .map(e -> e.getKey() + ": " + e.getValue())
+                    .reduce((a, b) -> a + "; " + b).orElse("none");
 
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(200)
+                    .maxTokens(300)
                     .system("""
-                            Extract ad fields from the user message. Return ONLY a JSON object with these fields:
-                            - title: short name/title of what is being advertised (required)
-                            - description: what is being sold/offered with key details (required)
-                            - contacts: phone, email, website, or any contact info (required)
-                            If a field is not present in the message, use an empty string "".
-                            Return ONLY the JSON, no markdown, no explanation.""")
+                            You are extracting structured fields for a radio advertisement.
+                            Already collected: """ + alreadyCollected + (pending != null && !pending.isBlank() ? "\nThe user was asked for: " + pending : "") + """
+
+                            Extract from the user message and return ONLY a JSON object:
+                            - title: 2-6 word name/headline of what is advertised (e.g. "Mercedes SLK for sale", "Guitar lessons")
+                            - description: full details — model, year, condition, location, price, features, etc.
+                            - contacts: ALL contact info found — phone numbers, email, website. Keep numbers as-is.
+
+                            Rules:
+                            - Never put contact info in title or description
+                            - Never put "yes", "no", "ok" as a field value — those are confirmations, not data
+                            - If a field is not present, use ""
+                            - Do not repeat already-collected fields unless the user is providing a correction
+                            Return ONLY the JSON, no markdown.""")
                     .addUserMessage(state.userMessage())
                     .build();
 
@@ -158,21 +163,11 @@ public class AdGraph {
                 }
                 LOGGER.infof("[AdGraph] extracted fields: %s", current.keySet());
             } catch (Exception e) {
-                LOGGER.warnf("[AdGraph] extraction failed, storing as pending: %s", e.getMessage());
-                if (pending != null && !pending.isBlank()) {
-                    current.put(pending, state.userMessage().trim());
-                }
+                LOGGER.warnf("[AdGraph] extraction failed: %s raw=%s", e.getMessage(), raw);
             }
             return Map.<String, Object>of(AdState.COLLECTED_VARS, current);
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
-    }
-
-    private boolean hasOneMissingField(Map<String, String> vars) {
-        long missing = REQUIRED_VARS.stream()
-                .filter(v -> !vars.containsKey(v) || vars.get(v).isBlank())
-                .count();
-        return missing == 1;
     }
 
     private CompletableFuture<Map<String, Object>> checkMissingNode(AdState state) {
