@@ -21,10 +21,15 @@ import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmTool;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
+import com.semantyca.jesoos.service.chat.ad.AdGraph;
+import com.semantyca.jesoos.service.chat.ad.AdResult;
+import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
 import com.semantyca.jesoos.service.chat.ots.OtsGraph;
 import com.semantyca.jesoos.service.chat.ots.OtsResult;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import com.semantyca.jesoos.service.chat.tools.*;
+import com.semantyca.jesoos.service.chat.tools.ad.CreateAdTool;
+import com.semantyca.jesoos.service.chat.tools.ad.CreateAdToolHandler;
 import com.semantyca.jesoos.service.chat.tools.auth.LogoffTool;
 import com.semantyca.jesoos.service.chat.tools.auth.LogoffToolHandler;
 import com.semantyca.jesoos.service.chat.tools.auth.StartAuthTool;
@@ -130,6 +135,12 @@ public class PublicChatService extends ChatService {
 
     @Inject
     OtsGraph otsGraph;
+
+    @Inject
+    AdSessionManager adSessionManager;
+
+    @Inject
+    AdGraph adGraph;
 
     @Inject
     PublicChatIntentRouter intentRouter;
@@ -249,6 +260,7 @@ public class PublicChatService extends ChatService {
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool(djLanguages));
             tools.add(StartOneTimeStreamTool.toTool());
+            tools.add(CreateAdTool.toTool());
             tools.add(ManageEventsTool.toTool());
             tools.add(SendUICommandTool.toTool());
             tools.add(LogoffTool.toTool());
@@ -380,6 +392,11 @@ public class PublicChatService extends ChatService {
                     config.getStreamerHost(), assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
+            case "create_ad" -> CreateAdToolHandler.handle(
+                    toolCall, inputMap, brandPool, adSessionManager, adGraph,
+                    userId, assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
+                    chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
+            );
             case "manage_events" -> ManageEventsToolHandler.handle(
                     toolCall, inputMap, eventService, brandService, brandName, chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
@@ -440,6 +457,9 @@ public class PublicChatService extends ChatService {
                     if (decision.intent() == ChatIntent.START_OTS && otsSessionManager.isActive(connectionId)) {
                         return executeOtsContinuation(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
                     }
+                    if (decision.intent() == ChatIntent.CREATE_AD && adSessionManager.isActive(connectionId)) {
+                        return executeAdContinuation(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+                    }
                     return super.generateBotResponse(userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
                 });
     }
@@ -460,6 +480,26 @@ public class PublicChatService extends ChatService {
                     otsSessionManager.end(connectionId);
                     chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
                     completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.error("Stream setup failed, please try again.", "system", connectionId).build().toJson());
+                    return Uni.createFrom().voidItem();
+                });
+    }
+
+    private Uni<Void> executeAdContinuation(String userMessage, Consumer<String> chunkHandler,
+                                             Consumer<String> completionHandler,
+                                             String connectionId, String slugName, IUser user) {
+        return adGraph.processUserTurn(connectionId, userMessage)
+                .flatMap(result -> {
+                    String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
+                    String responseText = result.action() == AdResult.Action.AD_CREATED
+                            ? "Your advertisement has been recorded and will air on the station!"
+                            : result.question();
+                    return sendOtsResponse(responseText, djName, connectionId, user.getId(), slugName, chunkHandler, completionHandler);
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.errorf("[AD] processUserTurn failed connectionId=%s: %s", connectionId, err.getMessage());
+                    adSessionManager.end(connectionId);
+                    chunkHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    completionHandler.accept(com.semantyca.jesoos.dto.ChatMessageDTO.error("Ad creation failed, please try again.", "system", connectionId).build().toJson());
                     return Uni.createFrom().voidItem();
                 });
     }
