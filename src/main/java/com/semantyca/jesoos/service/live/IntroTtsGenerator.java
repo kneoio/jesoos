@@ -233,9 +233,9 @@ public class IntroTtsGenerator {
                     }
                 })
                 .onFailure().invoke(e -> {
-                    LOGGER.error("TTS generation failed for scene '{}'", sceneTitle, e);
+                    LOGGER.errorf("%s: voice=%s engine=%s %s", sceneTitle, voiceId, engineType, e.getMessage(), e);
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_generation_failed",
-                            Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString()), traceId);
+                            Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString(), "voiceId", voiceId), traceId);
                 });
     }
 
