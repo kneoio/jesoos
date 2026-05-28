@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+
 public class CreateAdToolHandler extends BaseToolHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CreateAdToolHandler.class);
@@ -30,6 +31,7 @@ public class CreateAdToolHandler extends BaseToolHandler {
             AdSessionManager adSessionManager,
             AdGraph adGraph,
             long userId,
+            String brandName,
             String djName,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -38,13 +40,10 @@ public class CreateAdToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         CreateAdToolHandler handler = new CreateAdToolHandler();
-        String brandSlugName = (String) inputMap.getOrDefault("brandSlugName", "");
-
-        if (brandSlugName.isEmpty()) {
-            return handler.handleError(toolCall, "Missing required parameter: brandSlugName", conversationHistory, systemPromptCall2, streamFn);
-        }
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Setting up your ad...");
+
+        String brandSlugName = brandName;
 
         return brandPool.get(brandSlugName)
                 .flatMap(stream -> {

@@ -10,13 +10,9 @@ public class CreateAdTool {
     public static LlmTool toTool() {
         return LlmTool.of(
                 "create_ad",
-                "Create a user advertisement that will be recorded as audio and broadcast on the radio station",
-                Map.of(
-                        "brandSlugName", Map.of(
-                                "type", "string",
-                                "description", "Slug name of the radio station brand")
-                ),
-                List.of("brandSlugName")
+                "Create a user advertisement that will be recorded as audio and broadcast on the current radio station",
+                Map.of(),
+                List.of()
         );
     }
 }

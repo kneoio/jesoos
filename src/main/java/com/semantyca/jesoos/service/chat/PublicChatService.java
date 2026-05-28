@@ -394,7 +394,7 @@ public class PublicChatService extends ChatService {
             );
             case "create_ad" -> CreateAdToolHandler.handle(
                     toolCall, inputMap, brandPool, adSessionManager, adGraph,
-                    userId, assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
+                    userId, brandName, assistantNameByConnectionId.getOrDefault(connectionId, "DJ"),
                     chunkHandler, connectionId, conversationHistory, resolvedFollowUpPrompt, streamFn
             );
             case "manage_events" -> ManageEventsToolHandler.handle(
