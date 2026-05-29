@@ -250,6 +250,7 @@ public class AgendaService {
                                 if (scene.getPlaylistRequest() != null
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                    liveScene.setMixingType(scene.getPlaylistRequest().getMixingType());
                                     liveScene.setMixingArtefacts(scene.getPlaylistRequest().getMixingArtefacts());
                                 }
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());

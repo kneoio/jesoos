@@ -108,7 +108,6 @@ public class GeneratedContentEmitter {
 
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
-        boolean canUseIntro = !activeIntroPrompts.isEmpty();
 
         record GeneratedResult(SoundFragment fragment, MixingType mixingType) {}
 
@@ -118,10 +117,7 @@ public class GeneratedContentEmitter {
                             && prompt.getTitle() != null
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
-                    MixingType mixingType = scene.getMixingType() != null ? scene.getMixingType()
-                            : canUseIntro && !isAd && ThreadLocalRandom.current().nextBoolean()
-                                    ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
-                                    : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
+                    MixingType mixingType = scene.getMixingType();
                     return service.generateAudio(promptId, agent, stream, lang, scene)
                             .map(sf -> new GeneratedResult(sf, mixingType));
                 });
