@@ -46,16 +46,17 @@ public final class MergingTypeMeta {
         }
     }
 
-    private static final Map<MixingType, Info> META = Map.of(
-            MixingType.INTRO_SONG,                            new Info(1, 1, false, false),
-            MixingType.LISTENER_INTRO_SONG,                   new Info(1, 1, false, false),
-            MixingType.NOT_MIXED,                             new Info(1, 0, false, false),
-            MixingType.SONG_ONLY,                             new Info(1, 0, false, false),
-            MixingType.SONG_INTRO_SONG,                       new Info(2, 1, false, false),
-            MixingType.FILLER_JINGLE,                         new Info(1, 0, true,  false),
-            MixingType.INTRO_SONG_INTRO_SONG,                 new Info(2, 2, false, false),
-            MixingType.SONG_CROSSFADE_SONG,                   new Info(2, 0, false, true),
-            MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND, new Info(1, 0, true, false)
+    private static final Map<MixingType, Info> META = Map.ofEntries(
+            Map.entry(MixingType.INTRO_SONG,                               new Info(1, 1, false, false)),
+            Map.entry(MixingType.LISTENER_INTRO_SONG,                      new Info(1, 1, false, false)),
+            Map.entry(MixingType.NOT_MIXED,                                new Info(1, 0, false, false)),
+            Map.entry(MixingType.SONG_ONLY,                                new Info(1, 0, false, false)),
+            Map.entry(MixingType.SONG_INTRO_SONG,                          new Info(2, 1, false, false)),
+            Map.entry(MixingType.FILLER_JINGLE,                            new Info(1, 0, true,  false)),
+            Map.entry(MixingType.JINGLE_INTRO_SONG,                        new Info(1, 1, true,  false)),
+            Map.entry(MixingType.INTRO_SONG_INTRO_SONG,                    new Info(2, 2, false, false)),
+            Map.entry(MixingType.SONG_CROSSFADE_SONG,                      new Info(2, 0, false, true)),
+            Map.entry(MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND,  new Info(1, 0, true, false))
     );
 
     public static Info of(MixingType type) {

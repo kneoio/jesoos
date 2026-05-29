@@ -26,7 +26,8 @@ public class MixingTypeShuffler {
         }
         if (allowIntros && Math.random() < talkativity) {
             if (availableSongCount == 1) {
-                return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+                MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG : MixingType.JINGLE_INTRO_SONG;
+                return new MixingStrategy(type, 1, true);
             }
             // Force single after 2 consecutive 2-song entries, otherwise ~50% chance of 2-song
             if (consecutive2SongCount < 2 && Math.random() < 0.5) {

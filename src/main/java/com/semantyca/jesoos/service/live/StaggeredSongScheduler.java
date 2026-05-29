@@ -234,7 +234,8 @@ public class StaggeredSongScheduler {
                     }
 
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(brandName, liveScene, entry, stream, brandZone, priority)
+                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
+                                .chain(agent -> jingleSongEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority))
                                 .onFailure().invoke(err -> LOGGER.error(String.format(
                                         "Jingle emitter failed for entry #%d scene '%s': %s",
                                         entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
