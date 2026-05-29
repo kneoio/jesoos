@@ -4,6 +4,7 @@ import com.semantyca.jesoos.service.agenda.TriggerContext;
 import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -27,6 +28,7 @@ public class LiveScene {
     private ContentStatus contentStatus;
     private List<ScenePrompt> contentPrompts;
     private List<ScenePrompt> introPrompts;
+    private MixingType mixingType;
     private Map<String, String> mixingArtefacts;
     private List<CustomAction> actions;
     private TriggerContext triggerContext;

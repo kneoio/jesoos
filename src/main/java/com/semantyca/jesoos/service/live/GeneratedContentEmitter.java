@@ -121,8 +121,8 @@ public class GeneratedContentEmitter {
                             && prompt.getTitle() != null
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
-                    MixingType mixingType = isAd ? MixingType.JINGLE_GENERATED_JINGLE
-                            : canUseIntro && ThreadLocalRandom.current().nextBoolean()
+                    MixingType mixingType = scene.getMixingType() != null ? scene.getMixingType()
+                            : canUseIntro && !isAd && ThreadLocalRandom.current().nextBoolean()
                                     ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
                                     : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
