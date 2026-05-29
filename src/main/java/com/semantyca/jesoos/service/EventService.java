@@ -12,7 +12,7 @@ import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ScenePromptDTO;
-import com.semantyca.jesoos.dto.StagePlaylistDTO;
+import com.semantyca.jesoos.dto.PlaylistRequestDTO;
 import com.semantyca.jesoos.dto.event.EventDTO;
 import com.semantyca.jesoos.repository.EventRepository;
 import com.semantyca.mixpla.model.Event;
@@ -151,7 +151,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
                 .collect(Collectors.toList());
     }
 
-    private PlaylistRequest mapDTOToStagePlaylist(StagePlaylistDTO dto) {
+    private PlaylistRequest mapDTOToStagePlaylist(PlaylistRequestDTO dto) {
         if (dto == null) {
             return null;
         }

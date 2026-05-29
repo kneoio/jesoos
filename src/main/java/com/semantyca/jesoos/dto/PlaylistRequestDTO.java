@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,7 +11,8 @@ import java.util.UUID;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class StagePlaylistDTO {
+public class PlaylistRequestDTO {
+    private MixingType defaultMixingType;
     private String sourcing;
     private String title;
     private String artist;

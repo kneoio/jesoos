@@ -19,7 +19,7 @@ public class SceneDTO extends AbstractDTO {
     private double talkativity;
     private double podcastMode;
     private List<ScenePromptDTO> prompts;
-    private StagePlaylistDTO stagePlaylist;
+    private PlaylistRequestDTO stagePlaylist;
     private List<LocalTime> startTime;
     private int durationSeconds;
     private int seqNum;
