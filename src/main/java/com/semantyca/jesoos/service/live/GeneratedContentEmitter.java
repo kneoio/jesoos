@@ -113,7 +113,7 @@ public class GeneratedContentEmitter {
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
         boolean canUseIntro = !activeIntroPrompts.isEmpty();
 
-        record GeneratedResult(SoundFragment fragment, MixingType mixingType, UUID adId, String speechText) {}
+        record GeneratedResult(SoundFragment fragment, MixingType mixingType, UUID adId, String speechText, String adTitle) {}
 
         Uni<GeneratedResult> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
                 .flatMap(prompt -> {
@@ -126,7 +126,7 @@ public class GeneratedContentEmitter {
                                     ? MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND
                                     : MixingType.JINGLE_GENERATED_JINGLE_WITH_BACKGROUND;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
-                            .map(r -> new GeneratedResult(r.fragment(), mixingType, r.selectedAdId(), r.speechText()));
+                            .map(r -> new GeneratedResult(r.fragment(), mixingType, r.selectedAdId(), r.speechText(), r.adTitle()));
                 });
 
         return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()

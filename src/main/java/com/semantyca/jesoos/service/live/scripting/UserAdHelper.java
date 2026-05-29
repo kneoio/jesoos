@@ -19,6 +19,7 @@ public final class UserAdHelper {
     private final Pool client;
     private final UUID brandId;
     private UUID lastSelectedId;
+    private String lastSelectedTitle;
 
     public UserAdHelper(Pool client, UUID brandId) {
         this.client = client;
@@ -27,6 +28,10 @@ public final class UserAdHelper {
 
     public UUID getLastSelectedId() {
         return lastSelectedId;
+    }
+
+    public String getLastSelectedTitle() {
+        return lastSelectedTitle;
     }
 
     public List<Map<String, Object>> getAvailable() {
@@ -64,6 +69,10 @@ public final class UserAdHelper {
         Object id = ad.get("id");
         if (id != null) {
             lastSelectedId = UUID.fromString(id.toString());
+        }
+        Object title = ad.get("title");
+        if (title != null) {
+            lastSelectedTitle = title.toString();
         }
         return ad;
     }

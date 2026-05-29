@@ -50,8 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class AbstractGeneratedContentService implements IGeneratedContent {
     private static final Logger LOGGER = Logger.getLogger(AbstractGeneratedContentService.class);
 
-    public record AudioGenResult(SoundFragment fragment, UUID selectedAdId, String speechText) {}
-    private record TextResult(String text, UUID selectedAdId) {}
+    public record AudioGenResult(SoundFragment fragment, UUID selectedAdId, String speechText, String adTitle) {}
+    private record TextResult(String text, UUID selectedAdId, String adTitle) {}
 
     protected final PromptService promptService;
     protected final SoundFragmentService soundFragmentService;
@@ -118,7 +118,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 .chain(existing -> {
                     if (existing != null) {
                         LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
-                        return Uni.createFrom().item(new AudioGenResult(existing, null, null));
+                        return Uni.createFrom().item(new AudioGenResult(existing, null, null, null));
                     }
                     return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
                 });
@@ -155,8 +155,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                         new RuntimeException("Text generation failed for scene: " + sceneTitle));
                             }
                             return introTtsGenerator.generateTtsAudio(textResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()))
-                                    .map(sf -> new AudioGenResult(sf, textResult.selectedAdId(), textResult.text()));
+                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName(), textResult.adTitle()))
+                                    .map(sf -> new AudioGenResult(sf, textResult.selectedAdId(), textResult.text(), textResult.adTitle()));
                         })
                 );
     }
@@ -166,7 +166,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             DjPrompt prompt,
             UUID brandId,
             UUID promptId,
-            String brandSlug
+            String brandSlug,
+            String adTitle
     ) {
         return Uni.createFrom().item(() -> {
             try {
@@ -192,7 +193,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 SoundFragmentDTO dto = new SoundFragmentDTO();
                 dto.setType(getFragmentType());
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
-                dto.setTitle(prompt.getTitle() + " " + currentDate);
+                String fragmentTitle = adTitle != null ? adTitle + " " + currentDate : prompt.getTitle() + " " + currentDate;
+                dto.setTitle(fragmentTitle);
                 dto.setArtist(brandSlug + "_" + promptId);
                 dto.setGenres(List.of());
                 dto.setLabels(List.of());
@@ -266,7 +268,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         }
 
                         LOGGER.infof("Generated text (%d tokens): %s", response.outputTokens(), text);
-                        return new TextResult(text, draftResult.selectedAdId());
+                        return new TextResult(text, draftResult.selectedAdId(), draftResult.selectedAdTitle());
                     } catch (Exception e) {
                         LOGGER.errorf("LLM API call failed: %s", e.getMessage(), e);
                         throw e;

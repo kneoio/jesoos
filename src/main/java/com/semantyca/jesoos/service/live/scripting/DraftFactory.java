@@ -78,7 +78,7 @@ public class DraftFactory {
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
-    public record DraftResult(String text, UUID selectedAdId) {}
+    public record DraftResult(String text, UUID selectedAdId, String selectedAdTitle) {}
 
     public Uni<DraftResult> createDraft(
             SoundFragment song,
@@ -297,7 +297,7 @@ public class DraftFactory {
         }
 
         String rendered = groovyEngine.render(template, data, draftSlug).trim();
-        return new DraftResult(rendered, adsHelper.getLastSelectedId());
+        return new DraftResult(rendered, adsHelper.getLastSelectedId(), adsHelper.getLastSelectedTitle());
     }
 
     public Uni<Map<String, Object>> buildActionContext(
