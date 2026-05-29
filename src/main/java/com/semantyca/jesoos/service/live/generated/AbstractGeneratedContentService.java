@@ -94,6 +94,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.ffmpegProvider = ffmpegProvider;
     }
 
+    protected String buildArtistKey(String brandSlug, UUID promptId, DraftFactory.DraftResult draftResult) {
+        return brandSlug + "_" + promptId;
+    }
+
     protected abstract String getSystemPrompt();
 
     protected abstract PlaylistItemType getFragmentType();
@@ -107,18 +111,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
-        OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime endOfDay = startOfDay.plusDays(1);
-        String lookupKey = stream.getSlugName() + "_" + promptId;
-
-        return soundFragmentRepository.findByArtistAndDate(lookupKey, startOfDay, endOfDay)
-                .chain(existing -> {
-                    if (existing != null) {
-                        LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
-                        return Uni.createFrom().item(existing);
-                    }
-                    return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
-                });
+        return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
     }
 
     private Uni<SoundFragment> generateAndSave(
@@ -132,6 +125,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         UUID brandId = stream.getMasterBrandId();
         String sceneTitle = liveScene != null ? liveScene.getSceneTitle() : "AI Generated";
         UUID traceId = liveScene != null ? liveScene.getTraceId() : UUID.randomUUID();
+        OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime endOfDay = startOfDay.plusDays(1);
 
         return promptService.getById(promptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
@@ -145,14 +140,23 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                 return masterPrompt;
                             });
                 })
-                .chain(prompt -> generateText(prompt, agent, stream, airLanguage)
-                        .chain(text -> {
-                            if (text == null) {
-                                return Uni.createFrom().failure(
-                                        new RuntimeException("Text generation failed for scene: " + sceneTitle));
-                            }
-                            return introTtsGenerator.generateTtsAudio(text, getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()));
+                .chain(prompt -> generateDraft(prompt, agent, stream, airLanguage)
+                        .chain(draftResult -> {
+                            String artistKey = buildArtistKey(stream.getSlugName(), promptId, draftResult);
+
+                            return soundFragmentRepository.findByArtistAndDate(artistKey, startOfDay, endOfDay)
+                                    .chain(existing -> {
+                                        if (existing != null) {
+                                            LOGGER.infof("Reusing existing generated fragment %s for key %s", existing.getId(), artistKey);
+                                            return Uni.createFrom().item(existing);
+                                        }
+                                        if (draftResult.text() == null) {
+                                            return Uni.createFrom().failure(
+                                                    new RuntimeException("Text generation failed for scene: " + sceneTitle));
+                                        }
+                                        return introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                                                .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
+                                    });
                         })
                 );
     }
@@ -161,8 +165,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             String ttsFilePath,
             DjPrompt prompt,
             UUID brandId,
-            UUID promptId,
-            String brandSlug
+            String artistKey
     ) {
         return Uni.createFrom().item(() -> {
             try {
@@ -170,8 +173,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 String fileName = path.getFileName().toString();
                 boolean sourceExists = Files.exists(path);
                 LOGGER.infof(
-                        "saveSoundFragment preparing file copy: source=%s (exists=%s), fileName=%s, brandId=%s, promptId=%s",
-                        path.toAbsolutePath(), sourceExists, fileName, brandId, promptId
+                        "saveSoundFragment preparing file copy: source=%s (exists=%s), fileName=%s, brandId=%s, artistKey=%s",
+                        path.toAbsolutePath(), sourceExists, fileName, brandId, artistKey
                 );
 
                 Path targetDir = Paths.get(config.getPathUploads(), "chat-upload-controller", "supervisor", "temp");
@@ -189,13 +192,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 dto.setType(getFragmentType());
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                 dto.setTitle(prompt.getTitle() + " " + currentDate);
-                dto.setArtist(brandSlug + "_" + promptId);
+                dto.setArtist(artistKey);
                 dto.setGenres(List.of());
                 dto.setLabels(List.of());
                 dto.setSource(SourceType.TEMPORARY_MIX);
                 dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC));
                 dto.setLength(Duration.ofSeconds(durationSeconds));
-                LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, promptId=%s, newlyUploaded=%s", brandId, promptId, fileName);
+                LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, artistKey=%s, newlyUploaded=%s", brandId, artistKey, fileName);
                 if (brandId == null) {
                     throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
                 }
@@ -234,13 +237,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<String> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+    private Uni<DraftFactory.DraftResult> generateDraft(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
         return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
-                .map(DraftFactory.DraftResult::text)
-                .chain(draftContent -> Uni.createFrom().item(() -> {
+                .chain(draftResult -> Uni.createFrom().item(() -> {
+                    String draftContent = draftResult.text();
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                         LOGGER.errorf("Draft content contains error, skipping: %s", draftContent);
-                        return null;
+                        return new DraftFactory.DraftResult(null, draftResult.selectedAdId(), draftResult.selectedAdTitle(), draftResult.selectedAdSlugName());
                     }
 
                     String fullPrompt = prompt.getPrompt() + "\n\nDraft input:\n" + draftContent;
@@ -258,11 +261,11 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                 || text.contains("technical error")
                                 || text.contains("technical issue")) {
                             LOGGER.warnf("Generated text signals technical error, skipping");
-                            return null;
+                            return new DraftFactory.DraftResult(null, draftResult.selectedAdId(), draftResult.selectedAdTitle(), draftResult.selectedAdSlugName());
                         }
 
                         LOGGER.infof("Generated text (%d tokens): %s", response.outputTokens(), text);
-                        return text;
+                        return new DraftFactory.DraftResult(text, draftResult.selectedAdId(), draftResult.selectedAdTitle(), draftResult.selectedAdSlugName());
                     } catch (Exception e) {
                         LOGGER.errorf("LLM API call failed: %s", e.getMessage(), e);
                         throw e;

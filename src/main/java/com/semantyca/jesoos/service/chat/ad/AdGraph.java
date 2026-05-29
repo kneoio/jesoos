@@ -256,6 +256,7 @@ public class AdGraph {
         ad.setUserId(session.getUserId());
         ad.setBrandId(session.getBrandId());
         ad.setTitle(title);
+        ad.setSlugName(com.semantyca.core.util.WebHelper.generateSlug(title));
         ad.setDescription(description);
         ad.setContacts(contacts);
         Map<String, String> udMap = new HashMap<>(session.getUserData());

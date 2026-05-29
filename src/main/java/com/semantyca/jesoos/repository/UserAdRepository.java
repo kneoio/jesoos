@@ -32,8 +32,8 @@ public class UserAdRepository extends AsyncRepository {
 
     public Uni<UUID> insert(UserAd entity, IUser user) {
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, user_id, brand_id, title, description, contacts, user_data) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, user_id, brand_id, title, slug_name, description, contacts, user_data) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
         OffsetDateTime now = OffsetDateTime.now();
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
@@ -43,6 +43,7 @@ public class UserAdRepository extends AsyncRepository {
                 .addLong(entity.getUserId())
                 .addUUID(entity.getBrandId())
                 .addString(entity.getTitle())
+                .addString(entity.getSlugName())
                 .addString(entity.getDescription())
                 .addString(entity.getContacts())
                 .addJsonObject(toUserDataJson(entity.getUserData()));

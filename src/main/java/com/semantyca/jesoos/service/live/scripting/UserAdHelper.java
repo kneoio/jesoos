@@ -20,6 +20,7 @@ public final class UserAdHelper {
     private final UUID brandId;
     private UUID lastSelectedId;
     private String lastSelectedTitle;
+    private String lastSelectedSlugName;
 
     public UserAdHelper(Pool client, UUID brandId) {
         this.client = client;
@@ -34,9 +35,13 @@ public final class UserAdHelper {
         return lastSelectedTitle;
     }
 
+    public String getLastSelectedSlugName() {
+        return lastSelectedSlugName;
+    }
+
     public List<Map<String, Object>> getAvailable() {
         try {
-            String sql = "SELECT id, title, description, contacts, user_data FROM " + TABLE +
+            String sql = "SELECT id, title, slug_name, description, contacts, user_data FROM " + TABLE +
                     " WHERE brand_id = $1 AND (archived IS NULL OR archived = 0) ORDER BY reg_date DESC LIMIT 20";
             return client.preparedQuery(sql).execute(Tuple.of(brandId))
                     .map(rows -> {
@@ -45,6 +50,7 @@ public final class UserAdHelper {
                             Map<String, Object> ad = new HashMap<>();
                             ad.put("id", row.getUUID("id").toString());
                             ad.put("title", row.getString("title"));
+                            ad.put("slug_name", row.getString("slug_name"));
                             ad.put("description", row.getString("description"));
                             ad.put("contacts", row.getString("contacts"));
                             var ud = row.getJsonObject("user_data");
@@ -73,6 +79,10 @@ public final class UserAdHelper {
         Object title = ad.get("title");
         if (title != null) {
             lastSelectedTitle = title.toString();
+        }
+        Object slugName = ad.get("slug_name");
+        if (slugName != null) {
+            lastSelectedSlugName = slugName.toString();
         }
         return ad;
     }

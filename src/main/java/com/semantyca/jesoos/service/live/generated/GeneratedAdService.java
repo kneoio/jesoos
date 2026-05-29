@@ -57,6 +57,12 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
     }
 
     @Override
+    protected String buildArtistKey(String brandSlug, java.util.UUID promptId, com.semantyca.jesoos.service.live.scripting.DraftFactory.DraftResult draftResult) {
+        String adSlug = draftResult.selectedAdSlugName();
+        return adSlug != null ? brandSlug + "_" + adSlug : brandSlug + "_" + promptId;
+    }
+
+    @Override
     protected String getSystemPrompt() {
         return "You are a radio host reading a listener's advertisement on air. " +
                 "Read it naturally and professionally, as if introducing a sponsor. Keep it concise.";
