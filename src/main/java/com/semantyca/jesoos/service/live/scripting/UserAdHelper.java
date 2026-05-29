@@ -18,10 +18,15 @@ public final class UserAdHelper {
 
     private final Pool client;
     private final UUID brandId;
+    private UUID lastSelectedId;
 
     public UserAdHelper(Pool client, UUID brandId) {
         this.client = client;
         this.brandId = brandId;
+    }
+
+    public UUID getLastSelectedId() {
+        return lastSelectedId;
     }
 
     public List<Map<String, Object>> getAvailable() {
@@ -55,6 +60,11 @@ public final class UserAdHelper {
     public Map<String, Object> getRandom() {
         List<Map<String, Object>> ads = getAvailable();
         if (ads.isEmpty()) return Map.of();
-        return ads.get((int) (Math.random() * ads.size()));
+        Map<String, Object> ad = ads.get((int) (Math.random() * ads.size()));
+        Object id = ad.get("id");
+        if (id != null) {
+            lastSelectedId = UUID.fromString(id.toString());
+        }
+        return ad;
     }
 }

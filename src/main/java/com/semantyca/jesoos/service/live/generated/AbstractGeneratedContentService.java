@@ -50,6 +50,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class AbstractGeneratedContentService implements IGeneratedContent {
     private static final Logger LOGGER = Logger.getLogger(AbstractGeneratedContentService.class);
 
+    public record AudioGenResult(SoundFragment fragment, UUID selectedAdId, String speechText) {}
+    private record TextResult(String text, UUID selectedAdId) {}
+
     protected final PromptService promptService;
     protected final SoundFragmentService soundFragmentService;
     protected final SoundFragmentRepository soundFragmentRepository;
@@ -100,7 +103,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     protected abstract com.semantyca.mixpla.model.aiagent.Voice getVoice(AiAgent agent);
 
-    public Uni<SoundFragment> generateAudio(
+    public Uni<AudioGenResult> generateAudio(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -115,13 +118,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 .chain(existing -> {
                     if (existing != null) {
                         LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
-                        return Uni.createFrom().item(existing);
+                        return Uni.createFrom().item(new AudioGenResult(existing, null, null));
                     }
                     return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
                 });
     }
 
-    private Uni<SoundFragment> generateAndSave(
+    private Uni<AudioGenResult> generateAndSave(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -146,13 +149,14 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                             });
                 })
                 .chain(prompt -> generateText(prompt, agent, stream, airLanguage)
-                        .chain(text -> {
-                            if (text == null) {
+                        .chain(textResult -> {
+                            if (textResult == null || textResult.text() == null) {
                                 return Uni.createFrom().failure(
                                         new RuntimeException("Text generation failed for scene: " + sceneTitle));
                             }
-                            return introTtsGenerator.generateTtsAudio(text, getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()));
+                            return introTtsGenerator.generateTtsAudio(textResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()))
+                                    .map(sf -> new AudioGenResult(sf, textResult.selectedAdId(), textResult.text()));
                         })
                 );
     }
@@ -234,9 +238,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<String> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+    private Uni<TextResult> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
         return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
-                .chain(draftContent -> Uni.createFrom().item(() -> {
+                .chain(draftResult -> Uni.createFrom().item(() -> {
+                    String draftContent = draftResult.text();
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                         LOGGER.errorf("Draft content contains error, skipping: %s", draftContent);
                         return null;
@@ -261,7 +266,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         }
 
                         LOGGER.infof("Generated text (%d tokens): %s", response.outputTokens(), text);
-                        return text;
+                        return new TextResult(text, draftResult.selectedAdId());
                     } catch (Exception e) {
                         LOGGER.errorf("LLM API call failed: %s", e.getMessage(), e);
                         throw e;

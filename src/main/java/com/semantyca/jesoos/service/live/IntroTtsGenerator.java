@@ -247,9 +247,9 @@ public class IntroTtsGenerator {
                 prompt.getDraftId(),
                 new HashMap<>(),
                 sharerName
-        ).map(draft -> {
-            LOGGER.infof("Draft content received: %s", draft);
-            return draft;
+        ).map(result -> {
+            LOGGER.infof("Draft content received: %s", result.text());
+            return result.text();
         });
     }
 

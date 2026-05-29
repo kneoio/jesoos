@@ -5,6 +5,7 @@ import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.table.EntityData;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.model.UserAd;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Uni;
@@ -48,6 +49,20 @@ public class UserAdRepository extends AsyncRepository {
         return client.preparedQuery(sql)
                 .execute(params)
                 .onItem().transform(result -> result.iterator().next().getUUID("id"));
+    }
+
+    public Uni<Void> addPlayHistoryEntry(UUID adId, PlayHistory entry) {
+        String sql = "UPDATE " + entityData.getTableName() +
+                " SET play_history = COALESCE(play_history, '[]'::jsonb) || jsonb_build_array($2::jsonb)" +
+                " WHERE id = $1";
+        try {
+            String entryJson = mapper.writeValueAsString(entry);
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(adId, entryJson))
+                    .replaceWithVoid();
+        } catch (Exception e) {
+            return Uni.createFrom().failure(e);
+        }
     }
 
     private JsonObject toUserDataJson(UserData userData) {

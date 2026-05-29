@@ -78,7 +78,9 @@ public class DraftFactory {
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
-    public Uni<String> createDraft(
+    public record DraftResult(String text, UUID selectedAdId) {}
+
+    public Uni<DraftResult> createDraft(
             SoundFragment song,
             AiAgent agent,
             IStream stream,
@@ -142,6 +144,7 @@ public class DraftFactory {
                         throw new IllegalStateException(msg);
                     }
                 }));
+
     }
 
 
@@ -187,7 +190,7 @@ public class DraftFactory {
                             templateCode, song, agent, copilot, stream, profile,
                             genres, labels, listeners, selectedLanguage, null, chatSummary,
                             "debug-draft", sharerName
-                    );
+                    ).text();
                 }));
     }
 
@@ -211,7 +214,7 @@ public class DraftFactory {
                 });
     }
 
-    private String buildFromTemplate(
+    private DraftResult buildFromTemplate(
             String template,
             SoundFragment song,
             AiAgent agent,
@@ -274,7 +277,8 @@ public class DraftFactory {
         data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
-        data.put("ads", new UserAdHelper(dbClient, stream.getMasterBrandId()));
+        UserAdHelper adsHelper = new UserAdHelper(dbClient, stream.getMasterBrandId());
+        data.put("ads", adsHelper);
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");
 
@@ -292,7 +296,8 @@ public class DraftFactory {
             data.put("songSharerName", "");
         }
 
-        return groovyEngine.render(template, data, draftSlug).trim();
+        String rendered = groovyEngine.render(template, data, draftSlug).trim();
+        return new DraftResult(rendered, adsHelper.getLastSelectedId());
     }
 
     public Uni<Map<String, Object>> buildActionContext(
