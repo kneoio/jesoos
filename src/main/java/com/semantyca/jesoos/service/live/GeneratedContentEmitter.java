@@ -149,7 +149,7 @@ public class GeneratedContentEmitter {
                     songMap.put(JINGLE_OUTRO, new SongInfoDTO(jingle2.getId(), jingleDuration(jingle2)));
                     songMap.put(GENERATED_CONTENT, new SongInfoDTO(generated.getId(), songDuration(generated)));
                     if (mixingType != MixingType.JINGLE_GENERATED_JINGLE) {
-                        songMap.put(BACKGROUND_MUSIC, new SongInfoDTO(background.getId(), songDuration(background)));
+                        songMap.put(BACKGROUND_LOOP, new SongInfoDTO(background.getId(), songDuration(background)));
                     }
 
                     if (mixingType == MixingType.INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND) {
