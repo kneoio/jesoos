@@ -86,13 +86,21 @@ public class GeneratedContentEmitter {
         UUID promptId = contentPrompts.getFirst().getPromptId();
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
-        Uni<List<SoundFragment>> jinglesUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getMasterBrandId())
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+        Map<String, String> artefacts = scene.getMixingArtefacts();
 
-        Uni<List<SoundFragment>> songsUni = soundFragmentService
-                .getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+        Uni<List<SoundFragment>> jinglesUni = (artefacts != null && artefacts.containsKey(PlaylistItemType.JINGLE_INTRO.name()))
+                ? soundFragmentService.getById(UUID.fromString(artefacts.get(PlaylistItemType.JINGLE_INTRO.name())))
+                        .map(List::of)
+                        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getMasterBrandId())
+                        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+
+        Uni<List<SoundFragment>> songsUni = (artefacts != null && artefacts.containsKey(PlaylistItemType.BACKGROUND_LOOP.name()))
+                ? soundFragmentService.getById(UUID.fromString(artefacts.get(PlaylistItemType.BACKGROUND_LOOP.name())))
+                        .map(List::of)
+                        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
+                        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();

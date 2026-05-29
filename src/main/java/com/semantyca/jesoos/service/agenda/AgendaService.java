@@ -158,6 +158,7 @@ public class AgendaService {
                                     liveScene.setOneTimeRun(scene.isOneTimeRun());
                                     if (scene.getPlaylistRequest() != null && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                         liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                        liveScene.setMixingArtefacts(scene.getPlaylistRequest().getMixingArtefacts());
                                     }
                                     liveScene.setIntroPrompts(scene.getIntroPrompts());
                                     liveScene.setActions(scene.getActions());
@@ -248,6 +249,7 @@ public class AgendaService {
                                 if (scene.getPlaylistRequest() != null
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                    liveScene.setMixingArtefacts(scene.getPlaylistRequest().getMixingArtefacts());
                                 }
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());
                                 liveScene.setActions(scene.getActions());

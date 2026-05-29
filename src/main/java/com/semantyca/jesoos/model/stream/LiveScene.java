@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -26,6 +27,7 @@ public class LiveScene {
     private ContentStatus contentStatus;
     private List<ScenePrompt> contentPrompts;
     private List<ScenePrompt> introPrompts;
+    private Map<String, String> mixingArtefacts;
     private List<CustomAction> actions;
     private TriggerContext triggerContext;
     private UUID traceId;
