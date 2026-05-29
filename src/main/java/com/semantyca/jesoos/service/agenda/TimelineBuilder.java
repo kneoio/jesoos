@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.agenda;
 
-import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
+import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;

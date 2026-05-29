@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
-import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
+import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
 import lombok.Setter;

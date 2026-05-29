@@ -6,7 +6,7 @@ import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
-import com.semantyca.jesoos.model.cnst.MergingTypeMeta;
+import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.*;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.SceneService;
