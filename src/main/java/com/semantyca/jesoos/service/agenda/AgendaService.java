@@ -4,18 +4,14 @@ import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
-import com.semantyca.mixpla.dto.queue.metric.ProcessType;
-import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.jesoos.model.stream.*;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.SceneService;
 import com.semantyca.jesoos.service.ScriptService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.jesoos.util.TimeFormatUtil;
-import com.semantyca.jesoos.model.stream.ActionIntroSource;
-import com.semantyca.jesoos.model.stream.IntroSource;
-import com.semantyca.jesoos.model.stream.PromptIntroSource;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.PlaylistRequest;
 import com.semantyca.mixpla.model.Scene;
@@ -23,6 +19,7 @@ import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
+import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -35,7 +32,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AgendaService {

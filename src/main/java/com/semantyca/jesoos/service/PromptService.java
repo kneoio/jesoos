@@ -26,7 +26,7 @@ public class PromptService extends AbstractService<DjPrompt, PromptDTO> {
     }
 
     public Uni<List<DjPrompt>> getAll(final int limit, final int offset, final IUser user, final PromptFilter filter) {
-        return repository.getAll(limit, offset, false, user, filter);
+        return repository.getAll(limit, offset, user, filter);
     }
 
     public Uni<Integer> getAllCount(final IUser user, final PromptFilter filter) {

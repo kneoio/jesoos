@@ -44,12 +44,11 @@ public class PromptRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<List<DjPrompt>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final PromptFilter filter) {
+    public Uni<List<DjPrompt>> getAll(int limit, int offset, final IUser user, final PromptFilter filter) {
         String sql = queryBuilder.buildGetAllQuery(
                 entityData.getTableName(),
                 entityData.getRlsName(),
                 user.getId(),
-                includeArchived,
                 filter,
                 limit,
                 offset
@@ -132,7 +131,7 @@ public class PromptRepository extends AsyncRepository {
                         .addBoolean(prompt.isEnabled())
                         .addString(prompt.getPrompt())
                         .addString(prompt.getDescription())
-                        .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
+                        .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : PromptType.SONG_INTRO.name())
                         .addString(prompt.getLanguageTag().tag())
                         .addBoolean(prompt.isMaster())
                         .addBoolean(prompt.isLocked())
@@ -177,7 +176,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addBoolean(prompt.isEnabled())
                                     .addString(prompt.getPrompt())
                                     .addString(prompt.getDescription())
-                                    .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
+                                    .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : PromptType.SONG_INTRO.name())
                                     .addString(prompt.getLanguageTag().tag())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
