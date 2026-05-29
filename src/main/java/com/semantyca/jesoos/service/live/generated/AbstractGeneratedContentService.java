@@ -50,9 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class AbstractGeneratedContentService implements IGeneratedContent {
     private static final Logger LOGGER = Logger.getLogger(AbstractGeneratedContentService.class);
 
-    public record AudioGenResult(SoundFragment fragment, UUID selectedAdId, String speechText, String adTitle) {}
-    private record TextResult(String text, UUID selectedAdId, String adTitle) {}
-
     protected final PromptService promptService;
     protected final SoundFragmentService soundFragmentService;
     protected final SoundFragmentRepository soundFragmentRepository;
@@ -103,7 +100,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     protected abstract com.semantyca.mixpla.model.aiagent.Voice getVoice(AiAgent agent);
 
-    public Uni<AudioGenResult> generateAudio(
+    public Uni<SoundFragment> generateAudio(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -118,13 +115,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 .chain(existing -> {
                     if (existing != null) {
                         LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
-                        return Uni.createFrom().item(new AudioGenResult(existing, null, null, null));
+                        return Uni.createFrom().item(existing);
                     }
                     return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
                 });
     }
 
-    private Uni<AudioGenResult> generateAndSave(
+    private Uni<SoundFragment> generateAndSave(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -149,14 +146,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                             });
                 })
                 .chain(prompt -> generateText(prompt, agent, stream, airLanguage)
-                        .chain(textResult -> {
-                            if (textResult == null || textResult.text() == null) {
+                        .chain(text -> {
+                            if (text == null) {
                                 return Uni.createFrom().failure(
                                         new RuntimeException("Text generation failed for scene: " + sceneTitle));
                             }
-                            return introTtsGenerator.generateTtsAudio(textResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName(), textResult.adTitle()))
-                                    .map(sf -> new AudioGenResult(sf, textResult.selectedAdId(), textResult.text(), textResult.adTitle()));
+                            return introTtsGenerator.generateTtsAudio(text, getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, promptId, stream.getSlugName()));
                         })
                 );
     }
@@ -166,8 +162,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             DjPrompt prompt,
             UUID brandId,
             UUID promptId,
-            String brandSlug,
-            String adTitle
+            String brandSlug
     ) {
         return Uni.createFrom().item(() -> {
             try {
@@ -193,8 +188,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 SoundFragmentDTO dto = new SoundFragmentDTO();
                 dto.setType(getFragmentType());
                 String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
-                String fragmentTitle = adTitle != null ? adTitle + " " + currentDate : prompt.getTitle() + " " + currentDate;
-                dto.setTitle(fragmentTitle);
+                dto.setTitle(prompt.getTitle() + " " + currentDate);
                 dto.setArtist(brandSlug + "_" + promptId);
                 dto.setGenres(List.of());
                 dto.setLabels(List.of());
@@ -240,10 +234,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<TextResult> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+    private Uni<String> generateText(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
         return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
-                .chain(draftResult -> Uni.createFrom().item(() -> {
-                    String draftContent = draftResult.text();
+                .map(DraftFactory.DraftResult::text)
+                .chain(draftContent -> Uni.createFrom().item(() -> {
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                         LOGGER.errorf("Draft content contains error, skipping: %s", draftContent);
                         return null;
@@ -268,7 +262,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         }
 
                         LOGGER.infof("Generated text (%d tokens): %s", response.outputTokens(), text);
-                        return new TextResult(text, draftResult.selectedAdId(), draftResult.selectedAdTitle());
+                        return text;
                     } catch (Exception e) {
                         LOGGER.errorf("LLM API call failed: %s", e.getMessage(), e);
                         throw e;
