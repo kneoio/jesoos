@@ -52,9 +52,6 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     public record AudioGenResult(SoundFragment fragment, UUID selectedAdId, String speechText, String adTitle) {}
     private record TextResult(String text, UUID selectedAdId, String adTitle) {}
-    private record AdContext(UUID adId, String speechText, String adTitle) {}
-
-    private final java.util.concurrent.ConcurrentHashMap<String, AdContext> adContextCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     protected final PromptService promptService;
     protected final SoundFragmentService soundFragmentService;
@@ -121,17 +118,9 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                 .chain(existing -> {
                     if (existing != null) {
                         LOGGER.infof("Reusing existing generated fragment %s for prompt %s brand %s", existing.getId(), promptId, stream.getSlugName());
-                        AdContext cached = adContextCache.get(lookupKey);
-                        return Uni.createFrom().item(cached != null
-                                ? new AudioGenResult(existing, cached.adId(), cached.speechText(), cached.adTitle())
-                                : new AudioGenResult(existing, null, null, null));
+                        return Uni.createFrom().item(new AudioGenResult(existing, null, null, null));
                     }
-                    return generateAndSave(promptId, agent, stream, airLanguage, liveScene)
-                            .invoke(result -> {
-                                if (result.selectedAdId() != null) {
-                                    adContextCache.put(lookupKey, new AdContext(result.selectedAdId(), result.speechText(), result.adTitle()));
-                                }
-                            });
+                    return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
                 });
     }
 
