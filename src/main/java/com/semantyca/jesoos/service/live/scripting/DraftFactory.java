@@ -274,7 +274,7 @@ public class DraftFactory {
         data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
-        data.put("ads", new UserAdHelper(dbClient));
+        data.put("ads", new UserAdHelper(dbClient, stream.getMasterBrandId()));
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");
 

@@ -2,12 +2,14 @@ package com.semantyca.jesoos.service.live.scripting;
 
 import com.semantyca.mixpla.model.UserAd;
 import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.Tuple;
 import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class UserAdHelper {
 
@@ -15,16 +17,18 @@ public final class UserAdHelper {
     private static final String TABLE = "mixpla__user_ads";
 
     private final Pool client;
+    private final UUID brandId;
 
-    public UserAdHelper(Pool client) {
+    public UserAdHelper(Pool client, UUID brandId) {
         this.client = client;
+        this.brandId = brandId;
     }
 
     public List<Map<String, Object>> getAvailable() {
         try {
             String sql = "SELECT id, title, description, contacts, user_data FROM " + TABLE +
-                    " WHERE (archived IS NULL OR archived = 0) ORDER BY reg_date DESC LIMIT 20";
-            return client.query(sql).execute()
+                    " WHERE brand_id = $1 AND (archived IS NULL OR archived = 0) ORDER BY reg_date DESC LIMIT 20";
+            return client.preparedQuery(sql).execute(Tuple.of(brandId))
                     .map(rows -> {
                         List<Map<String, Object>> result = new ArrayList<>();
                         rows.forEach(row -> {

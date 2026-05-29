@@ -254,6 +254,7 @@ public class AdGraph {
 
         UserAd ad = new UserAd();
         ad.setUserId(session.getUserId());
+        ad.setBrandId(session.getBrandId());
         ad.setTitle(title);
         ad.setDescription(description);
         ad.setContacts(contacts);
