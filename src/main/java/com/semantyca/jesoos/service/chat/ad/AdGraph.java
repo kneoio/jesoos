@@ -31,13 +31,22 @@ public class AdGraph {
 
     private static final Logger LOGGER = Logger.getLogger(AdGraph.class);
 
-    private static final List<String> REQUIRED_VARS = List.of("description", "contacts");
+    private static final List<String> REQUIRED_VARS = List.of("description", "details", "contacts");
     private static final Map<String, String> VAR_DESCRIPTIONS = Map.of(
             "description", "the ad text or message you want to broadcast",
+            "details", "optional extra details like price, year, location, condition",
             "contacts", "contact information (phone, website, email, etc.)"
     );
     private static final List<String> USER_DATA_FIELDS = List.of(
             "category", "price", "location", "brand", "year", "condition", "mileage"
+    );
+    private static final Map<String, List<String>> CATEGORY_DETAILS = Map.of(
+            "car",         List.of("price", "year", "mileage", "condition", "location"),
+            "property",    List.of("price", "location", "condition"),
+            "electronics", List.of("brand", "price", "condition", "year"),
+            "service",     List.of("location", "price"),
+            "job",         List.of("location", "price"),
+            "pet",         List.of("price", "location", "condition")
     );
 
     @Inject
@@ -142,6 +151,9 @@ public class AdGraph {
                         userDataMap.put(field, val);
                     }
                 }
+                if ("details".equals(pending)) {
+                    current.put("details", "provided");
+                }
                 LOGGER.infof("[AdGraph] extracted fields=%s userData=%s", current.keySet(), userDataMap.keySet());
                 Map<String, Object> result = new HashMap<>();
                 result.put(AdState.COLLECTED_VARS, current);
@@ -176,6 +188,7 @@ public class AdGraph {
         String varName = state.pendingVar();
         String question = switch (varName) {
             case "description" -> "What should the ad say?";
+            case "details" -> buildDetailsQuestion(state);
             case "contacts" -> "What contact info should listeners use?";
             default -> "What is the " + varName + "?";
         };
@@ -220,6 +233,20 @@ public class AdGraph {
                                 new AdResult(AdResult.Action.ASK_QUESTION, null, finalState.nextQuestion()));
                     }
                 });
+    }
+
+    private String buildDetailsQuestion(AdState state) {
+        String category = state.userData().getOrDefault("category", "").toLowerCase();
+        List<String> relevant = CATEGORY_DETAILS.getOrDefault(category,
+                List.of("price", "location", "condition"));
+        List<String> missing = relevant.stream()
+                .filter(f -> state.userData().getOrDefault(f, "").isBlank())
+                .toList();
+        if (missing.isEmpty()) {
+            return "Anything else you'd like to add? (feel free to skip)";
+        }
+        String fields = String.join(", ", missing);
+        return "Could you also share " + fields + "? (feel free to skip if not applicable)";
     }
 
     public Uni<String> generateFirstQuestion(AdSessionData session) {
