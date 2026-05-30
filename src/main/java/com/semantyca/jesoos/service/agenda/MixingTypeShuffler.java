@@ -20,7 +20,8 @@ public class MixingTypeShuffler {
                 MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
                 return new MixingStrategy(type, 2, true);
             }
-            return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+            MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG : MixingType.JINGLE_INTRO_SONG;
+            return new MixingStrategy(type, 1, true);
         }
 
         // No-TTS path — SONG_ONLY, SONG_CROSSFADE_SONG, FILLER_JINGLE
