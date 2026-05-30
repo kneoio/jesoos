@@ -239,7 +239,7 @@ public class DraftFactory {
 
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
-        data.put("listeners", listeners);
+        data.put("listeners", resolveListenerNames(listeners, selectedLanguage.toLanguageCode()));
         data.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
@@ -307,16 +307,12 @@ public class DraftFactory {
             LanguageTag language,
             AiAgent agent
     ) {
-        Uni<List<String>> genresUni = song != null
-                ? resolveGenreNames(song, language.toLanguageCode())
-                : Uni.createFrom().item(List.of());
+        Uni<List<String>> genresUni = resolveGenreNames(song, language.toLanguageCode());
 
         Uni<List<BrandListenerDTO>> listenersUni = listenerService.getBrandListeners(
                 stream.getSlugName(), 500, 0, SuperUser.build(), null);
 
-        Uni<List<String>> labelsUni = song != null
-                ? resolveLabels(song, language.toLanguageCode())
-                : Uni.createFrom().item(List.of());
+        Uni<List<String>> labelsUni = resolveLabels(song, language.toLanguageCode());
 
         return Uni.combine().all().unis(genresUni, listenersUni, labelsUni).asTuple().map(tuple -> {
             List<String> genres = tuple.getItem1();
@@ -325,8 +321,8 @@ public class DraftFactory {
             Map<String, Object> ctx = new HashMap<>();
             ctx.put("songTitle", song.getTitle());
             ctx.put("songArtist", song.getArtist());
-            ctx.put("description", song.getDescription());
-            ctx.put("genre", String.join(", ", genres));
+            ctx.put("songDescription", song.getDescription());
+            ctx.put("songGenres", String.join(", ", genres));
             ctx.put("country", stream.getCountry().getCountryName());
             String brand = stream.getLocalizedName().get(language.toLanguageCode());
             if (brand == null && !stream.getLocalizedName().isEmpty()) {
@@ -336,7 +332,7 @@ public class DraftFactory {
             ctx.put("djName", agent.getName());
             java.time.ZoneId tz = stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
-            ctx.put("listeners", listeners);
+            ctx.put("listeners", resolveListenerNames(listeners, language.toLanguageCode()));
             ctx.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
@@ -356,6 +352,27 @@ public class DraftFactory {
                 .collect(Collectors.toList());
 
         return Uni.join().all(genreUnis).andFailFast();
+    }
+
+    private List<String> resolveListenerNames(List<BrandListenerDTO> listeners, LanguageCode lang) {
+        if (listeners == null) return List.of();
+        return listeners.stream()
+                .map(dto -> {
+                    var listener = dto.getListenerDTO();
+                    if (listener == null) return null;
+                    String name = listener.getLocalizedName().get(lang);
+                    if (name == null || name.isBlank()) {
+                        var userData = listener.getUserData();
+                        if (userData != null) {
+                                String v = userData.get("preferred_name");
+                            if (v != null && !v.isBlank()) name = v;
+                        }
+                    }
+                    if (name == null || name.isBlank()) name = listener.getSlugName();
+                    return name;
+                })
+                .filter(n -> n != null && !n.isBlank())
+                .collect(Collectors.toList());
     }
 
     private Uni<List<String>> resolveLabels(SoundFragment song, LanguageCode selectedLanguage) {
