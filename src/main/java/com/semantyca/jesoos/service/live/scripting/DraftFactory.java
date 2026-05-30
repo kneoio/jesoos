@@ -30,6 +30,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,8 @@ public class DraftFactory {
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
-    public record DraftResult(String text, UUID selectedAdId, String selectedAdTitle, String selectedAdSlugName) {}
+    public record DraftResult(String text, UUID selectedAdId, String selectedAdTitle, String selectedAdSlugName) {
+    }
 
     public Uni<DraftResult> createDraft(
             SoundFragment song,
@@ -148,7 +150,6 @@ public class DraftFactory {
     }
 
 
-
     public Uni<String> renderCode(
             String templateCode,
             SoundFragment song,
@@ -161,14 +162,8 @@ public class DraftFactory {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
                 : Uni.createFrom().nullItem();
-
-        Uni<List<String>> genresUni = song != null
-                ? resolveGenreNames(song, selectedLanguage.toLanguageCode())
-                : Uni.createFrom().item(List.of());
-
-        Uni<List<String>> labelsUni = song != null
-                ? resolveLabels(song, selectedLanguage.toLanguageCode())
-                : Uni.createFrom().item(List.of());
+        Uni<List<String>> genresUni = resolveGenreNames(song, selectedLanguage.toLanguageCode());
+        Uni<List<String>> labelsUni = resolveLabels(song, selectedLanguage.toLanguageCode());
 
         return Uni.combine().all()
                 .unis(
@@ -240,7 +235,7 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", resolveListenerNames(listeners, selectedLanguage.toLanguageCode()));
-        data.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
+        data.put("labels", labels.isEmpty() ? List.of(genres.getFirst()) : labels);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
             brand = stream.getLocalizedName().values().iterator().next();
@@ -281,20 +276,11 @@ public class DraftFactory {
         data.put("ads", adsHelper);
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");
-
-        if (song != null) {
-            data.put("songTitle", song.getTitle());
-            data.put("songArtist", song.getArtist());
-            data.put("songDescription", song.getDescription());
-            data.put("songGenres", genres);
-            data.put("songSharerName", sharerName != null ? sharerName : "");
-        } else {
-            data.put("songTitle", "");
-            data.put("songArtist", "");
-            data.put("songDescription", "");
-            data.put("songGenres", List.of());
-            data.put("songSharerName", "");
-        }
+        data.put("songTitle", song.getTitle());
+        data.put("songArtist", song.getArtist());
+        data.put("songDescription", song.getDescription());
+        data.put("songGenres", genres);
+        data.put("songSharerName", sharerName != null ? sharerName : "");
 
         String rendered = groovyEngine.render(template, data, draftSlug).trim();
         return new DraftResult(rendered, adsHelper.getLastSelectedId(), adsHelper.getLastSelectedTitle(), adsHelper.getLastSelectedSlugName());
@@ -330,10 +316,10 @@ public class DraftFactory {
             }
             ctx.put("stationBrand", brand);
             ctx.put("djName", agent.getName());
-            java.time.ZoneId tz = stream.getTimeZone();
+            ZoneId tz = stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
             ctx.put("listeners", resolveListenerNames(listeners, language.toLanguageCode()));
-            ctx.put("labels", labels.isEmpty() && !genres.isEmpty() ? List.of(genres.get(0)) : labels);
+            ctx.put("labels", labels.isEmpty() ? List.of(genres.getFirst()) : labels);
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
         });
@@ -364,7 +350,7 @@ public class DraftFactory {
                     if (name == null || name.isBlank()) {
                         var userData = listener.getUserData();
                         if (userData != null) {
-                                String v = userData.get("preferred_name");
+                            String v = userData.get("preferred_name");
                             if (v != null && !v.isBlank()) name = v;
                         }
                     }
