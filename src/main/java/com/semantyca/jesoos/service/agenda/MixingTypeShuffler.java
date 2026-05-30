@@ -4,20 +4,6 @@ import com.semantyca.mixpla.model.cnst.MixingType;
 
 public class MixingTypeShuffler {
 
-    public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity) {
-        return selectStrategy(availableSongCount, allowIntros, talkativity, null, 0, 0);
-    }
-
-    public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity,
-                                                 MixingType lastType, int consecutiveCount) {
-        return selectStrategy(availableSongCount, allowIntros, talkativity, lastType, consecutiveCount, 0);
-    }
-
-    public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity,
-                                                 MixingType lastType, int consecutiveCount, int consecutive2SongCount) {
-        return selectStrategy(availableSongCount, allowIntros, talkativity, lastType, consecutiveCount, consecutive2SongCount, 0);
-    }
-
     public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity,
                                                  MixingType lastType, int consecutiveCount, int consecutive2SongCount,
                                                  int consecutiveIntroCount) {
@@ -49,11 +35,5 @@ public class MixingTypeShuffler {
         }
         MixingType type = Math.random() < 0.5 ? MixingType.SONG_ONLY : MixingType.FILLER_JINGLE;
         return new MixingStrategy(type, 1, false);
-    }
-
-    private static boolean isTwoSong(MixingType type) {
-        return type == MixingType.INTRO_SONG_INTRO_SONG
-                || type == MixingType.SONG_INTRO_SONG
-                || type == MixingType.SONG_CROSSFADE_SONG;
     }
 }

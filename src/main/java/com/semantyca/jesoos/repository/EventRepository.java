@@ -2,7 +2,6 @@ package com.semantyca.jesoos.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.dto.actions.cnst.ActionType;
-import com.semantyca.core.model.embedded.DocumentAccessInfo;
 import com.semantyca.core.model.scheduler.Scheduler;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
