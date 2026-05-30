@@ -1,11 +1,11 @@
 package com.semantyca.jesoos.service.live.generated;
 
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.AnthropicTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
 import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
-import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.PromptService;
@@ -13,6 +13,8 @@ import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -58,8 +60,7 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
 
     @Override
     protected String buildArtistKey(String brandSlug, java.util.UUID promptId, com.semantyca.jesoos.service.live.scripting.DraftFactory.DraftResult draftResult) {
-        String adSlug = draftResult.selectedAdSlugName();
-        return adSlug != null ? brandSlug + "_" + adSlug : brandSlug + "_" + promptId;
+        return brandSlug + "_" + draftResult.selectedAdSlugName();
     }
 
     @Override
@@ -74,7 +75,7 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
     }
 
     @Override
-    protected com.semantyca.mixpla.model.aiagent.Voice getVoice(com.semantyca.mixpla.model.aiagent.AiAgent agent) {
+    public Voice getVoice(AiAgent agent) {
         return agent.getTtsSetting().getAdReader();
     }
 }

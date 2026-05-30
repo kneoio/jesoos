@@ -1,5 +1,8 @@
 package com.semantyca.jesoos.service.live.generated;
 
-public interface IGeneratedContent {
+import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.aiagent.Voice;
 
+public interface IGeneratedContent {
+    Voice getVoice(AiAgent agent);
 }
