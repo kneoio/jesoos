@@ -1,28 +1,31 @@
 package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
-import com.semantyca.jesoos.repository.UserAdRepository;
-import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
 import com.semantyca.jesoos.service.live.generated.GeneratedAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
-import com.semantyca.mixpla.model.cnst.PromptType;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
-import com.semantyca.mixpla.dto.queue.livestream.*;
+import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
+import com.semantyca.mixpla.dto.queue.livestream.SongKey;
+import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import com.semantyca.mixpla.model.cnst.PromptType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
@@ -38,7 +41,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.mixpla.dto.queue.livestream.SongKey.*;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.BACKGROUND_LOOP;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.GENERATED_CONTENT;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.JINGLE_INTRO;
+import static com.semantyca.mixpla.dto.queue.livestream.SongKey.JINGLE_OUTRO;
 
 @ApplicationScoped
 public class GeneratedContentEmitter {
@@ -53,7 +59,6 @@ public class GeneratedContentEmitter {
     private final QueueSupplier queueSupplier;
     private final IntroTtsGenerator introTtsGenerator;
     private final MetricPublisher metricPublisher;
-    private final UserAdRepository userAdRepository;
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
@@ -62,8 +67,7 @@ public class GeneratedContentEmitter {
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
                                    IntroTtsGenerator introTtsGenerator,
-                                   MetricPublisher metricPublisher,
-                                   UserAdRepository userAdRepository) {
+                                   MetricPublisher metricPublisher) {
         this.generatedNewsService = generatedNewsService;
         this.generatedAdService = generatedAdService;
         this.promptService = promptService;
@@ -71,7 +75,6 @@ public class GeneratedContentEmitter {
         this.queueSupplier = queueSupplier;
         this.introTtsGenerator = introTtsGenerator;
         this.metricPublisher = metricPublisher;
-        this.userAdRepository = userAdRepository;
     }
 
     public Uni<Void> send(String brandName,
@@ -111,10 +114,9 @@ public class GeneratedContentEmitter {
 
         record GeneratedResult(SoundFragment fragment, MixingType mixingType) {}
 
-        Uni<GeneratedResult> generatedUni = promptService.getById(promptId, com.semantyca.core.model.user.SuperUser.build())
+        Uni<GeneratedResult> generatedUni = promptService.getById(promptId, SuperUser.build())
                 .flatMap(prompt -> {
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
-                            && prompt.getTitle() != null
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
                     MixingType mixingType = scene.getMixingType();

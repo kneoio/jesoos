@@ -13,6 +13,8 @@ import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -67,7 +69,7 @@ public class GeneratedNewsService extends AbstractGeneratedContentService {
     }
 
     @Override
-    protected com.semantyca.mixpla.model.aiagent.Voice getVoice(com.semantyca.mixpla.model.aiagent.AiAgent agent) {
+    public Voice getVoice(AiAgent agent) {
         return agent.getTtsSetting().getNewsReporter();
     }
 }

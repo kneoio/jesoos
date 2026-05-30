@@ -22,6 +22,7 @@ import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -102,7 +103,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     protected abstract PlaylistItemType getFragmentType();
 
-    protected abstract com.semantyca.mixpla.model.aiagent.Voice getVoice(AiAgent agent);
+    public abstract Voice getVoice(AiAgent agent);
 
     public Uni<SoundFragment> generateAudio(
             UUID promptId,
@@ -123,8 +124,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     ) {
         AtomicBoolean fallBacked = new AtomicBoolean(false);
         UUID brandId = stream.getMasterBrandId();
-        String sceneTitle = liveScene != null ? liveScene.getSceneTitle() : "AI Generated";
-        UUID traceId = liveScene != null ? liveScene.getTraceId() : UUID.randomUUID();
+        String sceneTitle = liveScene.getSceneTitle();
+        UUID traceId = liveScene.getTraceId();
         OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime endOfDay = startOfDay.plusDays(1);
 
