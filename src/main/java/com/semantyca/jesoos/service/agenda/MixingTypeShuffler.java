@@ -7,7 +7,7 @@ public class MixingTypeShuffler {
     public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity,
                                                  MixingType lastType, int consecutiveCount, int consecutive2SongCount,
                                                  int consecutiveIntroCount) {
-        if (consecutiveIntroCount >= 2) {
+        if (consecutiveIntroCount >= 2 && talkativity < 1.0) {
             allowIntros = false;
         }
         if (allowIntros && Math.random() < talkativity) {
