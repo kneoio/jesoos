@@ -95,9 +95,9 @@ public class JingleSongEmitter {
                     }
 
                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
-                    songMap.put(getSongKeyByIndex(0), new SongInfoDTO(jingle.getId(), jingleDuration));
+                    songMap.put(SongKey.JINGLE_1, new SongInfoDTO(jingle.getId(), jingleDuration));
                     for (int i = 0; i < entry.getSongs().size(); i++) {
-                        songMap.put(getSongKeyByIndex(i + 1),
+                        songMap.put(getSongKeyByIndex(i),
                                 new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
                                         entry.getSongs().get(i).getDurationSeconds()));
                     }
