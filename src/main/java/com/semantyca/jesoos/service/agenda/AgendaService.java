@@ -164,7 +164,7 @@ public class AgendaService {
                                     liveScene.setIntroPrompts(scene.getIntroPrompts());
                                     liveScene.setActions(scene.getActions());
 
-                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap());
+                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), sourceBrand.getSlugName(), liveScene.getTraceId());
                                     liveScene.setTimeline(new TimelineBuilder().buildTimeline(
                                             liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions()));
 
@@ -256,7 +256,7 @@ public class AgendaService {
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());
                                 liveScene.setActions(scene.getActions());
 
-                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap());
+                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), brand.getSlugName(), liveScene.getTraceId());
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
                                         liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
                                 liveScene.setTimeline(timeline);
@@ -372,7 +372,7 @@ public class AgendaService {
     }
 
 
-    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, List<CustomAction> actions, AiAgent agent, Map<UUID, String> sharerMap) {
+    private List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, List<ScenePrompt> introPrompts, List<CustomAction> actions, AiAgent agent, Map<UUID, String> sharerMap, String brandName, UUID traceId) {
         List<SongEntry> songEntries = new ArrayList<>();
 
         List<IntroSource> pool = new ArrayList<>();
@@ -394,8 +394,16 @@ public class AgendaService {
                 LanguageTag languageTag = AiHelperUtils.selectLanguageByWeight(agent);
                 promptEntry.setLanguage(languageTag.toLanguageCode());
                 switch (selected) {
-                    case PromptIntroSource p -> promptEntry.setPromptId(p.scenePrompt().getPromptId());
-                    case ActionIntroSource a -> promptEntry.setCustomAction(a.customAction());
+                    case PromptIntroSource p -> {
+                        promptEntry.setPromptId(p.scenePrompt().getPromptId());
+                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_source_assigned",
+                                Map.of("songIndex", i, "songTitle", sf.getTitle() != null ? sf.getTitle() : "", "type", "prompt", "promptId", p.scenePrompt().getPromptId()), traceId);
+                    }
+                    case ActionIntroSource a -> {
+                        promptEntry.setCustomAction(a.customAction());
+                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_source_assigned",
+                                Map.of("songIndex", i, "songTitle", sf.getTitle() != null ? sf.getTitle() : "", "type", "action", "actionName", a.customAction().getName()), traceId);
+                    }
                 }
             }
 
