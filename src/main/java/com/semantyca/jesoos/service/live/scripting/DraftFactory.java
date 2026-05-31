@@ -235,7 +235,7 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", resolveListenerNames(listeners, selectedLanguage.toLanguageCode()));
-        data.put("labels", labels.isEmpty() ? List.of(genres.getFirst()) : labels);
+        data.put("labels", labels.isEmpty() ? (genres.isEmpty() ? List.of() : List.of(genres.getFirst())) : labels);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
             brand = stream.getLocalizedName().values().iterator().next();
@@ -319,7 +319,7 @@ public class DraftFactory {
             ZoneId tz = stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
             ctx.put("listeners", resolveListenerNames(listeners, language.toLanguageCode()));
-            ctx.put("labels", labels.isEmpty() ? List.of(genres.getFirst()) : labels);
+            ctx.put("labels", labels.isEmpty() ? (genres.isEmpty() ? List.of() : List.of(genres.getFirst())) : labels);
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
         });
