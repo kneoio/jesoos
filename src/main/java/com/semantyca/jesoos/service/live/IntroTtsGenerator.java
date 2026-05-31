@@ -381,8 +381,7 @@ public class IntroTtsGenerator {
     private Uni<Void> maybeSendDebugEmail(String slugName, String actionName, String instruction, Map<String, Object> variables, String result) {
         return brandService.getBySlugName(slugName)
                 .chain(brand -> {
-                    if (brand != null && brand.getOwner() != null && brand.getOwner().isActionDebugEnabled()
-                            && brand.getOwner().getEmail() != null && !brand.getOwner().getEmail().isBlank()) {
+                    if (brand.getOwner().isActionDebugEnabled() && !brand.getOwner().getEmail().isBlank()) {
                         return mailService.sendActionDebugEmail(brand.getOwner().getEmail(), actionName, instruction, variables, result);
                     }
                     return Uni.createFrom().voidItem();
