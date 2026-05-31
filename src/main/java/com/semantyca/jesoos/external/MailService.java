@@ -202,6 +202,69 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send stream links email", failure));
     }
 
+    public Uni<Void> sendActionDebugEmail(String email, String actionName, String instruction, Map<String, Object> variables, String result) {
+        LOG.info("Sending action debug email to: {} for action: {}", email, actionName);
+
+        StringBuilder varsHtml = new StringBuilder();
+        StringBuilder varsText = new StringBuilder();
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            String val = entry.getValue() != null ? entry.getValue().toString() : "";
+            varsHtml.append("<tr><td style=\"padding:4px 8px;font-weight:600;color:#4b5563;white-space:nowrap;\">")
+                    .append(entry.getKey())
+                    .append("</td><td style=\"padding:4px 8px;color:#1f2937;\">")
+                    .append(val)
+                    .append("</td></tr>");
+            varsText.append(entry.getKey()).append(" = ").append(val).append("\n");
+        }
+
+        String htmlBody = """
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:24px;background:#f7f7fb;font-family:Inter,Arial,sans-serif;color:#1f2937;">
+            <div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #ececf2;border-radius:14px;padding:28px;">
+                <div style="font-size:22px;font-weight:700;color:#4f46e5;margin-bottom:8px;">Mixpla</div>
+                <h2 style="font-size:18px;margin:0 0 4px;">Action Debug</h2>
+                <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">%s</p>
+
+                <h3 style="font-size:13px;font-weight:700;color:#4f46e5;letter-spacing:.05em;text-transform:uppercase;margin:0 0 6px;">Instruction</h3>
+                <div style="background:#f3f4ff;border:1px solid #dfe1ff;border-radius:10px;padding:14px;margin-bottom:20px;">
+                    <pre style="margin:0;font-size:13px;color:#312e81;font-family:'Courier New',monospace;white-space:pre-wrap;word-break:break-word;">%s</pre>
+                </div>
+
+                <h3 style="font-size:13px;font-weight:700;color:#4f46e5;letter-spacing:.05em;text-transform:uppercase;margin:0 0 6px;">Variables</h3>
+                <div style="background:#f9fafb;border:1px solid #ececf2;border-radius:10px;padding:10px;margin-bottom:20px;overflow-x:auto;">
+                    <table style="border-collapse:collapse;width:100%%;font-size:13px;font-family:'Courier New',monospace;">
+                        %s
+                    </table>
+                </div>
+
+                <h3 style="font-size:13px;font-weight:700;color:#4f46e5;letter-spacing:.05em;text-transform:uppercase;margin:0 0 6px;">Result</h3>
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:8px;">
+                    <p style="margin:0;font-size:14px;color:#14532d;line-height:1.6;">%s</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """.formatted(actionName, escapeHtml(instruction), varsHtml.toString(), escapeHtml(result));
+
+        String textBody = "Action Debug: " + actionName + "\n\n"
+                + "Instruction:\n" + instruction + "\n\n"
+                + "Variables:\n" + varsText
+                + "\nResult:\n" + result;
+
+        Mail mail = Mail.withHtml(email, "Action Debug: " + actionName, htmlBody)
+                .setText(textBody)
+                .setFrom("Mixpla <" + fromAddress + ">");
+
+        return reactiveMailer.send(mail)
+                .onFailure().invoke(failure -> LOG.error("Failed to send action debug email", failure));
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
     @Scheduled(every = "60m")
     void cleanupExpiredCodes() {
         LocalDateTime now = LocalDateTime.now();

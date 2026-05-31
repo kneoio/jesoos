@@ -12,9 +12,11 @@ import com.semantyca.jesoos.external.LlmTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.external.TTSClient;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.external.MailService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
+import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
@@ -60,6 +62,8 @@ public class IntroTtsGenerator {
     private final MetricPublisher metricPublisher;
     private final AnthropicTextClient anthropicTextClient;
     private final GroqTextClient groqTextClient;
+    private final BrandService brandService;
+    private final MailService mailService;
 
     @Inject
     public IntroTtsGenerator(
@@ -73,7 +77,9 @@ public class IntroTtsGenerator {
             FFmpegProvider ffmpegProvider,
             MetricPublisher metricPublisher,
             AnthropicTextClient anthropicTextClient,
-            GroqTextClient groqTextClient
+            GroqTextClient groqTextClient,
+            BrandService brandService,
+            MailService mailService
     ) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
@@ -86,6 +92,8 @@ public class IntroTtsGenerator {
         this.metricPublisher = metricPublisher;
         this.anthropicTextClient = anthropicTextClient;
         this.groqTextClient = groqTextClient;
+        this.brandService = brandService;
+        this.mailService = mailService;
     }
 
     @PostConstruct
@@ -148,7 +156,9 @@ public class IntroTtsGenerator {
         return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language, agent)
                 .chain(ctx -> {
                     String rendered = renderHandlebars(action.getInstruction(), ctx);
-                    return generateSpokenTextFromAction(rendered, action, ctx, agent, language, liveScene.getTraceId(), stream.getSlugName());
+                    return generateSpokenTextFromAction(rendered, action, ctx, agent, language, liveScene.getTraceId(), stream.getSlugName())
+                            .chain(spokenText -> maybeSendDebugEmail(stream.getSlugName(), action.getName(), action.getInstruction(), ctx, spokenText)
+                                    .replaceWith(spokenText));
                 })
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
                 .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
@@ -366,6 +376,17 @@ public class IntroTtsGenerator {
                         .put("llmResponse", stripEmoji(response.text()))
                         .put("inputTokens", response.inputTokens())
                         .put("outputTokens", response.outputTokens()));
+    }
+
+    private Uni<Void> maybeSendDebugEmail(String slugName, String actionName, String instruction, Map<String, Object> variables, String result) {
+        return brandService.getBySlugName(slugName)
+                .chain(brand -> {
+                    if (brand != null && brand.getOwner() != null && brand.getOwner().isActionDebugEnabled()
+                            && brand.getOwner().getEmail() != null && !brand.getOwner().getEmail().isBlank()) {
+                        return mailService.sendActionDebugEmail(brand.getOwner().getEmail(), actionName, instruction, variables, result);
+                    }
+                    return Uni.createFrom().voidItem();
+                });
     }
 
     private static String renderHandlebars(String template, Map<String, Object> context) {
