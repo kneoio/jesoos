@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.dto.radiostation;
+package com.semantyca.jesoos.dto.brand;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;

@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.dto.radiostation;
+package com.semantyca.jesoos.dto.brand;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

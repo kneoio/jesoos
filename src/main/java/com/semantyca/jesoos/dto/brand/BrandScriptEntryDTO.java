@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.dto.radiostation;
+package com.semantyca.jesoos.dto.brand;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
