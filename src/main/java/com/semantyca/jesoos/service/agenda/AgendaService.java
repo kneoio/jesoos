@@ -135,7 +135,7 @@ public class AgendaService {
                 currentLoopScene = slot.scene();
                 expandedSlots.add(new ExpandedSlot(slot.scene(), slot.startTime(), totalGap));
             } else {
-                int oneTimeDuration = MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS;
+                int oneTimeDuration = 60;
                 expandedSlots.add(new ExpandedSlot(slot.scene(), slot.startTime(), oneTimeDuration));
                 int remainingGap = totalGap - oneTimeDuration;
                 if (remainingGap > 0 && currentLoopScene != null) {
