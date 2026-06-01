@@ -191,7 +191,7 @@ public class IntroTtsGenerator {
         String finalText;
 
         String beforeHr = text.contains("---") ? text.substring(0, text.indexOf("---")) : text;
-        String trimmed = beforeHr.replaceAll("(?m)^#+\\s.*$", "").replaceAll("\\[.*?]", "").replaceAll("\n{3,}", "\n\n").replace("*", "").trim();
+        String trimmed = beforeHr.replaceAll("(?m)^#+\\s.*$", "").replaceAll("\\[.*?]", "").replace("*", "").replaceAll("\\n+", ". ").replaceAll("\\.{2,}", ".").trim();
         if (engineType == TTSEngineType.MODELSLAB) {
             ttsClient = modelslabClient;
             modelId = null;
