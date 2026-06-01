@@ -7,6 +7,4 @@ import lombok.Setter;
 @Setter
 public class AiOverridingDTO {
     private String name;
-    private String prompt;
-    private String primaryVoice;
 }

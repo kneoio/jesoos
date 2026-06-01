@@ -85,6 +85,7 @@ public class AgendaService {
         ZoneId brandZone = sourceBrand.getTimeZone();
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
         schedule.setTimeZone(brandZone);
+        UUID buildTraceId = UUID.randomUUID();
 
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
@@ -122,17 +123,35 @@ public class AgendaService {
                 : Uni.createFrom().nullItem();
 
         record BuildState(List<LiveScene> liveScenes, Set<UUID> usedIds) {}
+        record ExpandedSlot(Scene scene, LocalTime startTime, int durationSeconds) {}
+
+        List<ExpandedSlot> expandedSlots = new ArrayList<>();
+        Scene currentLoopScene = null;
+        for (int i = 0; i < timeSlots.size(); i++) {
+            SceneTimeSlot slot = timeSlots.get(i);
+            LocalTime nextStart = timeSlots.get((i + 1) % timeSlots.size()).startTime();
+            int totalGap = calculateDurationUntilNext(slot.startTime(), nextStart);
+            if (!slot.scene().isOneTimeRun()) {
+                currentLoopScene = slot.scene();
+                expandedSlots.add(new ExpandedSlot(slot.scene(), slot.startTime(), totalGap));
+            } else {
+                int oneTimeDuration = MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS;
+                expandedSlots.add(new ExpandedSlot(slot.scene(), slot.startTime(), oneTimeDuration));
+                int remainingGap = totalGap - oneTimeDuration;
+                if (remainingGap > 0 && currentLoopScene != null) {
+                    expandedSlots.add(new ExpandedSlot(currentLoopScene, slot.startTime().plusSeconds(oneTimeDuration), remainingGap));
+                }
+            }
+        }
 
         return agentUni.chain(agent -> {
             Uni<BuildState> chain = Uni.createFrom().item(new BuildState(new ArrayList<>(), new HashSet<>()));
 
-            for (int i = 0; i < timeSlots.size(); i++) {
+            for (ExpandedSlot expandedSlot : expandedSlots) {
                 final Uni<BuildState> prev = chain;
-                final SceneTimeSlot slot = timeSlots.get(i);
-                final Scene scene = slot.scene();
-                final LocalTime sceneOriginalStart = slot.startTime();
-                final int nextIndex = (i + 1) % timeSlots.size();
-                final int durationSeconds = calculateDurationUntilNext(sceneOriginalStart, timeSlots.get(nextIndex).startTime());
+                final Scene scene = expandedSlot.scene();
+                final LocalTime sceneOriginalStart = expandedSlot.startTime();
+                final int durationSeconds = expandedSlot.durationSeconds();
 
                 chain = prev.chain(state ->
                         fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
@@ -164,7 +183,7 @@ public class AgendaService {
                                     liveScene.setIntroPrompts(scene.getIntroPrompts());
                                     liveScene.setActions(scene.getActions());
 
-                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), sourceBrand.getSlugName(), liveScene.getTraceId());
+                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), sourceBrand.getSlugName(), buildTraceId);
                                     liveScene.setTimeline(new TimelineBuilder().buildTimeline(
                                             liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions()));
 
@@ -211,6 +230,7 @@ public class AgendaService {
         ZoneId brandZone = brand.getTimeZone();
         StreamAgenda schedule = new StreamAgenda(startTime);
         schedule.setTimeZone(brandZone);
+        UUID buildTraceId = UUID.randomUUID();
 
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
@@ -256,7 +276,7 @@ public class AgendaService {
                                 liveScene.setIntroPrompts(scene.getIntroPrompts());
                                 liveScene.setActions(scene.getActions());
 
-                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), brand.getSlugName(), liveScene.getTraceId());
+                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), brand.getSlugName(), buildTraceId);
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
                                         liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
                                 liveScene.setTimeline(timeline);

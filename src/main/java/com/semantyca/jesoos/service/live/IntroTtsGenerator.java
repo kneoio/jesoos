@@ -381,7 +381,18 @@ public class IntroTtsGenerator {
     private Uni<Void> maybeSendDebugEmail(String slugName, String actionName, String instruction, Map<String, Object> variables, String result) {
         return brandService.getBySlugName(slugName)
                 .chain(brand -> {
-                    if (brand.getOwner().isActionDebugEnabled() && !brand.getOwner().getEmail().isBlank()) {
+                    if (brand == null) {
+                        LOGGER.warnf("maybeSendDebugEmail: brand not found for slug '%s'", slugName);
+                        return Uni.createFrom().voidItem();
+                    }
+                    if (brand.getOwner() == null) {
+                        LOGGER.warnf("maybeSendDebugEmail: owner is null for brand '%s'", slugName);
+                        return Uni.createFrom().voidItem();
+                    }
+                    LOGGER.infof("maybeSendDebugEmail: brand='%s' owner email='%s' actionDebugEnabled=%s",
+                            slugName, brand.getOwner().getEmail(), brand.getOwner().isActionDebugEnabled());
+                    if (brand.getOwner().isActionDebugEnabled()
+                            && brand.getOwner().getEmail() != null && !brand.getOwner().getEmail().isBlank()) {
                         return mailService.sendActionDebugEmail(brand.getOwner().getEmail(), actionName, instruction, variables, result);
                     }
                     return Uni.createFrom().voidItem();

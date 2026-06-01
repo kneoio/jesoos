@@ -241,13 +241,12 @@ public class DraftFactory {
             brand = stream.getLocalizedName().values().iterator().next();
         }
         AiOverriding overriddenAiDj = stream.getAiOverriding();
-        if (overriddenAiDj != null) {
+        if (overriddenAiDj != null && overriddenAiDj.getName() != null && !overriddenAiDj.getName().isEmpty()) {
             data.put("djName", overriddenAiDj.getName());
-            data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
         } else {
             data.put("djName", agent.getName());
-            data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         }
+        data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
         if (overriddenProfile != null) {
             if (!overriddenProfile.getName().isEmpty()) {
@@ -276,9 +275,15 @@ public class DraftFactory {
         data.put("ads", adsHelper);
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");
-        data.put("songTitle", song.getTitle());
-        data.put("songArtist", song.getArtist());
-        data.put("songDescription", song.getDescription());
+        if (song != null) {
+            data.put("songTitle", song.getTitle());
+            data.put("songArtist", song.getArtist());
+            data.put("songDescription", song.getDescription());
+        } else {
+            data.put("songTitle", "");
+            data.put("songArtist", "");
+            data.put("songDescription", "");
+        }
         data.put("songGenres", genres);
         data.put("songSharerName", sharerName != null ? sharerName : "");
 
