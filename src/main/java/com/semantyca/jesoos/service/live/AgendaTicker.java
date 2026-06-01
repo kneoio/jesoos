@@ -73,20 +73,16 @@ public class AgendaTicker {
             // Check if current active oneTimeRun scene is finished after scheduling
             LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
             if (currentActiveScene != null && currentActiveScene.isOneTimeRun() && currentActiveScene.isFinished()) {
-                int currentIndex = -1;
-                for (int i = 0; i < scenes.size(); i++) {
-                    if (scenes.get(i) == currentActiveScene) {
-                        currentIndex = i;
-                        break;
-                    }
-                }
-                if (currentIndex >= 0) {
-                    LiveScene nextScene = scenes.get((currentIndex + 1) % scenes.size());
-                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, advancing to '%s'",
-                            currentActiveScene.getSceneTitle(), brandSlug, nextScene.getSceneTitle());
+                LiveScene loopingScene = findLoopingScene(scenes, nowTime);
+                if (loopingScene != null) {
+                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, resuming looping scene '%s'",
+                            currentActiveScene.getSceneTitle(), brandSlug, loopingScene.getSceneTitle());
                     staggeredSongScheduler.cancelBrandTimers(brandSlug);
                     scenePool.removeActiveScene(brandSlug);
-                    processScene(brandSlug, nextScene, TriggerContext.ON_TIME);
+                    processScene(brandSlug, loopingScene, TriggerContext.ON_TIME);
+                } else {
+                    LOGGER.warnf("One-time-run scene '%s' finished for brand: %s, no looping scene found",
+                            currentActiveScene.getSceneTitle(), brandSlug);
                 }
                 return;
             }
@@ -103,6 +99,20 @@ public class AgendaTicker {
                 scenePool.removeActiveScene(brandSlug);
             }
         });
+    }
+
+    private LiveScene findLoopingScene(List<LiveScene> scenes, LocalTime nowTime) {
+        LiveScene best = null;
+        for (LiveScene scene : scenes) {
+            if (scene.isOneTimeRun()) continue;
+            LocalTime start = scene.getOriginalStartTime();
+            if (!start.isAfter(nowTime)) {
+                if (best == null || start.isAfter(best.getOriginalStartTime())) {
+                    best = scene;
+                }
+            }
+        }
+        return best;
     }
 
     private long calculateLagSeconds(LocalTime nowTime, LocalTime sceneStartTime) {
