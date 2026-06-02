@@ -11,6 +11,7 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ScheduleSongSupplier {
+    private static final Logger LOGGER = Logger.getLogger(ScheduleSongSupplier.class);
 
     private final SoundFragmentRepository repository;
     private final SharedSoundFragmentService sharedSoundFragmentService;
@@ -44,13 +46,20 @@ public class ScheduleSongSupplier {
 
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
 
+        long t0 = System.currentTimeMillis();
+        LOGGER.infof("[getSongsForBrand] brand=%s type=%s newest=%d oldest=%d random=%d excludeIds=%d", brandId, type, newest, oldest, random, effective.size());
+
+        Uni<List<SoundFragment>> newestUni = repository.findByFilter(brandId, filter, newest, effective)
+                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilter(newest) done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
+        Uni<List<SoundFragment>> oldestUni = repository.findByFilterOldest(brandId, filter, oldest, effective)
+                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilterOldest done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
+        Uni<List<SoundFragment>> randomUni = repository.findByFilterRandom(brandId, filter, random, effective)
+                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilterRandom done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
+        Uni<List<SharedSongEntry>> sharedUni = sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
+                .invoke(r -> LOGGER.infof("[getSongsForBrand] getForBrand(shared) done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
+
         return Uni.combine().all()
-                .unis(
-                        repository.findByFilter(brandId, filter, newest, effective),
-                        repository.findByFilterOldest(brandId, filter, oldest, effective),
-                        repository.findByFilterRandom(brandId, filter, random, effective),
-                        sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
-                )
+                .unis(newestUni, oldestUni, randomUni, sharedUni)
                 .asTuple()
                 .map(tuple -> {
                     Map<UUID, SoundFragment> merged = new LinkedHashMap<>();

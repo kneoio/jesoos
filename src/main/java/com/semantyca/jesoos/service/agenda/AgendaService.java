@@ -153,44 +153,47 @@ public class AgendaService {
                 final LocalTime sceneOriginalStart = expandedSlot.startTime();
                 final int durationSeconds = expandedSlot.durationSeconds();
 
-                chain = prev.chain(state ->
-                        fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
-                                .chain(pool -> {
-                                    if (pool.songs().isEmpty() && !state.usedIds().isEmpty()) {
-                                        LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set", scene.getTitle());
-                                        state.usedIds().clear();
-                                        return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
-                                    }
-                                    return Uni.createFrom().item(pool);
-                                })
-                                .map(pool -> {
-                                    pool.songs().forEach(sf -> state.usedIds().add(sf.getId()));
+                chain = prev.chain(state -> {
+                    long sceneT0 = System.currentTimeMillis();
+                    LOGGER.infof("[buildAgenda] START scene='%s' duration=%ds excludeIds=%d", scene.getTitle(), durationSeconds, state.usedIds().size());
+                    return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
+                            .chain(pool -> {
+                                if (pool.songs().isEmpty() && !state.usedIds().isEmpty()) {
+                                    LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set", scene.getTitle());
+                                    state.usedIds().clear();
+                                    return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
+                                }
+                                return Uni.createFrom().item(pool);
+                            })
+                            .map(pool -> {
+                                LOGGER.infof("[buildAgenda] DONE scene='%s' songs=%d elapsed=%dms", scene.getTitle(), pool.songs().size(), System.currentTimeMillis() - sceneT0);
+                                pool.songs().forEach(sf -> state.usedIds().add(sf.getId()));
 
-                                    LiveScene liveScene = new LiveScene();
-                                    liveScene.setSceneId(scene.getId());
-                                    liveScene.setSceneTitle(scene.getTitle());
-                                    liveScene.setOriginalStartTime(sceneOriginalStart);
-                                    liveScene.setTraceId(UUID.randomUUID());
-                                    liveScene.setTimeZone(brandZone);
-                                    liveScene.setAgentId(sourceBrand.getAiAgentId());
-                                    liveScene.setContentStatus(ContentStatus.PENDING);
-                                    liveScene.setOneTimeRun(scene.isOneTimeRun());
-                                    if (scene.getPlaylistRequest() != null && isGeneratedContentScene(scene.getPlaylistRequest())) {
-                                        liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
-                                        liveScene.setMixingType(scene.getPlaylistRequest().getMixingType());
-                                        liveScene.setMixingArtefacts(scene.getPlaylistRequest().getMixingArtefacts());
-                                    }
-                                    liveScene.setIntroPrompts(scene.getIntroPrompts());
-                                    liveScene.setActions(scene.getActions());
+                                LiveScene liveScene = new LiveScene();
+                                liveScene.setSceneId(scene.getId());
+                                liveScene.setSceneTitle(scene.getTitle());
+                                liveScene.setOriginalStartTime(sceneOriginalStart);
+                                liveScene.setTraceId(UUID.randomUUID());
+                                liveScene.setTimeZone(brandZone);
+                                liveScene.setAgentId(sourceBrand.getAiAgentId());
+                                liveScene.setContentStatus(ContentStatus.PENDING);
+                                liveScene.setOneTimeRun(scene.isOneTimeRun());
+                                if (scene.getPlaylistRequest() != null && isGeneratedContentScene(scene.getPlaylistRequest())) {
+                                    liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
+                                    liveScene.setMixingType(scene.getPlaylistRequest().getMixingType());
+                                    liveScene.setMixingArtefacts(scene.getPlaylistRequest().getMixingArtefacts());
+                                }
+                                liveScene.setIntroPrompts(scene.getIntroPrompts());
+                                liveScene.setActions(scene.getActions());
 
-                                    List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), sourceBrand.getSlugName(), buildTraceId);
-                                    liveScene.setTimeline(new TimelineBuilder().buildTimeline(
-                                            liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions()));
+                                List<SongEntry> songEntries = convertToSongEntries(pool.songs(), scene.getIntroPrompts(), scene.getActions(), agent, pool.sharerMap(), sourceBrand.getSlugName(), buildTraceId);
+                                liveScene.setTimeline(new TimelineBuilder().buildTimeline(
+                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions()));
 
-                                    state.liveScenes().add(liveScene);
-                                    return state;
-                                })
-                );
+                                state.liveScenes().add(liveScene);
+                                return state;
+                            });
+                });
             }
 
             return chain.map(state -> {
