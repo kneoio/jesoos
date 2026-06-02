@@ -13,6 +13,7 @@ import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.PromptService;
@@ -21,6 +22,7 @@ import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.DjPrompt;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
@@ -64,6 +66,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected final DraftFactory draftFactory;
     protected final AiAgentService aiAgentService;
     protected final FFmpegProvider ffmpegProvider;
+    protected final UserAdRepository userAdRepository;
 
     protected AbstractGeneratedContentService(
             PromptService promptService,
@@ -78,7 +81,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             GroqTextClient groqTextClient,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
-            FFmpegProvider ffmpegProvider
+            FFmpegProvider ffmpegProvider,
+            UserAdRepository userAdRepository
     ) {
         this.promptService = promptService;
         this.soundFragmentService = soundFragmentService;
@@ -93,6 +97,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.draftFactory = draftFactory;
         this.aiAgentService = aiAgentService;
         this.ffmpegProvider = ffmpegProvider;
+        this.userAdRepository = userAdRepository;
     }
 
     protected String buildArtistKey(String brandSlug, UUID promptId, DraftFactory.DraftResult draftResult) {
@@ -147,16 +152,30 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
                             return soundFragmentRepository.findByArtistAndDate(artistKey, startOfDay, endOfDay)
                                     .chain(existing -> {
+                                        Uni<SoundFragment> fragmentUni;
                                         if (existing != null) {
                                             LOGGER.infof("Reusing existing generated fragment %s for key %s", existing.getId(), artistKey);
-                                            return Uni.createFrom().item(existing);
-                                        }
-                                        if (draftResult.text() == null) {
+                                            fragmentUni = Uni.createFrom().item(existing);
+                                        } else if (draftResult.text() == null) {
                                             return Uni.createFrom().failure(
                                                     new RuntimeException("Text generation failed for scene: " + sceneTitle));
+                                        } else {
+                                            fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
                                         }
-                                        return introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
-                                                .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
+                                        return fragmentUni.call(fragment -> {
+                                            UUID adId = draftResult.selectedAdId();
+                                            if (adId == null) return Uni.createFrom().voidItem();
+                                            int durationSeconds = fragment.getLength() != null ? (int) fragment.getLength().getSeconds() : 0;
+                                            PlayHistory entry = new PlayHistory(
+                                                    OffsetDateTime.now(),
+                                                    durationSeconds,
+                                                    draftResult.text(),
+                                                    agent.getName()
+                                            );
+                                            return userAdRepository.addPlayHistoryEntry(adId, entry)
+                                                    .invoke(() -> LOGGER.infof("Play history recorded for ad %s", adId));
+                                        });
                                     });
                         })
                 );

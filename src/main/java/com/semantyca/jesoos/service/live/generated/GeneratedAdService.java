@@ -6,6 +6,7 @@ import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
 import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
+import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.PromptService;
@@ -36,7 +37,8 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
             IntroTtsGenerator introTtsGenerator,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
-            FFmpegProvider ffmpegProvider
+            FFmpegProvider ffmpegProvider,
+            UserAdRepository userAdRepository
     ) {
         super(
                 promptService,
@@ -51,11 +53,12 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
                 groqTextClient,
                 draftFactory,
                 aiAgentService,
-                ffmpegProvider);
+                ffmpegProvider,
+                userAdRepository);
     }
 
     GeneratedAdService() {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null);
+        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Override
