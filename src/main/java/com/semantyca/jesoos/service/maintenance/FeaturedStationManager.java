@@ -98,12 +98,4 @@ public class FeaturedStationManager {
                 })
                 .replaceWithVoid();
     }
-
-    public boolean isFeaturedStation(String slug) {
-        return featuredStations.contains(slug);
-    }
-
-    public Set<String> getFeaturedStations() {
-        return Set.copyOf(featuredStations);
-    }
 }
