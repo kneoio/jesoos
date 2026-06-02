@@ -32,14 +32,14 @@ public class CommandResource extends AbstractResource {
 
     private void handleStart(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        rc.vertx().executeBlocking(() -> handleStartCommand(slugName))
-                .onSuccess(response -> {
-                    rc.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(response.encode());
-                })
-                .onFailure(failure -> handleCommandFailure(rc, slugName, "start", failure));
+        commandService.startBrand(slugName)
+                .subscribe().with(
+                        response -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(response.encode()),
+                        failure -> handleCommandFailure(rc, slugName, "start", failure)
+                );
     }
 
     private void handleStop(RoutingContext rc) {
@@ -112,15 +112,6 @@ public class CommandResource extends AbstractResource {
                     .end(new JsonObject()
                             .put("error", "Invalid sceneId or sequence number: " + e.getMessage())
                             .encode());
-        }
-    }
-
-    private JsonObject handleStartCommand(String brand) {
-        try {
-            return commandService.startBrand(brand)
-                    .await().indefinitely();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
     }
 
