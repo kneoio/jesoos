@@ -328,13 +328,17 @@ public class AgendaService {
                 req.setLabels(playlistRequest.getLabels());
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
-                yield songSupplier.getSongsByQuery(brand.getId(), req, maxDurationSeconds)
+                int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
+                yield songSupplier.getSongsByQuery(brand.getId(), req, songCount)
                         .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds)
                     .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
-            default -> songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, maxDurationSeconds, excludeIds)
-                    .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
+            default -> {
+                int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
+                yield songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, songCount, excludeIds)
+                        .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
+            }
         };
     }
 
