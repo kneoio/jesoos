@@ -13,6 +13,7 @@ import com.semantyca.jesoos.service.DraftService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.ProfileService;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
+import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.jesoos.util.TimeContextUtil;
 import com.semantyca.mixpla.model.Draft;
 import com.semantyca.mixpla.model.Profile;
@@ -90,7 +91,7 @@ public class DraftFactory {
             Map<String, Object> userVariables,
             String sharerName
     ) {
-        LanguageTag selectedLanguage = com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent);
+        LanguageTag selectedLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
@@ -313,7 +314,7 @@ public class DraftFactory {
             ctx.put("songTitle", song.getTitle());
             ctx.put("songArtist", song.getArtist());
             ctx.put("songDescription", song.getDescription());
-            ctx.put("songGenres", String.join(", ", genres));
+            ctx.put("songGenres", String.join(",", genres));
             ctx.put("country", stream.getCountry().getCountryName());
             String brand = stream.getLocalizedName().get(language.toLanguageCode());
             if (brand == null && !stream.getLocalizedName().isEmpty()) {
@@ -339,27 +340,43 @@ public class DraftFactory {
 
         List<Uni<String>> genreUnis = genreIds.stream()
                 .map(genreId -> genreService.getById(genreId)
-                        .map(genre -> genre.getLocalizedName().get(selectedLanguage)))
+                        .map(genre -> {
+                            String g = genre.getLocalizedName().get(selectedLanguage);
+                            if (g == null) {
+                                LOGGER.warnf("Genre %s is not translated to language: %s", genre.getIdentifier(), selectedLanguage.getCode());
+                                return genre.getIdentifier();
+                            }
+                            return g;
+
+                        }))
                 .collect(Collectors.toList());
 
         return Uni.join().all(genreUnis).andFailFast();
     }
 
     private List<String> resolveListenerNames(List<BrandListenerDTO> listeners, LanguageCode lang) {
-        if (listeners == null) return List.of();
+        if (listeners == null) {
+            return List.of();
+        }
         return listeners.stream()
                 .map(dto -> {
                     var listener = dto.getListenerDTO();
-                    if (listener == null) return null;
+                    if (listener == null) {
+                        return null;
+                    }
                     String name = listener.getLocalizedName().get(lang);
                     if (name == null || name.isBlank()) {
                         var userData = listener.getUserData();
                         if (userData != null) {
                             String v = userData.get("preferred_name");
-                            if (v != null && !v.isBlank()) name = v;
+                            if (v != null && !v.isBlank()) {
+                                name = v;
+                            }
                         }
                     }
-                    if (name == null || name.isBlank()) name = listener.getSlugName();
+                    if (name == null || name.isBlank()) {
+                        name = listener.getSlugName();
+                    }
                     return name;
                 })
                 .filter(n -> n != null && !n.isBlank())
