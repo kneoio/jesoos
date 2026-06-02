@@ -414,16 +414,8 @@ public class AgendaService {
                 LanguageTag languageTag = AiHelperUtils.selectLanguageByWeight(agent);
                 promptEntry.setLanguage(languageTag.toLanguageCode());
                 switch (selected) {
-                    case PromptIntroSource p -> {
-                        promptEntry.setPromptId(p.scenePrompt().getPromptId());
-                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_source_assigned",
-                                Map.of("songIndex", i, "songTitle", sf.getTitle() != null ? sf.getTitle() : "", "type", "prompt", "promptId", p.scenePrompt().getPromptId()), traceId);
-                    }
-                    case ActionIntroSource a -> {
-                        promptEntry.setCustomAction(a.customAction());
-                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_source_assigned",
-                                Map.of("songIndex", i, "songTitle", sf.getTitle() != null ? sf.getTitle() : "", "type", "action", "actionName", a.customAction().getName()), traceId);
-                    }
+                    case PromptIntroSource p -> promptEntry.setPromptId(p.scenePrompt().getPromptId());
+                    case ActionIntroSource a -> promptEntry.setCustomAction(a.customAction());
                 }
             }
 

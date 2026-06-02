@@ -174,19 +174,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilter(brandId, filter, limit);
     }
 
-    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findByFilterOldest(brandId, filter, limit);
-    }
-
     public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findByFilterOldest(brandId, filter, limit, excludeIds);
-    }
-
-    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findByFilterRandom(brandId, filter, limit);
     }
 
     public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
@@ -204,27 +194,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandCatalogSummary(brandId);
     }
 
-    public Uni<List<SoundFragment>> findByIds(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-        String placeholders = ids.stream()
-                .map(id -> "'" + id.toString() + "'")
-                .collect(java.util.stream.Collectors.joining(","));
-        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
-                "WHERE t.id IN (" + placeholders + ") AND t.archived = 0";
-        return client.query(sql)
-                .execute()
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
-                .concatenate()
-                .collect().asList();
-    }
-
-    /**
-     * Loads fragments by id for scheduling; orders by higher {@code boost}, then fewer
-     * {@code played_by_brand_count} for this brand (fragments without a brand row sort like 0 plays).
-     */
     public Uni<List<SoundFragment>> findByIdsForBrand(UUID brandId, List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
             return Uni.createFrom().item(List.of());

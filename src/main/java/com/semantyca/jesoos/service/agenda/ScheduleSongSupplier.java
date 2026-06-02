@@ -34,10 +34,6 @@ public class ScheduleSongSupplier {
         this.sharedSoundFragmentService = sharedSoundFragmentService;
     }
 
-    public Uni<SongPool> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity) {
-        return getSongsForBrand(brandId, type, quantity, Set.of());
-    }
-
     public Uni<SongPool> getSongsForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));

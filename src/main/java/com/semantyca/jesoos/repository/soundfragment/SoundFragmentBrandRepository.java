@@ -4,13 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
-import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
-import com.semantyca.mixpla.model.soundfragment.BrandSoundFragmentFlat;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.officeframe.dto.GenreDTO;
-import com.semantyca.officeframe.dto.LabelDTO;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -203,13 +199,9 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
+                .onItem().transformToUni(row -> from(row, true, false, true))
                 .concatenate()
                 .collect().asList();
-    }
-
-    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit) {
-        return findByFilterOldest(brandId, filter, limit, Set.of());
     }
 
     public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
@@ -237,13 +229,9 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
+                .onItem().transformToUni(row -> from(row, true, false, true))
                 .concatenate()
                 .collect().asList();
-    }
-
-    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit) {
-        return findByFilterRandom(brandId, filter, limit, Set.of());
     }
 
     public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
@@ -269,7 +257,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
+                .onItem().transformToUni(row -> from(row, true, false, true))
                 .concatenate()
                 .collect().asList();
     }
