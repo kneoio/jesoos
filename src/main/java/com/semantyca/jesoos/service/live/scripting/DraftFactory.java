@@ -24,9 +24,9 @@ import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import com.semantyca.mixpla.template.GroovyTemplateEngine;
 import com.semantyca.officeframe.model.cnst.CountryCode;
-import com.semantyca.officeframe.service.GenreService;
-import com.semantyca.officeframe.service.LabelService;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -45,8 +45,6 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 public class DraftFactory {
     private static final Logger LOGGER = Logger.getLogger(DraftFactory.class);
 
-    private final GenreService genreService;
-    private final LabelService labelService;
     private final ProfileService profileService;
     private final DraftService draftService;
     private final AiAgentService aiAgentService;
@@ -60,14 +58,12 @@ public class DraftFactory {
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(GenreService genreService, LabelService labelService, ProfileService profileService,
+    public DraftFactory(ProfileService profileService,
                         DraftService draftService, AiAgentService aiAgentService,
                         WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient,
                         PerplexityApiClient perplexityApiClient,
                         ListenerService listenerService, ChatSummaryService chatSummaryService,
                         io.vertx.mutiny.sqlclient.Pool dbClient) {
-        this.genreService = genreService;
-        this.labelService = labelService;
         this.profileService = profileService;
         this.draftService = draftService;
         this.aiAgentService = aiAgentService;
@@ -332,26 +328,15 @@ public class DraftFactory {
     }
 
     private Uni<List<String>> resolveGenreNames(SoundFragment song, LanguageCode selectedLanguage) {
-        List<UUID> genreIds = song.getGenres();
-        if (genreIds == null || genreIds.isEmpty()) {
-            LOGGER.warnf("Song %s (ID: %s) has no genres assigned", song.getTitle(), song.getId());
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Uni<String>> genreUnis = genreIds.stream()
-                .map(genreId -> genreService.getById(genreId)
-                        .map(genre -> {
-                            String g = genre.getLocalizedName().get(selectedLanguage);
-                            if (g == null) {
-                                LOGGER.warnf("Genre %s is not translated to language: %s", genre.getIdentifier(), selectedLanguage.getCode());
-                                return genre.getIdentifier();
-                            }
-                            return g;
-
-                        }))
-                .collect(Collectors.toList());
-
-        return Uni.join().all(genreUnis).andFailFast();
+        String sql = "SELECT COALESCE(g.loc_name->>$2, g.identifier) AS name FROM __genres g " +
+                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
+                "WHERE sfg.sound_fragment_id = $1";
+        return dbClient.preparedQuery(sql)
+                .execute(Tuple.of(song.getId(), selectedLanguage.name()))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getString("name"))
+                .filter(name -> name != null && !name.isBlank())
+                .collect().asList();
     }
 
     private List<String> resolveListenerNames(List<BrandListenerDTO> listeners, LanguageCode lang) {
@@ -384,17 +369,15 @@ public class DraftFactory {
     }
 
     private Uni<List<String>> resolveLabels(SoundFragment song, LanguageCode selectedLanguage) {
-        List<UUID> labelIds = song.getLabels();
-        if (labelIds == null || labelIds.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Uni<String>> labelUnis = labelIds.stream()
-                .map(labelId -> labelService.getById(labelId)
-                        .map(label -> label.getLocalizedName(selectedLanguage)))
-                .collect(Collectors.toList());
-
-        return Uni.join().all(labelUnis).andFailFast();
+        String sql = "SELECT l.loc_name->>$2 AS name FROM __labels l " +
+                "JOIN mixpla__sound_fragment_labels sfl ON l.id = sfl.label_id " +
+                "WHERE sfl.id = $1";
+        return dbClient.preparedQuery(sql)
+                .execute(Tuple.of(song.getId(), selectedLanguage.name()))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getString("name"))
+                .filter(name -> name != null && !name.isBlank())
+                .collect().asList();
     }
 
 }
