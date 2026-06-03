@@ -169,6 +169,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, type, limit, offset);
     }
 
+    public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findActiveScheduledByBrand(brandId);
+    }
+
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findByFilter(brandId, filter, limit);

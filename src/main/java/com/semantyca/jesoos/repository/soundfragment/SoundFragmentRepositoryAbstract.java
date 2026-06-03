@@ -3,6 +3,7 @@ package com.semantyca.jesoos.repository.soundfragment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.FileMetadata;
 import com.semantyca.core.model.cnst.FileStorageType;
+import com.semantyca.core.model.scheduler.Scheduler;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.repository.AsyncRepository;
@@ -14,6 +15,7 @@ import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
+import io.vertx.core.json.JsonObject;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
@@ -65,6 +67,18 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setDescription(row.getString("description"));
         java.time.LocalDateTime expiresAtRaw = row.getLocalDateTime("expires_at");
         doc.setExpiresAt(expiresAtRaw != null ? expiresAtRaw.atOffset(ZoneOffset.UTC) : null);
+
+        JsonObject schedulerJson = row.getJsonObject("scheduler");
+        if (schedulerJson != null) {
+            try {
+                JsonObject schedulerData = schedulerJson.getJsonObject("scheduler");
+                if (schedulerData != null) {
+                    doc.setScheduler(mapper.convertValue(schedulerData.getMap(), Scheduler.class));
+                }
+            } catch (Exception e) {
+                LOGGER.errorf("Failed to parse scheduler JSON for sound fragment: %s", row.getUUID("id"));
+            }
+        }
 
         Uni<SoundFragment> uni = Uni.createFrom().item(doc);
 

@@ -261,4 +261,21 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .concatenate()
                 .collect().asList();
     }
+
+    public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
+                "JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id " +
+                "WHERE bsf.brand_id = $1 " +
+                "AND t.archived = 0 " +
+                "AND t.scheduler IS NOT NULL " +
+                "AND t.type IN ('PRERECORDED_ADVERTISEMENT', 'PRERECORDED_PODCAST')";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(this::from)
+                .concatenate()
+                .select().where(sf -> sf.getScheduler() != null && sf.getScheduler().isEnabled())
+                .collect().asList();
+    }
 }
