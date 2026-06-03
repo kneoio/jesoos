@@ -41,7 +41,6 @@ public class AgendaService {
     private final AiAgentService aiAgentService;
     private final ScheduleSongSupplier scheduleSongSupplier;
     private final SceneService sceneService;
-    private final AgendaPersistenceService agendaPersistenceService;
     private final MetricPublisher metricPublisher;
     private final Random random = new Random();
 
@@ -52,13 +51,11 @@ public class AgendaService {
                          AiAgentService aiAgentService,
                          ScheduleSongSupplier scheduleSongSupplier,
                          SceneService sceneService,
-                         AgendaPersistenceService agendaPersistenceService,
                          MetricPublisher metricPublisher) {
         this.scriptService = scriptService;
         this.aiAgentService = aiAgentService;
         this.scheduleSongSupplier = scheduleSongSupplier;
         this.sceneService = sceneService;
-        this.agendaPersistenceService = agendaPersistenceService;
         this.metricPublisher = metricPublisher;
     }
 
@@ -215,11 +212,7 @@ public class AgendaService {
                 }
                 return schedule;
             });
-        }).invoke(agenda -> agendaPersistenceService.persist(agenda, sourceBrand.getId(), user.getId())
-                .subscribe().with(
-                        id -> LOGGER.debugf("Agenda persisted async for brand %s, config id: %s", sourceBrand.getId(), id),
-                        e -> LOGGER.warnf("Agenda persistence failed for brand %s: %s", sourceBrand.getId(), e.getMessage())
-                ));
+        });
     }
 
     public Uni<StreamAgenda> buildOtsAgenda(Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {

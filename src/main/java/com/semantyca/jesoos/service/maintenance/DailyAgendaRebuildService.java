@@ -3,7 +3,6 @@ package com.semantyca.jesoos.service.maintenance;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
-import com.semantyca.jesoos.repository.agenda.AgendaRepository;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.jesoos.service.live.BrandPool;
@@ -11,12 +10,10 @@ import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -28,17 +25,14 @@ public class DailyAgendaRebuildService {
     private final AgendaService agendaService;
     private final BrandService brandService;
     private final MetricPublisher metricPublisher;
-    private final AgendaRepository agendaRepository;
 
     @Inject
     public DailyAgendaRebuildService(BrandPool brandPool, AgendaService agendaService,
-                                     BrandService brandService, MetricPublisher metricPublisher,
-                                     AgendaRepository agendaRepository) {
+                                     BrandService brandService, MetricPublisher metricPublisher) {
         this.brandPool = brandPool;
         this.agendaService = agendaService;
         this.brandService = brandService;
         this.metricPublisher = metricPublisher;
-        this.agendaRepository = agendaRepository;
     }
 
     @Scheduled(cron = "0 0 5 * * ?") // 5:00 AM daily
@@ -61,7 +55,7 @@ public class DailyAgendaRebuildService {
                             return 0;
                         }))
                 .collect().asList()
-                .chain(results -> {
+                .invoke(results -> {
                     long success = results.stream().filter(r -> r > 0).count();
                     long failure = results.stream().filter(r -> r == 0).count();
                     LOGGER.infof("Agenda rebuild completed: %d success, %d failures", success, failure);
@@ -69,10 +63,9 @@ public class DailyAgendaRebuildService {
                             "daily_agenda_rebuild_completed",
                             Map.of("totalBrands", activeStreams.size(), "successCount", success, "failureCount", failure),
                             null);
-                    return deleteOldAgendas();
                 })
                 .subscribe().with(
-                        deleted -> LOGGER.infof("Deleted %d agenda configurations older than 7 days", deleted),
+                        ignored -> {},
                         failure -> {
                             LOGGER.error("Daily agenda rebuild pipeline failed", failure);
                             metricPublisher.publishMetric("system", MetricEventType.ERROR, ProcessType.CRON,
@@ -101,12 +94,6 @@ public class DailyAgendaRebuildService {
                             })
                             .map(ignored -> 1);
                 });
-    }
-
-    private Uni<Integer> deleteOldAgendas() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(7);
-        return agendaRepository.deleteOlderThan(cutoff)
-                .invoke(count -> LOGGER.infof("Purged %d agenda configurations older than %s", count, cutoff));
     }
 
 }
