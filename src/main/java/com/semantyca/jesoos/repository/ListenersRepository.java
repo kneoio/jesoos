@@ -119,7 +119,7 @@ public class ListenersRepository extends AsyncRepository {
                                             return listener;
                                         }));
                     } else {
-                        LOGGER.warn("No {} found with id: {}, user: {} ", LISTENER, uuid, user.getId());
+                        LOGGER.warnf("No %s found with id: %s, user: %s ", LISTENER, uuid, user.getId());
                         throw new DocumentHasNotFoundException(uuid);
                     }
                 });
@@ -274,7 +274,7 @@ public class ListenersRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update listener: {} by user: {}", id, user.getId(), throwable))
+                        .onFailure().invoke(throwable -> LOGGER.errorf("Failed to check RLS permissions for update listener: %s by user: %s", id, user.getId(), throwable))
                         .onItem().transformToUni(permissions -> {
                             if (!permissions[0]) {
                                 return Uni.createFrom().failure(new DocumentModificationAccessException(
@@ -301,7 +301,7 @@ public class ListenersRepository extends AsyncRepository {
 
                                 return tx.preparedQuery(sql)
                                         .execute(params)
-                                        .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
+                                        .onFailure().invoke(throwable -> LOGGER.errorf("Failed to update listener: %s by user: %s", id, user.getId(), throwable))
                                         .onItem().transformToUni(rowSet -> {
                                             if (rowSet.rowCount() == 0) {
                                                 return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
@@ -312,7 +312,7 @@ public class ListenersRepository extends AsyncRepository {
                             }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
             } catch (Exception e) {
-                LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);
+                LOGGER.errorf("Failed to prepare update parameters for listener: %s by user: %s", id, user.getId(), e);
                 return Uni.createFrom().failure(e);
             }
         });
@@ -516,12 +516,12 @@ public class ListenersRepository extends AsyncRepository {
                 .addUUID(id);
         return client.preparedQuery("UPDATE " + entityData.getTableName() + " SET user_data=$1 WHERE id=$2")
                 .execute(params)
-                .onFailure().invoke(err -> LOGGER.error("Failed to update user_data for listener {}: {}", id, err.getMessage()))
+                .onFailure().invoke(err -> LOGGER.errorf("Failed to update user_data for listener %s: %s", id, err.getMessage()))
                 .invoke(rows -> {
                     if (rows.rowCount() == 0) {
-                        LOGGER.warn("updateUserData affected 0 rows for listener id={} — RLS or missing record?", id);
+                        LOGGER.warnf("updateUserData affected 0 rows for listener id=%s — RLS or missing record?", id);
                     } else {
-                        LOGGER.info("updateUserData OK for listener id={}, rows={}", id, rows.rowCount());
+                        LOGGER.infof("updateUserData OK for listener id=%s, rows=%s", id, rows.rowCount());
                     }
                 })
                 .replaceWithVoid();

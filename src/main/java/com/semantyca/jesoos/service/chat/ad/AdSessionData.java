@@ -12,7 +12,7 @@ public class AdSessionData {
 
     private final String brandSlug;
     private final UUID brandId;
-    private final long userId;
+    private final Long userId;
     private Map<String, String> collectedVars = new HashMap<>();
     private Map<String, String> userData = new HashMap<>();
     @Setter

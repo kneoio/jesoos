@@ -96,7 +96,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                     if (iterator.hasNext()) {
                         return from(iterator.next());
                     } else {
-                        LOGGER.warn("No {} found with id: {}, user: {} ", EVENT, uuid, user.getId());
+                        LOGGER.warnf("No {} found with id: %s, user: %s ", EVENT, uuid, user.getId());
                         throw new DocumentHasNotFoundException(uuid);
                     }
                 });
@@ -170,7 +170,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update event: {} by user: {}", id, user.getId(), throwable))
+                        .onFailure().invoke(throwable -> LOGGER.errorf("Failed to check RLS permissions for update event: %s by user: %s", id, user.getId(), throwable))
                         .onItem().transformToUni(permissions -> {
                             if (!permissions[0]) {
                                 return Uni.createFrom().failure(new DocumentModificationAccessException(
@@ -197,7 +197,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                             return client.withTransaction(tx ->
                                     tx.preparedQuery(sql)
                                             .execute(params)
-                                            .onFailure().invoke(throwable -> LOGGER.error("Failed to update event: {} by user: {}", id, user.getId(), throwable))
+                                            .onFailure().invoke(throwable -> LOGGER.errorf("Failed to update event: %s by user: %s", id, user.getId(), throwable))
                                             .onItem().transformToUni(rowSet -> {
                                                 if (rowSet.rowCount() == 0) {
                                                     return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
@@ -207,7 +207,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                             ).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
             } catch (Exception e) {
-                LOGGER.error("Failed to prepare update parameters for event: {} by user: {}", id, user.getId(), e);
+                LOGGER.errorf("Failed to prepare update parameters for event: %s by user: %s", id, user.getId(), e);
                 return Uni.createFrom().failure(e);
             }
         });

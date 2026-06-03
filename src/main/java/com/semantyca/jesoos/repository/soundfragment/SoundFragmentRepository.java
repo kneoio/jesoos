@@ -251,7 +251,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                         meta.getFilePath().toString(),
                                         meta.getMimeType()
                                 )
-                                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, insertedDoc.getId()))
+                                .onItem().invoke(storedKey -> LOGGER.debugf("File stored with key: %s for doc ID: %s", storedKey, insertedDoc.getId()))
                                 .onItem().transform(ignored -> insertedDoc)
                                 .onFailure().recoverWithUni(ex -> {
                                     LOGGER.error("File failed to store for doc ID: {}. DB record was created.", insertedDoc.getId(), ex);
@@ -472,12 +472,12 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         meta.setFileOriginalName(path.getFileName().toString());
         meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
 
-        LOGGER.debug("Storing file - Key: {}, Path: {}, Artist: {}, Title: {}", doKey, localPath, doc.getArtist(), doc.getTitle());
+        LOGGER.debugf("Storing file - Key: %s, Path: %s, Artist: %s, Title: %s", doKey, localPath, doc.getArtist(), doc.getTitle());
 
         assert fileStorage != null;
         return fileStorage.uploadFile(doKey, localPath, meta.getMimeType())
-                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
-                .onFailure().invoke(ex -> LOGGER.error("Failed to store file with key: {}", doKey, ex))
+                .onItem().invoke(storedKey -> LOGGER.debugf("File stored with key: %s for doc ID: %s", storedKey, id))
+                .onFailure().invoke(ex -> LOGGER.errorf("Failed to store file with key: %s", doKey, ex))
                 .onItem().ignore().andContinueWithNull();
     }
 
