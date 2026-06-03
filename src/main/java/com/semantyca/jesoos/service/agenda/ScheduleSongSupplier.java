@@ -42,33 +42,41 @@ public class ScheduleSongSupplier {
 
         int newest = Math.max(1, (int) Math.ceil(quantity * 0.3));
         int oldest = Math.max(1, (int) Math.ceil(quantity * 0.4));
-        int random = Math.max(1, quantity - newest - oldest);
+        int randomCount = Math.max(1, quantity - newest - oldest);
 
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
 
         long t0 = System.currentTimeMillis();
-        LOGGER.infof("[getSongsForBrand] brand=%s type=%s newest=%d oldest=%d random=%d excludeIds=%d", brandId, type, newest, oldest, random, effective.size());
-
-        Uni<List<SoundFragment>> newestUni = repository.findByFilter(brandId, filter, newest, effective)
-                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilter(newest) done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
-        Uni<List<SoundFragment>> oldestUni = repository.findByFilterOldest(brandId, filter, oldest, effective)
-                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilterOldest done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
-        Uni<List<SoundFragment>> randomUni = repository.findByFilterRandom(brandId, filter, random, effective)
-                .invoke(r -> LOGGER.infof("[getSongsForBrand] findByFilterRandom done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
-        Uni<List<SharedSongEntry>> sharedUni = sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
-                .invoke(r -> LOGGER.infof("[getSongsForBrand] getForBrand(shared) done in %dms, got %d", System.currentTimeMillis() - t0, r.size()));
+        LOGGER.infof("[getSongsForBrand] brand=%s type=%s quantity=%d excludeIds=%d", brandId, type, quantity, effective.size());
 
         return Uni.combine().all()
-                .unis(newestUni, oldestUni, randomUni, sharedUni)
+                .unis(
+                        repository.findByFilter(brandId, filter, quantity, effective),
+                        sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
+                )
                 .asTuple()
                 .map(tuple -> {
+                    List<SoundFragment> all = tuple.getItem1();
+                    List<SharedSongEntry> shared = tuple.getItem2();
+                    LOGGER.infof("[getSongsForBrand] done in %dms, got %d songs, %d shared", System.currentTimeMillis() - t0, all.size(), shared.size());
+
+                    int size = all.size();
+                    int newestEnd = Math.min(newest, size);
+                    int oldestStart = Math.max(newestEnd, size - oldest);
+
+                    List<SoundFragment> newestList = all.subList(0, newestEnd);
+                    List<SoundFragment> oldestList = all.subList(oldestStart, size);
+                    List<SoundFragment> middle = new ArrayList<>(all.subList(newestEnd, oldestStart));
+                    Collections.shuffle(middle);
+                    List<SoundFragment> randomList = middle.subList(0, Math.min(randomCount, middle.size()));
+
                     Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
-                    tuple.getItem1().forEach(s -> merged.put(s.getId(), s));
-                    tuple.getItem2().forEach(s -> merged.putIfAbsent(s.getId(), s));
-                    tuple.getItem3().forEach(s -> merged.putIfAbsent(s.getId(), s));
+                    newestList.forEach(s -> merged.put(s.getId(), s));
+                    oldestList.forEach(s -> merged.putIfAbsent(s.getId(), s));
+                    randomList.forEach(s -> merged.putIfAbsent(s.getId(), s));
 
                     Map<UUID, String> sharerMap = new HashMap<>();
-                    for (SharedSongEntry entry : tuple.getItem4()) {
+                    for (SharedSongEntry entry : shared) {
                         UUID id = entry.soundFragment().getId();
                         merged.putIfAbsent(id, entry.soundFragment());
                         sharerMap.put(id, entry.sharerName());
