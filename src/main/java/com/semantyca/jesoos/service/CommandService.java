@@ -6,6 +6,7 @@ import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.DjStateService;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
@@ -91,7 +92,7 @@ public class CommandService {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
-        
+
         return brandPool.get(brand)
                 .chain(stream -> {
                     if (stream == null) {
@@ -99,6 +100,7 @@ public class CommandService {
                         return brandPool.getRadioStream(brand)
                                 .invoke(s -> {
                                     djStateService.enableDj(brand);
+                                    forceIntroOnNextEntries(s, 3);
                                 })
                                 .map(this::toResponse)
                                 .map(response -> response
@@ -106,6 +108,7 @@ public class CommandService {
                                         .put("message", "Stream started and DJ intros will be generated"));
                     } else {
                         djStateService.enableDj(brand);
+                        forceIntroOnNextEntries(stream, 3);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         return Uni.createFrom().item(new JsonObject()
                                 .put("success", true)
@@ -114,6 +117,21 @@ public class CommandService {
                                 .put("message", "DJ intros will be generated"));
                     }
                 });
+    }
+
+    private void forceIntroOnNextEntries(ILiveStream stream, int count) {
+        if (stream.getAgenda() == null) return;
+        int forced = 0;
+        for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
+            for (TimelineEntry entry : scene.getTimeline()) {
+                if (forced >= count) return;
+                if (entry.getStatus() == TimelineEntryStatus.PENDING) {
+                    entry.setHasIntro(true);
+                    forced++;
+                }
+            }
+        }
+        LOGGER.infof("DJ warmup: forced intro on %d pending entries for brand '%s'", forced, stream.getSlugName());
     }
 
     public Uni<JsonObject> disableDj(String brand) {
