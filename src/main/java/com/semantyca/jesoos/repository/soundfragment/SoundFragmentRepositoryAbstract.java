@@ -42,6 +42,10 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
+    protected Uni<SoundFragment> from(Row row) {
+        return from(row, false, false, false);
+    }
+
     protected Uni<SoundFragment> from(Row row, boolean includeGenres, boolean includeFiles, boolean includeLabels) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);

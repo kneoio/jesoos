@@ -47,7 +47,7 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
     }
 
     private Uni<SharedSongEntry> fromRow(Row row) {
-        return from(row, false, false, false)
+        return from(row)
                 .map(sf -> new SharedSongEntry(sf, row.getString("source_user_name")));
     }
 

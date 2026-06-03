@@ -199,7 +199,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, true, false, true))
+                .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
     }
@@ -229,7 +229,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, true, false, true))
+                .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
     }
@@ -257,7 +257,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.query(sql.toString())
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, true, false, true))
+                .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
     }

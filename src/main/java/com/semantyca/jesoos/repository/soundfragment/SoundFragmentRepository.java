@@ -73,7 +73,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return client.preparedQuery(sql)
                     .execute(Tuple.of(filter.getSearchTerm()))
                     .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                    .onItem().transformToUni(row -> from(row, false, false, false))
+                    .onItem().transformToUni(row -> from(row))
                     .concatenate()
                     .collect().asList();
         }
@@ -81,7 +81,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
+                .onItem().transformToUni(row -> from(row))
                 .concatenate()
                 .collect().asList();
     }
@@ -133,7 +133,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, false, false, false);
+                        return from(row);
                     } else {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
@@ -151,7 +151,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, false, false, false);
+                        return from(row);
                     } else {
                         return Uni.createFrom().nullItem();
                     }
@@ -211,7 +211,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
+                .onItem().transformToUni(row -> from(row))
                 .concatenate()
                 .collect().asList();
     }
