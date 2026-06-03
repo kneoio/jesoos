@@ -83,6 +83,7 @@ public class AgendaService {
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
         schedule.setTimeZone(brandZone);
         UUID buildTraceId = UUID.randomUUID();
+        long buildT0 = System.currentTimeMillis();
 
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
@@ -210,6 +211,18 @@ public class AgendaService {
                         );
                     }
                 }
+                long elapsedMs = System.currentTimeMillis() - buildT0;
+                metricPublisher.publishMetric(
+                        sourceBrand.getSlugName(),
+                        MetricEventType.INFORMATION,
+                        ProcessType.INDEPENDENT,
+                        "agenda_build_completed",
+                        Map.of(
+                                "elapsedMs", elapsedMs,
+                                "elapsedSec", elapsedMs / 1000,
+                                "scenes", state.liveScenes().size()
+                        )
+                );
                 return schedule;
             });
         });
