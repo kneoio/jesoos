@@ -26,8 +26,9 @@ public class OneTimeStreamRepository {
         );
     }
 
-    public void insert(OneTimeStream doc) {
+    public Uni<Void> insert(OneTimeStream doc) {
         inMemoryRepository.put(doc.getSlugName(), doc);
+        return Uni.createFrom().voidItem();
     }
 
     public Uni<OneTimeStream> update(String streamId, OneTimeStream doc) {

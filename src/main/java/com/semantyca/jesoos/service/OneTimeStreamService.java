@@ -53,19 +53,22 @@ public class OneTimeStreamService {
                                 Map<String, Object> vars = userVariables != null ? userVariables : Map.of();
                                 OneTimeStream stream = new OneTimeStream(brand, script, vars);
                                 stream.setStatus(StreamStatus.PENDING);
-                                repository.insert(stream);
-                                pool.add(stream);
-                                LOGGER.infof("[OTS] Created: slugName=%s", stream.getSlugName());
-
-                                if (startImmediately) {
-                                    return agendaService.buildOtsAgenda(brand, scriptId, LocalDateTime.now(stream.getTimeZone()), user)
-                                            .invoke(agenda -> {
-                                                stream.setAgenda(agenda);
-                                                LOGGER.infof("[OTS] Agenda built for '%s', waiting for aivox start", stream.getSlugName());
-                                            })
-                                            .replaceWith(stream);
-                                }
-                                return Uni.createFrom().item(stream);
+                                return repository.insert(stream)
+                                        .invoke(() -> {
+                                            pool.add(stream);
+                                            LOGGER.infof("[OTS] Created: slugName=%s", stream.getSlugName());
+                                        })
+                                        .chain(() -> {
+                                            if (startImmediately) {
+                                                return agendaService.buildOtsAgenda(brand, scriptId, LocalDateTime.now(stream.getTimeZone()), user)
+                                                        .invoke(agenda -> {
+                                                            stream.setAgenda(agenda);
+                                                            LOGGER.infof("[OTS] Agenda built for '%s', waiting for aivox start", stream.getSlugName());
+                                                        })
+                                                        .replaceWith(stream);
+                                            }
+                                            return Uni.createFrom().item(stream);
+                                        });
                             });
                 });
     }
