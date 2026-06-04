@@ -338,6 +338,50 @@ public abstract class ChatService {
         ).runSubscriptionOn(getDefaultWorkerPool());
     }
 
+    protected Uni<Void> emitPrecomputedResponse(
+            String precomputedText,
+            Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
+            String connectionId,
+            String brandName,
+            long userId) {
+        return Uni.createFrom().item(() -> {
+            String responseText = precomputedText
+                    .replaceAll("(?s)<thinking>.*?</thinking>", "")
+                    .trim();
+            if (responseText.isEmpty()) {
+                LOGGER.warnf("[emitPrecomputed] empty text userId=%d connectionId=%s", userId, connectionId);
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                return null;
+            }
+            String djName = assistantNameByConnectionId.get(connectionId);
+            chunkHandler.accept(ChatMessageDTO.chunk(responseText, djName, connectionId).build().toJson());
+            chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+
+            chatRepository.appendToConversation(
+                    ChatRepository.sessionKey(userId, connectionId, getChatType()),
+                    LlmMessage.text(LlmMessage.Role.ASSISTANT, responseText));
+
+            JsonObject botMessage = createMessage(MessageType.BOT, djName, responseText, System.currentTimeMillis(), connectionId);
+
+            chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
+                    success -> {},
+                    failure -> LOGGER.error("Failed to save bot message", failure)
+            );
+
+            String completeMessage = ChatMessageDTO.bot(
+                            botMessage.getJsonObject("data").getString("content"),
+                            botMessage.getJsonObject("data").getString("username"),
+                            botMessage.getJsonObject("data").getString("connectionId"))
+                    .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
+                    .build()
+                    .toJson();
+            completionHandler.accept(completeMessage);
+            return null;
+        }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
+    }
+
     protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, ChatType chatType) {
         List<LlmMessage> currentHistory = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, chatType));
 

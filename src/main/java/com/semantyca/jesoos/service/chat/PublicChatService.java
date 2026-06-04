@@ -332,7 +332,17 @@ public class PublicChatService extends ChatService {
                         return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, brandName, userId, history);
                     } else {
                         ChatLogger.followUpNoTool();
-                        return streamResponse(requestWithTools, chunkHandler, completionHandler, connectionId, brandName, userId);
+                        String precomputed = response.text();
+                        if (precomputed != null && !precomputed.isBlank()) {
+                            return emitPrecomputedResponse(precomputed, chunkHandler, completionHandler, connectionId, brandName, userId);
+                        }
+                        LlmRequest streamRequest = LlmRequest.builder()
+                                .maxTokens(requestWithTools.maxTokens())
+                                .system(requestWithTools.system())
+                                .messages(requestWithTools.messages())
+                                .model(requestWithTools.model())
+                                .build();
+                        return streamResponse(streamRequest, chunkHandler, completionHandler, connectionId, brandName, userId);
                     }
                 }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
