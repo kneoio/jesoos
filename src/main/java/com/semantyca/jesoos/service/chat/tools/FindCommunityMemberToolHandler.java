@@ -99,4 +99,40 @@ public class FindCommunityMemberToolHandler extends BaseToolHandler {
         handler.addToolResultToHistory(toolCall, errorPayload.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, ListenerService listenerService, String brandName, long userId) {
+        String fieldName = (String) inputMap.getOrDefault("field_name", "");
+        String fieldValue = (String) inputMap.getOrDefault("field_value", "");
+        if (fieldName.isEmpty() || fieldValue.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "field_name and field_value are required").encode()));
+        }
+        return listenerService.getByUserId(userId)
+                .chain(currentListener -> {
+                    if (currentListener == null) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Listener not found").encode()));
+                    }
+                    Uni<java.util.List<com.semantyca.mixpla.model.Listener>> searchUni =
+                            "interests".equals(fieldName)
+                                    ? listenerService.findCommunityMembersByInterest(brandName, currentListener.getId(), fieldValue,
+                                            currentListener.getUserData() != null ? (String) currentListener.getUserData().getData().get("city") : null)
+                                    : listenerService.findCommunityMembers(brandName, currentListener.getId(), fieldName, fieldValue);
+                    return searchUni.map(members -> {
+                        JsonArray matches = new JsonArray();
+                        for (var member : members) {
+                            JsonObject entry = new JsonObject();
+                            if (member.getUserData() != null) {
+                                member.getUserData().getData().forEach((k, v) -> { if (v != null) entry.put(k.toString(), v.toString()); });
+                            }
+                            if (!entry.isEmpty()) matches.add(entry);
+                        }
+                        return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", true).put("matches", matches).encode());
+                    });
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

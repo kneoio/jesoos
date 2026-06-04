@@ -46,4 +46,13 @@ public class LiveStreamInfoToolHandler extends BaseToolHandler {
                     return Uni.createFrom().voidItem();
                 });
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, PlaylistQueueService playlistQueueService, String brandName) {
+        return playlistQueueService.getQueueByBrandSlug(brandName)
+                .map(queue -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", true).put("queue", queue).encode()))
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

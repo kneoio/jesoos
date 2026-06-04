@@ -105,6 +105,61 @@ public class VerifyCodeToolHandler extends BaseToolHandler {
                 });
     }
 
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            PublicChatSessionManager sessionManager,
+            UserService userService,
+            com.semantyca.jesoos.service.chat.PublicChatService chatService,
+            PublicChatController controller,
+            String brandSlug,
+            String connectionId,
+            MetricPublisher metricPublisher) {
+        String email = EmailUtil.normalize((String) inputMap.getOrDefault("email", ""));
+        String code = ((String) inputMap.getOrDefault("code", "")).trim();
+        String preferredName = ((String) inputMap.getOrDefault("preferred_name", "")).trim();
+
+        if (email.isBlank() || code.isBlank()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "Email and code are required").encode()));
+        }
+
+        boolean valid = sessionManager.verifyAndConsumePendingOtp(email, code);
+        if (!valid) {
+            metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                    "login_failed", Map.of("email", email, "reason", "invalid_or_expired_code", "connectionId", connectionId));
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "Invalid or expired verification code.").encode()));
+        }
+
+        return userService.findByEmail(email)
+                .chain(user -> {
+                    if (user == null || user.getId() == 0) {
+                        metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                "login_failed", Map.of("email", email, "reason", "user_not_found", "connectionId", connectionId));
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "User not found.").encode()));
+                    }
+                    return chatService.registerListener(email, brandSlug, preferredName)
+                            .onFailure().invoke(err -> LOG.errorf(err, "[VerifyCode] Listener registration failed for %s", email))
+                            .onItem().transformToUni(reg -> {
+                                metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                        "login_success", Map.of("email", email, "userId", user.getId(), "connectionId", connectionId));
+                                String tokenJson = new JsonObject()
+                                        .put("type", "session_token")
+                                        .put("token", reg.userToken())
+                                        .put("userName", user.getLogin())
+                                        .encode();
+                                String payload = new JsonObject()
+                                        .put("ok", true).put("email", email)
+                                        .put("userId", user.getId())
+                                        .put("message", "Authentication successful! You now have access to all features and personalization.")
+                                        .encode();
+                                return Uni.createFrom().item(
+                                        com.semantyca.jesoos.service.chat.ToolNodeResult.withAuth(payload, user.getId(), user, reg.userToken(), user.getLogin()));
+                            });
+                });
+    }
+
     static Uni<Void> handleError(LlmToolCall toolCall, String errorMessage, VerifyCodeToolHandler handler,
                                  Consumer<String> chunkHandler, String connectionId,
                                  List<LlmMessage> conversationHistory, String systemPromptCall2,

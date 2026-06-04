@@ -48,4 +48,17 @@ public class GetBrandCatalogSummaryToolHandler extends BaseToolHandler {
                     return Uni.createFrom().voidItem();
                 });
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, AiHelperService aiHelperService) {
+        String brandName = (String) inputMap.getOrDefault("brandName", "");
+        if (brandName.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new io.vertx.core.json.JsonObject().put("ok", false).put("error", "brandName is required").encode()));
+        }
+        return aiHelperService.getBrandCatalogSummaryForAi(brandName)
+                .map(summary -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(summary.encode()))
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new io.vertx.core.json.JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

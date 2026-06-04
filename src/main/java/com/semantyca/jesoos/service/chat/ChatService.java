@@ -53,9 +53,9 @@ public abstract class ChatService {
     protected final String followUpPrompt;
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
+    protected final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
 
-    private record BrandStaticData(String djName, String djPrimaryVoices, String djLanguages, String partialPrompt) {}
+    protected record BrandStaticData(String djName, String djPrimaryVoices, String djLanguages, String partialPrompt) {}
 
     @Inject
     protected ScenePool scenePool;
@@ -190,42 +190,7 @@ public abstract class ChatService {
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
 
         BrandStaticData cached = brandStaticCache.get(slugName);
-        Uni<BrandStaticData> staticDataUni = cached != null
-                ? Uni.createFrom().item(cached)
-                : brandService.getBySlugName(slugName).flatMap(station -> {
-                    String radioStationName = station != null && station.getLocalizedName() != null
-                            ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
-                            : slugName;
-                    Uni<AiAgent> agentUni = station != null && station.getAiAgentId() != null
-                            ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
-                            : Uni.createFrom().item(() -> null);
-                    return Uni.combine().all().unis(agentUni, buildOtsScriptsText()).asTuple()
-                            .map(tuple -> {
-                                AiAgent agent = tuple.getItem1();
-                                String otsScripts = tuple.getItem2();
-                                assert station != null;
-                                String djName = agent.getName();
-                                String stationSlug = station.getSlugName();
-                                String djLanguages = agent.getPreferredLang().stream()
-                                        .sorted(java.util.Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                                        .map(lp -> lp.getLanguageTag().tag())
-                                        .reduce((a, b) -> a + "," + b).orElse("");
-                                String partialPrompt = getMainPrompt()
-                                        .replace("{{djName}}", sanitizePromptValue(djName))
-                                        .replace("{{radioStationName}}", sanitizePromptValue(radioStationName))
-                                        .replace("{{radioStationSlug}}", sanitizePromptValue(stationSlug))
-                                        .replace("{{radioStationCountry}}", sanitizePromptValue(station.getCountry().getCountryName()))
-                                        .replace("{{radioStationTimeZone}}", sanitizePromptValue(station.getTimeZone().getId()))
-                                        .replace("{{radioStationDescription}}", sanitizePromptValue(station.getDescription()))
-                                        .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
-                                        .replace("{{djCopilotName}}", "")
-                                        .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
-                                        .replace("{{otsScripts}}", sanitizePromptValue(otsScripts));
-                                BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
-                                brandStaticCache.put(slugName, data);
-                                return data;
-                            });
-                });
+        Uni<BrandStaticData> staticDataUni = cached != null ? Uni.createFrom().item(cached) : buildBrandStaticData(slugName);
 
         return staticDataUni.flatMap(staticData -> resolveUserLabel(user).flatMap(userLabel -> {
             String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
@@ -243,37 +208,76 @@ public abstract class ChatService {
             assistantNameByConnectionId.put(connectionId + "_lang", staticData.djLanguages());
 
             return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
-                    .<LlmRequest>map(history -> buildLlmRequest(renderedPrompt, history, user, staticData.djLanguages()));
-        }).flatMap(request ->
-                Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
-                        .flatMap(response -> {
-                            if (response.toolCall().isPresent()) {
-                                LlmToolCall toolCall = response.toolCall().get();
-                                ChatLogger.firstCall(toolCall.name());
-                                List<LlmMessage> history = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
-                                return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
-                            } else {
-                                ChatLogger.firstCallNoTool();
-                                String precomputed = response.text();
-                                if (precomputed != null && !precomputed.isBlank()) {
-                                    return emitPrecomputedResponse(precomputed, chunkHandler, completionHandler, connectionId, slugName, user.getId());
-                                }
-                                LlmRequest noToolRequest = LlmRequest.builder()
-                                        .maxTokens(request.maxTokens())
-                                        .system(request.system())
-                                        .messages(request.messages())
-                                        .model(request.model())
-                                        .build();
-                                return streamResponse(noToolRequest, chunkHandler, completionHandler, connectionId, slugName, user.getId());
-                            }
-                        })
-        )).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
+                    .flatMap(history -> runChatLoop(
+                            staticData, renderedPrompt, history, user,
+                            chunkHandler, completionHandler, connectionId, slugName));
+        })).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
             chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
             completionHandler.accept(ChatMessageDTO.error("Something went wrong, please try again.", "system", connectionId).build().toJson());
             return Uni.createFrom().voidItem();
         }).runSubscriptionOn(getDefaultWorkerPool());
+    }
+
+    protected Uni<Void> runChatLoop(
+            BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history, IUser user,
+            Consumer<String> chunkHandler, Consumer<String> completionHandler,
+            String connectionId, String slugName) {
+        LlmRequest request = buildLlmRequest(renderedPrompt, history, user, staticData.djLanguages());
+        return Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
+                .flatMap(response -> {
+                    if (response.toolCall().isPresent()) {
+                        LlmToolCall toolCall = response.toolCall().get();
+                        ChatLogger.firstCall(toolCall.name());
+                        List<LlmMessage> h = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
+                        return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, slugName, user.getId(), h);
+                    } else {
+                        ChatLogger.firstCallNoTool();
+                        String precomputed = response.text();
+                        if (precomputed != null && !precomputed.isBlank()) {
+                            return emitPrecomputedResponse(precomputed, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                        }
+                        LlmRequest noToolRequest = LlmRequest.builder()
+                                .maxTokens(request.maxTokens()).system(request.system())
+                                .messages(request.messages()).model(request.model()).build();
+                        return streamResponse(noToolRequest, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                    }
+                });
+    }
+
+    protected Uni<BrandStaticData> buildBrandStaticData(String slugName) {
+        return brandService.getBySlugName(slugName).flatMap(station -> {
+            String radioStationName = station != null && station.getLocalizedName() != null
+                    ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName()) : slugName;
+            Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni = station != null && station.getAiAgentId() != null
+                    ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
+                    : Uni.createFrom().item(() -> null);
+            return Uni.combine().all().unis(agentUni, buildOtsScriptsText()).asTuple()
+                    .map(tuple -> {
+                        com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
+                        String otsScripts = tuple.getItem2();
+                        assert station != null;
+                        String djName = agent.getName();
+                        String djLanguages = agent.getPreferredLang().stream()
+                                .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
+                                .map(lp -> lp.getLanguageTag().tag()).reduce((a, b) -> a + "," + b).orElse("");
+                        String partialPrompt = getMainPrompt()
+                                .replace("{{djName}}", sanitizePromptValue(djName))
+                                .replace("{{radioStationName}}", sanitizePromptValue(radioStationName))
+                                .replace("{{radioStationSlug}}", sanitizePromptValue(station.getSlugName()))
+                                .replace("{{radioStationCountry}}", sanitizePromptValue(station.getCountry().getCountryName()))
+                                .replace("{{radioStationTimeZone}}", sanitizePromptValue(station.getTimeZone().getId()))
+                                .replace("{{radioStationDescription}}", sanitizePromptValue(station.getDescription()))
+                                .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
+                                .replace("{{djCopilotName}}", "")
+                                .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
+                                .replace("{{otsScripts}}", sanitizePromptValue(otsScripts));
+                        BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
+                        brandStaticCache.put(slugName, data);
+                        return data;
+                    });
+        });
     }
 
     protected Uni<String> resolveUserLabel(IUser user) {

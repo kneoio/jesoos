@@ -54,4 +54,22 @@ public class SendUICommandToolHandler extends BaseToolHandler {
         handler.addToolResultToHistory(toolCall, result.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, String connectionId) {
+        String command = ((String) inputMap.getOrDefault("command", "")).trim();
+        JsonObject payload = new JsonObject();
+        try {
+            if (inputMap.get("payload") instanceof Map<?, ?> p) p.forEach((k, v) -> payload.put(k.toString(), v));
+        } catch (Exception ignored) {}
+        if (command.isBlank()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "command is required").encode()));
+        }
+        String wsMessage = ChatMessageDTO.command(command, payload, connectionId).build().toJson();
+        return Uni.createFrom().item(
+                com.semantyca.jesoos.service.chat.ToolNodeResult.withWsMessage(
+                        new JsonObject().put("ok", true).put("command", command).encode(),
+                        wsMessage));
+    }
 }

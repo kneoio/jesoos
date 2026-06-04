@@ -112,4 +112,33 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
         handler.addToolResultToHistory(toolCall, errorPayload.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, BrandService brandService, UserService userService,
+            io.quarkus.mailer.reactive.ReactiveMailer reactiveMailer, String fromAddress, long userId, String stationSlug) {
+        String subject = (String) inputMap.getOrDefault("subject", "");
+        String message = (String) inputMap.getOrDefault("message", "");
+        if (subject.isBlank() || message.isBlank()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "Subject and message are required").encode()));
+        }
+        return Uni.combine().all().unis(userService.findById(userId), brandService.getBySlugName(stationSlug)).asTuple()
+                .chain(tuple -> {
+                    if (tuple.getItem1().isEmpty() || tuple.getItem2() == null
+                            || tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Could not resolve sender or recipient").encode()));
+                    }
+                    String userEmail = tuple.getItem1().get().getEmail();
+                    String ownerEmail = tuple.getItem2().getOwner().getEmail();
+                    Mail mail = Mail.withText(ownerEmail, "Listener Message: " + subject,
+                            "From: " + userEmail + "\nStation: " + stationSlug + "\n\n" + message)
+                            .setFrom("Mixpla <" + fromAddress + ">").setReplyTo(userEmail);
+                    return reactiveMailer.send(mail)
+                            .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", true).put("message", "Email sent successfully").encode()))
+                            .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", false).put("error", "Failed to send: " + err.getMessage()).encode()));
+                });
+    }
 }

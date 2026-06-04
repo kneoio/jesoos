@@ -43,4 +43,13 @@ public class PerplexitySearchToolHandler extends BaseToolHandler {
                     return Uni.createFrom().voidItem();
                 });
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, PerplexitySearchHelper perplexitySearchHelper) {
+        String query = (String) inputMap.getOrDefault("query", "");
+        return perplexitySearchHelper.search(query)
+                .map(result -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(result.encode()))
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new io.vertx.core.json.JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

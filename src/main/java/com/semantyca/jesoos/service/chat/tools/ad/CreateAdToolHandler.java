@@ -71,4 +71,22 @@ public class CreateAdToolHandler extends BaseToolHandler {
         addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
         return streamFn.apply(buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, BrandService brandService,
+            AdSessionManager adSessionManager, AdGraph adGraph,
+            long userId, String brandName, String djName, String connectionId) {
+        return brandService.getBySlugName(brandName)
+                .chain(brand -> {
+                    AdSessionData session = new AdSessionData(brandName, brand.getId(), userId);
+                    session.setDjName(djName);
+                    adSessionManager.start(connectionId, session);
+                    return adGraph.generateFirstQuestion(session)
+                            .map(firstQuestion -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("action", "collect_ad_details")
+                                            .put("firstQuestion", firstQuestion).encode()));
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

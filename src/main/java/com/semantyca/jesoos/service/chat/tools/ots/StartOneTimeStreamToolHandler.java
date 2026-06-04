@@ -138,4 +138,60 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
         addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
         return streamFn.apply(buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            OneTimeStreamService oneTimeStreamService, ScriptService scriptService,
+            OtsSessionManager otsSessionManager, OtsGraph otsGraph,
+            String streamHost, String djName, String connectionId) {
+        String brandSlugName = (String) inputMap.getOrDefault("brandSlugName", "");
+        String scriptIdStr = (String) inputMap.getOrDefault("scriptId", "");
+        if (brandSlugName.isEmpty() || scriptIdStr.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "Missing brandSlugName or scriptId").encode()));
+        }
+        UUID scriptId;
+        try { scriptId = UUID.fromString(scriptIdStr); } catch (Exception e) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "Invalid scriptId").encode()));
+        }
+        Map<String, Object> userVariables = new HashMap<>();
+        if (inputMap.get("userVariables") instanceof Map<?, ?> vars)
+            vars.forEach((k, v) -> userVariables.put(k.toString(), v));
+        boolean startImmediately = inputMap.containsKey("startImmediately")
+                ? Boolean.parseBoolean(inputMap.get("startImmediately").toString()) : true;
+        UUID finalScriptId = scriptId;
+        return scriptService.getById(scriptId, SuperUser.build())
+                .chain(script -> {
+                    List<ScriptVariable> requiredVars = script.getRequiredVariables();
+                    if (requiredVars != null && !requiredVars.isEmpty()) {
+                        List<String> missing = requiredVars.stream()
+                                .filter(v -> !userVariables.containsKey(v.getName()) || userVariables.get(v.getName()).toString().isBlank())
+                                .map(ScriptVariable::getName).toList();
+                        if (!missing.isEmpty()) {
+                            List<String> varNames = requiredVars.stream().map(ScriptVariable::getName).collect(Collectors.toList());
+                            Map<String, String> varDescriptions = requiredVars.stream()
+                                    .collect(Collectors.toMap(ScriptVariable::getName, ScriptVariable::getDescription));
+                            OtsSessionData session = new OtsSessionData(brandSlugName, finalScriptId, script.getName(), varNames, varDescriptions);
+                            session.setDjName(djName);
+                            otsSessionManager.start(connectionId, session);
+                            return otsGraph.generateFirstQuestion(session)
+                                    .map(firstQuestion -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("action", "collect_variables").put("firstQuestion", firstQuestion)
+                                                    .put("missingVars", new io.vertx.core.json.JsonArray(new ArrayList<>(missing))).encode()));
+                        }
+                    }
+                    return oneTimeStreamService.run(brandSlugName, finalScriptId, userVariables, startImmediately, SuperUser.build())
+                            .map(stream -> {
+                                String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
+                                return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", true).put("slugName", stream.getSlugName())
+                                                .put("hlsUrl", hlsUrl).put("status", stream.getStatus().name()).encode());
+                            })
+                            .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

@@ -127,4 +127,48 @@ public class ManageEventsToolHandler extends BaseToolHandler {
         handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, EventService eventService, BrandService brandService, String brandName) {
+        String action = (String) inputMap.getOrDefault("action", "list");
+        if ("list".equals(action)) {
+            return eventService.findForBrand(brandName, 50, 0, SuperUser.build())
+                    .map(events -> {
+                        JsonArray arr = new JsonArray();
+                        for (Event e : events) {
+                            arr.add(new JsonObject().put("id", e.getId().toString())
+                                    .put("description", e.getDescription())
+                                    .put("type", e.getType() != null ? e.getType().name() : null)
+                                    .put("priority", e.getPriority() != null ? e.getPriority().name() : null));
+                        }
+                        return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", true).put("events", arr).put("count", arr.size()).encode());
+                    })
+                    .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                            new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+        }
+        String id = inputMap.containsKey("id") ? (String) inputMap.get("id") : null;
+        String description = (String) inputMap.getOrDefault("description", "");
+        String typeRaw = (String) inputMap.getOrDefault("type", EventType.SPECIAL.name());
+        String priorityRaw = (String) inputMap.getOrDefault("priority", EventPriority.MEDIUM.name());
+        String type; try { type = EventType.valueOf(typeRaw).name(); } catch (Exception e) { type = EventType.SPECIAL.name(); }
+        String priority; try { priority = EventPriority.valueOf(priorityRaw).name(); } catch (Exception e) { priority = EventPriority.MEDIUM.name(); }
+        if (description.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "description is required").encode()));
+        }
+        String finalType = type; String finalPriority = priority;
+        return brandService.getBySlugName(brandName)
+                .chain(brand -> {
+                    EventDTO dto = new EventDTO(); dto.setBrandId(brand.getId().toString());
+                    dto.setDescription(description); dto.setType(finalType); dto.setPriority(finalPriority);
+                    dto.setTimeZone(brand.getTimeZone() != null ? brand.getTimeZone().getId() : "UTC");
+                    return eventService.upsert(id != null && !id.isEmpty() ? id : null, dto, SuperUser.build());
+                })
+                .map(saved -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", true).put("id", saved.getId().toString())
+                                .put("description", saved.getDescription()).encode()))
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

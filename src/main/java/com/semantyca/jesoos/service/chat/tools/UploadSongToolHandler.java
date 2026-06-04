@@ -182,4 +182,70 @@ public class UploadSongToolHandler extends BaseToolHandler {
         addToolResultToHistory(toolCall, payload.encode(), history);
         return streamFn.apply(buildFollowUpParams(followUp, history));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            ListenerService listenerService, UserService userService,
+            SoundFragmentService soundFragmentService, AiHelperService aiHelperService,
+            BrandPool brandPool, SongEmitter songEmitter, AiAgentService aiAgentService,
+            ListenerLabelCache labelCache, BrandService brandService,
+            String brandName, long userId) {
+        UploadSongToolHandler h = new UploadSongToolHandler();
+        String tempFilename = (String) inputMap.getOrDefault("temp_filename", "");
+        String title = (String) inputMap.getOrDefault("title", "");
+        String artist = (String) inputMap.getOrDefault("artist", "");
+        String description = (String) inputMap.getOrDefault("description", "");
+        String introText = (String) inputMap.getOrDefault("intro_text", "");
+        List<String> genreNames = new ArrayList<>();
+        if (inputMap.containsKey("genre_names") && inputMap.get("genre_names") instanceof List<?> list)
+            list.forEach(g -> genreNames.add(g.toString()));
+        if (tempFilename.isEmpty() || title.isEmpty() || artist.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "temp_filename, title and artist are required").encode()));
+        }
+        return listenerService.getByUserId(userId)
+                .chain(listener -> {
+                    if (listener == null) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                            new JsonObject().put("ok", false).put("error", "Listener not found").encode()));
+                    UUID artistLabelId = labelCache.get("artist");
+                    if (artistLabelId == null || listener.getLabels() == null || !listener.getLabels().contains(artistLabelId)) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Artist label required. Call listener_data add_label with label_identifier=artist first.").encode()));
+                    }
+                    return userService.get(userId).chain(userOpt -> {
+                        if (userOpt.isEmpty()) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "User not found").encode()));
+                        IUser user = userOpt.get();
+                        return aiHelperService.resolveGenreNamesToIds(genreNames)
+                                .chain(genreIds -> {
+                                    SoundFragmentDTO dto = new SoundFragmentDTO();
+                                    dto.setTitle(title); dto.setArtist(artist); dto.setDescription(description.isBlank() ? null : description);
+                                    dto.setGenres(genreIds.isEmpty() ? List.of() : genreIds);
+                                    dto.setSource(SourceType.CONTRIBUTION);
+                                    dto.setStatus(LifecycleStatus.NOT_APPROVED.getCode());
+                                    dto.setNewlyUploaded(List.of(tempFilename));
+                                    dto.setType(PlaylistItemType.SONG);
+                                    RlsActionDTO rls = new RlsActionDTO();
+                                    rls.setAction(RlsActionType.GRANT); rls.setUserId(userId);
+                                    rls.setCanEdit(true); rls.setCanDelete(true);
+                                    dto.getRlsActions().add(rls);
+                                    return brandPool.get(brandName)
+                                            .chain(stream -> {
+                                                Uni<UUID> brandIdUni = stream != null
+                                                        ? Uni.createFrom().item(stream.getMasterBrandId())
+                                                        : brandService.getBySlugName(brandName).map(brand -> brand != null ? brand.getId() : null);
+                                                return brandIdUni.chain(brandId -> {
+                                                    if (brandId != null) dto.setRepresentedInBrands(List.of(brandId));
+                                                    return soundFragmentService.upsert("new", dto, user, com.semantyca.core.model.cnst.LanguageCode.en);
+                                                });
+                                            })
+                                            .map(saved -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                                    new JsonObject().put("ok", true).put("song_id", saved.getId().toString())
+                                                            .put("title", title).put("queued", false).encode()));
+                                });
+                    });
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

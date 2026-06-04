@@ -219,4 +219,103 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         handler.addToolResultToHistory(toolCall, errorPayload.encode(), conversationHistory);
         return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            ListenerService listenerService,
+            ListenerLabelCache labelCache,
+            long userId) {
+        String action = (String) inputMap.getOrDefault("action", "get");
+        String fieldName = (String) inputMap.getOrDefault("field_name", "");
+        String fieldValue = (String) inputMap.getOrDefault("field_value", "");
+        String labelIdentifier = (String) inputMap.getOrDefault("label_identifier", "");
+
+        return listenerService.getByUserId(userId)
+                .chain(listener -> {
+                    if (listener == null) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Listener not found").encode()));
+                    }
+                    return switch (action) {
+                        case "get" -> labelCache.getOrLoad("artist")
+                                .ifNoItem().after(java.time.Duration.ofSeconds(10)).fail()
+                                .onFailure().recoverWithItem(e -> (UUID) null)
+                                .map(artistLabelId -> {
+                                    boolean hasArtistLabel = artistLabelId != null
+                                            && listener.getLabels() != null
+                                            && listener.getLabels().contains(artistLabelId);
+                                    JsonObject payload = new JsonObject()
+                                            .put("ok", true)
+                                            .put("listener_id", listener.getId().toString())
+                                            .put("user_id", listener.getUserId())
+                                            .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
+                                            .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
+                                            .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
+                                            .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of())
+                                            .put("has_artist_label", hasArtistLabel);
+                                    return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(payload.encode());
+                                });
+                        case "set" -> {
+                            if (fieldName.isEmpty() || fieldValue.isEmpty()) {
+                                yield Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", false).put("error", "field_name and field_value required").encode()));
+                            }
+                            String sanitized = fieldValue.replaceAll("[\\r\\n\\t]", " ").replaceAll("\\{\\{.*?}}", "").trim();
+                            if (listener.getUserData() == null) listener.setUserData(new com.semantyca.core.model.UserData(new HashMap<>()));
+                            listener.getUserData().put(fieldName, sanitized);
+                            yield listenerService.updateUserData(listener.getId(), listener.getUserData())
+                                    .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", true).put("action", "set").put("field_name", fieldName).encode()))
+                                    .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+                        }
+                        case "remove" -> {
+                            boolean removed = listener.getUserData() != null && listener.getUserData().getData().remove(fieldName) != null;
+                            if (!removed) {
+                                yield Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", true).put("removed", false).encode()));
+                            }
+                            yield listenerService.updateUserData(listener.getId(), listener.getUserData())
+                                    .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", true).put("removed", true).encode()))
+                                    .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+                        }
+                        case "add_label" -> labelCache.getOrLoad(labelIdentifier)
+                                .chain(labelId -> {
+                                    if (labelId == null) {
+                                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                                new JsonObject().put("ok", false).put("error", "Unknown label: " + labelIdentifier).encode()));
+                                    }
+                                    if (listener.getLabels().contains(labelId)) {
+                                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                                new JsonObject().put("ok", true).put("already_had_label", true).encode()));
+                                    }
+                                    listener.getLabels().add(labelId);
+                                    return listenerService.updateLabels(listener.getId(), listener.getLabels())
+                                            .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                                    new JsonObject().put("ok", true).put("already_had_label", false).encode()))
+                                            .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                                    new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+                                });
+                        case "remove_label" -> {
+                            UUID labelId = labelCache.get(labelIdentifier);
+                            if (labelId == null) {
+                                yield Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", false).put("error", "Unknown label").encode()));
+                            }
+                            boolean removed = listener.getLabels().remove(labelId);
+                            yield listenerService.updateLabels(listener.getId(), listener.getLabels())
+                                    .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", true).put("removed", removed).encode()))
+                                    .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                            new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+                        }
+                        default -> Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Unknown action: " + action).encode()));
+                    };
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }

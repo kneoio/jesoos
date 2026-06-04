@@ -54,6 +54,23 @@ public class StartAuthToolHandler extends BaseToolHandler {
                 });
     }
 
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            KeycloakAuthService keycloakAuthService) {
+        String email = com.semantyca.jesoos.util.EmailUtil.normalize((String) inputMap.getOrDefault("email", ""));
+        if (email.isBlank()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new io.vertx.core.json.JsonObject().put("ok", false).put("error", "Email address is required").encode()));
+        }
+        return keycloakAuthService.startAuth(email)
+                .map(success -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new io.vertx.core.json.JsonObject()
+                                .put("ok", success).put("email", email)
+                                .put("message", success ? "Verification code sent to " + email : "Failed to send verification code").encode()))
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new io.vertx.core.json.JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
+
     private static Uni<Void> handleError(LlmToolCall toolCall, String errorMessage, StartAuthToolHandler handler,
                                          Consumer<String> chunkHandler, String connectionId,
                                          List<LlmMessage> conversationHistory, String systemPromptCall2,

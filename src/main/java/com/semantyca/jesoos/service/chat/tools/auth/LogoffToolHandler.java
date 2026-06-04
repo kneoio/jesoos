@@ -72,6 +72,38 @@ public class LogoffToolHandler extends BaseToolHandler {
                 });
     }
 
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap,
+            PublicChatSessionManager sessionManager,
+            UserService userService,
+            PublicChatController controller,
+            ChatService chatService,
+            MetricPublisher metricPublisher,
+            String brandName,
+            long userId,
+            String connectionId) {
+        return userService.findById(userId)
+                .chain(opt -> {
+                    if (opt.isEmpty() || opt.get().getEmail() == null) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "No active session found").encode()));
+                    }
+                    String email = opt.get().getEmail();
+                    return sessionManager.deleteTokenByEmail(email)
+                            .map(v -> {
+                                controller.downgradeUserSession(connectionId);
+                                chatService.clearConversationHistory(connectionId, userId);
+                                metricPublisher.publishMetric(brandName, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                        "logoff", Map.of("email", email, "userId", userId, "connectionId", connectionId));
+                                String wsMessage = new JsonObject().put("type", "session_token").put("token", (Object) null).encode();
+                                String payload = new JsonObject().put("ok", true).put("message", "Logged out successfully").encode();
+                                return com.semantyca.jesoos.service.chat.ToolNodeResult.logoff(payload, wsMessage);
+                            });
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", "Logoff failed: " + err.getMessage()).encode()));
+    }
+
     private static Uni<Void> handleError(LlmToolCall toolCall, String errorMessage, LogoffToolHandler handler,
                                          Consumer<String> chunkHandler, String connectionId,
                                          List<LlmMessage> conversationHistory, String systemPromptCall2,

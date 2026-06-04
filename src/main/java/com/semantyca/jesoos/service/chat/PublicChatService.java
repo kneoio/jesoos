@@ -8,6 +8,7 @@ import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
@@ -145,6 +146,9 @@ public class PublicChatService extends ChatService {
     @Inject
     PublicChatIntentRouter intentRouter;
 
+    @Inject
+    PublicChatGraph chatGraph;
+
     @Setter
     private PublicChatController controller;
 
@@ -204,6 +208,44 @@ public class PublicChatService extends ChatService {
                                 return Uni.createFrom().item(user);
                             });
                 });
+    }
+
+    @Override
+    protected Uni<Void> runChatLoop(
+            BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history,
+            com.semantyca.core.model.user.IUser user, Consumer<String> chunkHandler,
+            Consumer<String> completionHandler, String connectionId, String slugName) {
+        Map<String, Object> initData = new java.util.HashMap<>();
+        initData.put(ChatState.USER_ID, user.getId());
+        initData.put(ChatState.CONNECTION_ID, connectionId);
+        initData.put(ChatState.BRAND_NAME, slugName);
+        initData.put(ChatState.HISTORY, new java.util.ArrayList<>(history));
+        initData.put(ChatState.SYSTEM_PROMPT, renderedPrompt);
+        initData.put(ChatState.DJ_NAME, staticData.djName());
+        initData.put(ChatState.DJ_LANGUAGES, staticData.djLanguages());
+        initData.put(ChatState.ITERATION, 0);
+        initData.put(ChatState.CHUNK_HANDLER, chunkHandler);
+
+        return chatGraph.run(initData).flatMap(finalState -> {
+            long finalUserId = finalState.userId();
+            String botText = finalState.botResponse();
+            if (botText == null || botText.isBlank()) {
+                LOGGER.warnf("[ChatGraph] empty botResponse userId=%d connectionId=%s", finalUserId, connectionId);
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                return Uni.createFrom().voidItem();
+            }
+            String responseText = botText.replaceAll("(?s)<thinking>.*?</thinking>", "").trim();
+            if (responseText.isBlank()) {
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                return Uni.createFrom().voidItem();
+            }
+            chatRepository.replaceConversationHistory(
+                    ChatRepository.sessionKey(finalUserId, connectionId, getChatType()),
+                    finalState.history());
+            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId);
+        });
     }
 
     public Function<LlmRequest, Uni<Void>> createAuthStreamFn(

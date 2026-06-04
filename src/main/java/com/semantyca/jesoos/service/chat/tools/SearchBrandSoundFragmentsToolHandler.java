@@ -76,4 +76,29 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
                     return Uni.createFrom().voidItem();
                 });
     }
+
+    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+            Map<String, Object> inputMap, AiHelperService aiHelperService) {
+        String brandName = (String) inputMap.getOrDefault("brandName", "");
+        String keyword = inputMap.containsKey("keyword") ? (String) inputMap.get("keyword") : "";
+        Integer limit = null;
+        Integer offset = null;
+        try { if (inputMap.containsKey("limit")) limit = ((Number) inputMap.get("limit")).intValue(); } catch (Exception ignored) {}
+        try { if (inputMap.containsKey("offset")) offset = ((Number) inputMap.get("offset")).intValue(); } catch (Exception ignored) {}
+        if (brandName.isEmpty()) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "brandName is required").encode()));
+        }
+        return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, Collections.emptyList(), Collections.emptyList(), limit, offset)
+                .map(list -> {
+                    JsonArray items = new JsonArray();
+                    list.forEach(f -> items.add(new JsonObject()
+                            .put("id", String.valueOf(f.getId())).put("title", f.getTitle())
+                            .put("artist", f.getArtist()).put("genres", f.getGenres())
+                            .put("album", f.getAlbum()).put("description", f.getDescription())));
+                    return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(items.encode());
+                })
+                .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
 }
