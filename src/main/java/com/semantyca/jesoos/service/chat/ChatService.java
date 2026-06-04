@@ -254,7 +254,17 @@ public abstract class ChatService {
                                 return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
                                 ChatLogger.firstCallNoTool();
-                                return streamResponse(request, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                                String precomputed = response.text();
+                                if (precomputed != null && !precomputed.isBlank()) {
+                                    return emitPrecomputedResponse(precomputed, chunkHandler, completionHandler, connectionId, slugName, user.getId());
+                                }
+                                LlmRequest noToolRequest = LlmRequest.builder()
+                                        .maxTokens(request.maxTokens())
+                                        .system(request.system())
+                                        .messages(request.messages())
+                                        .model(request.model())
+                                        .build();
+                                return streamResponse(noToolRequest, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
         )).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
