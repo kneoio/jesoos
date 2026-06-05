@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
+    private static final Handlebars HANDLEBARS = new Handlebars();
 
     private final PromptService promptService;
     private final DraftFactory draftFactory;
@@ -67,6 +68,7 @@ public class IntroTtsGenerator {
     private final GroqTextClient groqTextClient;
     private final BrandService brandService;
     private final MailService mailService;
+
 
     @Inject
     public IntroTtsGenerator(
@@ -104,6 +106,12 @@ public class IntroTtsGenerator {
         try {
             Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
             Files.createDirectories(uploadsDir);
+            HANDLEBARS.registerHelper("contains", (value, options) -> {
+                if (value == null || options.param(0) == null) {
+                    return false;
+                }
+                return value.toString().contains(options.param(0).toString());
+            });
             LOGGER.infof("Intro TTS temp directory initialized: %s", uploadsDir);
         } catch (IOException e) {
             LOGGER.error("Failed to create intro-tts temp directory", e);
@@ -402,12 +410,13 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private static final Handlebars HANDLEBARS = new Handlebars();
+
 
     private static String renderHandlebars(String template, Map<String, Object> context) {
         if (template == null) return "";
         try {
             Template compiled = HANDLEBARS.compileInline(template);
+
             return compiled.apply(context);
         } catch (Exception e) {
             LOGGER.warnf("Handlebars rendering failed, falling back to raw template: %s", e.getMessage());
