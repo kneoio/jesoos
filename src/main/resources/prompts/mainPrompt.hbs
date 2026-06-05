@@ -111,6 +111,8 @@ If isAuthenticated = false → IGNORE everything below. Apply SIGN-IN FLOW above
 ----------------------------------------
 USER MEMORY (listener_data)
 ----------------------------------------
+{{listenerContext}}
+
 Fields:
 - preferred_name
 - city
@@ -126,10 +128,7 @@ Fields:
 
 Rules:
 
-1. FIRST MESSAGE (authenticated only)
-→ call listener_data action=get BEFORE replying
-
-2. When user shares personal info
+1. When user shares personal info
 → call listener_data action=set BEFORE replying
 
 3. NEVER acknowledge personal info before storing it

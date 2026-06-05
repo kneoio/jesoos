@@ -112,6 +112,7 @@ public class ChatAgent {
 
     private CompletableFuture<Map<String, Object>> loadContextNode(ChatState state) {
         String brandName = state.brandName();
+        long userId = state.userId();
 
         Uni<String> queueUni = playlistQueueService.getQueueByBrandSlug(brandName)
                 .map(queue -> {
@@ -134,10 +135,37 @@ public class ChatAgent {
                     return "";
                 });
 
-        return queueUni
-                .map(queue -> {
-                    LOGGER.debugf("[loadContext] context built brand=%s", brandName);
-                    return Map.<String, Object>of(ChatState.CONTEXT_BLOCK, queue.trim());
+        Uni<String> listenerUni = (userId == 0)
+                ? Uni.createFrom().item("")
+                : listenerService.getByUserId(userId)
+                        .map(listener -> {
+                            if (listener == null) return "";
+                            StringBuilder sb = new StringBuilder("[Listener profile:");
+                            com.semantyca.core.model.UserData ud = listener.getUserData();
+                            if (ud != null && ud.getData() != null) {
+                                ud.getData().forEach((k, v) -> sb.append(" ").append(k).append("=").append(v).append(";"));
+                            }
+                            if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
+                                listener.getLocalizedName().forEach((lang, name) -> sb.append(" localized_name(").append(lang).append(")=").append(name).append(";"));
+                            }
+                            boolean hasArtist = listenerLabelCache.get("artist") != null
+                                    && listener.getLabels() != null
+                                    && listener.getLabels().contains(listenerLabelCache.get("artist"));
+                            sb.append(" has_artist_label=").append(hasArtist).append("]");
+                            return sb.toString();
+                        })
+                        .onFailure().recoverWithItem(err -> {
+                            LOGGER.warnf("[loadContext] listener fetch failed userId=%d: %s", userId, err.getMessage());
+                            return "";
+                        });
+
+        return Uni.combine().all().unis(queueUni, listenerUni).asTuple()
+                .map(t -> {
+                    LOGGER.debugf("[loadContext] context built brand=%s userId=%d", brandName, userId);
+                    Map<String, Object> result = new HashMap<>();
+                    result.put(ChatState.CONTEXT_BLOCK, t.getItem1().trim());
+                    result.put(ChatState.LISTENER_CONTEXT, t.getItem2().trim());
+                    return result;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
@@ -153,7 +181,8 @@ public class ChatAgent {
                 : llmProviderAdapter.modelFor(LlmUseCase.FOLLOW_UP);
 
         String systemPrompt = state.systemPrompt()
-                .replace("{{liveContext}}", state.contextBlock());
+                .replace("{{liveContext}}", state.contextBlock())
+                .replace("{{listenerContext}}", state.listenerContext());
 
         LlmRequest request = LlmRequest.builder()
                 .maxTokens(1024L)
