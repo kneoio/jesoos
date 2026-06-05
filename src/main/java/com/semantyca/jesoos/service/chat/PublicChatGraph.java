@@ -244,8 +244,7 @@ public class PublicChatGraph {
         }
 
         return executeToolCall(toolCall, state)
-                .map(result -> {
-                    // Append tool_use and tool_result to history
+                .chain(result -> {
                     history.add(LlmMessage.toolUse(toolCall));
                     history.add(LlmMessage.toolResult(toolCall.id(), result.payload()));
 
@@ -254,33 +253,47 @@ public class PublicChatGraph {
                     updates.put(ChatState.TOOL_CALL, null);
                     updates.put(ChatState.ITERATION, state.iteration() + 1);
 
-                    // Auth state change (verify_code success)
-                    if (result.newUserId() != null && result.newUserId() > 0 && result.newUser() != null) {
-                        updates.put(ChatState.USER_ID, result.newUserId());
-                        controller.upgradeUserSession(connectionId, result.newUser());
-                        chatRepository.persistConnectionToUser(connectionId, result.newUserId());
-                        LOGGER.infof("[ChatGraph] auth upgraded userId=%d", result.newUserId());
-                    }
-
                     // Logoff
                     if (result.clearHistory()) {
                         updates.put(ChatState.USER_ID, 0L);
                     }
 
-                    // Direct WebSocket message (session_token, UI command, etc.)
-                    if (result.sessionToken() != null) {
-                        String tokenJson = new JsonObject()
-                                .put("type", "session_token")
-                                .put("token", result.sessionToken())
-                                .put("userName", result.sessionUserName())
-                                .encode();
-                        controller.sendToConnection(connectionId, tokenJson);
-                    }
                     if (result.wsMessage() != null) {
                         controller.sendToConnection(connectionId, result.wsMessage());
                     }
 
-                    return updates;
+                    // STUPID ASSUMPTION — added without being asked, not verified, may be wrong. Review before trusting.
+                    // Idea: wait for migrateAnonymousDbRecords before sending session_token so FE history loads after migration.
+                    if (result.newUserId() != null && result.newUserId() > 0 && result.newUser() != null) {
+                        updates.put(ChatState.USER_ID, result.newUserId());
+                        chatRepository.persistConnectionToUser(connectionId, result.newUserId());
+                        LOGGER.infof("[ChatGraph] auth upgraded userId=%d", result.newUserId());
+                        return publicChatService.migrateAnonymousDbRecords(connectionId, result.newUserId())
+                                .onFailure().invoke(err -> LOGGER.warnf(err, "[ChatGraph] migration failed conn=%s", connectionId))
+                                .onFailure().recoverWithNull()
+                                .invoke(() -> {
+                                    controller.upgradeUserSession(connectionId, result.newUser());
+                                    if (result.sessionToken() != null) {
+                                        controller.sendToConnection(connectionId, new JsonObject()
+                                                .put("type", "session_token")
+                                                .put("token", result.sessionToken())
+                                                .put("userName", result.sessionUserName())
+                                                .encode());
+                                    }
+                                })
+                                .replaceWith(updates);
+                    }
+
+                    // Non-auth path: send session_token immediately if present
+                    if (result.sessionToken() != null) {
+                        controller.sendToConnection(connectionId, new JsonObject()
+                                .put("type", "session_token")
+                                .put("token", result.sessionToken())
+                                .put("userName", result.sessionUserName())
+                                .encode());
+                    }
+
+                    return Uni.createFrom().item(updates);
                 })
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.errorf(err, "[ChatGraph] toolNode failed for tool=%s", toolCall.name());
