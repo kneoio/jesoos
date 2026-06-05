@@ -42,6 +42,9 @@ import java.nio.file.Path;
 
 import com.semantyca.mixpla.model.aiagent.Voice;
 
+import com.github.jknack.handlebars.Handlebars;
+import com.github.jknack.handlebars.Template;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -399,13 +402,17 @@ public class IntroTtsGenerator {
                 });
     }
 
+    private static final Handlebars HANDLEBARS = new Handlebars();
+
     private static String renderHandlebars(String template, Map<String, Object> context) {
         if (template == null) return "";
-        String result = template;
-        for (Map.Entry<String, Object> entry : context.entrySet()) {
-            result = result.replace("{{" + entry.getKey() + "}}", entry.getValue() != null ? entry.getValue().toString() : "");
+        try {
+            Template compiled = HANDLEBARS.compileInline(template);
+            return compiled.apply(context);
+        } catch (Exception e) {
+            LOGGER.warnf("Handlebars rendering failed, falling back to raw template: %s", e.getMessage());
+            return template;
         }
-        return result;
     }
 
     private LlmTextClient selectLlmClient(String provider) {
