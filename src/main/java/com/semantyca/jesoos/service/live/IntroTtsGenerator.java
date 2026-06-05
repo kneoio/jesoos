@@ -55,11 +55,20 @@ public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
     private static final Handlebars HANDLEBARS;
 
+    private static final java.util.Random RANDOM = new java.util.Random();
+
     static {
         HANDLEBARS = new Handlebars();
         HANDLEBARS.registerHelper("contains", (value, options) -> {
             if (value == null || options.param(0) == null) return false;
             return value.toString().contains(options.param(0).toString());
+        });
+        HANDLEBARS.registerHelper("random", (first, options) -> {
+            java.util.List<Object> choices = new java.util.ArrayList<>();
+            if (first != null) choices.add(first);
+            for (Object p : options.params) if (p != null) choices.add(p);
+            if (choices.isEmpty()) return "";
+            return choices.get(RANDOM.nextInt(choices.size())).toString();
         });
     }
 
