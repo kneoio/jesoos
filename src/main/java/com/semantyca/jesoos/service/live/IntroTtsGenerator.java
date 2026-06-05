@@ -53,7 +53,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApplicationScoped
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
-    private static final Handlebars HANDLEBARS = new Handlebars();
+    private static final Handlebars HANDLEBARS;
+
+    static {
+        HANDLEBARS = new Handlebars();
+        HANDLEBARS.registerHelper("contains", (value, options) -> {
+            if (value == null || options.param(0) == null) return false;
+            return value.toString().contains(options.param(0).toString());
+        });
+    }
 
     private final PromptService promptService;
     private final DraftFactory draftFactory;
@@ -106,12 +114,6 @@ public class IntroTtsGenerator {
         try {
             Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
             Files.createDirectories(uploadsDir);
-            HANDLEBARS.registerHelper("contains", (value, options) -> {
-                if (value == null || options.param(0) == null) {
-                    return false;
-                }
-                return value.toString().contains(options.param(0).toString());
-            });
             LOGGER.infof("Intro TTS temp directory initialized: %s", uploadsDir);
         } catch (IOException e) {
             LOGGER.error("Failed to create intro-tts temp directory", e);
