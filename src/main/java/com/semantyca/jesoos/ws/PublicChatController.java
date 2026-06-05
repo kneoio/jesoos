@@ -266,12 +266,6 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         UserHolder holder = connectionUsers.get(connectionId);
         if (holder != null) {
             holder.setUser(newUser);
-            assert chatService != null;
-            chatService.migrateAnonymousDbRecords(connectionId, newUser.getId())
-                    .subscribe().with(
-                            v -> LOG.infof("Migrated DB records for connection %s to user %s", connectionId, newUser.getUserName()),
-                            e -> LOG.errorf(e, "Failed to migrate DB records for connection %s", connectionId)
-                    );
             LOG.infof("Upgraded user session for connection %s to user %s", connectionId, newUser.getUserName());
         }
     }

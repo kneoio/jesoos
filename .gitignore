@@ -33,3 +33,4 @@ src/main/resources/application-prod.properties
 /.claude/
 CLAUDE.md
 /.cursor/
+/memory/

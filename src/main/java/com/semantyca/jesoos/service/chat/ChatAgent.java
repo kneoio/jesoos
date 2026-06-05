@@ -45,9 +45,9 @@ import static org.bsc.langgraph4j.StateGraph.END;
 import static org.bsc.langgraph4j.StateGraph.START;
 
 @ApplicationScoped
-public class PublicChatGraph {
+public class ChatAgent {
 
-    private static final Logger LOGGER = Logger.getLogger(PublicChatGraph.class);
+    private static final Logger LOGGER = Logger.getLogger(ChatAgent.class);
     private static final int MAX_TOOL_ITERATIONS = 8;
 
     @Inject JesoosConfig config;
@@ -103,9 +103,9 @@ public class PublicChatGraph {
                     .addEdge("tool", "llm")
                     .compile();
 
-            LOGGER.info("[PublicChatGraph] compiled successfully");
+            LOGGER.info("[ChatAgent] compiled successfully");
         } catch (Exception e) {
-            throw new RuntimeException("Failed to compile PublicChatGraph", e);
+            throw new RuntimeException("Failed to compile ChatAgent", e);
         }
     }
 
@@ -262,35 +262,19 @@ public class PublicChatGraph {
                         controller.sendToConnection(connectionId, result.wsMessage());
                     }
 
-                    // STUPID ASSUMPTION — added without being asked, not verified, may be wrong. Review before trusting.
-                    // Idea: wait for migrateAnonymousDbRecords before sending session_token so FE history loads after migration.
                     if (result.newUserId() != null && result.newUserId() > 0 && result.newUser() != null) {
                         updates.put(ChatState.USER_ID, result.newUserId());
+                        if (result.sessionToken() != null) {
+                            updates.put(ChatState.SESSION_TOKEN, result.sessionToken());
+                            updates.put(ChatState.SESSION_USER_NAME, result.sessionUserName());
+                        }
                         chatRepository.persistConnectionToUser(connectionId, result.newUserId());
-                        LOGGER.infof("[ChatGraph] auth upgraded userId=%d", result.newUserId());
+                        LOGGER.infof("[ChatAgent] auth upgraded userId=%d connectionId=%s", result.newUserId(), connectionId);
                         return publicChatService.migrateAnonymousDbRecords(connectionId, result.newUserId())
-                                .onFailure().invoke(err -> LOGGER.warnf(err, "[ChatGraph] migration failed conn=%s", connectionId))
+                                .onFailure().invoke(err -> LOGGER.warnf(err, "[ChatAgent] migration failed conn=%s", connectionId))
                                 .onFailure().recoverWithNull()
-                                .invoke(() -> {
-                                    controller.upgradeUserSession(connectionId, result.newUser());
-                                    if (result.sessionToken() != null) {
-                                        controller.sendToConnection(connectionId, new JsonObject()
-                                                .put("type", "session_token")
-                                                .put("token", result.sessionToken())
-                                                .put("userName", result.sessionUserName())
-                                                .encode());
-                                    }
-                                })
+                                .invoke(() -> controller.upgradeUserSession(connectionId, result.newUser()))
                                 .replaceWith(updates);
-                    }
-
-                    // Non-auth path: send session_token immediately if present
-                    if (result.sessionToken() != null) {
-                        controller.sendToConnection(connectionId, new JsonObject()
-                                .put("type", "session_token")
-                                .put("token", result.sessionToken())
-                                .put("userName", result.sessionUserName())
-                                .encode());
                     }
 
                     return Uni.createFrom().item(updates);

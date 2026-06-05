@@ -125,7 +125,7 @@ public class ChatService {
     @Inject
     PublicChatIntentRouter intentRouter;
     @Inject
-    PublicChatGraph chatGraph;
+    ChatAgent chatGraph;
 
     @Setter
     private PublicChatController controller;
@@ -255,11 +255,12 @@ public class ChatService {
             String botText = finalState.botResponse();
             if (botText == null || botText.isBlank()) {
                 if (finalUserId != 0 && user.getId() == 0) {
-                    LOGGER.warnf("[ChatGraph] auth succeeded but LLM silent — sending fallback welcome userId=%d connectionId=%s", finalUserId, connectionId);
+                    LOGGER.warnf("[ChatAgent] auth succeeded but LLM silent — sending fallback welcome userId=%d connectionId=%s", finalUserId, connectionId);
                     return emitPrecomputedResponse("You're all set! Welcome to " + slugName + ". What would you like to do?",
-                            chunkHandler, completionHandler, connectionId, slugName, finalUserId);
+                            chunkHandler, completionHandler, connectionId, slugName, finalUserId)
+                            .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
                 }
-                LOGGER.warnf("[ChatGraph] empty botResponse userId=%d connectionId=%s", finalUserId, connectionId);
+                LOGGER.warnf("[ChatAgent] empty botResponse userId=%d connectionId=%s", finalUserId, connectionId);
                 chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                 completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                 return Uni.createFrom().voidItem();
@@ -273,7 +274,8 @@ public class ChatService {
             chatRepository.replaceConversationHistory(
                     ChatRepository.connectionKey(connectionId),
                     finalState.history());
-            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId);
+            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId)
+                    .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
         });
     }
 
@@ -510,6 +512,18 @@ public class ChatService {
                 .replaceAll("\\{\\{.*?}}", "")
                 .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "")
                 .trim();
+    }
+
+    private void sendDeferredSessionToken(ChatState finalState, String connectionId) {
+        String token = finalState.sessionToken();
+        if (token != null) {
+            LOGGER.infof("[ChatAgent] sending deferred session_token userId=%d connectionId=%s", finalState.userId(), connectionId);
+            controller.sendToConnection(connectionId, new io.vertx.core.json.JsonObject()
+                    .put("type", "session_token")
+                    .put("token", token)
+                    .put("userName", finalState.sessionUserName())
+                    .encode());
+        }
     }
 
     public Uni<Void> migrateAnonymousDbRecords(String connectionId, long newUserId) {
