@@ -349,36 +349,45 @@ public class ChatService {
         String userToken = UUID.randomUUID().toString();
         return sessionManager.storeUserToken(userToken, normalizedEmail)
                 .chain(() -> userService.findByEmail(normalizedEmail))
-                .chain(user -> {
-                    if (user == null || user.getId() == 0) {
-                        ListenerDTO dto = new ListenerDTO();
-                        dto.setEmail(normalizedEmail);
-                        if (preferredName != null && !preferredName.isBlank()) {
-                            dto.setUserData(Map.of("preferred_name", preferredName));
-                        }
-                        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
-                                .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
-                    }
+                .chain(user -> registerListenerForUser(user, normalizedEmail, stationSlug, preferredName, userToken));
+    }
 
-                    return listenerService.getByUserId(user.getId())
-                            .chain(listener -> {
-                                if (listener != null) {
-                                    Uni<Void> storeNameUni = (preferredName != null && !preferredName.isBlank())
-                                            ? listenerService.updateUserData(listener.getId(),
-                                                    mergeUserData(listener.getUserData(), preferredName))
-                                            : Uni.createFrom().voidItem();
-                                    return storeNameUni
-                                            .chain(() -> ensureUserIsListenerOfStation(user.getId(), stationSlug))
-                                            .replaceWith(new RegistrationResult(user.getId(), userToken));
-                                }
-                                ListenerDTO dto = new ListenerDTO();
-                                dto.setEmail(normalizedEmail);
-                                if (preferredName != null && !preferredName.isBlank()) {
-                                    dto.setUserData(Map.of("preferred_name", preferredName));
-                                }
-                                return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
-                                        .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
-                            });
+    public Uni<RegistrationResult> registerListener(IUser knownUser, String email, String stationSlug, String preferredName) {
+        String normalizedEmail = EmailUtil.normalize(email);
+        String userToken = UUID.randomUUID().toString();
+        return sessionManager.storeUserToken(userToken, normalizedEmail)
+                .chain(() -> registerListenerForUser(knownUser, normalizedEmail, stationSlug, preferredName, userToken));
+    }
+
+    private Uni<RegistrationResult> registerListenerForUser(IUser user, String normalizedEmail, String stationSlug, String preferredName, String userToken) {
+        if (user == null || user.getId() == 0) {
+            ListenerDTO dto = new ListenerDTO();
+            dto.setEmail(normalizedEmail);
+            if (preferredName != null && !preferredName.isBlank()) {
+                dto.setUserData(Map.of("preferred_name", preferredName));
+            }
+            return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                    .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
+        }
+
+        return listenerService.getByUserId(user.getId())
+                .chain(listener -> {
+                    if (listener != null) {
+                        Uni<Void> storeNameUni = (preferredName != null && !preferredName.isBlank())
+                                ? listenerService.updateUserData(listener.getId(),
+                                        mergeUserData(listener.getUserData(), preferredName))
+                                : Uni.createFrom().voidItem();
+                        return storeNameUni
+                                .chain(() -> ensureUserIsListenerOfStation(user.getId(), stationSlug))
+                                .replaceWith(new RegistrationResult(user.getId(), userToken));
+                    }
+                    ListenerDTO dto = new ListenerDTO();
+                    dto.setEmail(normalizedEmail);
+                    if (preferredName != null && !preferredName.isBlank()) {
+                        dto.setUserData(Map.of("preferred_name", preferredName));
+                    }
+                    return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                            .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
                 });
     }
 

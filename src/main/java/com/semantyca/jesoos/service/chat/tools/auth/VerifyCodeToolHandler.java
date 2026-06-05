@@ -53,7 +53,7 @@ public class VerifyCodeToolHandler {
                         return Uni.createFrom().item(ToolNodeResult.ok(
                                 new JsonObject().put("ok", false).put("error", "User not found.").encode()));
                     }
-                    return chatService.registerListener(email, brandSlug, preferredName)
+                    return chatService.registerListener(user, email, brandSlug, preferredName)
                             .onFailure().invoke(err -> LOG.errorf(err, "[VerifyCode] Listener registration failed for %s", email))
                             .onItem().transformToUni(reg -> {
                                 metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
