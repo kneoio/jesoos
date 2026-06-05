@@ -3,7 +3,7 @@ package com.semantyca.jesoos.rest;
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.UploadFileDTO;
-import com.semantyca.jesoos.service.chat.PublicChatService;
+import com.semantyca.jesoos.service.chat.ChatService;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -40,7 +40,7 @@ public class SoundFragmentUploadResource extends AbstractResource {
     private final ConcurrentHashMap<String, ChunkState> chunkStateMap = new ConcurrentHashMap<>();
 
     @Inject
-    PublicChatService publicChatService;
+    ChatService publicChatService;
 
     @Inject
     JesoosConfig config;

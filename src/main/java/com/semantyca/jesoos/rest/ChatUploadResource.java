@@ -2,7 +2,7 @@ package com.semantyca.jesoos.rest;
 
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.service.chat.PublicChatService;
+import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -27,7 +27,7 @@ public class ChatUploadResource extends AbstractResource {
     private static final String UPLOAD_CONTROLLER = "chat-upload-controller";
 
     @Inject
-    PublicChatService publicChatService;
+    ChatService publicChatService;
 
     @Inject
     PublicChatSessionManager sessionManager;

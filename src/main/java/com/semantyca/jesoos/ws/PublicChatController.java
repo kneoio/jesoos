@@ -5,12 +5,11 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
-import com.semantyca.jesoos.service.chat.PublicChatService;
+import com.semantyca.jesoos.service.chat.ChatService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
-import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -26,38 +25,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
     private static final Logger LOG = Logger.getLogger(PublicChatController.class);
     private static final SecureRandom CONNECTION_ID_RANDOM = new SecureRandom();
-    private final PublicChatService publicChatService;
+    private final ChatService chatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
 
-    public static class UserHolder {
-        private volatile IUser user;
-        
-        public UserHolder(IUser user) {
-            this.user = user;
-        }
-        
-        public IUser getUser() {
-            return user;
-        }
-        
-        public void setUser(IUser user) {
-            this.user = user;
-        }
-    }
-
     public PublicChatController() {
         super(null);
-        this.publicChatService = null;
+        this.chatService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, PublicChatService publicChatService) {
+    public PublicChatController(UserService userService, ChatService chatService) {
         super(userService);
-        this.publicChatService = publicChatService;
-        if (publicChatService != null) {
-            publicChatService.setController(this);
+        this.chatService = chatService;
+        if (chatService != null) {
+            chatService.setController(this);
         }
     }
 
@@ -97,8 +80,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             LOG.infof("[ws-auth] no token — anonymous");
             return Uni.createFrom().item(AnonymousUser.build());
         }
-        assert publicChatService != null;
-        return publicChatService.authenticateUserFromToken(token)
+        assert chatService != null;
+        return chatService.authenticateUserFromToken(token)
                 .onItem().invoke(user -> {
                     if (user instanceof AnonymousUser || user.getId() == 0) {
                         LOG.warnf("[ws-auth] token present but resolved to anonymous — token may be expired or invalidated: %s", token.substring(0, 8) + "...");
@@ -121,6 +104,10 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         activeConnections.put(connectionId, webSocket);
         UserHolder userHolder = new UserHolder(user);
         connectionUsers.put(connectionId, userHolder);
+        if (!isAnonymous(user)) {
+            assert chatService != null;
+            chatService.bootstrapConnectionHistory(connectionId, user.getId());
+        }
         LOG.infof("Public chat WebSocket connected: %s for user: %s", connectionId, user.getUserName());
 
         webSocket.textMessageHandler(message -> {
@@ -146,6 +133,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         });
 
         webSocket.closeHandler(v -> {
+            IUser closingUser = userHolder.getUser();
+            if (!isAnonymous(closingUser)) {
+                assert chatService != null;
+                chatService.persistConnectionHistory(connectionId, closingUser.getId());
+            }
             activeConnections.remove(connectionId);
             userStationRegistrations.remove(connectionId);
             connectionUsers.remove(connectionId);
@@ -178,8 +170,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Uni<Void> ensureRegistration;
         if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
-            assert publicChatService != null;
-            ensureRegistration = publicChatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
+            assert chatService != null;
+            ensureRegistration = chatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
                     .invoke(() -> registeredStations.add(brandSlug));
         } else {
             ensureRegistration = Uni.createFrom().voidItem();
@@ -187,11 +179,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Uni<String> resolvedUsername = isAnonymous(user)
                 ? Uni.createFrom().item(sanitizeUsername(msgJson.getString("username", "anonymous")))
-                : publicChatService.resolveDisplayName(user.getId(), user.getEmail());
+                : chatService.resolveDisplayName(user.getId(), user.getEmail());
 
         ensureRegistration
                 .chain(() -> resolvedUsername)
-                .chain(username -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
+                .chain(username -> chatService.processUserMessage(username, content, connectionId, brandSlug, user))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
@@ -208,7 +200,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
                                 String brandSlug, UserHolder userHolder) {
         IUser user = userHolder.getUser();
-        publicChatService.generateBotResponse(
+        chatService.generateBotResponse(
                 userMessage,
                 webSocket::writeTextMessage,
                 webSocket::writeTextMessage,
@@ -229,7 +221,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         Integer limit = msgJson.getInteger("limit", 50);
 
         IUser user = userHolder.getUser();
-        publicChatService.getChatHistory(brandSlug, limit, connectionId, user)
+        chatService.getChatHistory(brandSlug, limit, connectionId, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {
@@ -272,16 +264,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     public void upgradeUserSession(String connectionId, IUser newUser) {
         UserHolder holder = connectionUsers.get(connectionId);
-        if (holder != null && holder.getUser().getId() == 0) {
-            assert publicChatService != null;
-            publicChatService.migrateAnonymousSession(connectionId, newUser.getId())
-                    .subscribe().with(
-                            v -> LOG.infof("Migrated anonymous chat for connection %s to user %s", connectionId, newUser.getUserName()),
-                            e -> LOG.errorf(e, "Failed to migrate anonymous chat for connection %s", connectionId)
-                    );
-        }
         if (holder != null) {
             holder.setUser(newUser);
+            assert chatService != null;
+            chatService.migrateAnonymousDbRecords(connectionId, newUser.getId())
+                    .subscribe().with(
+                            v -> LOG.infof("Migrated DB records for connection %s to user %s", connectionId, newUser.getUserName()),
+                            e -> LOG.errorf(e, "Failed to migrate DB records for connection %s", connectionId)
+                    );
             LOG.infof("Upgraded user session for connection %s to user %s", connectionId, newUser.getUserName());
         }
     }

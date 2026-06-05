@@ -6,13 +6,13 @@ import com.semantyca.core.repository.AsyncRepository;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.jesoos.model.chat.ChatMessage;
+import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -43,30 +43,17 @@ public class ChatRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<Void> saveChatMessage(long userId, String brandName, ChatType chatType, JsonObject message) {
-        JsonObject data = message.getJsonObject("data");
-        if (data == null) {
-            data = message;
-        }
-
+    public Uni<Void> saveChatMessage(long userId, String brandName, ChatType chatType, ChatMessageEnvelope message) {
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (id, user_id, brand_name, chat_type, message_type, username, content, connection_id, timestamp) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
 
-        UUID id = UUID.randomUUID();
-        String messageTypeStr = data.getString("type", MessageType.USER.name());
-        MessageType messageType = MessageType.valueOf(messageTypeStr);
-        String username = data.getString("username");
-        String content = data.getString("content");
-        String connectionId = data.getString("connectionId");
-        Long timestampMillis = data.getLong("timestamp", System.currentTimeMillis());
-        OffsetDateTime timestamp = java.time.Instant.ofEpochMilli(timestampMillis)
-                .atOffset(ZoneOffset.UTC);
+        OffsetDateTime timestamp = java.time.Instant.ofEpochMilli(message.timestamp()).atOffset(ZoneOffset.UTC);
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(id, userId, brandName, chatType.name(), messageType.name(), username)
-                        .addString(content)
-                        .addString(connectionId)
+                .execute(Tuple.of(UUID.randomUUID(), userId, brandName, chatType.name(), message.type().name(), message.username())
+                        .addString(message.content())
+                        .addString(message.connectionId())
                         .addOffsetDateTime(timestamp))
                 .replaceWithVoid()
                 .onFailure().invoke(throwable ->
@@ -74,9 +61,39 @@ public class ChatRepository extends AsyncRepository {
                 );
     }
 
+    public static String connectionKey(String connectionId) {
+        return "conn_" + connectionId;
+    }
+
+    public static String userKey(long userId) {
+        return "user_" + userId;
+    }
+
+    /** @deprecated use connectionKey / userKey */
+    @Deprecated
     public static String sessionKey(long userId, String connectionId, ChatType chatType) {
         String base = (userId == 0 ? connectionId : String.valueOf(userId));
         return base + "_" + chatType.name();
+    }
+
+    public void bootstrapConnectionFromUser(String connectionId, long userId) {
+        if (userId == 0) return;
+        String connKey = connectionKey(connectionId);
+        if (conversationHistoryCache.containsKey(connKey)) return;
+        List<LlmMessage> userHistory = conversationHistoryCache.get(userKey(userId));
+        if (userHistory != null && !userHistory.isEmpty()) {
+            conversationHistoryCache.put(connKey, new ArrayList<>(userHistory));
+            LOGGER.info("[history] bootstrapped conn={} from userId={} size={}", connectionId, userId, userHistory.size());
+        }
+    }
+
+    public void persistConnectionToUser(String connectionId, long userId) {
+        if (userId == 0) return;
+        List<LlmMessage> connHistory = conversationHistoryCache.get(connectionKey(connectionId));
+        if (connHistory != null && !connHistory.isEmpty()) {
+            conversationHistoryCache.put(userKey(userId), new ArrayList<>(connHistory));
+            LOGGER.info("[history] persisted conn={} to userId={} size={}", connectionId, userId, connHistory.size());
+        }
     }
 
     public Uni<List<JsonObject>> getRecentChatMessages(long userId, String connectionId, String brandName, ChatType chatType, int limit) {
@@ -119,38 +136,10 @@ public class ChatRepository extends AsyncRepository {
     }
 
     public void replaceConversationHistory(String sessionKey, List<LlmMessage> history) {
-        List<LlmMessage> snapshot = new ArrayList<>(history);
-        List<LlmMessage> live = conversationHistoryCache.computeIfAbsent(sessionKey, k -> new ArrayList<>());
-        live.clear();
-        live.addAll(snapshot);
+        conversationHistoryCache.put(sessionKey, new ArrayList<>(history));
     }
 
-    public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId, ChatType chatType) {
-        String anonKey = sessionKey(0, connectionId, chatType);
-        String userKey = sessionKey(newUserId, connectionId, chatType);
-        List<LlmMessage> anonHistory = conversationHistoryCache.remove(anonKey);
-        List<LlmMessage> existingUserHistory = conversationHistoryCache.get(userKey);
-        LOGGER.info("[migrate] conn={} userId={} anonSize={} existingUserSize={}",
-                connectionId, newUserId,
-                anonHistory != null ? anonHistory.size() : 0,
-                existingUserHistory != null ? existingUserHistory.size() : 0);
-        if (anonHistory != null && existingUserHistory != null && !existingUserHistory.isEmpty()) {
-            LlmMessage lastAnon = anonHistory.isEmpty() ? null : anonHistory.get(anonHistory.size() - 1);
-            LlmMessage firstExisting = existingUserHistory.get(0);
-            if (lastAnon != null) {
-                LOGGER.warn("[migrate] boundary roles: lastAnon={} firstExisting={} — consecutive same-role risk if equal",
-                        lastAnon.role().name(), firstExisting.role().name());
-            }
-        }
-        if (anonHistory != null) {
-            conversationHistoryCache.merge(userKey, anonHistory, (existing, migrated) -> {
-                List<LlmMessage> merged = new ArrayList<>(migrated);
-                merged.addAll(existing);
-                LOGGER.info("[migrate] merged result size={}", merged.size());
-                return merged;
-            });
-        }
-
+    public Uni<Void> migrateAnonymousDbRecords(String connectionId, long newUserId) {
         String sql = "UPDATE " + entityData.getTableName() +
                 " SET user_id = $1 WHERE connection_id = $2 AND user_id = 0";
         return client.preparedQuery(sql)

@@ -1,61 +1,68 @@
 package com.semantyca.jesoos.service.chat;
 
+import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
+import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.service.UserService;
+import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.dto.ListenerDTO;
+import com.semantyca.jesoos.external.KeycloakAuthService;
+import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
+import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.repository.ChatRepository;
-import com.semantyca.jesoos.service.AiAgentService;
-import com.semantyca.jesoos.service.BrandService;
-import com.semantyca.jesoos.service.ScriptService;
-import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
-import com.semantyca.jesoos.service.chat.llm.LlmMessage;
-import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
-import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
-import com.semantyca.jesoos.service.chat.llm.LlmRequest;
-import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
-import com.semantyca.jesoos.service.chat.llm.LlmTool;
-import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
-import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
-import com.semantyca.mixpla.model.cnst.SceneTimingMode;
-import com.semantyca.mixpla.model.filter.ScriptFilter;
+import com.semantyca.jesoos.service.*;
+import com.semantyca.jesoos.service.chat.ad.AdContinuationHandler;
+import com.semantyca.jesoos.service.chat.ad.AdGraph;
+import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
+import com.semantyca.jesoos.service.chat.llm.*;
+import com.semantyca.jesoos.service.chat.ots.OtsContinuationHandler;
+import com.semantyca.jesoos.service.chat.ots.OtsScriptsProvider;
+import com.semantyca.jesoos.service.chat.ots.OtsGraph;
+import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.service.live.AiHelperService;
+import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.ScenePool;
+import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
-import com.semantyca.mixpla.model.aiagent.AiAgent;
-import com.semantyca.mixpla.model.aiagent.LanguagePreference;
+import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
+import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.jesoos.util.EmailUtil;
+import com.semantyca.jesoos.ws.PublicChatController;
+import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.Setter;
 import org.jboss.logging.Logger;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
-public abstract class ChatService {
+@ApplicationScoped
+public class ChatService {
     private static final Logger LOGGER = Logger.getLogger(ChatService.class);
 
     protected final ChatLlmClient llmClient;
     protected final LlmProviderAdapter llmProviderAdapter;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
-    protected final String followUpPrompt;
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     protected final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
-
-    protected record BrandStaticData(String djName, String djPrimaryVoices, String djLanguages, String partialPrompt) {}
 
     @Inject
     protected ScenePool scenePool;
@@ -71,8 +78,68 @@ public abstract class ChatService {
     protected ChatSummaryService chatSummaryService;
     @Inject
     protected ScriptService scriptService;
+    @Inject
+    PublicChatSessionManager sessionManager;
+    @Inject
+    ListenerService listenerService;
+    @Inject
+    EventService eventService;
+    @Inject
+    UserService userService;
+    @Inject
+    ReactiveMailer reactiveMailer;
+    @Inject
+    KeycloakAuthService keycloakAuthService;
+    @Inject
+    SoundFragmentService soundFragmentService;
+    @Inject
+    ListenerLabelCache listenerLabelCache;
+    @Inject
+    BrandPool brandPool;
+    @Inject
+    SongEmitter songEmitter;
+    @Inject
+    IntroTtsGenerator introTtsGenerator;
+    @Inject
+    InternalRestCall internalRestCall;
+    @Inject
+    PlaylistQueueService playlistQueueService;
+    @Inject
+    MetricPublisher metricPublisher;
+    @Inject
+    OneTimeStreamService oneTimeStreamService;
+    @Inject
+    OtsSessionManager otsSessionManager;
+    @Inject
+    OtsGraph otsGraph;
+    @Inject
+    AdSessionManager adSessionManager;
+    @Inject
+    AdGraph adGraph;
+    @Inject
+    OtsScriptsProvider otsScriptsProvider;
+    @Inject
+    OtsContinuationHandler otsContinuationHandler;
+    @Inject
+    AdContinuationHandler adContinuationHandler;
+    @Inject
+    PublicChatIntentRouter intentRouter;
+    @Inject
+    PublicChatGraph chatGraph;
 
-    protected ChatService(JesoosConfig config, AiHelperService aiHelperService) {
+    @Setter
+    private PublicChatController controller;
+
+    protected ChatService() {
+        this.llmClient = null;
+        this.llmProviderAdapter = null;
+        this.aiHelperService = null;
+        this.config = null;
+        this.mainPrompt = null;
+    }
+
+    @Inject
+    public ChatService(JesoosConfig config, AiHelperService aiHelperService) {
         if (config != null) {
             String provider = config.getLlmProvider();
             LOGGER.infof("[llm] provider=%s", provider);
@@ -80,101 +147,33 @@ public abstract class ChatService {
             this.llmClient = llmProviderAdapter.createClient(config);
             this.aiHelperService = aiHelperService;
             this.config = config;
-            this.mainPrompt = loadPromptTemplate("prompts/mainPrompt.hbs");
-            this.followUpPrompt = loadPromptTemplate("prompts/followUpPrompt.hbs");
+            this.mainPrompt = ResourceUtil.loadResourceAsString("prompts/mainPrompt.hbs");
         } else {
             this.llmClient = null;
             this.llmProviderAdapter = null;
             this.aiHelperService = null;
             this.config = null;
             this.mainPrompt = null;
-            this.followUpPrompt = null;
         }
-    }
-
-    @Deprecated
-    private String loadPromptTemplate(String resourcePath) {
-        try (InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                throw new IllegalStateException("Resource not found: " + resourcePath);
-            }
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to load resource: " + resourcePath, e);
-        }
-    }
-
-    protected String getMainPrompt() {
-        return this.mainPrompt;
-    }
-
-    protected String getFollowUpPrompt() {
-        return this.followUpPrompt;
-    }
-
-    protected abstract ChatType getChatType();
-
-    protected String resolveMainModel() {
-        return llmProviderAdapter.modelFor(LlmUseCase.MAIN_CHAT);
-    }
-
-    protected String resolveFollowUpModel() {
-        return llmProviderAdapter.modelFor(LlmUseCase.FOLLOW_UP);
-    }
-
-    private Uni<String> buildOtsScriptsText() {
-        ScriptFilter filter = new ScriptFilter();
-        filter.setTimingMode(SceneTimingMode.RELATIVE_TO_STREAM_START);
-        return scriptService.getAll(50, 0, filter).map(scripts -> {
-            if (scripts == null || scripts.isEmpty()) {
-                return "none available";
-            }
-            StringBuilder sb = new StringBuilder();
-            scripts.forEach(script -> {
-                sb.append("- ").append(script.getName())
-                        .append(" (id: ").append(script.getId()).append(")");
-                if (script.getRequiredVariables() != null && !script.getRequiredVariables().isEmpty()) {
-                    sb.append(" — variables: ");
-                    script.getRequiredVariables().forEach(v ->
-                            sb.append(v.getName()).append("=").append(v.getDescription()).append(", "));
-                    sb.setLength(sb.length() - 2);
-                } else {
-                    sb.append(" — no variables needed");
-                }
-                sb.append("\n");
-            });
-            return sb.toString().trim();
-        });
-    }
-
-    public Uni<Void> migrateAnonymousSession(String connectionId, long newUserId) {
-        return chatRepository.migrateAnonymousSession(connectionId, newUserId, getChatType());
     }
 
     public Uni<String> processUserMessage(String username, String content, String connectionId, String brandName, IUser user) {
         return Uni.createFrom().item(() -> {
-            JsonObject message = createMessage(
-                    MessageType.USER,
-                    username,
-                    content,
-                    System.currentTimeMillis(),
-                    connectionId
-            );
+            ChatMessageEnvelope message = ChatMessageEnvelope.of(MessageType.USER, username, content, System.currentTimeMillis(), connectionId);
 
-            chatRepository.saveChatMessage(user.getId(), brandName, getChatType(), message).subscribe().with(
+            chatRepository.saveChatMessage(user.getId(), brandName, ChatType.PUBLIC, message).subscribe().with(
                     success -> {},
                     failure -> LOGGER.error("Failed to save user message", failure)
             );
 
-            String sessionKey = ChatRepository.sessionKey(user.getId(), connectionId, getChatType());
-            chatRepository.appendToConversation(sessionKey, LlmMessage.text(LlmMessage.Role.USER, content));
+            chatRepository.appendToConversation(ChatRepository.connectionKey(connectionId), LlmMessage.text(LlmMessage.Role.USER, content));
 
             return ChatMessageDTO.user(content, username, connectionId).build().toJson();
         });
     }
 
     public Uni<String> getChatHistory(String brandName, int limit, String connectionId, IUser user) {
-        return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, getChatType(), limit)
+        return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, ChatType.PUBLIC, limit)
                 .map(recentMessages -> {
                     JsonArray messages = new JsonArray();
                     recentMessages.forEach(messages::add);
@@ -188,17 +187,33 @@ public abstract class ChatService {
     }
 
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
+        return intentRouter.decide(connectionId, userMessage)
+                .flatMap(decision -> {
+                    String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
+                    if (decision.intent() == ChatIntent.START_OTS && otsSessionManager.isActive(connectionId)) {
+                        return otsContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
+                    }
+                    if (decision.intent() == ChatIntent.CREATE_AD && adSessionManager.isActive(connectionId)) {
+                        return adContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
+                    }
+                    return generateBotResponseCore(chunkHandler, completionHandler, connectionId, slugName, user);
+                });
+    }
 
+    private Uni<Void> generateBotResponseCore(Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
         BrandStaticData cached = brandStaticCache.get(slugName);
         Uni<BrandStaticData> staticDataUni = cached != null ? Uni.createFrom().item(cached) : buildBrandStaticData(slugName);
 
         return staticDataUni.flatMap(staticData -> resolveUserLabel(user).flatMap(userLabel -> {
             String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
-            String isAuthenticated = Boolean.toString(user.getEmail() != null && !user.getEmail().isBlank());
-            String renderedPrompt = staticData.partialPrompt()
+            boolean authenticated = user.getEmail() != null && !user.getEmail().isBlank();
+            String isAuthenticated = Boolean.toString(authenticated);
+            String base = staticData.partialPrompt()
                     .replace("{{radioStationStatus}}", stationStatus)
                     .replace("{{userName}}", userLabel != null ? userLabel : "")
                     .replace("{{isAuthenticated}}", isAuthenticated);
+            int gateIdx = authenticated ? -1 : base.indexOf("!! AUTHENTICATED ONLY");
+            final String renderedPrompt = gateIdx >= 0 ? base.substring(0, gateIdx).trim() : base;
 
             ChatLogger.request(slugName, user.getId(), user.getEmail(),
                     Boolean.parseBoolean(isAuthenticated), stationStatus);
@@ -207,7 +222,7 @@ public abstract class ChatService {
             assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
             assistantNameByConnectionId.put(connectionId + "_lang", staticData.djLanguages());
 
-            return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, getChatType())
+            return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName)
                     .flatMap(history -> runChatLoop(
                             staticData, renderedPrompt, history, user,
                             chunkHandler, completionHandler, connectionId, slugName));
@@ -221,29 +236,45 @@ public abstract class ChatService {
     }
 
     protected Uni<Void> runChatLoop(
-            BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history, IUser user,
-            Consumer<String> chunkHandler, Consumer<String> completionHandler,
-            String connectionId, String slugName) {
-        LlmRequest request = buildLlmRequest(renderedPrompt, history, user, staticData.djLanguages());
-        return Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
-                .flatMap(response -> {
-                    if (response.toolCall().isPresent()) {
-                        LlmToolCall toolCall = response.toolCall().get();
-                        ChatLogger.firstCall(toolCall.name());
-                        List<LlmMessage> h = chatRepository.getConversationHistory(ChatRepository.sessionKey(user.getId(), connectionId, getChatType()));
-                        return handleToolCall(toolCall, chunkHandler, completionHandler, connectionId, slugName, user.getId(), h);
-                    } else {
-                        ChatLogger.firstCallNoTool();
-                        String precomputed = response.text();
-                        if (precomputed != null && !precomputed.isBlank()) {
-                            return emitPrecomputedResponse(precomputed, chunkHandler, completionHandler, connectionId, slugName, user.getId());
-                        }
-                        LlmRequest noToolRequest = LlmRequest.builder()
-                                .maxTokens(request.maxTokens()).system(request.system())
-                                .messages(request.messages()).model(request.model()).build();
-                        return streamResponse(noToolRequest, chunkHandler, completionHandler, connectionId, slugName, user.getId());
-                    }
-                });
+            BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history,
+            IUser user, Consumer<String> chunkHandler,
+            Consumer<String> completionHandler, String connectionId, String slugName) {
+        Map<String, Object> initData = new java.util.HashMap<>();
+        initData.put(ChatState.USER_ID, user.getId());
+        initData.put(ChatState.CONNECTION_ID, connectionId);
+        initData.put(ChatState.BRAND_NAME, slugName);
+        initData.put(ChatState.HISTORY, new java.util.ArrayList<>(history));
+        initData.put(ChatState.SYSTEM_PROMPT, renderedPrompt);
+        initData.put(ChatState.DJ_NAME, staticData.djName());
+        initData.put(ChatState.DJ_LANGUAGES, staticData.djLanguages());
+        initData.put(ChatState.ITERATION, 0);
+
+
+        return chatGraph.run(initData).flatMap(finalState -> {
+            long finalUserId = finalState.userId();
+            String botText = finalState.botResponse();
+            if (botText == null || botText.isBlank()) {
+                if (finalUserId != 0 && user.getId() == 0) {
+                    LOGGER.warnf("[ChatGraph] auth succeeded but LLM silent — sending fallback welcome userId=%d connectionId=%s", finalUserId, connectionId);
+                    return emitPrecomputedResponse("You're all set! Welcome to " + slugName + ". What would you like to do?",
+                            chunkHandler, completionHandler, connectionId, slugName, finalUserId);
+                }
+                LOGGER.warnf("[ChatGraph] empty botResponse userId=%d connectionId=%s", finalUserId, connectionId);
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                return Uni.createFrom().voidItem();
+            }
+            String responseText = botText.replaceAll("(?s)<thinking>.*?</thinking>", "").trim();
+            if (responseText.isBlank()) {
+                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                return Uni.createFrom().voidItem();
+            }
+            chatRepository.replaceConversationHistory(
+                    ChatRepository.connectionKey(connectionId),
+                    finalState.history());
+            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId);
+        });
     }
 
     protected Uni<BrandStaticData> buildBrandStaticData(String slugName) {
@@ -253,7 +284,7 @@ public abstract class ChatService {
             Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni = station != null && station.getAiAgentId() != null
                     ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
                     : Uni.createFrom().item(() -> null);
-            return Uni.combine().all().unis(agentUni, buildOtsScriptsText()).asTuple()
+            return Uni.combine().all().unis(agentUni, otsScriptsProvider.buildScriptsText()).asTuple()
                     .map(tuple -> {
                         com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
                         String otsScripts = tuple.getItem2();
@@ -281,75 +312,94 @@ public abstract class ChatService {
     }
 
     protected Uni<String> resolveUserLabel(IUser user) {
-        return Uni.createFrom().item("");
+        if (user.getId() == 0) return Uni.createFrom().item("");
+        return listenerService.resolveDisplayName(user.getId(), null);
     }
 
-    protected abstract LlmRequest buildLlmRequest(String renderedPrompt, List<LlmMessage> history, IUser user, String djLanguages);
+    public Uni<String> resolveDisplayName(long userId, String fallback) {
+        return listenerService.resolveDisplayName(userId, fallback);
+    }
 
-    protected abstract List<LlmTool> getAvailableTools();
-
-    protected abstract Uni<Void> handleToolCall(LlmToolCall toolCall,
-                                                Consumer<String> chunkHandler,
-                                                Consumer<String> completionHandler,
-                                                String connectionId,
-                                                String brandName,
-                                                long userId,
-                                                List<LlmMessage> conversationHistory);
-
-    protected Uni<Void> streamResponse(LlmRequest request,
-                                       Consumer<String> chunkHandler,
-                                       Consumer<String> completionHandler,
-                                       String connectionId,
-                                       String brandName,
-                                       long userId) {
-
-        return Uni.createFrom().completionStage(() ->
-                llmClient.streamText(
-                        request,
-                        text -> chunkHandler.accept(
-                                ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson()
-                        )
-                ).thenAccept(fullResponse -> {
-                    chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-
-                    String responseText = fullResponse
-                            .replaceAll("(?s)<thinking>.*?</thinking>", "")
-                            .trim();
-
-                    if (!responseText.isEmpty()) {
-                        chatRepository.appendToConversation(
-                                ChatRepository.sessionKey(userId, connectionId, getChatType()),
-                                LlmMessage.text(LlmMessage.Role.ASSISTANT, responseText));
-
-                        JsonObject botMessage = createMessage(
-                                MessageType.BOT,
-                                assistantNameByConnectionId.get(connectionId),
-                                responseText,
-                                System.currentTimeMillis(),
-                                connectionId
-                        );
-
-                        chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
-                                success -> {},
-                                failure -> LOGGER.error("Failed to save bot message", failure)
-                        );
-
-                        String completeMessage = ChatMessageDTO.bot(
-                                        botMessage.getJsonObject("data").getString("content"),
-                                        botMessage.getJsonObject("data").getString("username"),
-                                        botMessage.getJsonObject("data").getString("connectionId")
-                                )
-                                .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
-                                .build()
-                                .toJson();
-
-                        completionHandler.accept(completeMessage);
-                    } else {
-                        LOGGER.warnf("[streamResponse] empty response from LLM userId=%d connectionId=%s — sending processingDone to unblock UI", userId, connectionId);
-                        completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+    public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
+        return listenerService.getByUserId(userId)
+                .chain(listener -> {
+                    if (listener == null) {
+                        return Uni.createFrom().voidItem();
                     }
-                })
-        ).runSubscriptionOn(getDefaultWorkerPool());
+
+                    return brandService.getBySlugName(stationSlug)
+                            .chain(station -> {
+                                if (station == null) {
+                                    return Uni.createFrom().voidItem();
+                                }
+
+                                return listenerService.getListenersBrands(listener.getId())
+                                        .chain(currentStations -> {
+                                            if (!currentStations.contains(station.getId())) {
+                                                return listenerService.addBrandToListener(listener.getId(), station.getId());
+                                            }
+                                            return Uni.createFrom().voidItem();
+                                        });
+                            });
+                });
+    }
+
+    public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
+        String normalizedEmail = EmailUtil.normalize(email);
+        String userToken = UUID.randomUUID().toString();
+        return sessionManager.storeUserToken(userToken, normalizedEmail)
+                .chain(() -> userService.findByEmail(normalizedEmail))
+                .chain(user -> {
+                    if (user == null || user.getId() == 0) {
+                        ListenerDTO dto = new ListenerDTO();
+                        dto.setEmail(normalizedEmail);
+                        if (preferredName != null && !preferredName.isBlank()) {
+                            dto.setUserData(Map.of("preferred_name", preferredName));
+                        }
+                        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                                .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
+                    }
+
+                    return listenerService.getByUserId(user.getId())
+                            .chain(listener -> {
+                                if (listener != null) {
+                                    Uni<Void> storeNameUni = (preferredName != null && !preferredName.isBlank())
+                                            ? listenerService.updateUserData(listener.getId(),
+                                                    mergeUserData(listener.getUserData(), preferredName))
+                                            : Uni.createFrom().voidItem();
+                                    return storeNameUni
+                                            .chain(() -> ensureUserIsListenerOfStation(user.getId(), stationSlug))
+                                            .replaceWith(new RegistrationResult(user.getId(), userToken));
+                                }
+                                ListenerDTO dto = new ListenerDTO();
+                                dto.setEmail(normalizedEmail);
+                                if (preferredName != null && !preferredName.isBlank()) {
+                                    dto.setUserData(Map.of("preferred_name", preferredName));
+                                }
+                                return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+                                        .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
+                            });
+                });
+    }
+
+    public Uni<IUser> authenticateUserFromToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
+        }
+
+        return sessionManager.validateSessionAndGetEmail(token)
+                .onItem().transformToUni(email -> {
+                    if (email == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+                    }
+                    return userService.findByEmail(EmailUtil.normalize(email))
+                            .onItem().transformToUni(user -> {
+                                if (user == null || user.getId() == 0) {
+                                    return Uni.createFrom().item(AnonymousUser.build());
+                                }
+                                return Uni.createFrom().item(user);
+                            });
+                });
     }
 
     protected Uni<Void> emitPrecomputedResponse(
@@ -374,21 +424,18 @@ public abstract class ChatService {
             chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
 
             chatRepository.appendToConversation(
-                    ChatRepository.sessionKey(userId, connectionId, getChatType()),
+                    ChatRepository.connectionKey(connectionId),
                     LlmMessage.text(LlmMessage.Role.ASSISTANT, responseText));
 
-            JsonObject botMessage = createMessage(MessageType.BOT, djName, responseText, System.currentTimeMillis(), connectionId);
+            ChatMessageEnvelope botMessage = ChatMessageEnvelope.of(MessageType.BOT, djName, responseText, System.currentTimeMillis(), connectionId);
 
-            chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
+            chatRepository.saveChatMessage(userId, brandName, ChatType.PUBLIC, botMessage).subscribe().with(
                     success -> {},
                     failure -> LOGGER.error("Failed to save bot message", failure)
             );
 
-            String completeMessage = ChatMessageDTO.bot(
-                            botMessage.getJsonObject("data").getString("content"),
-                            botMessage.getJsonObject("data").getString("username"),
-                            botMessage.getJsonObject("data").getString("connectionId"))
-                    .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
+            String completeMessage = ChatMessageDTO.bot(botMessage.content(), botMessage.username(), botMessage.connectionId())
+                    .timestamp(botMessage.timestamp())
                     .build()
                     .toJson();
             completionHandler.accept(completeMessage);
@@ -396,10 +443,11 @@ public abstract class ChatService {
         }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, ChatType chatType) {
-        List<LlmMessage> currentHistory = chatRepository.getConversationHistory(ChatRepository.sessionKey(userId, connectionId, chatType));
+    protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName) {
+        List<LlmMessage> rawHistory = chatRepository.getConversationHistory(ChatRepository.connectionKey(connectionId));
+        List<LlmMessage> currentHistory = trimOrphanedUserMessages(rawHistory);
 
-        return chatSummaryService.getLatestUserSummary(userId, brandName, chatType)
+        return chatSummaryService.getLatestUserSummary(userId, brandName, ChatType.PUBLIC)
                 .map(summaryText -> {
                     if (summaryText != null && !summaryText.isBlank() && currentHistory.size() > 10) {
                         List<LlmMessage> historyWithSummary = new ArrayList<>();
@@ -413,29 +461,38 @@ public abstract class ChatService {
                 });
     }
 
-    protected JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
-        return new JsonObject()
-                .put("type", "message")
-                .put("data", new JsonObject()
-                        .put("type", type.name())
-                        .put("id", UUID.randomUUID().toString())
-                        .put("username", username)
-                        .put("content", content)
-                        .put("timestamp", timestamp)
-                        .put("connectionId", connectionId)
-                );
+    private static List<LlmMessage> trimOrphanedUserMessages(List<LlmMessage> history) {
+        if (history.isEmpty()) return history;
+        int lastIndex = history.size() - 1;
+        LlmMessage last = history.get(lastIndex);
+        if (last.kind() != LlmMessage.Kind.TEXT || last.role() != LlmMessage.Role.USER) {
+            return history;
+        }
+        // Remove consecutive orphaned USER TEXT messages before the last one
+        int end = lastIndex;
+        while (end > 0
+                && history.get(end - 1).kind() == LlmMessage.Kind.TEXT
+                && history.get(end - 1).role() == LlmMessage.Role.USER) {
+            end--;
+        }
+        if (end == lastIndex) return history;
+        List<LlmMessage> result = new ArrayList<>(history.subList(0, end));
+        result.add(last);
+        return result;
     }
 
     public void clearConversationHistory(String connectionId, long userId) {
-        String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
-        LOGGER.infof("[session] clearing history key=%s", key);
-        chatRepository.clearConversationHistory(key);
+        chatRepository.clearConversationHistory(ChatRepository.connectionKey(connectionId));
+        if (userId != 0) {
+            chatRepository.clearConversationHistory(ChatRepository.userKey(userId));
+        }
     }
 
     public void syncConversationHistory(String connectionId, long userId, List<LlmMessage> history) {
-        String key = ChatRepository.sessionKey(userId, connectionId, getChatType());
-        LOGGER.infof("[session] syncing history key=%s size=%d", key, history.size());
-        chatRepository.replaceConversationHistory(key, history);
+        chatRepository.replaceConversationHistory(ChatRepository.connectionKey(connectionId), history);
+        if (userId != 0) {
+            chatRepository.persistConnectionToUser(connectionId, userId);
+        }
     }
 
     protected static String sanitizePromptValue(String value) {
@@ -445,4 +502,34 @@ public abstract class ChatService {
                 .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "")
                 .trim();
     }
+
+    public Uni<Void> migrateAnonymousDbRecords(String connectionId, long newUserId) {
+        return chatRepository.migrateAnonymousDbRecords(connectionId, newUserId);
+    }
+
+    public void bootstrapConnectionHistory(String connectionId, long userId) {
+        chatRepository.bootstrapConnectionFromUser(connectionId, userId);
+    }
+
+    public void persistConnectionHistory(String connectionId, long userId) {
+        chatRepository.persistConnectionToUser(connectionId, userId);
+    }
+
+    protected String getMainPrompt() {
+        try {
+            String custom = ResourceUtil.loadResourceAsString("/prompts/mainPrompt.hbs");
+            return !custom.isBlank() ? custom : this.mainPrompt;
+        } catch (Exception ignored) {
+            return this.mainPrompt;
+        }
+    }
+
+    private UserData mergeUserData(UserData existing, String value) {
+        UserData merged = new UserData(existing != null && existing.getData() != null
+                ? new HashMap<>(existing.getData())
+                : new HashMap<>());
+        merged.getData().put("preferred_name", value);
+        return merged;
+    }
+
 }

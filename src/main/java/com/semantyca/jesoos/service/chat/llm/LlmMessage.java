@@ -1,6 +1,17 @@
 package com.semantyca.jesoos.service.chat.llm;
 
-public final class LlmMessage {
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.io.Serial;
+import java.io.Serializable;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public final class LlmMessage implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     public enum Role { USER, ASSISTANT }
 
@@ -13,8 +24,14 @@ public final class LlmMessage {
     private final String toolResultId;
     private final String toolResultContent;
 
-    private LlmMessage(Role role, Kind kind, String text, LlmToolCall toolCall,
-                       String toolResultId, String toolResultContent) {
+    @JsonCreator
+    private LlmMessage(
+            @JsonProperty("role") Role role,
+            @JsonProperty("kind") Kind kind,
+            @JsonProperty("text") String text,
+            @JsonProperty("toolCall") LlmToolCall toolCall,
+            @JsonProperty("toolResultId") String toolResultId,
+            @JsonProperty("toolResultContent") String toolResultContent) {
         this.role = role;
         this.kind = kind;
         this.text = text;

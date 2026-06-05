@@ -7,7 +7,6 @@ import org.bsc.langgraph4j.state.AgentState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public class ChatState extends AgentState {
 
@@ -20,9 +19,8 @@ public class ChatState extends AgentState {
     public static final String DJ_LANGUAGES   = "djLanguages";
     public static final String TOOL_CALL      = "toolCall";
     public static final String BOT_RESPONSE   = "botResponse";
-    public static final String TOOL_RESULT    = "toolResult";
+    public static final String CONTEXT_BLOCK  = "contextBlock";
     public static final String ITERATION      = "iteration";
-    public static final String CHUNK_HANDLER  = "chunkHandler";
 
     public ChatState(Map<String, Object> initData) {
         super(initData);
@@ -41,18 +39,13 @@ public class ChatState extends AgentState {
     public String djName()        { return (String) data().getOrDefault(DJ_NAME, ""); }
     public String djLanguages()   { return (String) data().getOrDefault(DJ_LANGUAGES, ""); }
     public LlmToolCall toolCall() { return (LlmToolCall) data().get(TOOL_CALL); }
-    public String botResponse()   { return (String) data().get(BOT_RESPONSE); }
-    public ToolNodeResult toolResult() { return (ToolNodeResult) data().get(TOOL_RESULT); }
+    public String botResponse()    { return (String) data().get(BOT_RESPONSE); }
+    public String contextBlock()   { return (String) data().getOrDefault(CONTEXT_BLOCK, ""); }
     public int iteration()        {
         Object v = data().getOrDefault(ITERATION, 0);
         if (v instanceof Integer i) return i;
         if (v instanceof Long l) return l.intValue();
         return 0;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Consumer<String> chunkHandler() {
-        return (Consumer<String>) data().get(CHUNK_HANDLER);
     }
 
     @SuppressWarnings("unchecked")
