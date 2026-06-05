@@ -11,33 +11,26 @@ import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.dto.ListenerDTO;
-import com.semantyca.jesoos.external.KeycloakAuthService;
-import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
-import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.repository.ChatRepository;
-import com.semantyca.jesoos.service.*;
+import com.semantyca.jesoos.service.AiAgentService;
+import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.ad.AdContinuationHandler;
-import com.semantyca.jesoos.service.chat.ad.AdGraph;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
-import com.semantyca.jesoos.service.chat.llm.*;
+import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
+import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
 import com.semantyca.jesoos.service.chat.ots.OtsContinuationHandler;
 import com.semantyca.jesoos.service.chat.ots.OtsScriptsProvider;
-import com.semantyca.jesoos.service.chat.ots.OtsGraph;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
-import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.service.live.AiHelperService;
-import com.semantyca.jesoos.service.live.BrandPool;
-import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.ScenePool;
-import com.semantyca.jesoos.service.live.SongEmitter;
-import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
-import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.jesoos.ws.PublicChatController;
-import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -73,49 +66,17 @@ public class ChatService {
     @Inject
     protected ChatRepository chatRepository;
     @Inject
-    protected PerplexitySearchHelper perplexitySearchHelper;
-    @Inject
     protected ChatSummaryService chatSummaryService;
-    @Inject
-    protected ScriptService scriptService;
     @Inject
     PublicChatSessionManager sessionManager;
     @Inject
     ListenerService listenerService;
     @Inject
-    EventService eventService;
-    @Inject
     UserService userService;
-    @Inject
-    ReactiveMailer reactiveMailer;
-    @Inject
-    KeycloakAuthService keycloakAuthService;
-    @Inject
-    SoundFragmentService soundFragmentService;
-    @Inject
-    ListenerLabelCache listenerLabelCache;
-    @Inject
-    BrandPool brandPool;
-    @Inject
-    SongEmitter songEmitter;
-    @Inject
-    IntroTtsGenerator introTtsGenerator;
-    @Inject
-    InternalRestCall internalRestCall;
-    @Inject
-    PlaylistQueueService playlistQueueService;
-    @Inject
-    MetricPublisher metricPublisher;
-    @Inject
-    OneTimeStreamService oneTimeStreamService;
     @Inject
     OtsSessionManager otsSessionManager;
     @Inject
-    OtsGraph otsGraph;
-    @Inject
     AdSessionManager adSessionManager;
-    @Inject
-    AdGraph adGraph;
     @Inject
     OtsScriptsProvider otsScriptsProvider;
     @Inject
@@ -125,7 +86,7 @@ public class ChatService {
     @Inject
     PublicChatIntentRouter intentRouter;
     @Inject
-    ChatAgent chatGraph;
+    ChatAgent chatAgent;
 
     @Setter
     private PublicChatController controller;
@@ -250,7 +211,7 @@ public class ChatService {
         initData.put(ChatState.ITERATION, 0);
 
 
-        return chatGraph.run(initData).flatMap(finalState -> {
+        return chatAgent.run(initData).flatMap(finalState -> {
             long finalUserId = finalState.userId();
             String botText = finalState.botResponse();
             if (botText == null || botText.isBlank()) {
@@ -344,14 +305,6 @@ public class ChatService {
                                         });
                             });
                 });
-    }
-
-    public Uni<RegistrationResult> registerListener(String email, String stationSlug, String preferredName) {
-        String normalizedEmail = EmailUtil.normalize(email);
-        String userToken = UUID.randomUUID().toString();
-        return sessionManager.storeUserToken(userToken, normalizedEmail)
-                .chain(() -> userService.findByEmail(normalizedEmail))
-                .chain(user -> registerListenerForUser(user, normalizedEmail, stationSlug, preferredName, userToken));
     }
 
     public Uni<RegistrationResult> registerListener(IUser knownUser, String email, String stationSlug, String preferredName) {
@@ -496,13 +449,6 @@ public class ChatService {
         chatRepository.clearConversationHistory(ChatRepository.connectionKey(connectionId));
         if (userId != 0) {
             chatRepository.clearConversationHistory(ChatRepository.userKey(userId));
-        }
-    }
-
-    public void syncConversationHistory(String connectionId, long userId, List<LlmMessage> history) {
-        chatRepository.replaceConversationHistory(ChatRepository.connectionKey(connectionId), history);
-        if (userId != 0) {
-            chatRepository.persistConnectionToUser(connectionId, userId);
         }
     }
 

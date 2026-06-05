@@ -4,15 +4,14 @@ import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.*;
 import com.semantyca.jesoos.service.chat.ad.AdGraph;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
-import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.service.chat.llm.*;
 import com.semantyca.jesoos.service.chat.ots.OtsGraph;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
-import com.semantyca.mixpla.model.Listener;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.chat.tools.ad.CreateAdTool;
 import com.semantyca.jesoos.service.chat.tools.ad.CreateAdToolHandler;
@@ -22,10 +21,9 @@ import com.semantyca.jesoos.service.chat.tools.ots.StartOneTimeStreamToolHandler
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
-import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.jesoos.service.live.SongEmitter;
+import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
-import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
@@ -38,7 +36,10 @@ import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.StateGraph;
 import org.jboss.logging.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static org.bsc.langgraph4j.StateGraph.END;
@@ -111,7 +112,6 @@ public class ChatAgent {
 
     private CompletableFuture<Map<String, Object>> loadContextNode(ChatState state) {
         String brandName = state.brandName();
-        long userId = state.userId();
 
         Uni<String> queueUni = playlistQueueService.getQueueByBrandSlug(brandName)
                 .map(queue -> {
@@ -134,42 +134,13 @@ public class ChatAgent {
                     return "";
                 });
 
-        Uni<String> listenerUni = userId == 0
-                ? Uni.createFrom().item("")
-                : listenerService.getByUserId(userId)
-                        .map(listener -> listener == null ? "" : formatListenerContext(listener))
-                        .onFailure().recoverWithItem(err -> {
-                            LOGGER.warnf("[loadContext] listener_data failed for userId=%d: %s", userId, err.getMessage());
-                            return "";
-                        });
-
-        return Uni.combine().all().unis(queueUni, listenerUni).asTuple()
-                .map(t -> {
-                    StringBuilder ctx = new StringBuilder();
-                    if (!t.getItem1().isBlank()) ctx.append(t.getItem1());
-                    if (!t.getItem2().isBlank()) {
-                        if (!ctx.isEmpty()) ctx.append("\n\n");
-                        ctx.append(t.getItem2());
-                    }
-                    LOGGER.debugf("[loadContext] context built userId=%d brand=%s", userId, brandName);
-                    return Map.<String, Object>of(ChatState.CONTEXT_BLOCK, ctx.toString().trim());
+        return queueUni
+                .map(queue -> {
+                    LOGGER.debugf("[loadContext] context built brand=%s", brandName);
+                    return Map.<String, Object>of(ChatState.CONTEXT_BLOCK, queue.trim());
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
-    }
-
-    private static String formatListenerContext(Listener listener) {
-        StringBuilder sb = new StringBuilder("[Listener: id=").append(listener.getId());
-        if (listener.getUserData() != null && listener.getUserData().getData() != null
-                && !listener.getUserData().getData().isEmpty()) {
-            sb.append(" data=").append(JsonObject.mapFrom(listener.getUserData().getData()).encode());
-        }
-        if (listener.getLabels() != null && !listener.getLabels().isEmpty()) {
-            sb.append(" labels=").append(listener.getLabels().stream()
-                    .map(Object::toString).collect(java.util.stream.Collectors.joining(",")));
-        }
-        sb.append("]");
-        return sb.toString();
     }
 
     private CompletableFuture<Map<String, Object>> llmNode(ChatState state) {
