@@ -119,6 +119,8 @@ public class StreamInfoToolHandler extends BaseToolHandler {
         var entries = new io.vertx.core.json.JsonArray();
         var formatted = new StringBuilder();
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
+        String generatedAt = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm, dd MMM yyyy"));
+        formatted.append("<span style=\"color:#7f8c8d;font-size:11px;\">Generated at ").append(generatedAt).append("</span>\n\n");
 
         if (agenda.getScenes() != null) {
             for (var scene : agenda.getScenes()) {
@@ -132,7 +134,7 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                         case "COMPLETED"  -> "#27ae60";
                         case "EMITTING"   -> "#2980b9";
                         case "PENDING"    -> "#7f8c8d";
-                        case "SCHEDULED"  -> "#f39c12";
+                        case "SCHEDULED"  -> "#9b59b6";
                         case "SKIPPED"    -> "#e67e22";
                         case "FAILED"     -> "#c0392b";
                         default           -> "#95a5a6";
