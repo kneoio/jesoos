@@ -28,7 +28,24 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                 if (agenda == null) {
                     return ToolNodeResult.ok(new JsonObject().put("ok", false).put("error", "No agenda available").encode());
                 }
-                return ToolNodeResult.ok(new JsonObject().put("ok", true).put("agenda", JsonObject.mapFrom(agenda)).encode());
+                var entries = new io.vertx.core.json.JsonArray();
+                if (agenda.getScenes() != null) {
+                    for (var scene : agenda.getScenes()) {
+                        if (scene.getTimeline() == null) continue;
+                        for (var entry : scene.getTimeline()) {
+                            if (entry.getSongs() == null) continue;
+                            for (var song : entry.getSongs()) {
+                                entries.add(new JsonObject()
+                                        .put("time", entry.getScheduledEmissionTime() != null
+                                                ? entry.getScheduledEmissionTime().toString() : null)
+                                        .put("artist", song.getArtist())
+                                        .put("title", song.getSongTitle())
+                                        .put("status", entry.getStatus()));
+                            }
+                        }
+                    }
+                }
+                return ToolNodeResult.ok(new JsonObject().put("ok", true).put("agenda", entries).encode());
             }).onFailure().recoverWithItem(err -> ToolNodeResult.ok(
                     new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
             default -> playlistQueueService.getQueueByBrandSlug(brandName)

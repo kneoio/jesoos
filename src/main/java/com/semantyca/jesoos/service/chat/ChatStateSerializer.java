@@ -79,11 +79,19 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
 
     private static void writeString(ObjectOutput out, String value) throws IOException {
         out.writeBoolean(value != null);
-        if (value != null) out.writeUTF(value);
+        if (value != null) {
+            byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            out.writeInt(bytes.length);
+            out.write(bytes);
+        }
     }
 
     private static String readString(ObjectInput in) throws IOException {
-        return in.readBoolean() ? in.readUTF() : null;
+        if (!in.readBoolean()) return null;
+        int length = in.readInt();
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static long toLong(Object v) {
