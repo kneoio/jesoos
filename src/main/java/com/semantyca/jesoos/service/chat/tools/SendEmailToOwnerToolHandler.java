@@ -155,8 +155,20 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                         }
                         toEmail = tuple.getItem2().getOwner().getEmail();
                     }
-                    Mail mail = Mail.withText(toEmail, subject,
-                            "Station: " + stationSlug + "\n\n" + message)
+                    String htmlBody = """
+                            <!DOCTYPE html>
+                            <html>
+                            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                                <p><strong>Station:</strong> %s</p>
+                                <p><strong>Subject:</strong> %s</p>
+                                <hr style="border: 1px solid #ddd; margin: 20px 0;">
+                                <div style="white-space: pre-wrap; line-height: 1.6;">%s</div>
+                            </body>
+                            </html>
+                            """.formatted(stationSlug, subject, message);
+                    String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message.replaceAll("<[^>]+>", "");
+                    Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
+                            .setText(textBody)
                             .setFrom("Mixpla <" + fromAddress + ">");
                     if (!"self".equals(recipient)) {
                         mail.setReplyTo(userEmail);
