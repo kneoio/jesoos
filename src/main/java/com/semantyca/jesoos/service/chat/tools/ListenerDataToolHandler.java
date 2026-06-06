@@ -67,10 +67,8 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                     LOGGER.warnf("[ListenerData] labelCache.getOrLoad timed out or failed: %s", err.getMessage());
                     return null;
                 })
-                .flatMap(artistLabelId -> {
-                    boolean hasArtistLabel = artistLabelId != null
-                            && listener.getLabels() != null
-                            && listener.getLabels().contains(artistLabelId);
+                .flatMap(ignored -> {
+                    List<String> resolvedLabels = labelCache.resolveToIdentifiers(listener.getLabels());
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("listener_id", listener.getId().toString())
@@ -78,8 +76,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                             .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
                             .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
                             .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
-                            .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of())
-                            .put("has_artist_label", hasArtistLabel);
+                            .put("labels", resolvedLabels);
                     handler.addToolUseToHistory(toolCall, conversationHistory);
                     handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
@@ -237,24 +234,18 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                                 new JsonObject().put("ok", false).put("error", "Listener not found").encode()));
                     }
                     return switch (action) {
-                        case "get" -> labelCache.getOrLoad("artist")
-                                .ifNoItem().after(java.time.Duration.ofSeconds(10)).fail()
-                                .onFailure().recoverWithItem(e -> (UUID) null)
-                                .map(artistLabelId -> {
-                                    boolean hasArtistLabel = artistLabelId != null
-                                            && listener.getLabels() != null
-                                            && listener.getLabels().contains(artistLabelId);
-                                    JsonObject payload = new JsonObject()
-                                            .put("ok", true)
-                                            .put("listener_id", listener.getId().toString())
-                                            .put("user_id", listener.getUserId())
-                                            .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
-                                            .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
-                                            .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
-                                            .put("labels", listener.getLabels() != null ? listener.getLabels().stream().map(Object::toString).collect(java.util.stream.Collectors.toList()) : List.of())
-                                            .put("has_artist_label", hasArtistLabel);
-                                    return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(payload.encode());
-                                });
+                        case "get" -> {
+                            List<String> resolvedLabels = labelCache.resolveToIdentifiers(listener.getLabels());
+                            JsonObject payload = new JsonObject()
+                                    .put("ok", true)
+                                    .put("listener_id", listener.getId().toString())
+                                    .put("user_id", listener.getUserId())
+                                    .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
+                                    .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
+                                    .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
+                                    .put("labels", resolvedLabels);
+                            yield Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(payload.encode()));
+                        }
                         case "set" -> {
                             if (fieldName.isEmpty() || fieldValue.isEmpty()) {
                                 yield Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(

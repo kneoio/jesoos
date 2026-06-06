@@ -149,10 +149,11 @@ public class ChatAgent {
                             if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
                                 listener.getLocalizedName().forEach((lang, name) -> sb.append(" localized_name(").append(lang).append(")=").append(name).append(";"));
                             }
-                            boolean hasArtist = listenerLabelCache.get("artist") != null
-                                    && listener.getLabels() != null
-                                    && listener.getLabels().contains(listenerLabelCache.get("artist"));
-                            sb.append(" has_artist_label=").append(hasArtist).append("]");
+                            List<String> resolvedLabels = listenerLabelCache.resolveToIdentifiers(listener.getLabels());
+                            if (!resolvedLabels.isEmpty()) {
+                                sb.append(" labels=").append(resolvedLabels).append(";");
+                            }
+                            sb.append("]");
                             return sb.toString();
                         })
                         .onFailure().recoverWithItem(err -> {

@@ -8,9 +8,12 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerLabelCache {
@@ -47,6 +50,18 @@ public class ListenerLabelCache {
 
     public UUID get(String identifier) {
         return cache.get(identifier);
+    }
+
+    public List<String> resolveToIdentifiers(List<UUID> labelIds) {
+        if (labelIds == null) return List.of();
+        return labelIds.stream()
+                .map(id -> cache.entrySet().stream()
+                        .filter(e -> e.getValue().equals(id))
+                        .map(Map.Entry::getKey)
+                        .findFirst()
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     public io.smallrye.mutiny.Uni<UUID> getOrLoad(String identifier) {
