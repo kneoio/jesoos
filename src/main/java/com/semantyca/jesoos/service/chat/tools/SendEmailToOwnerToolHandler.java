@@ -91,8 +91,10 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
             Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
                     .setText(textBody)
-                    .setFrom("Mixpla <" + fromAddress + ">")
-                    .setReplyTo(userEmail);
+                    .setFrom("Mixpla <" + fromAddress + ">");
+            if (!"self".equals(recipient)) {
+                mail.setReplyTo(userEmail);
+            }
 
             return reactiveMailer.send(mail)
                     .onFailure().invoke(failure -> LOGGER.error("Failed to send email", failure))
@@ -155,7 +157,10 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                     }
                     Mail mail = Mail.withText(toEmail, subject,
                             "Station: " + stationSlug + "\n\n" + message)
-                            .setFrom("Mixpla <" + fromAddress + ">").setReplyTo(userEmail);
+                            .setFrom("Mixpla <" + fromAddress + ">");
+                    if (!"self".equals(recipient)) {
+                        mail.setReplyTo(userEmail);
+                    }
                     return reactiveMailer.send(mail)
                             .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                     new JsonObject().put("ok", true).put("sent_to", recipient).encode()))
