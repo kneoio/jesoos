@@ -9,8 +9,7 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +18,7 @@ import java.util.function.Function;
 
 public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SendEmailToOwnerToolHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(SendEmailToOwnerToolHandler.class);
 
     public static Uni<Void> handle(
             LlmToolCall toolCall,
@@ -108,7 +107,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 })
                 .onFailure().recoverWithUni(err -> {
-                    LOGGER.error("[SendEmail] Failed - userId: {}, stationSlug: {}", userId, stationSlug, err);
+                    LOGGER.errorf("[SendEmail] Failed - userId: %r, stationSlug: %r", userId, stationSlug, err);
                     return handleError(toolCall, "Failed to send email: " + err.getMessage(), handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                 });
     }
