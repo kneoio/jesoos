@@ -329,7 +329,8 @@ public class ChatAgent {
                 }
                 yield SendUICommandToolHandler.execute(input, connectionId);
             }
-            case "stream_info" -> StreamInfoToolHandler.execute(input, playlistQueueService, agendaViewService, brandName);
+            case "stream_info" -> StreamInfoToolHandler.execute(input, playlistQueueService, agendaViewService,
+                    brandName, reactiveMailer, userService, userId, config.getFromAddress());
             case "perplexity_search" -> PerplexitySearchToolHandler.execute(input, perplexitySearchHelper);
             default -> {
                 LOGGER.warnf("[ChatGraph] unknown tool: %s", toolCall.name());

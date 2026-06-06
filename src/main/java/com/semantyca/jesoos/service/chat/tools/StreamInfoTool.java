@@ -14,8 +14,8 @@ public class StreamInfoTool {
                 Map.of(
                         "action", Map.of(
                                 "type", "string",
-                                "enum", new String[]{"get_current_scene", "get_today_agenda"},
-                                "description", "What to retrieve: 'get_current_scene' returns the active scene and currently queued tracks (real-time, may drift due to buffering); 'get_today_agenda' returns all scenes and planned playlists for today, valid until 6 AM when the system rebuilds the schedule")
+                                "enum", new String[]{"get_current_scene", "get_today_agenda", "email_today_agenda"},
+                                "description", "What to do: 'get_current_scene' returns the active scene and currently queued tracks; 'get_today_agenda' returns today's full schedule as data; 'email_today_agenda' fetches today's agenda and emails it directly to the authenticated listener — use this when the user wants to receive the agenda by email")
                 ),
                 List.of("action")
         );

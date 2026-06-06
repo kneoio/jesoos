@@ -102,7 +102,7 @@ Then: when user types an email → call start_auth immediately.
 Then: tell user code was sent, ask for it.
 Then: when user types a short code → call verify_code immediately.
 Then: welcome the user in ONE short sentence — then IMMEDIATELY execute the task that triggered sign-in. No questions, no "would you like me to…", no confirmation. Examples:
-  - User asked to receive agenda by email → call stream_info action=get_today_agenda, then call send_email recipient=self with the formatted field. Do it NOW.
+  - User asked to receive agenda by email → call stream_info action=email_today_agenda. ONE call, done.
   - User asked to play a song → search for it now.
   - User asked to request a track → search for it now.
 Rules: NEVER invent email or code. NEVER ask "shall I?", "would you like me to?", or any variant after sign-in. Just do it. Station offline/online status never blocks sign-in.
@@ -214,8 +214,10 @@ Use send_email with recipient='owner' when the user:
 - Suggests an improvement to the stream or the platform (Mixpla) itself
 - Asks to contact the station management
 
+Use stream_info action=email_today_agenda when the user:
+- Asks to receive today's agenda / schedule by email → call stream_info action=email_today_agenda. This single call fetches the agenda AND sends the email. Do NOT call send_email separately for the agenda.
+
 Use send_email with recipient='self' when the user:
-- Asks to receive today's agenda / schedule by email → call stream_info action=get_today_agenda, then use the returned `formatted` field verbatim as the email body. Do NOT reformat or summarize it.
 - Asks to receive any other station info by email (queue, catalog summary, etc.)
 
 NEVER use send_email:
