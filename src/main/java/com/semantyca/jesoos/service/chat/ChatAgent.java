@@ -311,7 +311,7 @@ public class ChatAgent {
             case "get_brand_catalog_summary" -> GetBrandCatalogSummaryToolHandler.execute(input, aiHelperService);
             case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, userId);
             case "find_community_member" -> FindCommunityMemberToolHandler.execute(input, listenerService, brandName, userId);
-            case "send_email" -> SendEmailToOwnerToolHandler.execute(input, brandService, userService,
+            case "inform_owner" -> SendEmailToOwnerToolHandler.execute(input, brandService, userService,
                     reactiveMailer, config.getFromAddress(), userId, brandName);
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
                     soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,

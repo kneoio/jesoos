@@ -9,13 +9,9 @@ public class SendEmailToOwnerTool {
 
     public static LlmTool toTool() {
         return LlmTool.of(
-                "send_email",
-                "Send an email. Use recipient='owner' to contact the station management (feedback, complaints, questions). Use recipient='self' to send something to the listener's own registered email (e.g. today's agenda, a playlist, a summary).",
+                "inform_owner",
+                "Send a message to the station owner. Use for listener feedback, complaints, compliments, suggestions, or any message the listener wants station management to see.",
                 Map.of(
-                        "recipient", Map.of(
-                                "type", "string",
-                                "enum", new String[]{"owner", "self"},
-                                "description", "'owner' to send to the station owner, 'self' to send to the listener's own email"),
                         "subject", Map.of(
                                 "type", "string",
                                 "description", "Brief subject line"),
@@ -23,7 +19,7 @@ public class SendEmailToOwnerTool {
                                 "type", "string",
                                 "description", "Full message body")
                 ),
-                List.of("recipient", "subject", "message")
+                List.of("subject", "message")
         );
     }
 }

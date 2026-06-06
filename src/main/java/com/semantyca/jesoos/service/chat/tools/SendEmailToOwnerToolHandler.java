@@ -36,7 +36,6 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         SendEmailToOwnerToolHandler handler = new SendEmailToOwnerToolHandler();
-        String recipient = (String) inputMap.getOrDefault("recipient", "owner");
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
 
@@ -44,7 +43,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             return handleError(toolCall, "Subject and message are required", handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Sending email...");
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Sending message to owner...");
 
         return Uni.combine().all().unis(
                 userService.findById(userId),
@@ -56,23 +55,12 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             if (tuple.getItem2() == null) {
                 return Uni.createFrom().failure(new IllegalArgumentException("Station not found"));
             }
+            if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null || tuple.getItem2().getOwner().getEmail().isBlank()) {
+                return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
+            }
 
             String userEmail = tuple.getItem1().get().getEmail();
-            String toEmail;
-            String sentTo;
-            if ("self".equals(recipient)) {
-                if (userEmail == null || userEmail.isBlank()) {
-                    return Uni.createFrom().failure(new IllegalArgumentException("No email address on file for this listener"));
-                }
-                toEmail = userEmail;
-                sentTo = "listener";
-            } else {
-                if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null || tuple.getItem2().getOwner().getEmail().isBlank()) {
-                    return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
-                }
-                toEmail = tuple.getItem2().getOwner().getEmail();
-                sentTo = "owner";
-            }
+            String toEmail = tuple.getItem2().getOwner().getEmail();
 
             String htmlBody = """
                     <!DOCTYPE html>
@@ -85,30 +73,27 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                     </body>
                     </html>
                     """.formatted(stationSlug, subject, message);
-
             String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
 
             Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
                     .setText(textBody)
-                    .setFrom("Mixpla <" + fromAddress + ">");
-            if (!"self".equals(recipient)) {
-                mail.setReplyTo(userEmail);
-            }
+                    .setFrom("Mixpla <" + fromAddress + ">")
+                    .setReplyTo(userEmail);
 
             return reactiveMailer.send(mail)
-                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email", failure))
-                    .replaceWith(sentTo);
+                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email to owner", failure))
+                    .replaceWith("owner");
         })
                 .flatMap(sentTo -> {
                     JsonObject payload = new JsonObject().put("ok", true).put("sent_to", sentTo);
-                    handler.sendProcessingChunk(chunkHandler, connectionId, "Email sent!");
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Message sent to owner!");
                     handler.addToolUseToHistory(toolCall, conversationHistory);
                     handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 })
                 .onFailure().recoverWithUni(err -> {
-                    LOGGER.errorf("[SendEmail] Failed - userId: %r, stationSlug: %r", userId, stationSlug, err);
-                    return handleError(toolCall, "Failed to send email: " + err.getMessage(), handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                    LOGGER.errorf("[InformOwner] Failed - userId: %d, stationSlug: %s", userId, stationSlug, err);
+                    return handleError(toolCall, "Failed to send message: " + err.getMessage(), handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                 });
     }
 
@@ -125,14 +110,13 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
     public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
             Map<String, Object> inputMap, BrandService brandService, UserService userService,
-            io.quarkus.mailer.reactive.ReactiveMailer reactiveMailer, String fromAddress, long userId, String stationSlug) {
-        String recipient = (String) inputMap.getOrDefault("recipient", "owner");
+            ReactiveMailer reactiveMailer, String fromAddress, long userId, String stationSlug) {
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
-        LOGGER.infof("[SendEmail/execute] recipient=%s subject_len=%d message_len=%d userId=%d stationSlug=%s",
-                recipient, subject.length(), message.length(), userId, stationSlug);
+        LOGGER.infof("[InformOwner/execute] subject_len=%d message_len=%d userId=%d stationSlug=%s",
+                subject.length(), message.length(), userId, stationSlug);
         if (subject.isBlank() || message.isBlank()) {
-            LOGGER.warnf("[SendEmail/execute] rejected — subject or message blank (recipient=%s userId=%d)", recipient, userId);
+            LOGGER.warnf("[InformOwner/execute] rejected — subject or message blank (userId=%d)", userId);
             return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                     new JsonObject().put("ok", false).put("error", "Subject and message are required").encode()));
         }
@@ -140,23 +124,15 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                 .chain(tuple -> {
                     if (tuple.getItem1().isEmpty() || tuple.getItem2() == null) {
                         return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                new JsonObject().put("ok", false).put("error", "Could not resolve sender or recipient").encode()));
+                                new JsonObject().put("ok", false).put("error", "Could not resolve sender or station").encode()));
+                    }
+                    if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Owner email not configured").encode()));
                     }
                     String userEmail = tuple.getItem1().get().getEmail();
-                    String toEmail;
-                    if ("self".equals(recipient)) {
-                        if (userEmail == null || userEmail.isBlank()) {
-                            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                    new JsonObject().put("ok", false).put("error", "No email address on file for this listener").encode()));
-                        }
-                        toEmail = userEmail;
-                    } else {
-                        if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null) {
-                            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                    new JsonObject().put("ok", false).put("error", "Owner email not configured").encode()));
-                        }
-                        toEmail = tuple.getItem2().getOwner().getEmail();
-                    }
+                    String toEmail = tuple.getItem2().getOwner().getEmail();
+
                     String htmlBody = """
                             <!DOCTYPE html>
                             <html>
@@ -164,25 +140,25 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                                 <p><strong>Station:</strong> %s</p>
                                 <p><strong>Subject:</strong> %s</p>
                                 <hr style="border: 1px solid #ddd; margin: 20px 0;">
-                                <div style="white-space: pre-wrap; line-height: 1.6;">%s</div>
+                                <div style="white-space: pre-wrap;">%s</div>
                             </body>
                             </html>
                             """.formatted(stationSlug, subject, message);
-                    String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message.replaceAll("<[^>]+>", "");
+                    String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
+
                     Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
                             .setText(textBody)
-                            .setFrom("Mixpla <" + fromAddress + ">");
-                    if (!"self".equals(recipient)) {
-                        mail.setReplyTo(userEmail);
-                    }
+                            .setFrom("Mixpla <" + fromAddress + ">")
+                            .setReplyTo(userEmail);
+
                     return reactiveMailer.send(mail)
                             .map(v -> {
-                                LOGGER.infof("[SendEmail/execute] sent ok to=%s recipient=%s userId=%d", toEmail, recipient, userId);
+                                LOGGER.infof("[InformOwner/execute] sent ok to=%s userId=%d", toEmail, userId);
                                 return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                        new JsonObject().put("ok", true).put("sent_to", recipient).encode());
+                                        new JsonObject().put("ok", true).put("sent_to", "owner").encode());
                             })
                             .onFailure().recoverWithItem(err -> {
-                                LOGGER.errorf(err, "[SendEmail/execute] send failed to=%s recipient=%s userId=%d", toEmail, recipient, userId);
+                                LOGGER.errorf(err, "[InformOwner/execute] send failed to=%s userId=%d", toEmail, userId);
                                 return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                         new JsonObject().put("ok", false).put("error", "Failed to send: " + err.getMessage()).encode());
                             });
