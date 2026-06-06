@@ -109,6 +109,7 @@ public class CommandService {
                     } else {
                         djStateService.enableDj(brand);
                         forceIntroOnNextEntries(stream, 3);
+                        staggeredSongScheduler.retriggerNextScheduledEntry(brand);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         return Uni.createFrom().item(new JsonObject()
                                 .put("success", true)

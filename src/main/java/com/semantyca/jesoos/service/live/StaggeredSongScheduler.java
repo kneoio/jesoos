@@ -256,6 +256,34 @@ public class StaggeredSongScheduler {
         return pending;
     }
 
+    public void retriggerNextScheduledEntry(String brandName) {
+        brandPool.get(brandName).subscribe().with(stream -> {
+            if (stream == null || stream.getAgenda() == null) return;
+            ZoneId brandZone = stream.getTimeZone();
+            for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
+                for (TimelineEntry entry : scene.getTimeline()) {
+                    if (entry.getStatus() == TimelineEntryStatus.SCHEDULED) {
+                        ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
+                        if (timers != null) {
+                            Long timerId = timers.remove(entry.getSequenceNumber());
+                            if (timerId != null) {
+                                vertx.cancelTimer(timerId);
+                            }
+                        }
+                        entry.setStatus(TimelineEntryStatus.PENDING);
+                        LOGGER.infof("[retrigger] Immediately triggering entry #%d for brand '%s'", entry.getSequenceNumber(), brandName);
+                        emitTimelineEntry(brandName, scene, entry, brandZone)
+                                .subscribe().with(
+                                        v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
+                                        err -> entry.setStatus(TimelineEntryStatus.FAILED)
+                                );
+                        return;
+                    }
+                }
+            }
+        }, err -> LOGGER.warnf("[retrigger] Failed to get stream for brand '%s': %s", brandName, err.getMessage()));
+    }
+
     public void cancelBrandTimers(String brandName) {
         ConcurrentHashMap<Integer, Long> timers = brandTimers.remove(brandName);
         if (timers != null) {
