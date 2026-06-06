@@ -12,6 +12,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.DraftService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.ProfileService;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.jesoos.util.TimeContextUtil;
@@ -52,6 +53,7 @@ public class DraftFactory {
     private final WorldNewsApiClient worldNewsApiClient;
     private final PerplexityApiClient perplexityApiClient;
     private final ListenerService listenerService;
+    private final ListenerLabelCache listenerLabelCache;
     private final ChatSummaryService chatSummaryService;
     private final io.vertx.mutiny.sqlclient.Pool dbClient;
     private final Random random = new Random();
@@ -62,7 +64,8 @@ public class DraftFactory {
                         DraftService draftService, AiAgentService aiAgentService,
                         WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient,
                         PerplexityApiClient perplexityApiClient,
-                        ListenerService listenerService, ChatSummaryService chatSummaryService,
+                        ListenerService listenerService, ListenerLabelCache listenerLabelCache,
+                        ChatSummaryService chatSummaryService,
                         io.vertx.mutiny.sqlclient.Pool dbClient) {
         this.profileService = profileService;
         this.draftService = draftService;
@@ -71,6 +74,7 @@ public class DraftFactory {
         this.worldNewsApiClient = worldNewsApiClient;
         this.perplexityApiClient = perplexityApiClient;
         this.listenerService = listenerService;
+        this.listenerLabelCache = listenerLabelCache;
         this.chatSummaryService = chatSummaryService;
         this.dbClient = dbClient;
         this.groovyEngine = new GroovyTemplateEngine();
@@ -232,6 +236,7 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", resolveListenerNames(listeners, selectedLanguage.toLanguageCode()));
+        data.put("community", new ListenersHelper(listeners, listenerLabelCache, selectedLanguage.toLanguageCode()));
         data.put("labels", labels.isEmpty() ? (genres.isEmpty() ? List.of() : List.of(genres.getFirst())) : labels);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
@@ -321,6 +326,7 @@ public class DraftFactory {
             ZoneId tz = stream.getTimeZone();
             ctx.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(tz));
             ctx.put("listeners", resolveListenerNames(listeners, language.toLanguageCode()));
+            ctx.put("community", new ListenersHelper(listeners, listenerLabelCache, language.toLanguageCode()));
             ctx.put("labels", labels.isEmpty() ? (genres.isEmpty() ? List.of() : List.of(genres.getFirst())) : labels);
             LOGGER.infof("Action context resolved: %s", ctx);
             return ctx;
