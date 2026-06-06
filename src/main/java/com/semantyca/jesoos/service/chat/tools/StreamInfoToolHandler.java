@@ -129,12 +129,13 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                             ? entry.getScheduledEmissionTime().format(timeFmt) : "--:--";
                     String status = entry.getStatus() != null ? entry.getStatus().toString() : "";
                     String statusColor = switch (status) {
-                        case "COMPLETED" -> "#27ae60";
-                        case "EMITTING"  -> "#2980b9";
-                        case "PENDING"   -> "#7f8c8d";
-                        case "SKIPPED"   -> "#e67e22";
-                        case "FAILED"    -> "#c0392b";
-                        default          -> "#95a5a6";
+                        case "COMPLETED"  -> "#27ae60";
+                        case "EMITTING"   -> "#2980b9";
+                        case "PENDING"    -> "#7f8c8d";
+                        case "SCHEDULED"  -> "#f39c12";
+                        case "SKIPPED"    -> "#e67e22";
+                        case "FAILED"     -> "#c0392b";
+                        default           -> "#95a5a6";
                     };
                     for (var song : entry.getSongs()) {
                         entries.add(new JsonObject()
@@ -156,6 +157,7 @@ public class StreamInfoToolHandler extends BaseToolHandler {
         }
 
         String formattedText = formatted.toString().stripTrailing()
+                + "\n\n⚠ This is an estimated plan. The DJ may adjust the order or skip tracks during the live stream."
                 + "\n\n—\nDiscover more stations at https://mixpla.online";
         return new AgendaContent(entries, formattedText);
     }
