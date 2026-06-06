@@ -22,7 +22,6 @@ import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.DjPrompt;
-import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
@@ -110,7 +109,9 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     public abstract Voice getVoice(AiAgent agent);
 
-    public Uni<SoundFragment> generateAudio(
+    public record GenerationResult(SoundFragment fragment, UUID adId) {}
+
+    public Uni<GenerationResult> generateAudio(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -120,7 +121,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         return generateAndSave(promptId, agent, stream, airLanguage, liveScene);
     }
 
-    private Uni<SoundFragment> generateAndSave(
+    private Uni<GenerationResult> generateAndSave(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -163,19 +164,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                             fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
                                                     .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
                                         }
-                                        return fragmentUni.call(fragment -> {
-                                            UUID adId = draftResult.selectedAdId();
-                                            if (adId == null) return Uni.createFrom().voidItem();
-                                            int durationSeconds = fragment.getLength() != null ? (int) fragment.getLength().getSeconds() : 0;
-                                            PlayHistory entry = new PlayHistory(
-                                                    OffsetDateTime.now(),
-                                                    durationSeconds,
-                                                    draftResult.text(),
-                                                    agent.getName()
-                                            );
-                                            return userAdRepository.addPlayHistoryEntry(adId, entry)
-                                                    .invoke(() -> LOGGER.infof("Play history recorded for ad %s", adId));
-                                        });
+                                        return fragmentUni.map(fragment -> new GenerationResult(fragment, draftResult.selectedAdId()));
                                     });
                         })
                 );

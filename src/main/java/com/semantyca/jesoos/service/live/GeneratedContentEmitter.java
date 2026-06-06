@@ -4,6 +4,8 @@ import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
+import com.semantyca.jesoos.repository.UserAdRepository;
+import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService.GenerationResult;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
@@ -14,6 +16,7 @@ import com.semantyca.jesoos.service.live.generated.GeneratedAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
@@ -34,6 +37,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +63,7 @@ public class GeneratedContentEmitter {
     private final QueueSupplier queueSupplier;
     private final IntroTtsGenerator introTtsGenerator;
     private final MetricPublisher metricPublisher;
+    private final UserAdRepository userAdRepository;
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
@@ -67,7 +72,8 @@ public class GeneratedContentEmitter {
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
                                    IntroTtsGenerator introTtsGenerator,
-                                   MetricPublisher metricPublisher) {
+                                   MetricPublisher metricPublisher,
+                                   UserAdRepository userAdRepository) {
         this.generatedNewsService = generatedNewsService;
         this.generatedAdService = generatedAdService;
         this.promptService = promptService;
@@ -75,6 +81,7 @@ public class GeneratedContentEmitter {
         this.queueSupplier = queueSupplier;
         this.introTtsGenerator = introTtsGenerator;
         this.metricPublisher = metricPublisher;
+        this.userAdRepository = userAdRepository;
     }
 
     public Uni<Void> send(String brandName,
@@ -112,7 +119,7 @@ public class GeneratedContentEmitter {
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
 
-        record GeneratedResult(SoundFragment fragment, MixingType mixingType) {}
+        record GeneratedResult(SoundFragment fragment, UUID adId, MixingType mixingType) {}
 
         Uni<GeneratedResult> generatedUni = promptService.getById(promptId, SuperUser.build())
                 .flatMap(prompt -> {
@@ -121,7 +128,7 @@ public class GeneratedContentEmitter {
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
                     MixingType mixingType = scene.getMixingType();
                     return service.generateAudio(promptId, agent, stream, lang, scene)
-                            .map(sf -> new GeneratedResult(sf, mixingType));
+                            .map(r -> new GeneratedResult(r.fragment(), r.adId(), mixingType));
                 });
 
         return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()
@@ -129,6 +136,7 @@ public class GeneratedContentEmitter {
                     List<SoundFragment> jingles = tuple.getItem1();
                     List<SoundFragment> songs = tuple.getItem2();
                     SoundFragment generated = tuple.getItem3().fragment();
+                    UUID adId = tuple.getItem3().adId();
                     MixingType mixingType = tuple.getItem3().mixingType();
 
                     if (jingles.isEmpty()) {
@@ -179,14 +187,24 @@ public class GeneratedContentEmitter {
                                     introMap.put(IntroKey.INTRO_1, introDto);
                                     dto.setFilePaths(introMap);
                                     dto.setSongs(songMap);
-                                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                                            .call(() -> recordPlayHistory(adId, generated, agent));
                                 });
                     }
 
                     SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
                     dto.setSongs(songMap);
-                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                            .call(() -> recordPlayHistory(adId, generated, agent));
                 });
+    }
+
+    private Uni<Void> recordPlayHistory(UUID adId, SoundFragment fragment, AiAgent agent) {
+        if (adId == null) return Uni.createFrom().voidItem();
+        int durationSeconds = fragment.getLength() != null ? (int) fragment.getLength().getSeconds() : 0;
+        PlayHistory entry = new PlayHistory(OffsetDateTime.now(), durationSeconds, null, agent.getName());
+        return userAdRepository.addPlayHistoryEntry(adId, entry)
+                .invoke(() -> LOGGER.infof("Play history recorded for ad %s", adId));
     }
 
     private static SongQueueMessageDTO buildDto(MixingType type, LiveScene scene, TimelineEntry entry, long deadline, int priority) {
