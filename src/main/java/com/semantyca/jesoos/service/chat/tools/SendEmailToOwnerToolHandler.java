@@ -130,7 +130,10 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
         String recipient = (String) inputMap.getOrDefault("recipient", "owner");
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
+        LOGGER.infof("[SendEmail/execute] recipient=%s subject_len=%d message_len=%d userId=%d stationSlug=%s",
+                recipient, subject.length(), message.length(), userId, stationSlug);
         if (subject.isBlank() || message.isBlank()) {
+            LOGGER.warnf("[SendEmail/execute] rejected — subject or message blank (recipient=%s userId=%d)", recipient, userId);
             return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                     new JsonObject().put("ok", false).put("error", "Subject and message are required").encode()));
         }
@@ -174,10 +177,16 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                         mail.setReplyTo(userEmail);
                     }
                     return reactiveMailer.send(mail)
-                            .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                    new JsonObject().put("ok", true).put("sent_to", recipient).encode()))
-                            .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                    new JsonObject().put("ok", false).put("error", "Failed to send: " + err.getMessage()).encode()));
+                            .map(v -> {
+                                LOGGER.infof("[SendEmail/execute] sent ok to=%s recipient=%s userId=%d", toEmail, recipient, userId);
+                                return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", true).put("sent_to", recipient).encode());
+                            })
+                            .onFailure().recoverWithItem(err -> {
+                                LOGGER.errorf(err, "[SendEmail/execute] send failed to=%s recipient=%s userId=%d", toEmail, recipient, userId);
+                                return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                        new JsonObject().put("ok", false).put("error", "Failed to send: " + err.getMessage()).encode());
+                            });
                 });
     }
 }
