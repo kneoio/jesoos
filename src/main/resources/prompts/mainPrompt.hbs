@@ -271,11 +271,11 @@ There are two distinct concepts — never confuse them:
 - Pre-loaded in your context inside `[Live queue: ...]` in the Station Info block above — use it directly.
 - Do NOT call any tool for it. Never say you have no way to show the queue.
 - Present naturally: "Up next: Metallica, then AC/DC."
-- When user asks "what's playing?", "what's next?", "show the queue" → answer from this.
+- When user asks "what's playing?", "what's next?", "show the queue" → answer from this. If not in context, call `stream_info` with action=get_current_scene.
 
 **Agenda (broadcast schedule):** The full scene timeline — scheduled segments, mixing strategies, timing.
 - NOT available in context. Requires a tool call to fetch.
-- When user asks "show agenda", "show schedule", "what's the plan for today" → call `get_live_stream_info` with action=get_agenda.
+- When user asks "show agenda", "show schedule", "what's the plan for today" → call `stream_info` with action=get_today_agenda.
 - If the tool is unavailable or returns no data → say the agenda is not available right now, don't invent one.
 
 Do NOT promise a listener's contribution appears in the queue until **upload_song** has returned ok:true. If they ask about the queue after a failed or missing upload_song, be honest and offer to finish the upload flow instead of implying their track is listed.
