@@ -40,17 +40,28 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                             if (entry.getSongs() == null) continue;
                             String timeStr = entry.getScheduledEmissionTime() != null
                                     ? entry.getScheduledEmissionTime().format(timeFmt) : "--:--";
+                            String status = entry.getStatus() != null ? entry.getStatus().toString() : "";
+                            String statusColor = switch (status) {
+                                case "COMPLETED" -> "#27ae60";
+                                case "EMITTING"  -> "#2980b9";
+                                case "PENDING"   -> "#7f8c8d";
+                                case "SKIPPED"   -> "#e67e22";
+                                case "FAILED"    -> "#c0392b";
+                                default          -> "#95a5a6";
+                            };
                             for (var song : entry.getSongs()) {
                                 entries.add(new JsonObject()
                                         .put("time", timeStr)
                                         .put("artist", song.getArtist())
                                         .put("title", song.getSongTitle())
-                                        .put("status", entry.getStatus()));
+                                        .put("status", status));
                                 formatted.append(timeStr)
                                         .append("  ")
                                         .append(song.getArtist())
                                         .append(" — ")
                                         .append(song.getSongTitle())
+                                        .append("  <span style=\"color:").append(statusColor)
+                                        .append(";font-size:11px;\">").append(status).append("</span>")
                                         .append("\n");
                             }
                         }
