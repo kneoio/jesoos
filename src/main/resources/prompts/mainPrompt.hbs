@@ -211,7 +211,7 @@ Use send_email with recipient='owner' when the user:
 - Asks to contact the station management
 
 Use send_email with recipient='self' when the user:
-- Asks to receive today's agenda / schedule by email → first call stream_info action=get_today_agenda, format the result as a readable plain-text schedule, then send it
+- Asks to receive today's agenda / schedule by email → call stream_info action=get_today_agenda, then use the returned `formatted` field verbatim as the email body. Do NOT reformat or summarize it.
 - Asks to receive any other station info by email (queue, catalog summary, etc.)
 
 NEVER use send_email:

@@ -7,6 +7,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 public class StreamInfoToolHandler extends BaseToolHandler {
@@ -29,23 +31,38 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                     return ToolNodeResult.ok(new JsonObject().put("ok", false).put("error", "No agenda available").encode());
                 }
                 var entries = new io.vertx.core.json.JsonArray();
+                var formatted = new StringBuilder();
+                DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
                 if (agenda.getScenes() != null) {
                     for (var scene : agenda.getScenes()) {
                         if (scene.getTimeline() == null) continue;
                         for (var entry : scene.getTimeline()) {
                             if (entry.getSongs() == null) continue;
+                            String timeStr = entry.getScheduledEmissionTime() != null
+                                    ? entry.getScheduledEmissionTime().format(timeFmt) : "--:--";
                             for (var song : entry.getSongs()) {
                                 entries.add(new JsonObject()
-                                        .put("time", entry.getScheduledEmissionTime() != null
-                                                ? entry.getScheduledEmissionTime().toString() : null)
+                                        .put("time", timeStr)
                                         .put("artist", song.getArtist())
                                         .put("title", song.getSongTitle())
                                         .put("status", entry.getStatus()));
+                                formatted.append(timeStr)
+                                        .append("  ")
+                                        .append(song.getArtist())
+                                        .append(" — ")
+                                        .append(song.getSongTitle())
+                                        .append("\n");
                             }
                         }
                     }
                 }
-                return ToolNodeResult.ok(new JsonObject().put("ok", true).put("agenda", entries).encode());
+                String formattedText = formatted.toString().stripTrailing()
+                        + "\n\n—\nDiscover more stations at https://mixpla.online";
+                return ToolNodeResult.ok(new JsonObject()
+                        .put("ok", true)
+                        .put("agenda", entries)
+                        .put("formatted", formattedText)
+                        .encode());
             }).onFailure().recoverWithItem(err -> ToolNodeResult.ok(
                     new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
             default -> playlistQueueService.getQueueByBrandSlug(brandName)
