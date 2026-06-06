@@ -9,17 +9,21 @@ public class SendEmailToOwnerTool {
 
     public static LlmTool toTool() {
         return LlmTool.of(
-                "send_email_to_owner",
-                "Send an email to the radio station owner. Use when a user wants to: send feedback, report an issue, make a complaint, ask a question, or contact the station management. The email will be sent from the user's registered email to the owner.",
+                "send_email",
+                "Send an email. Use recipient='owner' to contact the station management (feedback, complaints, questions). Use recipient='self' to send something to the listener's own registered email (e.g. today's agenda, a playlist, a summary).",
                 Map.of(
+                        "recipient", Map.of(
+                                "type", "string",
+                                "enum", new String[]{"owner", "self"},
+                                "description", "'owner' to send to the station owner, 'self' to send to the listener's own email"),
                         "subject", Map.of(
                                 "type", "string",
-                                "description", "Brief subject line summarizing the message (e.g., 'Feedback about music selection', 'Technical issue with stream')"),
+                                "description", "Brief subject line"),
                         "message", Map.of(
                                 "type", "string",
-                                "description", "The full message content from the user - their complaint, feedback, question, or request to send to the station owner")
+                                "description", "Full message body")
                 ),
-                List.of("subject", "message")
+                List.of("recipient", "subject", "message")
         );
     }
 }

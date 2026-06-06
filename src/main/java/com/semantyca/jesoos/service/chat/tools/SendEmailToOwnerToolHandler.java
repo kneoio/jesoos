@@ -37,6 +37,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             Function<LlmRequest, Uni<Void>> streamFn
     ) {
         SendEmailToOwnerToolHandler handler = new SendEmailToOwnerToolHandler();
+        String recipient = (String) inputMap.getOrDefault("recipient", "owner");
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
 
@@ -44,7 +45,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             return handleError(toolCall, "Subject and message are required", handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
         }
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Sending email to owner...");
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Sending email...");
 
         return Uni.combine().all().unis(
                 userService.findById(userId),
@@ -56,48 +57,56 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             if (tuple.getItem2() == null) {
                 return Uni.createFrom().failure(new IllegalArgumentException("Station not found"));
             }
-            if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null || tuple.getItem2().getOwner().getEmail().isBlank()) {
-                return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
-            }
 
             String userEmail = tuple.getItem1().get().getEmail();
-            String ownerEmail = tuple.getItem2().getOwner().getEmail();
+            String toEmail;
+            String sentTo;
+            if ("self".equals(recipient)) {
+                if (userEmail == null || userEmail.isBlank()) {
+                    return Uni.createFrom().failure(new IllegalArgumentException("No email address on file for this listener"));
+                }
+                toEmail = userEmail;
+                sentTo = "listener";
+            } else {
+                if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null || tuple.getItem2().getOwner().getEmail().isBlank()) {
+                    return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
+                }
+                toEmail = tuple.getItem2().getOwner().getEmail();
+                sentTo = "owner";
+            }
 
             String htmlBody = """
                     <!DOCTYPE html>
                     <html>
                     <body style="font-family: Arial, sans-serif; padding: 20px;">
-                        <h2>Message from Listener</h2>
-                        <p><strong>From:</strong> %s</p>
                         <p><strong>Station:</strong> %s</p>
                         <p><strong>Subject:</strong> %s</p>
                         <hr style="border: 1px solid #ddd; margin: 20px 0;">
                         <div style="white-space: pre-wrap;">%s</div>
                     </body>
                     </html>
-                    """.formatted(userEmail, stationSlug, subject, message);
+                    """.formatted(stationSlug, subject, message);
 
-            String textBody = "Message from Listener\n\nFrom: " + userEmail +
-                    "\nStation: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
+            String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
 
-            Mail mail = Mail.withHtml(ownerEmail, "Listener Message: " + subject, htmlBody)
+            Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
                     .setText(textBody)
                     .setFrom("Mixpla <" + fromAddress + ">")
                     .setReplyTo(userEmail);
 
             return reactiveMailer.send(mail)
-                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email to owner", failure))
-                    .replaceWith(ownerEmail);
+                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email", failure))
+                    .replaceWith(sentTo);
         })
-                .flatMap(ownerEmail -> {
-                    JsonObject payload = new JsonObject().put("ok", true).put("message", "Email sent successfully to station owner");
-                    handler.sendProcessingChunk(chunkHandler, connectionId, "Email sent successfully!");
+                .flatMap(sentTo -> {
+                    JsonObject payload = new JsonObject().put("ok", true).put("sent_to", sentTo);
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Email sent!");
                     handler.addToolUseToHistory(toolCall, conversationHistory);
                     handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
                     return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                 })
                 .onFailure().recoverWithUni(err -> {
-                    LOGGER.error("[SendEmailToOwner] Failed - userId: {}, stationSlug: {}", userId, stationSlug, err);
+                    LOGGER.error("[SendEmail] Failed - userId: {}, stationSlug: {}", userId, stationSlug, err);
                     return handleError(toolCall, "Failed to send email: " + err.getMessage(), handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                 });
     }
@@ -116,6 +125,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
     public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
             Map<String, Object> inputMap, BrandService brandService, UserService userService,
             io.quarkus.mailer.reactive.ReactiveMailer reactiveMailer, String fromAddress, long userId, String stationSlug) {
+        String recipient = (String) inputMap.getOrDefault("recipient", "owner");
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
         if (subject.isBlank() || message.isBlank()) {
@@ -124,19 +134,31 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
         }
         return Uni.combine().all().unis(userService.findById(userId), brandService.getBySlugName(stationSlug)).asTuple()
                 .chain(tuple -> {
-                    if (tuple.getItem1().isEmpty() || tuple.getItem2() == null
-                            || tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null) {
+                    if (tuple.getItem1().isEmpty() || tuple.getItem2() == null) {
                         return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                 new JsonObject().put("ok", false).put("error", "Could not resolve sender or recipient").encode()));
                     }
                     String userEmail = tuple.getItem1().get().getEmail();
-                    String ownerEmail = tuple.getItem2().getOwner().getEmail();
-                    Mail mail = Mail.withText(ownerEmail, "Listener Message: " + subject,
-                            "From: " + userEmail + "\nStation: " + stationSlug + "\n\n" + message)
+                    String toEmail;
+                    if ("self".equals(recipient)) {
+                        if (userEmail == null || userEmail.isBlank()) {
+                            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", false).put("error", "No email address on file for this listener").encode()));
+                        }
+                        toEmail = userEmail;
+                    } else {
+                        if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null) {
+                            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", false).put("error", "Owner email not configured").encode()));
+                        }
+                        toEmail = tuple.getItem2().getOwner().getEmail();
+                    }
+                    Mail mail = Mail.withText(toEmail, subject,
+                            "Station: " + stationSlug + "\n\n" + message)
                             .setFrom("Mixpla <" + fromAddress + ">").setReplyTo(userEmail);
                     return reactiveMailer.send(mail)
                             .map(v -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
-                                    new JsonObject().put("ok", true).put("message", "Email sent successfully").encode()))
+                                    new JsonObject().put("ok", true).put("sent_to", recipient).encode()))
                             .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                     new JsonObject().put("ok", false).put("error", "Failed to send: " + err.getMessage()).encode()));
                 });
