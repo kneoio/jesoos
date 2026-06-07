@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.model.cnst.BoostType;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
@@ -9,6 +10,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
@@ -75,6 +77,41 @@ public class StaggeredSongScheduler {
             }
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
+            }
+            if (!entry.isHasIntro() && djStateService.isDjEnabled(brandName)) {
+                BoostType boostType = djStateService.consumeBoostEntry(brandName);
+                if (boostType != null) {
+                    entry.setHasIntro(true);
+                    MixingType strategy = entry.getMixingStrategy();
+                    if (boostType == BoostType.JINGLE_INTRO) {
+                        entry.setHasJingle(true);
+                        if (strategy != MixingType.JINGLE_INTRO_SONG) {
+                            entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);
+                        }
+                    } else {
+                        if (strategy == MixingType.SONG_ONLY
+                                || strategy == MixingType.SONG_CROSSFADE_SONG
+                                || strategy == MixingType.FILLER_JINGLE) {
+                            entry.setMixingStrategy(entry.getSongs().size() >= 2
+                                    ? MixingType.SONG_INTRO_SONG
+                                    : MixingType.INTRO_SONG);
+                        }
+                    }
+                    LOGGER.infof("DJ boost (%s): forced intro on entry #%d for brand '%s' (strategy: %s)",
+                            boostType, entry.getSequenceNumber(), brandName, entry.getMixingStrategy());
+                    metricPublisher.publishMetric(
+                            brandName,
+                            MetricEventType.INFORMATION,
+                            ProcessType.FLOW,
+                            "dj_boost_applied",
+                            Map.of(
+                                    "boostType", boostType.name(),
+                                    "entry", entry.getSequenceNumber(),
+                                    "strategy", entry.getMixingStrategy().name()
+                            ),
+                            scene.getTraceId()
+                    );
+                }
             }
             if (entry.getScheduledEmissionTime().isBefore(now)) {
                 LocalDateTime entryEnd = entry.getScheduledEmissionTime()
