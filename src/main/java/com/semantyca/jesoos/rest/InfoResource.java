@@ -6,6 +6,7 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.live.ScenePool;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -60,31 +61,37 @@ public class InfoResource extends AbstractResource {
 
     private void getAgendas(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-        rc.vertx().executeBlocking(() -> {
-            var agenda = agendaViewService.getAgendaByBrand(brand);
-            if (agenda == null) {
-                return null;
-            }
-            return OBJECT_MAPPER.writeValueAsString(agenda);
-        }).onSuccess(json -> {
-            if (json == null) {
-                rc.response()
-                        .setStatusCode(404)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject().put("error", "Agenda not found for brand: " + brand).encode());
-                return;
-            }
-            rc.response()
-                    .setStatusCode(200)
-                    .putHeader("Content-Type", "application/json")
-                    .end(json);
-        }).onFailure(err -> {
-            LOGGER.error("Failed to serialize agenda for brand: " + brand, err);
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", err.getMessage()).encode());
-        });
+        agendaViewService.getAgendaByBrandAsync(brand)
+                .chain(agenda -> {
+                    if (agenda == null) return Uni.createFrom().nullItem();
+                    try {
+                        return Uni.createFrom().item(OBJECT_MAPPER.writeValueAsString(agenda));
+                    } catch (Exception e) {
+                        return Uni.createFrom().failure(e);
+                    }
+                })
+                .subscribe().with(
+                        json -> {
+                            if (json == null) {
+                                rc.response()
+                                        .setStatusCode(404)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject().put("error", "Agenda not found for brand: " + brand).encode());
+                                return;
+                            }
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(json);
+                        },
+                        err -> {
+                            LOGGER.error("Failed to serialize agenda for brand: " + brand, err);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject().put("error", err.getMessage()).encode());
+                        }
+                );
     }
 
     private void getDjStatus(RoutingContext rc) {

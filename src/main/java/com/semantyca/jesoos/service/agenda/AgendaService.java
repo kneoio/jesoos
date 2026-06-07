@@ -142,7 +142,7 @@ public class AgendaService {
         }
 
         return agentUni.chain(agent -> {
-            Uni<BuildState> chain = Uni.createFrom().item(new BuildState(new ArrayList<>(), new HashSet<>()));
+            Uni<BuildState> chain = Uni.createFrom().item(new BuildState(new ArrayList<>(), new LinkedHashSet<>()));
 
             for (ExpandedSlot expandedSlot : expandedSlots) {
                 final Uni<BuildState> prev = chain;
@@ -156,8 +156,10 @@ public class AgendaService {
                     return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
                             .chain(pool -> {
                                 if (pool.songs().isEmpty() && !state.usedIds().isEmpty()) {
-                                    LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set", scene.getTitle());
+                                    LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set (keeping recent half)", scene.getTitle());
+                                    List<UUID> played = new ArrayList<>(state.usedIds());
                                     state.usedIds().clear();
+                                    state.usedIds().addAll(played.subList(played.size() / 2, played.size()));
                                     return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
                                 }
                                 return Uni.createFrom().item(pool);
@@ -352,47 +354,27 @@ public class AgendaService {
             return songsPool;
         }
 
-        final int MAX_PASSES = 2;
         final int introSec = MergingTypeMeta.AVERAGE_INTRO_DURATION_SECONDS;
         final int jingleSec = MergingTypeMeta.AVERAGE_JINGLE_DURATION_SECONDS;
 
         List<SoundFragment> selectedSongs = new ArrayList<>();
         int totalTimeUsed = 0;
-        int pass = 0;
 
-        while (totalTimeUsed < sceneDurationSeconds && pass < MAX_PASSES) {
-            boolean addedAny = false;
+        for (SoundFragment song : songsPool) {
+            int songDurationSeconds = song.getLength() != null
+                    ? (int) song.getLength().toSeconds()
+                    : 180;
 
-            for (SoundFragment song : songsPool) {
-                int songDurationSeconds = song.getLength() != null
-                        ? (int) song.getLength().toSeconds()
-                        : 180;
+            boolean hasIntro = random.nextDouble() < talkativity;
+            int overhead = hasIntro ? introSec : jingleSec;
+            int timePerSong = songDurationSeconds + overhead;
 
-                boolean hasIntro = random.nextDouble() < talkativity;
-                int overhead = hasIntro ? introSec : jingleSec;
+            selectedSongs.add(song);
+            totalTimeUsed += timePerSong;
 
-                int timePerSong = songDurationSeconds + overhead;
-
-                if (totalTimeUsed + timePerSong <= sceneDurationSeconds) {
-                    selectedSongs.add(song);
-                    totalTimeUsed += timePerSong;
-                    addedAny = true;
-                } else {
-                    selectedSongs.add(song);
-                    totalTimeUsed += timePerSong;
-                    break;
-                }
+            if (totalTimeUsed >= sceneDurationSeconds) {
+                break;
             }
-
-            pass++;
-            if (!addedAny) break;
-        }
-
-        if (totalTimeUsed < sceneDurationSeconds) {
-            LOGGER.warnf(
-                    "Too few songs to fill scene duration: pool has %d songs covering %ss, scene needs %ss",
-                    songsPool.size(), totalTimeUsed, sceneDurationSeconds
-            );
         }
 
         LOGGER.debugf(

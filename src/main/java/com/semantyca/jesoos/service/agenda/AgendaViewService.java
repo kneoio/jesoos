@@ -1,19 +1,29 @@
 package com.semantyca.jesoos.service.agenda;
 
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.dto.agenda.AgendaDTO;
 import com.semantyca.jesoos.dto.agenda.SceneDTO;
 import com.semantyca.jesoos.dto.agenda.TimelineEntryDTO;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.PromptEntry;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.BrandPool;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ApplicationScoped
 public class AgendaViewService {
@@ -21,19 +31,53 @@ public class AgendaViewService {
     @Inject
     BrandPool brandPool;
 
+    @Inject
+    PromptService promptService;
+
     public AgendaDTO getAgendaByBrand(String brand) {
         return brandPool.getStationsSnapshot().stream()
                 .filter(stream -> stream.getSlugName().equals(brand))
                 .filter(stream -> stream.getAgenda() != null)
                 .findFirst()
-                .map(this::buildAgendaDTO)
+                .map(stream -> buildAgendaDTO(stream, Map.of()))
                 .orElse(null);
     }
 
-    private AgendaDTO buildAgendaDTO(ILiveStream stream) {
+    public Uni<AgendaDTO> getAgendaByBrandAsync(String brand) {
+        ILiveStream stream = brandPool.getStationsSnapshot().stream()
+                .filter(s -> s.getSlugName().equals(brand))
+                .filter(s -> s.getAgenda() != null)
+                .findFirst()
+                .orElse(null);
+
+        if (stream == null) return Uni.createFrom().nullItem();
+
+        Set<UUID> promptIds = stream.getAgenda().getLiveScenes().stream()
+                .flatMap(scene -> scene.getTimeline() == null ? Stream.empty() : scene.getTimeline().stream())
+                .flatMap(entry -> entry.getSongs().stream())
+                .map(SongEntry::getPromptEntry)
+                .filter(pe -> pe != null && pe.getPromptId() != null)
+                .map(PromptEntry::getPromptId)
+                .collect(Collectors.toSet());
+
+        if (promptIds.isEmpty()) {
+            return Uni.createFrom().item(buildAgendaDTO(stream, Map.of()));
+        }
+
+        return Multi.createFrom().iterable(promptIds)
+                .onItem().transformToUniAndMerge(id ->
+                        promptService.getById(id, SuperUser.build())
+                                .map(p -> Map.entry(id, p.getTitle()))
+                                .onFailure().recoverWithItem(Map.entry(id, ""))
+                )
+                .collect().asMap(Map.Entry::getKey, Map.Entry::getValue)
+                .map(titleMap -> buildAgendaDTO(stream, titleMap));
+    }
+
+    private AgendaDTO buildAgendaDTO(ILiveStream stream, Map<UUID, String> promptTitles) {
         StreamAgenda agenda = stream.getAgenda();
         List<SceneDTO> sceneDTOs = agenda.getLiveScenes().stream()
-                .map(this::buildSceneDTO)
+                .map(scene -> buildSceneDTO(scene, promptTitles))
                 .collect(Collectors.toList());
 
         return AgendaDTO.builder()
@@ -46,11 +90,11 @@ public class AgendaViewService {
                 .build();
     }
 
-    private SceneDTO buildSceneDTO(LiveScene scene) {
+    private SceneDTO buildSceneDTO(LiveScene scene, Map<UUID, String> promptTitles) {
         List<TimelineEntryDTO> timelineDTOs = null;
         if (scene.getTimeline() != null) {
             timelineDTOs = scene.getTimeline().stream()
-                    .map(this::buildTimelineEntryDTO)
+                    .map(entry -> buildTimelineEntryDTO(entry, promptTitles))
                     .collect(Collectors.toList());
         }
 
@@ -79,24 +123,26 @@ public class AgendaViewService {
                 .build();
     }
 
-    private TimelineEntryDTO buildTimelineEntryDTO(TimelineEntry entry) {
+    private TimelineEntryDTO buildTimelineEntryDTO(TimelineEntry entry, Map<UUID, String> promptTitles) {
         List<TimelineEntryDTO.SongDTO> songDTOs = entry.getSongs().stream()
-                .map(songEntry -> TimelineEntryDTO.SongDTO.builder()
-                        .songId(songEntry.getSoundFragment().getId().toString())
-                        .songTitle(songEntry.getSoundFragment().getTitle())
-                        .artist(songEntry.getSoundFragment().getArtist())
-                        .durationSeconds(songEntry.getDurationSeconds())
-                        .language(
-                                songEntry.getPromptEntry() != null &&
-                                        songEntry.getPromptEntry().getLanguage() != null
-                                        ? songEntry.getPromptEntry().getLanguage().name()
-                                        : null
-                        )
-                        .shared(songEntry.isShared())
-                        .sharerName(songEntry.getSharerName())
-                        .build())
+                .map(songEntry -> {
+                    PromptEntry pe = songEntry.getPromptEntry();
+                    String promptTitle = null;
+                    if (pe != null && pe.getPromptId() != null) {
+                        promptTitle = promptTitles.get(pe.getPromptId());
+                    }
+                    return TimelineEntryDTO.SongDTO.builder()
+                            .songId(songEntry.getSoundFragment().getId().toString())
+                            .songTitle(songEntry.getSoundFragment().getTitle())
+                            .artist(songEntry.getSoundFragment().getArtist())
+                            .durationSeconds(songEntry.getDurationSeconds())
+                            .language(pe != null && pe.getLanguage() != null ? pe.getLanguage().name() : null)
+                            .promptTitle(promptTitle)
+                            .shared(songEntry.isShared())
+                            .sharerName(songEntry.getSharerName())
+                            .build();
+                })
                 .collect(Collectors.toList());
-
 
         List<TimelineEntryDTO.StatusRecordDTO> historyDTOs = entry.getStatusHistory().stream()
                 .map(r -> TimelineEntryDTO.StatusRecordDTO.builder()
