@@ -18,6 +18,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,25 +125,25 @@ public class AgendaViewService {
     }
 
     private TimelineEntryDTO buildTimelineEntryDTO(TimelineEntry entry, Map<UUID, String> promptTitles) {
-        List<TimelineEntryDTO.SongDTO> songDTOs = entry.getSongs().stream()
-                .map(songEntry -> {
-                    PromptEntry pe = songEntry.getPromptEntry();
-                    String promptTitle = null;
-                    if (pe != null && pe.getPromptId() != null) {
-                        promptTitle = promptTitles.get(pe.getPromptId());
-                    }
-                    return TimelineEntryDTO.SongDTO.builder()
-                            .songId(songEntry.getSoundFragment().getId().toString())
-                            .songTitle(songEntry.getSoundFragment().getTitle())
-                            .artist(songEntry.getSoundFragment().getArtist())
-                            .durationSeconds(songEntry.getDurationSeconds())
-                            .language(pe != null && pe.getLanguage() != null ? pe.getLanguage().name() : null)
-                            .promptTitle(promptTitle)
-                            .shared(songEntry.isShared())
-                            .sharerName(songEntry.getSharerName())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        List<SongEntry> songs = entry.getSongs();
+        List<TimelineEntryDTO.SongDTO> songDTOs = new ArrayList<>();
+        for (int i = 0; i < songs.size(); i++) {
+            SongEntry songEntry = songs.get(i);
+            PromptEntry pe = songEntry.getPromptEntry();
+            String promptTitle = (pe != null && pe.getPromptId() != null)
+                    ? promptTitles.get(pe.getPromptId())
+                    : null;
+            songDTOs.add(TimelineEntryDTO.SongDTO.builder()
+                    .songId(songEntry.getSoundFragment().getId().toString())
+                    .songTitle(songEntry.getSoundFragment().getTitle())
+                    .artist(songEntry.getSoundFragment().getArtist())
+                    .durationSeconds(songEntry.getDurationSeconds())
+                    .language(pe != null && pe.getLanguage() != null ? pe.getLanguage().name() : null)
+                    .promptTitle(promptTitle)
+                    .shared(songEntry.isShared())
+                    .sharerName(songEntry.getSharerName())
+                    .build());
+        }
 
         List<TimelineEntryDTO.StatusRecordDTO> historyDTOs = entry.getStatusHistory().stream()
                 .map(r -> TimelineEntryDTO.StatusRecordDTO.builder()
