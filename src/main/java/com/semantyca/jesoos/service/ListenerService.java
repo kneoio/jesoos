@@ -24,7 +24,6 @@ import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -167,25 +166,18 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                             return name;
                         }
                     }
-                    if (listener.getNickName() != null) {
-                        Set<String> nicks = listener.getNickName().get(LanguageCode.en);
-                        if (nicks != null && !nicks.isEmpty()) {
-                            String nick = nicks.iterator().next();
-                            LOG.debugf("[resolveDisplayName] userId=%d → nickName=%s", userId, nick);
-                            return nick;
-                        }
-                    }
-                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but all name fields empty, will try user record", userId);
+                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but name fields empty, will try user record", userId);
                     return null;
                 })
                 .chain(name -> {
                     if (name != null) return Uni.createFrom().item(name);
                     return userService.findById(userId)
                             .map(opt -> opt.map(u -> {
-                                        String uName = u.getUserName();
-                                        if (uName != null && !uName.isBlank() && !uName.equals(u.getEmail())) {
-                                            LOG.debugf("[resolveDisplayName] userId=%d → userName=%s", userId, uName);
-                                            return uName;
+                                        String email = u.getEmail();
+                                        if (email != null && email.contains("@")) {
+                                            String prefix = email.substring(0, email.indexOf('@'));
+                                            LOG.debugf("[resolveDisplayName] userId=%d → email prefix=%s", userId, prefix);
+                                            return prefix;
                                         }
                                         return fallback;
                                     }).orElse(fallback))
