@@ -19,11 +19,14 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import com.semantyca.jesoos.model.stream.SongEntry;
+import com.semantyca.mixpla.model.ScenePrompt;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,6 +43,7 @@ public class StaggeredSongScheduler {
     private final JingleSongEmitter jingleSongEmitter;
     private final GeneratedContentEmitter generatedContentEmitter;
     private final DjStateService djStateService;
+    private static final Random RANDOM = new Random();
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> brandTimers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> skipCounters = new ConcurrentHashMap<>();
     private final JesoosConfig config;
@@ -97,6 +101,7 @@ public class StaggeredSongScheduler {
                                     : MixingType.INTRO_SONG);
                         }
                     }
+                    assignBoostPrompt(entry, scene);
                     LOGGER.infof("DJ boost (%s): forced intro on entry #%d for brand '%s' (strategy: %s)",
                             boostType, entry.getSequenceNumber(), brandName, entry.getMixingStrategy());
                     metricPublisher.publishMetric(
@@ -342,6 +347,24 @@ public class StaggeredSongScheduler {
                                     }
                             );
                 });
+    }
+
+    private void assignBoostPrompt(TimelineEntry entry, LiveScene scene) {
+        List<ScenePrompt> introPrompts = scene.getIntroPrompts();
+        if (introPrompts == null || introPrompts.isEmpty()) return;
+        List<ScenePrompt> active = introPrompts.stream().filter(ScenePrompt::isActive).toList();
+        if (active.isEmpty()) return;
+        ScenePrompt picked = active.get(RANDOM.nextInt(active.size()));
+        List<SongEntry> songs = entry.getSongs();
+        for (int i = 0; i < songs.size(); i++) {
+            if (!introAtIndex(entry.getMixingStrategy(), i)) continue;
+            songs.get(i).getPromptEntry().setPromptId(picked.getPromptId());
+        }
+    }
+
+    private static boolean introAtIndex(MixingType type, int index) {
+        if (type == MixingType.SONG_INTRO_SONG) return index == 1;
+        return true;
     }
 
     private Throwable rootCause(Throwable t) {
