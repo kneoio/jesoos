@@ -41,6 +41,8 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
         writeString(out, (String) data.get(ChatState.DJ_LANGUAGES));
         writeString(out, (String) data.get(ChatState.BOT_RESPONSE));
         writeString(out, (String) data.get(ChatState.CONTEXT_BLOCK));
+        writeString(out, (String) data.get(ChatState.SESSION_TOKEN));
+        writeString(out, (String) data.get(ChatState.SESSION_USER_NAME));
         out.writeInt(toInt(data.get(ChatState.ITERATION)));
 
         @SuppressWarnings("unchecked")
@@ -63,6 +65,8 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
         data.put(ChatState.DJ_LANGUAGES, readString(in));
         data.put(ChatState.BOT_RESPONSE, readString(in));
         data.put(ChatState.CONTEXT_BLOCK, readString(in));
+        data.put(ChatState.SESSION_TOKEN, readString(in));
+        data.put(ChatState.SESSION_USER_NAME, readString(in));
         data.put(ChatState.ITERATION, in.readInt());
 
         String historyJson = readString(in);
