@@ -2,7 +2,7 @@ package com.semantyca.jesoos.rest;
 
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.service.chat.ChatService;
+import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -27,7 +27,7 @@ public class ChatUploadResource extends AbstractResource {
     private static final String UPLOAD_CONTROLLER = "chat-upload-controller";
 
     @Inject
-    ChatService publicChatService;
+    ChatAuthService chatAuthService;
 
     @Inject
     PublicChatSessionManager sessionManager;
@@ -48,7 +48,7 @@ public class ChatUploadResource extends AbstractResource {
     private void handleUploadTemp(RoutingContext rc) {
         String token = rc.request().getParam("token");
 
-        publicChatService.authenticateUserFromToken(token)
+        chatAuthService.authenticateUserFromToken(token)
                 .subscribe().with(
                         user -> {
                             if (user.getId() == 0 || !sessionManager.hasUploadPermission(user.getId())) {

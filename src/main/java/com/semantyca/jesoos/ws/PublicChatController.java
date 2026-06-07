@@ -5,6 +5,7 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.ChatService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
@@ -26,6 +27,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private static final Logger LOG = Logger.getLogger(PublicChatController.class);
     private static final SecureRandom CONNECTION_ID_RANDOM = new SecureRandom();
     private final ChatService chatService;
+    private final ChatAuthService chatAuthService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
@@ -33,12 +35,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     public PublicChatController() {
         super(null);
         this.chatService = null;
+        this.chatAuthService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, ChatService chatService) {
+    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService) {
         super(userService);
         this.chatService = chatService;
+        this.chatAuthService = chatAuthService;
         if (chatService != null) {
             chatService.setController(this);
         }
@@ -52,47 +56,35 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
                 String token = rc.request().getParam("token");
                 LOG.infof("WebSocket connection attempt with token: %s", token);
-                
+
                 String anonId = rc.request().getParam("anonId");
-                authenticateUserFromToken(token)
+                assert chatAuthService != null;
+                chatAuthService.authenticateUserFromToken(token)
+                        .onItem().invoke(user -> {
+                            if (user instanceof AnonymousUser || user.getId() == 0) {
+                                LOG.warnf("[ws-auth] token resolved to anonymous — token may be expired or missing: %s",
+                                        token != null && token.length() >= 8 ? token.substring(0, 8) + "..." : token);
+                            } else {
+                                LOG.infof("[ws-auth] token OK — userId=%d email=%s", user.getId(), user.getEmail());
+                            }
+                        })
+                        .onFailure().recoverWithItem(err -> {
+                            LOG.warnf("[ws-auth] token validation failed — %s", err.getMessage());
+                            return AnonymousUser.build();
+                        })
                         .subscribe().with(
-                                user -> {
-                                    LOG.infof("User authenticated: %s", user.getUserName());
-                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user, anonId, token))
-                                            .onFailure(err -> {
-                                                LOG.error("WebSocket connection failed", err);
-                                                rc.fail(500, err);
-                                            });
-                                },
-                                err -> {
-                                    LOG.warnf("Authentication failed for token: %s", token);
-                                    rc.response().setStatusCode(401).end("Invalid or expired token");
-                                }
+                                user -> rc.request().toWebSocket()
+                                        .onSuccess(ws -> handlePublicChatWebSocket(ws, user, anonId, token))
+                                        .onFailure(err -> {
+                                            LOG.error("WebSocket connection failed", err);
+                                            rc.fail(500, err);
+                                        }),
+                                err -> rc.response().setStatusCode(401).end("Invalid or expired token")
                         );
             } else {
                 rc.response().setStatusCode(400).end("WebSocket upgrade required");
             }
         });
-    }
-
-    private Uni<IUser> authenticateUserFromToken(String token) {
-        if (token == null || token.isBlank()) {
-            LOG.infof("[ws-auth] no token — anonymous");
-            return Uni.createFrom().item(AnonymousUser.build());
-        }
-        assert chatService != null;
-        return chatService.authenticateUserFromToken(token)
-                .onItem().invoke(user -> {
-                    if (user instanceof AnonymousUser || user.getId() == 0) {
-                        LOG.warnf("[ws-auth] token present but resolved to anonymous — token may be expired or invalidated: %s", token.substring(0, 8) + "...");
-                    } else {
-                        LOG.infof("[ws-auth] token OK — userId=%d email=%s", user.getId(), user.getEmail());
-                    }
-                })
-                .onFailure().recoverWithItem(err -> {
-                    LOG.warnf("[ws-auth] token validation failed — %s", err.getMessage());
-                    return AnonymousUser.build();
-                });
     }
 
     private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user, String anonId, String token) {
@@ -179,8 +171,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Uni<Void> ensureRegistration;
         if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
-            assert chatService != null;
-            ensureRegistration = chatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
+            assert chatAuthService != null;
+            ensureRegistration = chatAuthService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
                     .invoke(() -> registeredStations.add(brandSlug));
         } else {
             ensureRegistration = Uni.createFrom().voidItem();

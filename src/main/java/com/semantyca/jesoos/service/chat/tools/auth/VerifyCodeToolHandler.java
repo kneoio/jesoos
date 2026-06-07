@@ -2,7 +2,7 @@ package com.semantyca.jesoos.service.chat.tools.auth;
 
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.jesoos.service.chat.ChatService;
+import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import com.semantyca.jesoos.util.EmailUtil;
@@ -23,7 +23,7 @@ public class VerifyCodeToolHandler {
             Map<String, Object> inputMap,
             PublicChatSessionManager sessionManager,
             UserService userService,
-            ChatService chatService,
+            ChatAuthService chatAuthService,
             PublicChatController controller,
             String brandSlug,
             String connectionId,
@@ -53,7 +53,7 @@ public class VerifyCodeToolHandler {
                         return Uni.createFrom().item(ToolNodeResult.ok(
                                 new JsonObject().put("ok", false).put("error", "User not found.").encode()));
                     }
-                    return chatService.registerListener(user, email, brandSlug, preferredName)
+                    return chatAuthService.registerListener(user, email, brandSlug, preferredName)
                             .onFailure().invoke(err -> LOG.errorf(err, "[VerifyCode] Listener registration failed for %s", email))
                             .onItem().transformToUni(reg -> {
                                 metricPublisher.publishMetric(brandSlug, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,

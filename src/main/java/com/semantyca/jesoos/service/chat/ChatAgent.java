@@ -79,6 +79,7 @@ public class ChatAgent {
     @Inject ListenerLabelCache listenerLabelCache;
     @Inject PerplexitySearchHelper perplexitySearchHelper;
     @Inject ChatService publicChatService;
+    @Inject ChatAuthService chatAuthService;
     @Inject com.semantyca.jesoos.service.agenda.AgendaViewService agendaViewService;
 
     private ChatLlmClient llmClient;
@@ -273,7 +274,7 @@ public class ChatAgent {
                         }
                         chatRepository.persistConnectionToUser(connectionId, result.newUserId());
                         LOGGER.infof("[ChatAgent] auth upgraded userId=%d connectionId=%s", result.newUserId(), connectionId);
-                        return publicChatService.migrateAnonymousDbRecords(connectionId, result.newUserId())
+                        return chatAuthService.migrateAnonymousDbRecords(connectionId, result.newUserId())
                                 .onFailure().invoke(err -> LOGGER.warnf(err, "[ChatAgent] migration failed conn=%s", connectionId))
                                 .onFailure().recoverWithNull()
                                 .invoke(() -> controller.upgradeUserSession(connectionId, result.newUser()))
@@ -304,7 +305,7 @@ public class ChatAgent {
         return switch (toolCall.name()) {
             case "start_auth" -> StartAuthToolHandler.execute(input, keycloakAuthService);
             case "verify_code" -> VerifyCodeToolHandler.execute(input, sessionManager, userService,
-                    publicChatService, controller, brandName, connectionId, metricPublisher);
+                    chatAuthService, controller, brandName, connectionId, metricPublisher);
             case "logoff" -> LogoffToolHandler.execute(input, sessionManager, userService, controller,
                     publicChatService, metricPublisher, brandName, userId, connectionId);
             case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.execute(input, aiHelperService);

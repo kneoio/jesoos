@@ -1,16 +1,12 @@
 package com.semantyca.jesoos.service.chat;
 
-import com.semantyca.core.model.UserData;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.MessageType;
-import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
-import com.semantyca.jesoos.dto.ListenerDTO;
 import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
@@ -29,7 +25,6 @@ import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
-import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -88,6 +83,8 @@ public class ChatService {
     PublicChatIntentRouter intentRouter;
     @Inject
     ChatAgent chatAgent;
+    @Inject
+    ChatAuthService chatAuthService;
 
     @Setter
     private PublicChatController controller;
@@ -287,89 +284,6 @@ public class ChatService {
                 .invoke(name -> displayNameCache.put(userId, name));
     }
 
-    public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
-        return listenerService.getByUserId(userId)
-                .chain(listener -> {
-                    if (listener == null) {
-                        return Uni.createFrom().voidItem();
-                    }
-
-                    return brandService.getBySlugName(stationSlug)
-                            .chain(station -> {
-                                if (station == null) {
-                                    return Uni.createFrom().voidItem();
-                                }
-
-                                return listenerService.getListenersBrands(listener.getId())
-                                        .chain(currentStations -> {
-                                            if (!currentStations.contains(station.getId())) {
-                                                return listenerService.addBrandToListener(listener.getId(), station.getId());
-                                            }
-                                            return Uni.createFrom().voidItem();
-                                        });
-                            });
-                });
-    }
-
-    public Uni<RegistrationResult> registerListener(IUser knownUser, String email, String stationSlug, String preferredName) {
-        String normalizedEmail = EmailUtil.normalize(email);
-        String userToken = UUID.randomUUID().toString();
-        return sessionManager.storeUserToken(userToken, normalizedEmail)
-                .chain(() -> registerListenerForUser(knownUser, normalizedEmail, stationSlug, preferredName, userToken));
-    }
-
-    private Uni<RegistrationResult> registerListenerForUser(IUser user, String normalizedEmail, String stationSlug, String preferredName, String userToken) {
-        if (user == null || user.getId() == 0) {
-            ListenerDTO dto = new ListenerDTO();
-            dto.setEmail(normalizedEmail);
-            if (preferredName != null && !preferredName.isBlank()) {
-                dto.setUserData(Map.of("preferred_name", preferredName));
-            }
-            return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
-                    .map(listenerDTO -> new RegistrationResult(listenerDTO.getUserId(), userToken));
-        }
-
-        return listenerService.getByUserId(user.getId())
-                .chain(listener -> {
-                    if (listener != null) {
-                        Uni<Void> storeNameUni = (preferredName != null && !preferredName.isBlank())
-                                ? listenerService.updateUserData(listener.getId(),
-                                        mergeUserData(listener.getUserData(), preferredName))
-                                : Uni.createFrom().voidItem();
-                        return storeNameUni
-                                .chain(() -> ensureUserIsListenerOfStation(user.getId(), stationSlug))
-                                .replaceWith(new RegistrationResult(user.getId(), userToken));
-                    }
-                    ListenerDTO dto = new ListenerDTO();
-                    dto.setEmail(normalizedEmail);
-                    if (preferredName != null && !preferredName.isBlank()) {
-                        dto.setUserData(Map.of("preferred_name", preferredName));
-                    }
-                    return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
-                            .map(listenerDTO -> new RegistrationResult(user.getId(), userToken));
-                });
-    }
-
-    public Uni<IUser> authenticateUserFromToken(String token) {
-        if (token == null || token.isBlank()) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
-        }
-
-        return sessionManager.validateSessionAndGetEmail(token)
-                .onItem().transformToUni(email -> {
-                    if (email == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
-                    }
-                    return userService.findByEmail(EmailUtil.normalize(email))
-                            .onItem().transformToUni(user -> {
-                                if (user == null || user.getId() == 0) {
-                                    return Uni.createFrom().item(AnonymousUser.build());
-                                }
-                                return Uni.createFrom().item(user);
-                            });
-                });
-    }
-
     protected Uni<Void> emitPrecomputedResponse(
             String precomputedText,
             Consumer<String> chunkHandler,
@@ -473,11 +387,14 @@ public class ChatService {
                     .put("token", token)
                     .put("userName", finalState.sessionUserName())
                     .encode());
+            long userId = finalState.userId();
+            if (userId > 0) {
+                userService.findById(userId).subscribe().with(
+                        opt -> opt.ifPresent(user -> controller.upgradeUserSession(connectionId, user)),
+                        err -> LOGGER.warnf("[sendDeferredSessionToken] failed to upgrade session for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
+                );
+            }
         }
-    }
-
-    public Uni<Void> migrateAnonymousDbRecords(String connectionId, long newUserId) {
-        return chatRepository.migrateAnonymousDbRecords(connectionId, newUserId);
     }
 
     public void bootstrapConnectionHistory(String connectionId, long userId) {
@@ -495,14 +412,6 @@ public class ChatService {
         } catch (Exception ignored) {
             return this.mainPrompt;
         }
-    }
-
-    private UserData mergeUserData(UserData existing, String value) {
-        UserData merged = new UserData(existing != null && existing.getData() != null
-                ? new HashMap<>(existing.getData())
-                : new HashMap<>());
-        merged.getData().put("preferred_name", value);
-        return merged;
     }
 
 }
