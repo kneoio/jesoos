@@ -116,7 +116,7 @@ public class DraftFactory {
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
-                .chain(tuple -> labelsUni.map(labels -> {
+                .chain(tuple -> labelsUni.emitOn(getDefaultWorkerPool()).map(labels -> {
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
                     List<String> genres = tuple.getItem3();
@@ -176,7 +176,7 @@ public class DraftFactory {
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
-                .chain(tuple -> labelsUni.map(labels -> {
+                .chain(tuple -> labelsUni.emitOn(getDefaultWorkerPool()).map(labels -> {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();
                     AiAgent copilot = tuple.getItem3();
