@@ -58,7 +58,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                         .subscribe().with(
                                 user -> {
                                     LOG.infof("User authenticated: %s", user.getUserName());
-                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user, anonId))
+                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user, anonId, token))
                                             .onFailure(err -> {
                                                 LOG.error("WebSocket connection failed", err);
                                                 rc.fail(500, err);
@@ -95,7 +95,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 });
     }
 
-    private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user, String anonId) {
+    private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user, String anonId, String token) {
         webSocket.accept();
 
         String connectionId = (isAnonymous(user) && isValidAnonId(anonId))
@@ -107,6 +107,15 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         if (!isAnonymous(user)) {
             assert chatService != null;
             chatService.bootstrapConnectionHistory(connectionId, user.getId());
+            chatService.resolveDisplayName(user.getId(), user.getEmail())
+                    .subscribe().with(
+                            displayName -> webSocket.writeTextMessage(new io.vertx.core.json.JsonObject()
+                                    .put("type", "session_token")
+                                    .put("token", token)
+                                    .put("userName", displayName)
+                                    .encode()),
+                            err -> LOG.warnf("Failed to resolve display name on connect for %s: %s", connectionId, err.getMessage())
+                    );
         }
         LOG.infof("Public chat WebSocket connected: %s for user: %s", connectionId, user.getUserName());
 
