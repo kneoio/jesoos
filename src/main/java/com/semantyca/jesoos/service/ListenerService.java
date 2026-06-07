@@ -25,12 +25,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     private final ListenersRepository repository;
     private BrandService brandService;
+    private record CachedName(String value, long expiresAt) {}
+    private static final long DISPLAY_NAME_TTL_MS = 10 * 60 * 1000L; // 10 minutes
+    private final ConcurrentHashMap<Long, CachedName> displayNameCache = new ConcurrentHashMap<>();
 
     protected ListenerService() {
         super();
@@ -137,6 +141,10 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<String> resolveDisplayName(long userId, String fallback) {
+        CachedName cached = displayNameCache.get(userId);
+        if (cached != null && System.currentTimeMillis() < cached.expiresAt()) {
+            return Uni.createFrom().item(cached.value());
+        }
         return getByUserId(userId)
                 .map(listener -> {
                     if (listener == null) return fallback;
@@ -154,7 +162,15 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     }
                     return fallback;
                 })
+                .invoke(name -> {
+                    if (name != null) displayNameCache.put(userId,
+                            new CachedName(name, System.currentTimeMillis() + DISPLAY_NAME_TTL_MS));
+                })
                 .onFailure().recoverWithItem(fallback);
+    }
+
+    public void invalidateDisplayNameCache(long userId) {
+        displayNameCache.remove(userId);
     }
 
     public Uni<List<Listener>> findCommunityMembers(String brandSlug, UUID excludeListenerId, String fieldName, String fieldValue) {

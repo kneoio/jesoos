@@ -5,6 +5,7 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.ChatService;
 import io.smallrye.mutiny.Uni;
@@ -28,6 +29,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private static final SecureRandom CONNECTION_ID_RANDOM = new SecureRandom();
     private final ChatService chatService;
     private final ChatAuthService chatAuthService;
+    private final ListenerService listenerService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
@@ -36,13 +38,15 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         super(null);
         this.chatService = null;
         this.chatAuthService = null;
+        this.listenerService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService) {
+    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService) {
         super(userService);
         this.chatService = chatService;
         this.chatAuthService = chatAuthService;
+        this.listenerService = listenerService;
         if (chatService != null) {
             chatService.setController(this);
         }
@@ -99,7 +103,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         if (!isAnonymous(user)) {
             assert chatService != null;
             chatService.bootstrapConnectionHistory(connectionId, user.getId());
-            chatService.resolveDisplayName(user.getId(), user.getEmail())
+            listenerService.resolveDisplayName(user.getId(), user.getEmail())
                     .subscribe().with(
                             displayName -> webSocket.writeTextMessage(new io.vertx.core.json.JsonObject()
                                     .put("type", "session_token")
@@ -180,7 +184,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Uni<String> resolvedUsername = isAnonymous(user)
                 ? Uni.createFrom().item(sanitizeUsername(msgJson.getString("username", "anonymous")))
-                : chatService.resolveDisplayName(user.getId(), user.getEmail());
+                : listenerService.resolveDisplayName(user.getId(), user.getEmail());
 
         ensureRegistration
                 .chain(() -> resolvedUsername)

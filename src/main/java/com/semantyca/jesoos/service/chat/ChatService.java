@@ -51,7 +51,6 @@ public class ChatService {
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     protected final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, String> displayNameCache = new ConcurrentHashMap<>();
 
     @Inject
     protected ScenePool scenePool;
@@ -277,13 +276,6 @@ public class ChatService {
         return listenerService.resolveDisplayName(user.getId(), null);
     }
 
-    public Uni<String> resolveDisplayName(long userId, String fallback) {
-        String cached = displayNameCache.get(userId);
-        if (cached != null) return Uni.createFrom().item(cached);
-        return listenerService.resolveDisplayName(userId, fallback)
-                .invoke(name -> displayNameCache.put(userId, name));
-    }
-
     protected Uni<Void> emitPrecomputedResponse(
             String precomputedText,
             Consumer<String> chunkHandler,
@@ -381,19 +373,24 @@ public class ChatService {
     private void sendDeferredSessionToken(ChatState finalState, String connectionId) {
         String token = finalState.sessionToken();
         if (token != null) {
-            LOGGER.infof("[ChatAgent] sending deferred session_token userId=%d connectionId=%s", finalState.userId(), connectionId);
-            controller.sendToConnection(connectionId, new io.vertx.core.json.JsonObject()
-                    .put("type", "session_token")
-                    .put("token", token)
-                    .put("userName", finalState.sessionUserName())
-                    .encode());
             long userId = finalState.userId();
-            if (userId > 0) {
-                userService.findById(userId).subscribe().with(
-                        opt -> opt.ifPresent(user -> controller.upgradeUserSession(connectionId, user)),
-                        err -> LOGGER.warnf("[sendDeferredSessionToken] failed to upgrade session for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
-                );
-            }
+            LOGGER.infof("[ChatAgent] sending deferred session_token userId=%d connectionId=%s", userId, connectionId);
+            listenerService.resolveDisplayName(userId, finalState.sessionUserName()).subscribe().with(
+                    displayName -> {
+                        controller.sendToConnection(connectionId, new io.vertx.core.json.JsonObject()
+                                .put("type", "session_token")
+                                .put("token", token)
+                                .put("userName", displayName)
+                                .encode());
+                        if (userId > 0) {
+                            userService.findById(userId).subscribe().with(
+                                    opt -> opt.ifPresent(user -> controller.upgradeUserSession(connectionId, user)),
+                                    err -> LOGGER.warnf("[sendDeferredSessionToken] failed to upgrade session for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
+                            );
+                        }
+                    },
+                    err -> LOGGER.warnf("[sendDeferredSessionToken] failed to resolve display name for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
+            );
         }
     }
 
