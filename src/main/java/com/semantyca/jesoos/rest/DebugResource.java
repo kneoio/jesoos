@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.rest;
 
 import com.semantyca.core.model.cnst.LanguageTag;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
@@ -85,7 +84,7 @@ public class DebugResource extends AbstractResource {
         LanguageTag finalLanguage = language;
 
         brandService.getBySlugName(brand)
-                .chain(b -> aiAgentService.getById(b.getAiAgentId(), SuperUser.build()))
+                .chain(b -> aiAgentService.getById(b.getAiAgentId()))
                 .chain(agent -> introTtsGenerator.debugInstruction(instruction, contextVars, agent, finalLanguage))
                 .subscribe().with(
                         result -> rc.response()
@@ -134,7 +133,7 @@ public class DebugResource extends AbstractResource {
         String finalSharerName = sharerName;
 
         brandService.getBySlugName(brand)
-                .flatMap(b -> aiAgentService.getById(b.getAiAgentId(), SuperUser.build())
+                .flatMap(b -> aiAgentService.getById(b.getAiAgentId())
                         .flatMap(agent -> {
                             RadioStream stream = new RadioStream(b);
                             return draftFactory.renderCode(finalCode, finalSong, agent, stream, finalSharerName);

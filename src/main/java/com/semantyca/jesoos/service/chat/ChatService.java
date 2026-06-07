@@ -245,7 +245,7 @@ public class ChatService {
             String radioStationName = station != null && station.getLocalizedName() != null
                     ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName()) : slugName;
             Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni = station != null && station.getAiAgentId() != null
-                    ? aiAgentService.getById(station.getAiAgentId(), SuperUser.build())
+                    ? aiAgentService.getById(station.getAiAgentId())
                     : Uni.createFrom().item(() -> null);
             return Uni.combine().all().unis(agentUni, otsScriptsProvider.buildScriptsText()).asTuple()
                     .map(tuple -> {

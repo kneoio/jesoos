@@ -4,7 +4,6 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LifecycleStatus;
 import com.semantyca.core.model.cnst.RlsActionType;
 import com.semantyca.core.model.user.IUser;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.RlsActionDTO;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
@@ -133,7 +132,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                             return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
                                                         }
 
-                                                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
+                                                        return aiAgentService.getById(stream.getAiAgentId())
                                                                 .flatMap(agent -> {
                                                                     LanguageCode primaryLang = agent.getPreferredLang().getFirst().getLanguageTag().toLanguageCode();
                                                                     PromptEntry promptEntry = new PromptEntry();

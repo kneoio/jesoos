@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service.live;
 
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -24,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @ApplicationScoped
 public class StaggeredSongScheduler {
@@ -130,7 +130,7 @@ public class StaggeredSongScheduler {
                 return;
             }
 
-            java.util.concurrent.atomic.AtomicInteger skipCounter = skipCounters.get(brandName);
+            AtomicInteger skipCounter = skipCounters.get(brandName);
             if (skipCounter != null && skipCounter.get() > 0 && skipCounter.decrementAndGet() >= 0) {
                 LOGGER.infof("Backpressure skip: entry #%d for brand '%s' skipped (%d remaining)",
                         entry.getSequenceNumber(), brandName, skipCounter.get());
@@ -213,8 +213,13 @@ public class StaggeredSongScheduler {
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
-        StreamPriority songPriority = djStateService.isDjEnabled(brandName) ? StreamPriority.PRIORITIZED : StreamPriority.NORMAL;
-        return emitTimelineEntry(brandName, liveScene, entry, brandZone, entry.isGenerated() ? StreamPriority.PRIORITIZED_FRONT.getValue() : songPriority.getValue());
+        StreamPriority priority = StreamPriority.NORMAL;
+        if (entry.isGenerated()) {
+            priority = StreamPriority.PRIORITIZED_FRONT;
+        } else if (djStateService.isDjEnabled(brandName)) {
+            priority = StreamPriority.PRIORITIZED;
+        }
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue());
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
@@ -224,28 +229,25 @@ public class StaggeredSongScheduler {
         return brandPool.get(brandName)
                 .chain(stream -> {
 
-                    if (entry.isGenerated()) {
-                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
-                                .chain(mainAgent ->
-                                        generatedContentEmitter.send(brandName, liveScene, entry, mainAgent, stream, brandZone, priority))
-                                .onFailure().invoke(err -> LOGGER.error(String.format(
-                                        "Generated content emitter failed for entry #%d scene '%s': %s",
-                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
-                    }
-
-                    if (entry.isHasJingle()) {
-                        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
-                                .chain(agent -> jingleSongEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority))
-                                .onFailure().invoke(err -> LOGGER.error(String.format(
-                                        "Jingle emitter failed for entry #%d scene '%s': %s",
-                                        entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
-                    }
-
-                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
-                            .chain(agent -> songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority))
-                            .onFailure().invoke(err -> LOGGER.error(String.format(
-                                    "Song emitter failed for entry #%d scene '%s': %s",
-                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
+                    return aiAgentService.getById(stream.getAiAgentId())
+                            .chain(agent -> {
+                                if (entry.isGenerated()) {
+                                    return generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                            .onFailure().invoke(err -> LOGGER.error(String.format(
+                                                    "Generated content emitter failed for entry #%d scene '%s': %s",
+                                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
+                                }
+                                if (entry.isHasJingle()) {
+                                    return jingleSongEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                            .onFailure().invoke(err -> LOGGER.error(String.format(
+                                                    "Jingle emitter failed for entry #%d scene '%s': %s",
+                                                    entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
+                                }
+                                return songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                        .onFailure().invoke(err -> LOGGER.error(String.format(
+                                                "Song emitter failed for entry #%d scene '%s': %s",
+                                                entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
+                            });
                 });
     }
 
@@ -254,34 +256,6 @@ public class StaggeredSongScheduler {
                 .incrementAndGet();
         LOGGER.infof("Backpressure signal received for brand '%s': %d skip(s) queued", brandName, pending);
         return pending;
-    }
-
-    public void retriggerNextScheduledEntry(String brandName) {
-        brandPool.get(brandName).subscribe().with(stream -> {
-            if (stream == null || stream.getAgenda() == null) return;
-            ZoneId brandZone = stream.getTimeZone();
-            for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
-                for (TimelineEntry entry : scene.getTimeline()) {
-                    if (entry.getStatus() == TimelineEntryStatus.SCHEDULED) {
-                        ConcurrentHashMap<Integer, Long> timers = brandTimers.get(brandName);
-                        if (timers != null) {
-                            Long timerId = timers.remove(entry.getSequenceNumber());
-                            if (timerId != null) {
-                                vertx.cancelTimer(timerId);
-                            }
-                        }
-                        entry.setStatus(TimelineEntryStatus.PENDING);
-                        LOGGER.infof("[retrigger] Immediately triggering entry #%d for brand '%s'", entry.getSequenceNumber(), brandName);
-                        emitTimelineEntry(brandName, scene, entry, brandZone)
-                                .subscribe().with(
-                                        v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
-                                        err -> entry.setStatus(TimelineEntryStatus.FAILED)
-                                );
-                        return;
-                    }
-                }
-            }
-        }, err -> LOGGER.warnf("[retrigger] Failed to get stream for brand '%s': %s", brandName, err.getMessage()));
     }
 
     public void cancelBrandTimers(String brandName) {

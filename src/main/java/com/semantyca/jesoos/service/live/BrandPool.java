@@ -90,9 +90,9 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
 
     private void forceIntroOnFirstEntry(StreamAgenda schedule, String brandName) {
         if (schedule.getLiveScenes().isEmpty()) return;
-        LiveScene firstScene = schedule.getLiveScenes().get(0);
+        LiveScene firstScene = schedule.getLiveScenes().getFirst();
         if (firstScene.getTimeline() == null || firstScene.getTimeline().isEmpty()) return;
-        TimelineEntry entry = firstScene.getTimeline().get(0);
+        TimelineEntry entry = firstScene.getTimeline().getFirst();
         entry.setHasIntro(true);
         MixingType strategy = entry.getMixingStrategy();
         if (strategy == MixingType.SONG_ONLY || strategy == MixingType.SONG_CROSSFADE_SONG || strategy == MixingType.FILLER_JINGLE) {

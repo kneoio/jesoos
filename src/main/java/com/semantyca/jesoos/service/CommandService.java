@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service;
 
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -89,27 +88,12 @@ public class CommandService {
     }
 
     public Uni<JsonObject> enableDj(String brand) {
-        if (brand == null || brand.isEmpty()) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
-        }
-
         return brandPool.get(brand)
                 .chain(stream -> {
                     if (stream == null) {
-                        LOGGER.infof("Brand %s not in pool, starting stream before enabling DJ", brand);
-                        return brandPool.getRadioStream(brand)
-                                .invoke(s -> {
-                                    djStateService.enableDj(brand);
-                                    forceIntroOnNextEntries(s, 3);
-                                })
-                                .map(this::toResponse)
-                                .map(response -> response
-                                        .put("djEnabled", true)
-                                        .put("message", "Stream started and DJ intros will be generated"));
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand is not on-line"));
                     } else {
                         djStateService.enableDj(brand);
-                        forceIntroOnNextEntries(stream, 3);
-                        staggeredSongScheduler.retriggerNextScheduledEntry(brand);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         return Uni.createFrom().item(new JsonObject()
                                 .put("success", true)
@@ -120,26 +104,11 @@ public class CommandService {
                 });
     }
 
-    private void forceIntroOnNextEntries(ILiveStream stream, int count) {
-        if (stream.getAgenda() == null) return;
-        int forced = 0;
-        for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
-            for (TimelineEntry entry : scene.getTimeline()) {
-                if (forced >= count) return;
-                if (entry.getStatus() == TimelineEntryStatus.PENDING) {
-                    entry.setHasIntro(true);
-                    forced++;
-                }
-            }
-        }
-        LOGGER.infof("DJ warmup: forced intro on %d pending entries for brand '%s'", forced, stream.getSlugName());
-    }
-
     public Uni<JsonObject> disableDj(String brand) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
-        
+
         return Uni.createFrom().item(() -> {
             djStateService.disableDj(brand);
             return new JsonObject()
@@ -167,7 +136,7 @@ public class CommandService {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
-        
+
         return Uni.createFrom().item(() -> djStateService.isDjEnabled(brand));
     }
 
@@ -235,9 +204,9 @@ public class CommandService {
                                 "Timeline entry with sequence number " + sequenceNumber + " not found in scene " + sceneId));
                     }
 
-                    LOGGER.infof("Manually emitting timeline entry #%d from scene %s ('%s') for brand: %s", 
+                    LOGGER.infof("Manually emitting timeline entry #%d from scene %s ('%s') for brand: %s",
                             sequenceNumber, sceneId, scene.getSceneTitle(), brand);
-                    
+
                     metricPublisher.publishMetric(
                             brand,
                             MetricEventType.COMMAND,
@@ -250,7 +219,7 @@ public class CommandService {
                             ),
                             scene.getTraceId()
                     );
-                    
+
                     return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), 8)
                             .map(v -> new JsonObject()
                                     .put("success", true)

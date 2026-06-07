@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
@@ -69,7 +68,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         return brandPool.get(brandName)
                 .chain(stream -> {
                     if (stream == null) return Uni.createFrom().failure(new RuntimeException("Station offline"));
-                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build())
+                    return aiAgentService.getById(stream.getAiAgentId())
                             .chain(agent -> {
                                 UUID traceId = UUID.randomUUID();
                                 return introTtsGenerator.generateCustomIntroAudioFile(
@@ -150,7 +149,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                 .chain(stream -> {
                     if (stream == null) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                             new JsonObject().put("ok", false).put("error", "Station offline").encode()));
-                    return aiAgentService.getById(stream.getAiAgentId(), new com.semantyca.core.model.user.SuperUser())
+                    return aiAgentService.getById(stream.getAiAgentId())
                             .chain(agent -> {
                                 UUID traceId = UUID.randomUUID();
                                 return introTtsGenerator.generateCustomIntroAudioFile(textToTTSIntro, agent,

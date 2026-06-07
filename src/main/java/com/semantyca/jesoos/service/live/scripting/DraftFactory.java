@@ -94,7 +94,7 @@ public class DraftFactory {
         LanguageTag selectedLanguage = AiHelperUtils.selectLanguageByWeight(agent);
 
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
-                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
+                ? aiAgentService.getById(agent.getCopilot())
                 : Uni.createFrom().nullItem();
 
         Uni<List<String>> genresUni = song != null
@@ -161,7 +161,7 @@ public class DraftFactory {
         LanguageTag selectedLanguage = com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent);
 
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
-                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build())
+                ? aiAgentService.getById(agent.getCopilot())
                 : Uni.createFrom().nullItem();
         Uni<List<String>> genresUni = resolveGenreNames(song, selectedLanguage.toLanguageCode());
         Uni<List<String>> labelsUni = resolveLabels(song, selectedLanguage.toLanguageCode());

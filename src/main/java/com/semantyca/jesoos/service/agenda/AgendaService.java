@@ -2,7 +2,6 @@ package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.*;
 import com.semantyca.jesoos.service.AiAgentService;
@@ -117,7 +116,7 @@ public class AgendaService {
         }
 
         Uni<AiAgent> agentUni = (sourceBrand.getAiAgentId() != null)
-                ? aiAgentService.getById(sourceBrand.getAiAgentId(), SuperUser.build())
+                ? aiAgentService.getById(sourceBrand.getAiAgentId())
                 : Uni.createFrom().nullItem();
 
         record BuildState(List<LiveScene> liveScenes, Set<UUID> usedIds) {}
@@ -255,7 +254,7 @@ public class AgendaService {
 
             TimelineBuilder timelineBuilder = new TimelineBuilder();
             Uni<AiAgent> agentUni = (brand.getAiAgentId() != null)
-                    ? aiAgentService.getById(brand.getAiAgentId(), SuperUser.build())
+                    ? aiAgentService.getById(brand.getAiAgentId())
                     : Uni.createFrom().nullItem();
 
             sceneUnis.add(

@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service.chat.tools;
 
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.dto.agenda.TimelineEntryDTO;
 import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
@@ -139,7 +140,7 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                         case "FAILED"     -> "#c0392b";
                         default           -> "#95a5a6";
                     };
-                    for (var song : entry.getSongs()) {
+                    for (TimelineEntryDTO.SongDTO song : entry.getSongs()) {
                         entries.add(new JsonObject()
                                 .put("time", timeStr)
                                 .put("artist", song.getArtist())

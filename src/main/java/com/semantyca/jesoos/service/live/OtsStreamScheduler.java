@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service.live;
 
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
@@ -143,16 +142,16 @@ public class OtsStreamScheduler {
         LOGGER.infof("[OtsScheduler] emitting entry #%d scene '%s' ots '%s' via brand '%s'",
                 entry.getSequenceNumber(), scene.getSceneTitle(), otsSlugName, masterBrandSlug);
 
-        if (entry.isGenerated()) {
-            return aiAgentService.getById(scene.getAgentId(), SuperUser.build())
-                    .chain(agent -> generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue()));
-        }
-        if (entry.isHasJingle()) {
-            return aiAgentService.getById(scene.getAgentId(), SuperUser.build())
-                    .chain(agent -> jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue()));
-        }
-        return aiAgentService.getById(scene.getAgentId(), SuperUser.build())
-                .chain(agent -> songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue()));
+        return aiAgentService.getById(scene.getAgentId())
+                .chain(agent -> {
+                    if (entry.isGenerated()) {
+                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                    }
+                    if (entry.isHasJingle()) {
+                        return jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                    }
+                    return songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                });
     }
 
     public void cancelOtsTimers(String otsSlugName) {

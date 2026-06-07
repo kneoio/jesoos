@@ -73,7 +73,7 @@ public class JingleSongEmitter {
                     SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
                     int jingleDuration = jingle.getLength() != null ? (int) jingle.getLength().toSeconds() : DEFAULT_JINGLE_DURATION;
 
-                    if (djEnabled && entry.isHasIntro() && agent != null) {
+                    if (djEnabled && entry.isHasIntro()) {
                         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
                         return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang)
                                 .chain(introResult -> {

@@ -82,18 +82,12 @@ public class AiAgentRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<AiAgent> findById(UUID uuid, IUser user, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
+    public Uni<AiAgent> findById(UUID uuid) {
+        String sql = "SELECT * FROM " + entityData.getTableName() +
+                " WHERE id = $1 AND archived = 0";
 
-        if (!includeArchived) {
-            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
-        }
-
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(user.getId(), uuid))
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -104,7 +98,7 @@ public class AiAgentRepository extends AsyncRepository {
                                             return agent;
                                         }));
                     } else {
-                        LOGGER.warn("No {} found with id: {}, user: {} ", AI_AGENT, uuid, user.getId());
+                        LOGGER.warn("No {} found with id: {}", AI_AGENT, uuid);
                         throw new DocumentHasNotFoundException(uuid);
                     }
                 });

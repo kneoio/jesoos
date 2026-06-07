@@ -40,7 +40,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
-    public Uni<AiAgent> getById(UUID id, IUser user) {
-        return repository.findById(id, user, false);
+    public Uni<AiAgent> getById(UUID id) {
+        return repository.findById(id);
     }
 }
