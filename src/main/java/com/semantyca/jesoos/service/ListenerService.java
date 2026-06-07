@@ -2,7 +2,6 @@ package com.semantyca.jesoos.service;
 
 import com.semantyca.core.dto.document.UserDTO;
 import com.semantyca.core.model.UserData;
-import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.model.user.UndefinedUser;
@@ -160,28 +159,16 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         }
                     }
                     if (listener.getLocalizedName() != null) {
-                        String name = listener.getLocalizedName().get(LanguageCode.en);
-                        if (name != null && !name.isBlank()) {
+                        String name = listener.getLocalizedName().values().stream()
+                                .filter(v -> v != null && !v.isBlank())
+                                .findFirst().orElse(null);
+                        if (name != null) {
                             LOG.debugf("[resolveDisplayName] userId=%d → localizedName=%s", userId, name);
                             return name;
                         }
                     }
-                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but name fields empty, will try user record", userId);
-                    return null;
-                })
-                .chain(name -> {
-                    if (name != null) return Uni.createFrom().item(name);
-                    return userService.findById(userId)
-                            .map(opt -> opt.map(u -> {
-                                        String email = u.getEmail();
-                                        if (email != null && email.contains("@")) {
-                                            String prefix = email.substring(0, email.indexOf('@'));
-                                            LOG.debugf("[resolveDisplayName] userId=%d → email prefix=%s", userId, prefix);
-                                            return prefix;
-                                        }
-                                        return fallback;
-                                    }).orElse(fallback))
-                            .onFailure().recoverWithItem(fallback);
+                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but name fields empty", userId);
+                    return fallback;
                 })
                 .invoke(name -> {
                     if (name != null && !name.equals(fallback)) displayNameCache.put(userId,
