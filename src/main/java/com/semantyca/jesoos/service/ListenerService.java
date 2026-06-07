@@ -20,6 +20,7 @@ import com.semantyca.mixpla.model.filter.ListenerFilter;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
+    private static final Logger LOG = Logger.getLogger(ListenerService.class);
     private final ListenersRepository repository;
     private BrandService brandService;
     private record CachedName(String value, long expiresAt) {}
@@ -147,19 +149,33 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         }
         return getByUserId(userId)
                 .map(listener -> {
-                    if (listener == null) return fallback;
+                    if (listener == null) {
+                        LOG.warnf("[resolveDisplayName] no listener found for userId=%d, returning fallback", userId);
+                        return fallback;
+                    }
                     if (listener.getUserData() != null && listener.getUserData().getData() != null) {
                         String name = listener.getUserData().getData().get("preferred_name");
-                        if (name != null && !name.isBlank()) return name;
+                        if (name != null && !name.isBlank()) {
+                            LOG.debugf("[resolveDisplayName] userId=%d → preferred_name=%s", userId, name);
+                            return name;
+                        }
                     }
                     if (listener.getLocalizedName() != null) {
                         String name = listener.getLocalizedName().get(LanguageCode.en);
-                        if (name != null && !name.isBlank()) return name;
+                        if (name != null && !name.isBlank()) {
+                            LOG.debugf("[resolveDisplayName] userId=%d → localizedName=%s", userId, name);
+                            return name;
+                        }
                     }
                     if (listener.getNickName() != null) {
                         Set<String> nicks = listener.getNickName().get(LanguageCode.en);
-                        if (nicks != null && !nicks.isEmpty()) return nicks.iterator().next();
+                        if (nicks != null && !nicks.isEmpty()) {
+                            String nick = nicks.iterator().next();
+                            LOG.debugf("[resolveDisplayName] userId=%d → nickName=%s", userId, nick);
+                            return nick;
+                        }
                     }
+                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but all name fields empty, returning fallback", userId);
                     return fallback;
                 })
                 .invoke(name -> {
