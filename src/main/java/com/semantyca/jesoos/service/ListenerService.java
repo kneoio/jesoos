@@ -175,8 +175,21 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                             return nick;
                         }
                     }
-                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but all name fields empty, returning fallback", userId);
-                    return fallback;
+                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but all name fields empty, will try user record", userId);
+                    return null;
+                })
+                .chain(name -> {
+                    if (name != null) return Uni.createFrom().item(name);
+                    return userService.findById(userId)
+                            .map(opt -> opt.map(u -> {
+                                        String uName = u.getUserName();
+                                        if (uName != null && !uName.isBlank() && !uName.equals(u.getEmail())) {
+                                            LOG.debugf("[resolveDisplayName] userId=%d → userName=%s", userId, uName);
+                                            return uName;
+                                        }
+                                        return fallback;
+                                    }).orElse(fallback))
+                            .onFailure().recoverWithItem(fallback);
                 })
                 .invoke(name -> {
                     if (name != null && !name.equals(fallback)) displayNameCache.put(userId,
