@@ -141,7 +141,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .map(listener -> {
                     if (listener == null) return fallback;
                     if (listener.getUserData() != null && listener.getUserData().getData() != null) {
-                        String name = (String) listener.getUserData().getData().get("preferred_name");
+                        String name = listener.getUserData().getData().get("preferred_name");
                         if (name != null && !name.isBlank()) return name;
                     }
                     if (listener.getLocalizedName() != null) {

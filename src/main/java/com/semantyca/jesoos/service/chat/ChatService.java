@@ -56,6 +56,7 @@ public class ChatService {
     protected final JesoosConfig config;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     protected final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, String> displayNameCache = new ConcurrentHashMap<>();
 
     @Inject
     protected ScenePool scenePool;
@@ -280,7 +281,10 @@ public class ChatService {
     }
 
     public Uni<String> resolveDisplayName(long userId, String fallback) {
-        return listenerService.resolveDisplayName(userId, fallback);
+        String cached = displayNameCache.get(userId);
+        if (cached != null) return Uni.createFrom().item(cached);
+        return listenerService.resolveDisplayName(userId, fallback)
+                .invoke(name -> displayNameCache.put(userId, name));
     }
 
     public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
