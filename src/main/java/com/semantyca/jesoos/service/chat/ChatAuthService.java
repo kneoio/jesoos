@@ -118,7 +118,7 @@ public class ChatAuthService {
         UserData merged = new UserData(existing != null && existing.getData() != null
                 ? new HashMap<>(existing.getData())
                 : new HashMap<>());
-        merged.getData().put("preferred_name", value);
+        merged.put("preferred_name", value);
         return merged;
     }
 }

@@ -163,7 +163,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     return fallback;
                 })
                 .invoke(name -> {
-                    if (name != null) displayNameCache.put(userId,
+                    if (name != null && !name.equals(fallback)) displayNameCache.put(userId,
                             new CachedName(name, System.currentTimeMillis() + DISPLAY_NAME_TTL_MS));
                 })
                 .onFailure().recoverWithItem(fallback);
