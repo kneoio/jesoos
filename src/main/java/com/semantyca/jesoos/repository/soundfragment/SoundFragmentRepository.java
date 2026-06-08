@@ -179,16 +179,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilter(brandId, filter, limit);
     }
 
-    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findByFilterOldest(brandId, filter, limit, excludeIds);
-    }
-
-    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findByFilterRandom(brandId, filter, limit, excludeIds);
-    }
-
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findByFilter(brandId, filter, limit, excludeIds);
@@ -216,7 +206,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row))
+                .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
     }
