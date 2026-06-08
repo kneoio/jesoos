@@ -45,7 +45,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         sql.append(" FROM ").append(entityData.getTableName()).append(" t ")
                 .append("JOIN mixpla__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ")
                 .append("JOIN ").append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
-                .append("WHERE bsf.brand_id = $1 AND rls.reader = $2 AND t.archived = 0");
+                .append("WHERE bsf.brand_id = $1 AND rls.reader = $2 AND t.archived = 0 AND t.type = 'SONG'");
 
         if (hasKeyword) {
             sql.append(" AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)");
