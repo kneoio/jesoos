@@ -57,8 +57,7 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                 .append("FROM ").append(entityData.getTableName()).append(" sf ")
                 .append("JOIN ").append(SSF_TABLE).append(" ssf ON ssf.sound_fragment_id = sf.id ")
                 .append("WHERE ssf.target_brand_id = '").append(brandId).append("' ")
-                .append("AND sf.archived = 0 ")
-                .append("AND sf.status = 500 ");
+                .append("AND sf.archived = 0 ");
 
         if (type != null) {
             sql.append("AND sf.type = '").append(type.name()).append("' ");
