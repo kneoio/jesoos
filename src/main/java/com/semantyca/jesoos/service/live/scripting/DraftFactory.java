@@ -356,8 +356,8 @@ public class DraftFactory {
                         return null;
                     }
                     String name = listener.getLocalizedName().get(lang);
+                    var userData = listener.getUserData();
                     if (name == null || name.isBlank()) {
-                        var userData = listener.getUserData();
                         if (userData != null) {
                             String v = userData.get("preferred_name");
                             if (v != null && !v.isBlank()) {
@@ -366,7 +366,13 @@ public class DraftFactory {
                         }
                     }
                     if (name == null || name.isBlank()) {
-                        name = listener.getSlugName();
+                        return null;
+                    }
+                    if (userData != null) {
+                        String country = userData.get("country");
+                        if (country != null && !country.isBlank()) {
+                            name = name + " (" + country + ")";
+                        }
                     }
                     return name;
                 })
