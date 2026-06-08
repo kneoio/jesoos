@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @ApplicationScoped
@@ -209,6 +210,8 @@ public class StaggeredSongScheduler {
                                         Map.of(
                                                 "seq", entry.getSequenceNumber(),
                                                 "scene", scene.getSceneTitle(),
+                                                "song", entry.getSongs().stream().map(s -> s.getSoundFragment().getTitle() + " – " + s.getSoundFragment().getArtist()).collect(Collectors.joining(", ")),
+                                                "promptId", entry.getSongs().stream().map(s -> String.valueOf(s.getPromptEntry().getPromptId())).collect(Collectors.joining(", ")),
                                                 "errorType", err.getClass().getSimpleName(),
                                                 "error", errorMsg,
                                                 "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg,
