@@ -205,6 +205,10 @@ public class IntroTtsGenerator {
     }
 
     public Uni<String> generateTtsAudio(String text, Voice voice, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
+        // TODO: temporary fallback to avoid silence when spoken text generation fails — replace with proper recovery
+        if (text == null) {
+            text = "Stay tuned!";
+        }
         String voiceId = voice.getId();
         TTSEngineType engineType = voice.getEngineType();
 
@@ -288,6 +292,8 @@ public class IntroTtsGenerator {
     private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, UUID traceId, String brandName) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
+            metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                    Map.of("reason", "draft_content_error", "promptId", prompt.getId().toString(), "draft", draftContent), traceId);
             return Uni.createFrom().item((String) null);
         }
 
