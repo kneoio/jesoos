@@ -262,7 +262,7 @@ public class StaggeredSongScheduler {
         if (entry.isGenerated()) {
             priority = StreamPriority.PRIORITIZED_FRONT;
         } else if (djStateService.isDjEnabled(brandName)) {
-            priority = StreamPriority.PRIORITIZED;
+            priority = StreamPriority.PRIORITIZED_FRONT;
         }
         return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue());
     }
