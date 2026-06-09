@@ -1,11 +1,14 @@
 package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.stream.IStream;
@@ -17,6 +20,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -30,14 +34,17 @@ public class SongEmitter {
     private final IntroTtsGenerator introTtsGenerator;
     private final QueueSupplier queueSupplier;
     private final DjStateService djStateService;
+    private final MetricPublisher metricPublisher;
 
     @Inject
     public SongEmitter(IntroTtsGenerator introTtsGenerator,
                        QueueSupplier queueSupplier,
-                       DjStateService djStateService) {
+                       DjStateService djStateService,
+                       MetricPublisher metricPublisher) {
         this.introTtsGenerator = introTtsGenerator;
         this.queueSupplier = queueSupplier;
         this.djStateService = djStateService;
+        this.metricPublisher = metricPublisher;
     }
 
     public Uni<Void> send(String brandName,
@@ -100,6 +107,7 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
+                        publishExpectedPlayOrder(brandName, liveScene, entry, effectiveStrategy);
                         return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
                     });
         } else {
@@ -120,6 +128,7 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
+            publishExpectedPlayOrder(brandName, liveScene, entry, mixingStrategy);
             return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId());
         }
     }
@@ -184,6 +193,22 @@ public class SongEmitter {
 
             return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
         });
+    }
+
+    private void publishExpectedPlayOrder(String brandName, LiveScene liveScene, TimelineEntry entry, MixingType mergingMethod) {
+        List<Map<String, Object>> songs = new ArrayList<>();
+        for (int i = 0; i < entry.getSongs().size(); i++) {
+            var sf = entry.getSongs().get(i).getSoundFragment();
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("order", i + 1);
+            item.put("songId", sf.getId().toString());
+            item.put("title", sf.getTitle());
+            item.put("artist", sf.getArtist());
+            songs.add(item);
+        }
+        metricPublisher.publishMetric(brandName, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
+                Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(), "songs", songs),
+                liveScene.getTraceId());
     }
 
     private static MixingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
