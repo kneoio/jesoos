@@ -240,6 +240,7 @@ public class IntroTtsGenerator {
             LOGGER.infof("Using ElevenLabs TTS for scene '%s' with model: %s", sceneTitle, modelId);
         }
 
+        String finalText1 = text;
         return ttsClient.textToSpeech(finalText, voiceId, modelId, language)
                 .map(audioBytes -> {
                     try {
@@ -256,7 +257,7 @@ public class IntroTtsGenerator {
                                         "engineType", engineType.toString(),
                                         "sceneTitle", sceneTitle,
                                         "audioSize", audioBytes.length,
-                                        "textLength", text.length(),
+                                        "textLength", finalText1.length(),
                                         "text_to_tts", finalText),
                                 traceId);
 
