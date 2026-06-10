@@ -25,6 +25,7 @@ import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.cnst.LlmType;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
@@ -298,18 +299,17 @@ public class IntroTtsGenerator {
             return Uni.createFrom().item((String) null);
         }
 
-        String fullPrompt = String.format(
+        String fullPrompt = String.format(    // regular flow
                 "%s\n\nDraft input:\n%s",
                 prompt.getPrompt(),
                 draftContent
         );
 
         long maxTokens = 2048L;
-        String provider = config.getIntroTtsLlmProvider();
-        String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
-        LlmTextClient llmTextClient = selectLlmClient(provider);
+        LlmType llmType = agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE;
+        LlmTextClient llmTextClient = llmType == LlmType.GROQ ? groqTextClient : anthropicTextClient;
         return llmTextClient.createTextMessage(
-                        model,
+                        llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel(),
                         maxTokens,
                         getSystemPrompt(agent),
                         fullPrompt)
@@ -338,7 +338,7 @@ public class IntroTtsGenerator {
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
                             Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", rawGenerated,
-                                    "llmProvider", provider, "llmModel", model, "djName", agent != null ? agent.getName() : "unknown"), traceId);
+                                    "llmProvider", llmType, "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
                 .onFailure().invoke(e -> {

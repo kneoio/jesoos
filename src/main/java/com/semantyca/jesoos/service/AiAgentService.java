@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service;
 
-import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.AbstractService;
