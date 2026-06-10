@@ -177,7 +177,7 @@ public class GeneratedContentEmitter {
                         promptEntry.setPromptId(selectedIntroPrompt.getPromptId());
                         SongEntry introSongEntry = new SongEntry(generated, promptEntry, entry.getSequenceNumber());
 
-                        return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, agent, stream, lang)
+                        return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, agent, stream, lang, entry.getSequenceNumber(), UUID.randomUUID())
                                 .chain(introResult -> {
                                     SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
                                     Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();

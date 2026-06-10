@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.semantyca.jesoos.util.AiHelperUtils.getIntroKeyByIndex;
@@ -65,12 +66,13 @@ public class SongEmitter {
         if (djEnabled) {
             LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
             boolean shouldGenerateIntros = entry.isHasIntro();
+            UUID entryTraceId = UUID.randomUUID();
             List<Uni<IntroAudioResult>> introUnis = new ArrayList<>();
             for (int i = 0; i < entry.getSongs().size(); i++) {
                 boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
                 if (needsIntro) {
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                            liveScene, entry.getSongs().get(i), agent, stream, lang));
+                            liveScene, entry.getSongs().get(i), agent, stream, lang, entry.getSequenceNumber(), entryTraceId));
                 } else {
                     introUnis.add(Uni.createFrom().nullItem());
                 }
@@ -107,7 +109,7 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        publishExpectedPlayOrder(brandName, liveScene, entry, effectiveStrategy);
+                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, entryTraceId);
                         return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
                     });
         } else {
@@ -128,7 +130,7 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
-            publishExpectedPlayOrder(brandName, liveScene, entry, mixingStrategy);
+            publishExpectedPlayOrder(brandName, entry, mixingStrategy, UUID.randomUUID());
             return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId());
         }
     }
@@ -173,7 +175,8 @@ public class SongEmitter {
                 lang,
                 liveScene.getSceneTitle(),
                 liveScene.getTraceId(),
-                brandName
+                brandName,
+                entry.getSequenceNumber()
         ).chain(introResult -> {
             SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, MixingType.INTRO_SONG, sceneDeadlineForAivoxAwareness, priority);
 
@@ -195,7 +198,7 @@ public class SongEmitter {
         });
     }
 
-    private void publishExpectedPlayOrder(String brandName, LiveScene liveScene, TimelineEntry entry, MixingType mergingMethod) {
+    private void publishExpectedPlayOrder(String brandName, TimelineEntry entry, MixingType mergingMethod, UUID entryTraceId) {
         List<Map<String, Object>> songs = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
             var sf = entry.getSongs().get(i).getSoundFragment();
@@ -208,7 +211,7 @@ public class SongEmitter {
         }
         metricPublisher.publishMetric(brandName, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
                 Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(), "songs", songs),
-                liveScene.getTraceId());
+                entryTraceId);
     }
 
     private static MixingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {

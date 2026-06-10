@@ -136,10 +136,12 @@ public class IntroTtsGenerator {
             SongEntry songEntry,
             AiAgent agent,
             IStream stream,
-            LanguageTag language
+            LanguageTag language,
+            int entrySeq,
+            UUID entryTraceId
     ) {
         if (songEntry.getPromptEntry().isAction()) {
-            return generateIntroFromAction(liveScene, songEntry, agent, stream, language);
+            return generateIntroFromAction(liveScene, songEntry, agent, stream, language, entrySeq, entryTraceId);
         }
 
         UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
@@ -163,8 +165,8 @@ public class IntroTtsGenerator {
                 })
                 .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
-                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, liveScene.getTraceId(), stream.getSlugName()))
-                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
+                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, entryTraceId, stream.getSlugName(), entrySeq))
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
@@ -173,17 +175,19 @@ public class IntroTtsGenerator {
             SongEntry songEntry,
             AiAgent agent,
             IStream stream,
-            LanguageTag language
+            LanguageTag language,
+            int entrySeq,
+            UUID entryTraceId
     ) {
         CustomAction action = songEntry.getPromptEntry().getCustomAction();
         return draftFactory.buildActionContext(songEntry.getSoundFragment(), stream, action.getContextVars(), language, agent)
                 .chain(ctx -> {
                     String rendered = renderHandlebars(action.getInstruction(), ctx);
-                    return generateSpokenTextFromAction(rendered, action, ctx, agent, language, liveScene.getTraceId(), stream.getSlugName())
+                    return generateSpokenTextFromAction(rendered, action, ctx, agent, language, entryTraceId, stream.getSlugName(), entrySeq)
                             .chain(spokenText -> maybeSendDebugEmail(stream.getSlugName(), action.getName(), action.getInstruction(), ctx, spokenText)
                                     .replaceWith(spokenText));
                 })
-                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), liveScene.getTraceId(), stream.getSlugName()))
+                .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(v -> calculateDuration(v, language, false, agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
@@ -193,19 +197,20 @@ public class IntroTtsGenerator {
             LanguageTag language,
             String sceneTitle,
             UUID traceId,
-            String brandName
+            String brandName,
+            int entrySeq
     ) {
         LOGGER.infof("Generating custom intro audio for scene '%s' with text: '%s'", sceneTitle, customIntroText);
 
-        return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName)
+        return generateTtsAudio(customIntroText, agent, language, sceneTitle, traceId, brandName, entrySeq)
                 .chain(filePath -> calculateDuration(filePath, language, false, agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
-    public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
-        return generateTtsAudio(text, agent.getTtsSetting().getDj(), language, sceneTitle, traceId, brandName);
+    public Uni<String> generateTtsAudio(String text, AiAgent agent, LanguageTag language, String sceneTitle, UUID traceId, String brandName, int entrySeq) {
+        return generateTtsAudio(text, agent.getTtsSetting().getDj(), language, sceneTitle, traceId, brandName, entrySeq);
     }
 
-    public Uni<String> generateTtsAudio(String text, Voice voice, LanguageTag language, String sceneTitle, UUID traceId, String brandName) {
+    public Uni<String> generateTtsAudio(String text, Voice voice, LanguageTag language, String sceneTitle, UUID traceId, String brandName, int entrySeq) {
         // TODO: temporary fallback to avoid silence when spoken text generation fails — replace with proper recovery
         if (text == null) {
             text = "Stay tuned!";
@@ -255,6 +260,7 @@ public class IntroTtsGenerator {
                         LOGGER.infof("Intro TTS audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
                         metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_tts_audio_generated",
                                 Map.of(
+                                        "seq", entrySeq,
                                         "engineType", engineType.toString(),
                                         "sceneTitle", sceneTitle,
                                         "audioSize", audioBytes.length,
@@ -291,7 +297,7 @@ public class IntroTtsGenerator {
         });
     }
 
-    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, UUID traceId, String brandName, int entrySeq) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
             metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
@@ -336,7 +342,7 @@ public class IntroTtsGenerator {
 
                     LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
-                            Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
+                            Map.of("seq", entrySeq, "inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "promptId", prompt.getId().toString(), "promptTitle", prompt.getTitle(), "promptText", prompt.getPrompt(), "draft", draftContent, "spokenText", rawGenerated,
                                     "llmProvider", llmType, "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
@@ -348,7 +354,7 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, Map<String, Object> ctx, AiAgent agent, LanguageTag language, UUID traceId, String brandName) {
+    private Uni<String> generateSpokenTextFromAction(String renderedInstruction, CustomAction action, Map<String, Object> ctx, AiAgent agent, LanguageTag language, UUID traceId, String brandName, int entrySeq) {
         long maxTokens = 2048L;
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
@@ -381,7 +387,7 @@ public class IntroTtsGenerator {
 
                     LOGGER.infof("Generated text (%s tokens): %s", response.outputTokens(), text);
                     metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "intro_spoken_text_generated",
-                            Map.of("inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
+                            Map.of("seq", entrySeq, "inputTokens", response.inputTokens(), "outputTokens", response.outputTokens(),
                                     "actionName", action.getName(), "instruction", action.getInstruction(), "variables", ctx,
                                     "spokenText", rawGenerated, "llmProvider", provider, "llmModel", model,
                                     "djName", agent != null ? agent.getName() : "unknown"), traceId);

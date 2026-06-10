@@ -77,7 +77,8 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                                         AiHelperUtils.selectLanguageByWeight(agent),
                                         "chat-dj-request",
                                         traceId,
-                                        brandName
+                                        brandName,
+                                        0
                                 ).chain(introResult -> {
                                     IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
                                     introDto.setGain(introResult.gain());
@@ -153,7 +154,7 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
                             .chain(agent -> {
                                 UUID traceId = UUID.randomUUID();
                                 return introTtsGenerator.generateCustomIntroAudioFile(textToTTSIntro, agent,
-                                        com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent), "chat-dj-request", traceId, brandName)
+                                        com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent), "chat-dj-request", traceId, brandName, 0)
                                         .chain(introResult -> {
                                             IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
                                             introDto.setGain(introResult.gain()); introDto.setEngineType(introResult.engineType());

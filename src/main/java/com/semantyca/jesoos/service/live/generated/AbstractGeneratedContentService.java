@@ -161,7 +161,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                             return Uni.createFrom().failure(
                                                     new RuntimeException("Text generation failed for scene: " + sceneTitle));
                                         } else {
-                                            fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName())
+                                            fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName(), 0)
                                                     .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
                                         }
                                         return fragmentUni.map(fragment -> new GenerationResult(fragment, draftResult.selectedAdId()));

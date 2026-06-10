@@ -20,6 +20,7 @@ import jakarta.inject.Inject;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.semantyca.jesoos.service.live.StaggeredSongScheduler.DEFAULT_JINGLE_DURATION;
@@ -75,7 +76,7 @@ public class JingleSongEmitter {
 
                     if (djEnabled && entry.isHasIntro()) {
                         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang)
+                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang, entry.getSequenceNumber(), UUID.randomUUID())
                                 .chain(introResult -> {
                                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                                     songMap.put(SongKey.JINGLE_1, new SongInfoDTO(jingle.getId(), jingleDuration));
