@@ -347,7 +347,7 @@ public class AgendaService {
                     .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
             default -> {
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
-                yield songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, songCount, excludeIds)
+                yield songSupplier.getSongsRandomly(brand.getId(), PlaylistItemType.SONG, songCount, excludeIds)
                         .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
             }
         };

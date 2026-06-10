@@ -180,6 +180,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append("AND t.status != 11 ");
         sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
@@ -210,6 +211,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append("AND t.status != 11 ");
         sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
@@ -240,6 +242,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         sql.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
         sql.append("AND t.archived = 0 ");
+        sql.append("AND t.status != 11 ");
         sql.append(buildExcludeClause(excludeIds));
 
         if (filter != null && filter.isActivated()) {
