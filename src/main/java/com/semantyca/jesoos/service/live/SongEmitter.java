@@ -109,7 +109,7 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, entryTraceId);
+                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, liveScene.getTraceId());
                         return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
                     });
         } else {
@@ -130,7 +130,7 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
-            publishExpectedPlayOrder(brandName, entry, mixingStrategy, UUID.randomUUID());
+            publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId());
             return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId());
         }
     }
