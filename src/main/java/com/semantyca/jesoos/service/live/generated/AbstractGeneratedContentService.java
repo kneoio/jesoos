@@ -4,14 +4,9 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.WebHelper;
-import com.semantyca.jesoos.external.AnthropicTextClient;
-import com.semantyca.jesoos.external.ElevenLabsClient;
-import com.semantyca.jesoos.external.GCPTTSClient;
-import com.semantyca.jesoos.external.GroqTextClient;
-import com.semantyca.jesoos.external.LlmTextClient;
-import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
+import com.semantyca.jesoos.external.*;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
@@ -40,7 +35,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -255,7 +249,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         return new DraftFactory.DraftResult(null, draftResult.selectedAdId(), draftResult.selectedAdTitle(), draftResult.selectedAdSlugName());
                     }
 
-                    String fullPrompt = prompt.getPrompt() + "\n\nDraft input:\n" + draftContent;
+                    String fullPrompt = prompt.getPrompt() + "\n\nIMPORTANT: Keep your response under 2400 characters.\n\nDraft input:\n" + draftContent;
                     long maxTokens = 2048L;
                     String provider = config.getGeneratedLlmProvider();
                     String model = "groq".equals(provider) ? config.getGeneratedGroqModel() : config.getGeneratedAnthropicModel();

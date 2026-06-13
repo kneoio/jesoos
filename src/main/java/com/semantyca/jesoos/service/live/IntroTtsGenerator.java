@@ -1,18 +1,12 @@
 package com.semantyca.jesoos.service.live;
 
+import com.github.jknack.handlebars.Handlebars;
+import com.github.jknack.handlebars.Template;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import io.vertx.core.json.JsonObject;
-import com.semantyca.jesoos.external.AnthropicTextClient;
-import com.semantyca.jesoos.external.ElevenLabsClient;
-import com.semantyca.jesoos.external.FishAudioClient;
-import com.semantyca.jesoos.external.GCPTTSClient;
-import com.semantyca.jesoos.external.GroqTextClient;
-import com.semantyca.jesoos.external.LlmTextClient;
-import com.semantyca.jesoos.external.ModelslabClient;
-import com.semantyca.jesoos.external.TTSClient;
+import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.external.MailService;
+import com.semantyca.jesoos.external.*;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
@@ -25,12 +19,15 @@ import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
+import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.LlmType;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -40,12 +37,6 @@ import org.jboss.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import com.semantyca.mixpla.model.aiagent.Voice;
-
-import com.github.jknack.handlebars.Handlebars;
-import com.github.jknack.handlebars.Template;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -55,8 +46,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class IntroTtsGenerator {
     private static final Logger LOGGER = Logger.getLogger(IntroTtsGenerator.class);
     private static final Handlebars HANDLEBARS;
-
     private static final java.util.Random RANDOM = new java.util.Random();
+
+    private JsonObject ttsFallbacks;
 
     static {
         HANDLEBARS = new Handlebars();
@@ -129,6 +121,12 @@ public class IntroTtsGenerator {
             LOGGER.error("Failed to create intro-tts temp directory", e);
             throw new RuntimeException("Failed to initialize intro-tts temp directory", e);
         }
+        try {
+            ttsFallbacks = new JsonObject(ResourceUtil.loadResourceAsString("tts-fallbacks.json"));
+        } catch (Exception e) {
+            LOGGER.warnf("Failed to load tts-fallbacks.json, using hardcoded default: %s", e.getMessage());
+            ttsFallbacks = new JsonObject();
+        }
     }
 
     public Uni<IntroAudioResult> generateIntroAudioFile(
@@ -165,7 +163,7 @@ public class IntroTtsGenerator {
                 })
                 .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
                         .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
-                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, entryTraceId, stream.getSlugName(), entrySeq))
+                .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, language, entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
@@ -211,9 +209,8 @@ public class IntroTtsGenerator {
     }
 
     public Uni<String> generateTtsAudio(String text, Voice voice, LanguageTag language, String sceneTitle, UUID traceId, String brandName, int entrySeq) {
-        // TODO: temporary fallback to avoid silence when spoken text generation fails — replace with proper recovery
         if (text == null) {
-            text = "Stay tuned!";
+            text = getFallbackText(language);
         }
         String voiceId = voice.getId();
         TTSEngineType engineType = voice.getEngineType();
@@ -297,7 +294,7 @@ public class IntroTtsGenerator {
         });
     }
 
-    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, UUID traceId, String brandName, int entrySeq) {
+    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, LanguageTag language, UUID traceId, String brandName, int entrySeq) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
             metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
@@ -347,10 +344,11 @@ public class IntroTtsGenerator {
                                     "llmProvider", llmType, "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
-                .onFailure().invoke(e -> {
+                .onFailure().recoverWithItem(e -> {
                     LOGGER.errorf("Anthropic API call failed - Type: %s, Message: %s", e.getClass().getSimpleName(), e.getMessage(), e);
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                             Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "promptId", prompt.getId().toString()), traceId);
+                    return getFallbackText(language);
                 });
     }
 
@@ -393,10 +391,11 @@ public class IntroTtsGenerator {
                                     "djName", agent != null ? agent.getName() : "unknown"), traceId);
                     return text;
                 })
-                .onFailure().invoke(e -> {
+                .onFailure().recoverWithItem(e -> {
                     LOGGER.errorf("LLM call failed for action '%s' - Type: %s, Message: %s", action.getName(), e.getClass().getSimpleName(), e.getMessage(), e);
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                             Map.of("error", e.getMessage(), "errorType", e.getClass().getSimpleName(), "actionName", action.getName()), traceId);
+                    return getFallbackText(language);
                 });
     }
 
@@ -492,6 +491,18 @@ public class IntroTtsGenerator {
                 return new IntroAudioResult(filePath, 10, languageTag, fallBacked, gain, engineType);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    private String getFallbackText(LanguageTag language) {
+        String key = language != null && language.tag() != null ? language.tag().split("-")[0].toLowerCase() : "en";
+        JsonArray variants = ttsFallbacks.getJsonArray(key);
+        if (variants == null || variants.isEmpty()) {
+            variants = ttsFallbacks.getJsonArray("en");
+        }
+        if (variants == null || variants.isEmpty()) {
+            return "Stay tuned for more great music!";
+        }
+        return variants.getString(RANDOM.nextInt(variants.size()));
     }
 
     private static String stripEmoji(String input) {

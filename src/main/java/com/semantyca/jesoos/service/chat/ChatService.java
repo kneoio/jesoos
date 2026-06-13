@@ -63,8 +63,6 @@ public class ChatService {
     @Inject
     protected ChatSummaryService chatSummaryService;
     @Inject
-    PublicChatSessionManager sessionManager;
-    @Inject
     ListenerService listenerService;
     @Inject
     UserService userService;

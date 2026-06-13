@@ -21,7 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class GeneratedNewsService extends AbstractGeneratedContentService {
+    public class GeneratedNewsService extends AbstractGeneratedContentService {
 
     @Inject
     public GeneratedNewsService(
