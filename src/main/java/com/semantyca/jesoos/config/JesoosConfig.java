@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.config;
 
-import com.semantyca.core.llm.LlmConfig;
+import com.semantyca.core.config.LlmConfig;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
