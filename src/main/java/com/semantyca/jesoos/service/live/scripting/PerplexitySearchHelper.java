@@ -36,7 +36,7 @@ public class PerplexitySearchHelper {
 
     public JsonObject searchBlocking(String query, List<LanguageCode> languages, List<String> domains) {
         return search(query, languages, domains)
-                .await().atMost(Duration.ofSeconds(30));
+                .await().atMost(Duration.ofSeconds(60));
     }
 
     public JsonObject searchBlocking(String query) {
