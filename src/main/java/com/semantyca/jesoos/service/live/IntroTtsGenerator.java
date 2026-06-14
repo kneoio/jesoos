@@ -2,14 +2,13 @@ package com.semantyca.jesoos.service.live;
 
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.Template;
+import com.semantyca.core.llm.AnthropicTextClient;
+import com.semantyca.core.llm.GroqTextClient;
+import com.semantyca.core.llm.LlmTextClient;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.core.llm.AnthropicTextClient;
-import com.semantyca.core.llm.GroqTextClient;
-import com.semantyca.core.llm.LlmTextClient;
-import com.semantyca.core.llm.LlmTextResult;
 import com.semantyca.jesoos.external.*;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.LiveScene;

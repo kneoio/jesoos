@@ -115,8 +115,6 @@ public class DebugResource extends AbstractResource {
             return;
         }
 
-        String finalCode = code;
-
         String songTitle = body.getString("songTitle");
         String songArtist = body.getString("songArtist");
         String songDescription = body.getString("songDescription");
@@ -130,13 +128,12 @@ public class DebugResource extends AbstractResource {
             song.setDescription(songDescription != null ? songDescription : "");
         }
         SoundFragment finalSong = song;
-        String finalSharerName = sharerName;
 
         brandService.getBySlugName(brand)
                 .flatMap(b -> aiAgentService.getById(b.getAiAgentId())
                         .flatMap(agent -> {
                             RadioStream stream = new RadioStream(b);
-                            return draftFactory.renderCode(finalCode, finalSong, agent, stream, finalSharerName);
+                            return draftFactory.renderCode(code, finalSong, agent, stream, sharerName);
                         }))
                 .subscribe().with(
                         draft -> rc.response()
