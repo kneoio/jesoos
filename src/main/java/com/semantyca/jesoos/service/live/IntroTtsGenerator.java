@@ -519,7 +519,7 @@ public class IntroTtsGenerator {
     }
 
     private String getFallbackText(LanguageTag language) {
-        String key = language.tag().split("-")[0].toLowerCase();
+        String key = language != null && language.tag() != null ? language.tag().split("-")[0].toLowerCase() : "en";
         JsonArray variants = ttsFallbacks.getJsonArray(key);
         if (variants == null || variants.isEmpty()) {
             variants = ttsFallbacks.getJsonArray("en");
