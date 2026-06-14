@@ -16,6 +16,7 @@ import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
+import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -408,10 +409,12 @@ public class IntroTtsGenerator {
     }
 
     public Uni<JsonObject> debugPrompt(UUID promptId, SoundFragment song, String sharerName, AiAgent agent, LanguageTag language, IStream stream, LlmType overrideLlmType) {
+        LanguageTag resolvedLanguage = language != null ? language : AiHelperUtils.selectLanguageByWeight(agent);
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> generateDraftText(prompt, song, sharerName, agent, stream)
-                        .chain(draft -> generateSpokenText(prompt, draft, agent, language, UUID.randomUUID(), stream.getSlugName(), 0, overrideLlmType)
+                        .chain(draft -> generateSpokenText(prompt, draft, agent, resolvedLanguage, UUID.randomUUID(), stream.getSlugName(), 0, overrideLlmType)
                                 .map(spokenText -> new JsonObject()
+                                        .put("language", resolvedLanguage.tag())
                                         .put("draft", draft)
                                         .put("spokenText", spokenText))));
     }

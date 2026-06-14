@@ -144,12 +144,17 @@ public class DebugResource extends AbstractResource {
         }
         SoundFragment finalSong = song;
 
-        String langTag = body.getString("language", "en-US");
-        LanguageTag language;
-        try {
-            language = LanguageTag.fromTag(langTag);
-        } catch (Exception e) {
-            language = LanguageTag.EN_US;
+        String langTag = body.getString("language");
+        LanguageTag language = null;
+        if (langTag != null && !langTag.isBlank()) {
+            try {
+                language = LanguageTag.fromTag(langTag);
+            } catch (Exception e) {
+                rc.response().setStatusCode(400)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject().put("error", "invalid language tag").encode());
+                return;
+            }
         }
         LanguageTag finalLanguage = language;
 
