@@ -3,168 +3,336 @@
     "Stay tuned for more great music!",
     "We'll be right back with more!",
     "Don't go anywhere, great music is coming!",
-    "More great tracks coming your way!"
+    "More great tracks coming your way!",
+    "The rhythm never stops. Stick around!",
+    "Keep your speakers cranked, the next track is a banger!",
+    "Locking in the vibes just for you. Don't touch that dial!",
+    "We're just warming up. Stay locked in!",
+    "Your audio adventure continues in just a moment!",
+    "Serving up pure auditory gold next. Stay tuned!"
   ],
   "de": [
     "Bleib dran für mehr tolle Musik!",
     "Wir sind gleich zurück!",
     "Noch mehr Musik kommt gleich!",
-    "Bleib dabei, es geht weiter!"
+    "Bleib dabei, es geht weiter!",
+    "Der Beat hört nicht auf. Bleib genau wo du bist!",
+    "Dreh die Boxen auf, der nächste Track wird legendär!",
+    "Wir halten die Vibes am Laufen. Nicht wegschalten!",
+    "Das war erst der Anfang. Bleib auf Empfang!",
+    "Deine Ohren werden Augen machen. Gleich geht's weiter!",
+    "Frischer Sound ist auf dem Weg direkt zu dir!"
   ],
   "fr": [
     "Restez à l'écoute pour plus de musique!",
     "On revient tout de suite!",
     "La musique continue, restez avec nous!",
-    "Encore de bonnes choses arrivent!"
+    "Encore de bonnes choses arrivent!",
+    "Le rythme ne s'arrête jamais. Montez le son!",
+    "Ne bougez pas, le prochain morceau va tout déchirer!",
+    "On garde les bonnes ondes. Restez branchés!",
+    "Ce n'est que le début. Ne manquez pas la suite!",
+    "Du lourd arrive dans vos haut-parleurs d'un instant à l'autre!",
+    "La playlist parfaite continue juste après ça!"
   ],
   "es": [
     "¡Sigue sintonizado para más música!",
     "¡Volvemos enseguida!",
     "¡Más música viene en camino!",
-    "¡No te vayas, hay más por venir!"
+    "¡No te vayas, hay más por venir!",
+    "¡El ritmo no para! ¡Sube el volumen!",
+    "¡Quédate ahí, lo que viene va a romper las bocinas!",
+    "¡Manteniendo las buenas vibras arriba! ¡No le cambies!",
+    "¡Esto apenas comienza! ¡Sigue conectado!",
+    "¡Prepárate, que soltamos otro temazo en nada!",
+    "¡Tu dosis de buena música continúa en un segundo!"
   ],
   "pt": [
     "Fique ligado para mais música!",
     "Voltamos já!",
     "Mais música a caminho!",
-    "Não vá a lado nenhum, há mais por vir!"
+    "Não vá a lado nenhum, há mais por vir!",
+    "O ritmo não para. Aumenta o som!",
+    "Não saias daí, o próximo som vai rebentar com as colunas!",
+    "Mantendo a vibe no topo. Fica sintonizado!",
+    "Isto é só o aquecimento. Não percas o resto!",
+    "A tua banda sonora favorita continua já a seguir!",
+    "Música da boa a caminho dos teus ouvidos!"
   ],
   "ru": [
     "Оставайтесь с нами — впереди ещё много музыки!",
     "Мы вернёмся совсем скоро!",
     "Больше отличной музыки уже в пути!",
-    "Никуда не уходите!"
+    "Никуда не уходите!",
+    "Ритм не останавливается. Сделайте погромче!",
+    "Не переключайтесь, следующий трек — пушка!",
+    "Держим вайб на максимуме. Будет горячо!",
+    "Это только разогрев. Дальше — больше!",
+    "Ваш любимый плейлист продолжится прямо сейчас!",
+    "Заряжаем динамики чистым драйвом. Поехали!"
   ],
   "uk": [
     "Залишайтеся з нами — попереду ще багато музики!",
     "Ми повернемося зовсім скоро!",
     "Більше чудової музики вже в дорозі!",
-    "Нікуди не йдіть!"
+    "Нікуди не йдіть!",
+    "Ритм не зупиняється. Зробіть гучніше!",
+    "Не перемикайтеся, наступний трек просто розірве динаміки!",
+    "Тримаємо вайб на максимум. Залишайтеся на хвилі!",
+    "Це лише розігрів. Далі буде ще гарячіше!",
+    "Ваш улюблений саундтрек продовжиться за мить!",
+    "Чистий драйв уже на підході. Не пропустіть!"
   ],
   "pl": [
     "Zostań z nami — więcej świetnej muzyki już w drodze!",
     "Zaraz wracamy!",
     "Nie odchodź, jest jeszcze wiele do słuchania!",
-    "Więcej muzyki już nadchodzi!"
+    "Więcej muzyki już nadchodzi!",
+    "Rytm nie zwalnia ani na chwilę. Podkręć głośność!",
+    "Nie zmieniaj stacji, następny kawałek rozkręci imprezę!",
+    "Trzymamy klimat na najwyższym poziomie. Zostań z nami!",
+    "To dopiero rozgrzewka. Najlepsze przed nami!",
+    "Twoja dawka dobrej energii wraca już za sekundę!",
+    "Gotowy na więcej basu? Nadchodzi potężny hit!"
   ],
   "it": [
     "Resta sintonizzato per altra grande musica!",
     "Torniamo subito!",
     "Altra musica fantastica in arrivo!",
-    "Non andare da nessuna parte!"
+    "Non andare da nessuna parte!",
+    "Il ritmo non si ferma mai. Alza il volume!",
+    "Resta lì, il prossimo pezzo ti farà ballare!",
+    "Manteniamo vive le buone vibrazioni. Non cambiare canale!",
+    "Questo è solo il riscaldamento. Resta connesso!",
+    "In arrivo pura energia per le tue orecchie!",
+    "La colonna sonora perfetta per la tua giornata continua!"
   ],
   "nl": [
     "Blijf luisteren voor meer geweldige muziek!",
     "We zijn zo terug!",
     "Meer geweldige nummers komen eraan!",
-    "Ga nergens heen!"
+    "Ga nergens heen!",
+    "Het ritme stopt nooit. Zet die radio harder!",
+    "Blijf hangen, de volgende track is een absolute knaller!",
+    "We houden de sfeer erin. Niet wegzappen!",
+    "Dit is pas het opwarmertje. Blijf luisteren!",
+    "De beste beats komen nu jouw kant op!",
+    "Je favoriete sound gaat zo meteen weer verder!"
   ],
   "sv": [
     "Håll dig kvar för mer bra musik!",
     "Vi är tillbaka om en stund!",
     "Mer fantastisk musik är på väg!",
-    "Gå inte någonstans!"
+    "Gå inte någonstans!",
+    "Rytmen stannar aldrig. Höj volymen!",
+    "Sitt still i båten, nästa låt kommer att äga!",
+    "Vi håller stämningen på topp. Byt inte kanal!",
+    "Det här är bara uppvärmningen. Häng med!",
+    "Riktigt bra vibbar landar i dina högtalare strax!",
+    "Musiken fortsätter att rulla. Stanna kvar!"
   ],
   "no": [
     "Bli med for mer flott musikk!",
     "Vi er tilbake om litt!",
     "Mer musikk på vei!",
-    "Gå ikke noe sted!"
+    "Gå ikke noe sted!",
+    "Rytmen stopper aldri. Skru opp lyden!",
+    "Ikke rør knappen, neste låt blir helt rå!",
+    "Vi holder de gode vibbene i gang. Hold deg her!",
+    "Dette er bare oppvarmingen. Følg med videre!",
+    "Mer auditivt gull er på vei til høyttalerne dine!",
+    "Musikalsk magi fortsetter om et øyeblikk!"
   ],
   "da": [
     "Bliv hængende for mere god musik!",
     "Vi er tilbage om lidt!",
     "Mere fantastisk musik er på vej!",
-    "Gå ikke nogen steder!"
+    "Gå ikke nogen steder!",
+    "Rytmen stopper aldrig. Skru helt op for lyden!",
+    "Bliv lige der, det næste nummer bliver for vildt!",
+    "Vi holder den gode stemning kørende. Bliv på kanalen!",
+    "Dette er kun opvarmningen. Glæd dig til fortsættelsen!",
+    "Ren musikalsk energi rammer dine højttalere lige om lidt!",
+    "Festen fortsætter lige efter det her!"
   ],
   "fi": [
     "Pysy kanssamme — lisää hienoa musiikkia on tulossa!",
     "Palaamme pian!",
     "Lisää musiikkia on matkalla!",
-    "Älä mene minnekään!"
+    "Älä mene minnekään!",
+    "Rytmi ei pysähdy koskaan. Laita volat kaakkoon!",
+    "Pysy kuulolla, seuraava biisi räjäyttää pankin!",
+    "Pidetään hyvät vibat yllä. Älä vaihda kanavaa!",
+    "Tämä on vasta alkulämmittelyä. Pysy mukana!",
+    "Korvakarkkia tulossa kaiuttimistasi aivan sekunnin kuluttua!",
+    "Parhaat soundit jatkuvat aivan pian!"
   ],
   "tr": [
     "Daha fazla harika müzik için bizi izlemeye devam edin!",
     "Hemen geri döneceğiz!",
     "Daha fazla müzik geliyor!",
-    "Hiçbir yere gitme!"
+    "Hiçbir yere gitme!",
+    "Ritim asla durmaz. Sesi kökle!",
+    "Kıpırdama bir yere, sıradaki parça ortalığı yıkacak!",
+    "Modumuzu düşürmüyoruz, kulakların bizde kalsın!",
+    "Bu daha başlangıç, eğlence tam gaz devam ediyor!",
+    "Saf müzik ziyafeti çok yakında hoparlörlerinde!",
+    "En iyi hitler kesintisiz devam edecek, ayrılma!"
   ],
   "ar": [
     "ابقَ معنا لمزيد من الموسيقى الرائعة!",
     "سنعود بعد قليل!",
     "المزيد من الموسيقى في الطريق!",
-    "لا تذهب إلى أي مكان!"
+    "لا تذهب إلى أي مكان!",
+    "الإيقاع لا يتوقف أبداً. ارفع الصوت!",
+    "لا تغير المحطة، الأغنية القادمة ستشعل الحماس!",
+    "نحافظ على الأجواء الحماسية. ابقَ متصلاً!",
+    "هذه مجرد البداية فقط. انتظر القادم!",
+    "المزيد من النغمات الرائعة قادمة إلى سماعاتك حالاً!",
+    "رحلتنا الموسيقية مستمرة، ابقَ في مكانك!"
   ],
   "he": [
     "הישארו איתנו לעוד מוזיקה נהדרת!",
     "נחזור עוד רגע!",
     "עוד מוזיקה בדרך!",
-    "אל תלכו לשום מקום!"
+    "אל תלכו לשום מקום!",
+    "הקצב אף פעם לא עוצר. תגבירו את הווליום!",
+    "אל תגעו בכפתורים, השיר הבא הולך להעיף אתכם!",
+    "שומרים על האנרגיות גבוהות. אל תעבירו תחנה!",
+    "זה רק החימום. תישארו מחוברים!",
+    "פצצת אנרגיה מוזיקלית בדרך לרמקולים שלכם!",
+    "הפלייליסט המושלם ממשיך ממש בעוד רגע!"
   ],
   "ja": [
     "素晴らしい音楽をお楽しみに！",
     "すぐに戻ります！",
     "さらに素敵な曲が続きます！",
-    "どこにも行かないでください！"
+    "どこにも行かないでください！",
+    "リズムは止まらない！ボリュームを上げていこう！",
+    "チャンネルはそのままで！次の曲は超ヘビー級のヒット曲！",
+    "最高のバイブスをキープ中。聞き逃すな！",
+    "これはまだウォーミングアップ。本番はこれから！",
+    "極上のサウンドが間もなくスピーカーから流れます！",
+    "ノンストップの音の旅、まだまだ続きます！"
   ],
   "zh": [
     "请继续收听更多精彩音乐！",
     "我们马上回来！",
     "更多好音乐即将到来！",
-    "不要走开！"
+    "不要走开！",
+    "节奏不停，把音量放大！",
+    "锁定频道，下一首歌绝对震撼你的耳朵！",
+    "精彩氛围不间断，千万别换台！",
+    "这只是热身，精彩内容马上就来！",
+    "纯正的音乐盛宴，一秒钟后继续！",
+    "最完美的歌单，正全速向你奔来！"
   ],
   "ko": [
     "더 많은 멋진 음악을 위해 채널 고정!",
     "곧 돌아오겠습니다!",
     "더 많은 음악이 오고 있습니다!",
-    "어디 가지 마세요!"
+    "어디 가지 마세요!",
+    "비트는 멈추지 않습니다. 볼륨을 높이세요!",
+    "채널 고정! 다음 곡은 역대급 명곡입니다!",
+    "최고의 바이브를 유지 중입니다. 다른 데 가지 마세요!",
+    "이건 시작에 불과합니다. 계속 함께해 주세요!",
+    "귀를 사로잡을 최고의 사운드가 곧 시작됩니다!",
+    "완벽한 플레이리스트는 바로 다음으로 이어집니다!"
   ],
   "hi": [
     "और शानदार संगीत के लिए बने रहें!",
     "हम अभी वापस आएंगे!",
     "और बेहतरीन गाने आने वाले हैं!",
-    "कहीं मत जाइए!"
+    "कहीं मत जाइए!",
+    "रिदम कभी नहीं रुकती, वॉल्यूम बढ़ाएं!",
+    "चैनल मत बदलना, अगला गाना बिल्कुल धमाकेदार है!",
+    "वाइब्स एकदम कड़क हैं, जुड़े रहिए!",
+    "यह तो बस शुरुआत है, असली मज़ा आगे आने वाला है!",
+    "आपके स्पीकर के लिए बेहतरीन म्यूज़िक बस कुछ ही पलों में!",
+    "संगीत का सफ़र यूं ही जारी रहेगा, बने रहें!"
   ],
   "el": [
     "Μείνετε συντονισμένοι για περισσότερη υπέροχη μουσική!",
     "Θα επιστρέψουμε σύντομα!",
     "Περισσότερη μουσική έρχεται!",
-    "Μην πάτε πουθενά!"
+    "Μην πάτε πουθενά!",
+    "Ο ρυθμός δεν σταματά ποτέ. Δυναμώστε την ένταση!",
+    "Μείνετε εκεί, το επόμενο κομμάτι θα τα σπάσει!",
+    "Κρατάμε τα vibes στα ύψη. Μην αλλάξετε συχνότητα!",
+    "Αυτό είναι μόνο το ζέσταμα. Έρχονται τα καλύτερα!",
+    "Καθαρή μουσική ενέργεια έρχεται στα ηχεία σας σε λίγο!",
+    "Το τέλειο soundtrack της μέρας σας συνεχίζεται αμέσως!"
   ],
   "hu": [
     "Maradjon velünk több nagyszerű zenéért!",
     "Mindjárt visszajövünk!",
     "Több zene van úton!",
-    "Ne menjen sehova!"
+    "Ne menjen sehova!",
+    "A ritmus sosem áll meg. Tekerd fel a hangerőt!",
+    "Ne válts csatornát, a következő dal hatalmasat fog szólni!",
+    "A jó hangulat garantált, maradj vonalban!",
+    "Ez még csak a bemelegítés, most jön a java!",
+    "Tiszta zenei energia érkezik a hangszóróidba pillanatokon belül!",
+    "A kedvenc lejátszási listád máris folytatódik!"
   ],
   "ro": [
     "Rămâi pe fază pentru mai multă muzică grozavă!",
     "Ne întoarcem imediat!",
     "Mai multă muzică vine!",
-    "Nu pleca nicăieri!"
+    "Nu pleca nicăieri!",
+    "Ritmul nu se oprește niciodată. Dă volumul mai tare!",
+    "Nu schimba canalul, piesa următoare o să rupă difuzoarele!",
+    "Păstrăm vibrațiile bune la maxim. Rămâi conectat!",
+    "Asta e doar încălzirea. Ce e mai bun urmează!",
+    "Energie muzicală pură vine spre tine chiar acum!",
+    "Playlistul tău preferat continuă într-o secundă!"
   ],
   "cs": [
     "Zůstaňte s námi pro více skvělé hudby!",
     "Hned se vrátíme!",
     "Více hudby je na cestě!",
-    "Nikam nechoďte!"
+    "Nikam nechoďte!",
+    "Rytmus nikdy nekončí. Zesilte to!",
+    "Nelaďte jinam, další track odpálí pořádnou nálož basů!",
+    "Udržíme skvělou náladu. Zůstaňte na příjmu!",
+    "Tohle je jenom rozcvička, teprve to rozjedeme!",
+    "Čistá hudební energie dorazí do vašich reprobeden už za okamžik!",
+    "Váš oblíbený hudební mix pokračuje hned po tomhle!"
   ],
   "sk": [
     "Zostaňte s nami pre viac skvelej hudby!",
-    "Hneď sa vrátime!",
+    "Hned se vrátíme!",
     "Viac hudby je na ceste!",
-    "Nikam nechoďte!"
+    "Nikam nechoďte!",
+    "Rytmus nikdy nekončí. Dajte hlasitosť naplno!",
+    "Neodchádzajte, nasledujúci song totálne odpáli vaše reproduktory!",
+    "Udržujeme skvelú náladu, zostaňte naladení!",
+    "Toto je len zahrievacie kolo, párty pokračuje!",
+    "Čistá hudobná nálož mieri priamo k vašim ušiam!",
+    "Váš obľúbený playlist pokračuje už o malú chvíľu!"
   ],
   "id": [
     "Tetap dengarkan untuk lebih banyak musik luar biasa!",
     "Kami akan segera kembali!",
     "Lebih banyak musik akan segera hadir!",
-    "Jangan kemana-mana!"
+    "Jangan kemana-mana!",
+    "Ritme tidak pernah berhenti. Naikkan volumenya!",
+    "Jangan ganti channel, lagu berikutnya bakal pecah banget!",
+    "Menjaga vibe tetap asyik. Tetap di sini ya!",
+    "Ini baru pemanasan, keseruan aslinya baru mau mulai!",
+    "Energi musik murni bakal hantam speaker kamu sebentar lagi!",
+    "Playlist terbaik kamu akan berlanjut dalam hitungan detik!"
   ],
   "vi": [
     "Hãy tiếp tục theo dõi để nghe thêm âm nhạc tuyệt vời!",
     "Chúng tôi sẽ quay lại ngay!",
     "Nhiều âm nhạc hơn đang đến!",
-    "Đừng đi đâu nhé!"
+    "Đừng đi đâu nhé!",
+    "Giai điệu không bao giờ dừng lại. Bật loa to lên nào!",
+    "Giữ nguyên vị trí nhé, ca khúc tiếp theo sẽ cực kỳ bùng nổ!",
+    "Luôn giữ nguồn năng lượng tích cực này. Đừng chuyển kênh!",
+    "Đây mới chỉ là màn khởi động thôi, quẩy tiếp nào!",
+    "Bữa tiệc âm nhạc đỉnh cao sẽ quay trở lại loa của bạn ngay!",
+    "Danh sách nhạc yêu thích của bạn sẽ tiếp tục ngay sau đây!"
   ]
 }
