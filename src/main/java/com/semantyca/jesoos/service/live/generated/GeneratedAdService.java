@@ -1,10 +1,10 @@
 package com.semantyca.jesoos.service.live.generated;
 
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.external.AnthropicTextClient;
+import com.semantyca.core.llm.AnthropicTextClient;
+import com.semantyca.core.llm.GroqTextClient;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
-import com.semantyca.jesoos.external.GroqTextClient;
 import com.semantyca.jesoos.external.ModelslabClient;
 import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;

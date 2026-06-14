@@ -2,10 +2,10 @@ package com.semantyca.jesoos.service.maintenance;
 
 import com.semantyca.core.model.cnst.SummaryType;
 import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.external.AnthropicTextClient;
-import com.semantyca.jesoos.external.GroqTextClient;
-import com.semantyca.jesoos.external.LlmTextClient;
-import com.semantyca.jesoos.external.LlmTextResult;
+import com.semantyca.core.llm.AnthropicTextClient;
+import com.semantyca.core.llm.GroqTextClient;
+import com.semantyca.core.llm.LlmTextClient;
+import com.semantyca.core.llm.LlmTextResult;
 import com.semantyca.jesoos.model.chat.ChatMessage;
 import com.semantyca.jesoos.model.chat.ChatSummary;
 import com.semantyca.jesoos.model.cnst.ChatType;

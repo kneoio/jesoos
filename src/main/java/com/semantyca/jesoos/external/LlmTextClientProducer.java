@@ -1,5 +1,8 @@
 package com.semantyca.jesoos.external;
 
+import com.semantyca.core.llm.AnthropicTextClient;
+import com.semantyca.core.llm.GroqTextClient;
+import com.semantyca.core.llm.LlmTextClient;
 import com.semantyca.jesoos.config.JesoosConfig;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
