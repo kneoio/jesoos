@@ -261,7 +261,8 @@ public class ChatService {
                                 .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
                                 .replace("{{djCopilotName}}", "")
                                 .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
-                                .replace("{{otsScripts}}", sanitizePromptValue(otsScripts));
+                                .replace("{{otsScripts}}", sanitizePromptValue(otsScripts))
+                                .replace("{{submissionPolicy}}", station.getSubmissionPolicy().name());
                         BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
                         brandStaticCache.put(slugName, data);
                         return data;
