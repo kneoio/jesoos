@@ -299,10 +299,6 @@ public class IntroTtsGenerator {
     }
 
     private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, LanguageTag language, UUID traceId, String brandName, int entrySeq) {
-        return generateSpokenText(prompt, draftContent, agent, language, traceId, brandName, entrySeq, null);
-    }
-
-    private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, LanguageTag language, UUID traceId, String brandName, int entrySeq, LlmType overrideLlmType) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
             metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
@@ -317,8 +313,7 @@ public class IntroTtsGenerator {
         );
 
         long maxTokens = 2048L;
-        LlmType llmType = overrideLlmType != null ? overrideLlmType
-                : (agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE);
+        LlmType llmType = agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE;
         LlmTextClient llmTextClient = llmType == LlmType.GROQ ? groqTextClient : anthropicTextClient;
         return llmTextClient.createTextMessage(
                         llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel(),
@@ -410,13 +405,22 @@ public class IntroTtsGenerator {
 
     public Uni<JsonObject> debugPrompt(UUID promptId, SoundFragment song, String sharerName, AiAgent agent, LanguageTag language, IStream stream, LlmType overrideLlmType) {
         LanguageTag resolvedLanguage = language != null ? language : AiHelperUtils.selectLanguageByWeight(agent);
+        LlmType llmType = overrideLlmType != null ? overrideLlmType
+                : (agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE);
+        LlmTextClient llmTextClient = llmType == LlmType.GROQ ? groqTextClient : anthropicTextClient;
+        String model = llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> generateDraftText(prompt, song, sharerName, agent, stream)
-                        .chain(draft -> generateSpokenText(prompt, draft, agent, resolvedLanguage, UUID.randomUUID(), stream.getSlugName(), 0, overrideLlmType)
-                                .map(spokenText -> new JsonObject()
-                                        .put("language", resolvedLanguage.tag())
-                                        .put("draft", draft)
-                                        .put("spokenText", spokenText))));
+                        .chain(draft -> {
+                            String fullPrompt = String.format("%s\n\nDraft input:\n%s", prompt.getPrompt(), draft);
+                            return llmTextClient.createTextMessage(model, 2048L, getActionSystemPrompt(agent, resolvedLanguage), fullPrompt)
+                                    .map(response -> new JsonObject()
+                                            .put("language", resolvedLanguage.tag())
+                                            .put("draft", draft)
+                                            .put("spokenText", stripEmoji(response.text()))
+                                            .put("inputTokens", response.inputTokens())
+                                            .put("outputTokens", response.outputTokens()));
+                        }));
     }
 
     public Uni<JsonObject> debugInstruction(String instruction, Map<String, Object> contextVars, AiAgent agent, LanguageTag language) {
