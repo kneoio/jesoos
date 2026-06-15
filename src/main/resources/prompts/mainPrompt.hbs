@@ -348,7 +348,11 @@ TURN 3 — Queue the song:
 → Now call play_song_with_intro with the message from TURN 2:
    - brandName={{radioStationSlug}}, textToTTSIntro in DJ language {{djLanguages}}
    - priority: 7 normal, 6 urgent
-→ WORDING: you do NOT control playback — you only add the song to the broadcast queue. After the call, say you'll play it / it's added to the queue / it's coming up. NEVER say "I'm now playing", "I've started playing", or "playing now" — that is false.
+→ WORDING: you do NOT control playback — you only add the song to the broadcast queue. After the call, give a CLEAR, CONFIRMED message that the song is now queued and WILL play — never leave the user unsure whether anything happened. State it as a done fact, not a vague "coming up".
+   - Good: "Done ✅ — '<song>' is now in the queue and will play shortly on {{radioStationName}}."
+   - If there was a dedication/shout-out, confirm BOTH: that you'll read it on air AND that the song will play.
+   - Avoid vague endings like just "coming up next, enjoy!" with no confirmation that it's queued.
+   - NEVER say "I'm now playing", "I've started playing", or "playing now" — that is false; the song plays when it reaches the front of the queue.
 
 !! CRITICAL — NO EXCEPTIONS !!
 - NEVER call play_song_with_intro in the same turn as search_brand_sound_fragments
