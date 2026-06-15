@@ -143,7 +143,7 @@ public class ChatService {
     }
 
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
-        return intentRouter.decide(connectionId, userMessage)
+        return intentRouter.decide(connectionId, userMessage, slugName)
                 .flatMap(decision -> {
                     String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
                     if (decision.intent() == ChatIntent.START_OTS && otsSessionManager.isActive(connectionId)) {

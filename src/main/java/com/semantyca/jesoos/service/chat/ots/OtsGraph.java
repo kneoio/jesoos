@@ -1,11 +1,12 @@
 package com.semantyca.jesoos.service.chat.ots;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.*;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.OneTimeStreamService;
+import com.semantyca.jesoos.service.chat.llm.BrandLlmProviderResolver;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.annotation.PostConstruct;
@@ -44,16 +45,15 @@ public class OtsGraph {
     @Inject
     JesoosConfig config;
 
+    @Inject
+    BrandLlmProviderResolver llmProviderResolver;
+
     private CompiledGraph<OtsState> compiledGraph;
-    private AnthropicClient anthropicClient;
     private String otsPromptTemplate;
 
     @PostConstruct
     void init() {
         try {
-            anthropicClient = AnthropicOkHttpClient.builder()
-                    .apiKey(config.getAnthropicApiKey())
-                    .build();
             otsPromptTemplate = loadResource("prompts/otsPrompt.hbs");
 
             compiledGraph = new StateGraph<>(OtsState::new)
@@ -113,36 +113,34 @@ public class OtsGraph {
         String varName = state.nextPendingVar();
         String description = state.varDescriptions().getOrDefault(varName, varName);
         String scriptName = state.scriptName();
+        String brandSlug = state.brandSlug();
 
-        return Uni.createFrom().item(() -> {
-            String collected = state.collectedVars().entrySet().stream()
-                    .map(e -> e.getKey() + "=" + e.getValue())
-                    .collect(Collectors.joining(", "));
-            String djName = state.djName();
-            String systemPrompt = otsPromptTemplate
-                    .replace("{{djName}}", djName)
-                    .replace("{{scriptName}}", scriptName)
-                    .replace("{{collectedVars}}", collected.isEmpty() ? "none yet" : collected)
-                    .replace("{{pendingVarName}}", varName)
-                    .replace("{{pendingVarDescription}}", description);
+        String collected = state.collectedVars().entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(", "));
+        String systemPrompt = otsPromptTemplate
+                .replace("{{djName}}", state.djName())
+                .replace("{{scriptName}}", scriptName)
+                .replace("{{collectedVars}}", collected.isEmpty() ? "none yet" : collected)
+                .replace("{{pendingVarName}}", varName)
+                .replace("{{pendingVarDescription}}", description);
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
-                    .maxTokens(80)
-                    .system(systemPrompt)
-                    .addUserMessage("Ask the question.")
-                    .build();
+        LlmRequest request = LlmRequest.builder()
+                .model(llmProviderResolver.modelFor(brandSlug, LlmUseCase.FOLLOW_UP))
+                .maxTokens(80)
+                .system(systemPrompt)
+                .addMessage(LlmMessage.text(LlmMessage.Role.USER, "Ask the question."))
+                .build();
 
-            Message response = anthropicClient.messages().create(params);
-            String question = response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(b -> b.asText().text())
-                    .findFirst()
-                    .orElse("What is the " + description + "?");
-
-            LOGGER.infof("[OtsGraph] generated question for var=%s: %s", varName, question);
-            return Map.<String, Object>of(OtsState.NEXT_QUESTION, question);
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+        return Uni.createFrom().completionStage(() -> llmProviderResolver.clientFor(brandSlug).createMessage(request))
+                .map(response -> {
+                    String question = response.text() != null && !response.text().isBlank()
+                            ? response.text().trim()
+                            : "What is the " + description + "?";
+                    LOGGER.infof("[OtsGraph] generated question for var=%s: %s", varName, question);
+                    return Map.<String, Object>of(OtsState.NEXT_QUESTION, question);
+                })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
     }
 

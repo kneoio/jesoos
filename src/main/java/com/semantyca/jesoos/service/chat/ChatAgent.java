@@ -81,18 +81,13 @@ public class ChatAgent {
     @Inject ChatService publicChatService;
     @Inject ChatAuthService chatAuthService;
     @Inject com.semantyca.jesoos.service.agenda.AgendaViewService agendaViewService;
+    @Inject BrandLlmProviderResolver llmProviderResolver;
 
-    private ChatLlmClient llmClient;
-    private LlmProviderAdapter llmProviderAdapter;
     private CompiledGraph<ChatState> compiledGraph;
 
     @PostConstruct
     void init() {
         try {
-            String provider = config.getLlmProvider();
-            llmProviderAdapter = LlmProviderRegistry.resolve(provider);
-            llmClient = llmProviderAdapter.createClient(config);
-
             compiledGraph = new StateGraph<>(new ChatStateSerializer())
                     .addNode("loadContext", this::loadContextNode)
                     .addNode("llm", this::llmNode)
@@ -177,11 +172,12 @@ public class ChatAgent {
     private CompletableFuture<Map<String, Object>> llmNode(ChatState state) {
         boolean isAuthenticated = state.userId() != 0;
         String djLanguages = state.djLanguages();
+        String brandName = state.brandName();
         List<LlmTool> tools = getToolsForUser(isAuthenticated, djLanguages);
 
         String model = state.iteration() == 0
-                ? llmProviderAdapter.modelFor(LlmUseCase.MAIN_CHAT)
-                : llmProviderAdapter.modelFor(LlmUseCase.FOLLOW_UP);
+                ? llmProviderResolver.modelFor(brandName, LlmUseCase.MAIN_CHAT)
+                : llmProviderResolver.modelFor(brandName, LlmUseCase.FOLLOW_UP);
 
         String base = state.systemPrompt()
                 .replace("{{isAuthenticated}}", Boolean.toString(isAuthenticated));
@@ -189,19 +185,24 @@ public class ChatAgent {
             int gateIdx = base.indexOf("!! AUTHENTICATED ONLY");
             if (gateIdx >= 0) base = base.substring(0, gateIdx).trim();
         }
-        String systemPrompt = base
-                .replace("{{liveContext}}", state.contextBlock())
-                .replace("{{listenerContext}}", state.listenerContext());
+        // Keep per-request live/listener context out of the cached block so the static
+        // instruction body stays a stable, reusable cache prefix across iterations and turns.
+        String stableSystem = base
+                .replace("{{liveContext}}", "")
+                .replace("{{listenerContext}}", "");
+        String volatileSystem = buildVolatileContext(state.contextBlock(), state.listenerContext());
 
         LlmRequest request = LlmRequest.builder()
                 .maxTokens(1024L)
-                .system(systemPrompt)
+                .systemStable(stableSystem)
+                .systemVolatile(volatileSystem)
+                .cacheSystem(true)
                 .messages(state.history())
                 .model(model)
                 .tools(tools)
                 .build();
 
-        return Uni.createFrom().completionStage(() -> llmClient.createMessage(request))
+        return Uni.createFrom().completionStage(() -> llmProviderResolver.clientFor(brandName).createMessage(request))
                 .map(response -> {
                     Map<String, Object> updates = new HashMap<>();
                     if (response.toolCall().isPresent()) {
@@ -221,6 +222,17 @@ public class ChatAgent {
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
+    }
+
+    private static String buildVolatileContext(String liveContext, String listenerContext) {
+        StringBuilder sb = new StringBuilder();
+        if (liveContext != null && !liveContext.isBlank()) sb.append(liveContext.trim()).append("\n");
+        if (listenerContext != null && !listenerContext.isBlank()) sb.append(listenerContext.trim()).append("\n");
+        if (sb.length() == 0) return "";
+        return "----------------------------------------\n"
+                + "CURRENT CONTEXT (live, this request)\n"
+                + "----------------------------------------\n"
+                + sb.toString().strip();
     }
 
     private static String toolStatusMessage(String toolName) {

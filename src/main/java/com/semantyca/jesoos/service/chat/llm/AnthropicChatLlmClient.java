@@ -67,14 +67,37 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
                 .model(request.model())
                 .maxTokens(request.maxTokens());
 
-        if (request.system() != null) {
-            builder.system(request.system());
-        }
+        applySystem(builder, request);
 
         request.messages().forEach(msg -> builder.addMessage(toMessageParam(msg)));
         request.tools().forEach(tool -> builder.addTool(toTool(tool)));
 
         return builder.build();
+    }
+
+    private static void applySystem(MessageCreateParams.Builder builder, LlmRequest request) {
+        String stable = request.systemStable();
+        String volatilePart = request.systemVolatile();
+
+        // Cache the static instruction body as an ephemeral block so it is not re-billed
+        // across the multi-iteration tool loop and subsequent turns of the same conversation.
+        if (request.cacheSystem() && stable != null && !stable.isBlank()) {
+            List<TextBlockParam> blocks = new ArrayList<>();
+            blocks.add(TextBlockParam.builder()
+                    .text(stable)
+                    .cacheControl(CacheControlEphemeral.builder().build())
+                    .build());
+            if (volatilePart != null && !volatilePart.isBlank()) {
+                blocks.add(TextBlockParam.builder().text(volatilePart).build());
+            }
+            builder.systemOfTextBlockParams(blocks);
+            return;
+        }
+
+        String combined = request.system();
+        if (combined != null) {
+            builder.system(combined);
+        }
     }
 
     private static MessageParam toMessageParam(LlmMessage msg) {

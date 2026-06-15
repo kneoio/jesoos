@@ -3,16 +3,14 @@ package com.semantyca.jesoos.service.chat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.service.chat.llm.BrandLlmProviderResolver;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
-import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
-import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -40,8 +38,11 @@ public class PublicChatIntentRouter {
     @Inject
     JesoosConfig config;
 
+    @Inject
+    BrandLlmProviderResolver llmProviderResolver;
+
+    /** Optional override for unit tests; when null the per-brand resolver is used. */
     private ChatLlmClient llmClient;
-    private LlmProviderAdapter llmProviderAdapter;
 
     PublicChatIntentRouter() {}
 
@@ -51,19 +52,11 @@ public class PublicChatIntentRouter {
         this.config = null;
     }
 
-    @PostConstruct
-    void init() {
-        String provider = config.getLlmProvider();
-        llmProviderAdapter = LlmProviderRegistry.resolve(provider);
-        llmClient = llmProviderAdapter.createClient(config);
-        LOGGER.infof("[router] classifier provider=%s", provider);
-    }
-
     /**
      * Decide intent for one user turn.
      * UNKNOWN is resolved internally via LLM classification.
      */
-    public Uni<IntentDecision> decide(String connectionId, String userMessage) {
+    public Uni<IntentDecision> decide(String connectionId, String userMessage, String brandSlug) {
         IntentDecision deterministic = applyDeterministicRules(connectionId);
         if (deterministic.intent() != ChatIntent.UNKNOWN) {
             LOGGER.infof("[router] connectionId=%s intent=%s source=%s reason=%s",
@@ -71,7 +64,7 @@ public class PublicChatIntentRouter {
             return Uni.createFrom().item(deterministic);
         }
 
-        return classifyWithLlm(userMessage)
+        return classifyWithLlm(brandSlug, userMessage)
                 .invoke(decision -> LOGGER.infof("[router] connectionId=%s intent=%s source=%s reason=%s",
                         connectionId, decision.intent(), decision.source(), decision.reason()));
     }
@@ -90,9 +83,10 @@ public class PublicChatIntentRouter {
         return new IntentDecision(ChatIntent.UNKNOWN, 0.0, "no deterministic signal", IntentDecision.DecisionSource.DETERMINISTIC);
     }
 
-    Uni<IntentDecision> classifyWithLlm(String userMessage) {
+    Uni<IntentDecision> classifyWithLlm(String brandSlug, String userMessage) {
+        ChatLlmClient client = llmClient != null ? llmClient : llmProviderResolver.clientFor(brandSlug);
         LlmRequest request = LlmRequest.builder()
-                .model(resolveClassifierModel())
+                .model(resolveClassifierModel(brandSlug))
                 .maxTokens(120)
                 .system("""
                         Classify the user message intent.
@@ -138,7 +132,7 @@ public class PublicChatIntentRouter {
                         com.semantyca.jesoos.service.chat.llm.LlmMessage.Role.USER, userMessage))
                 .build();
 
-        return Uni.createFrom().completionStage(() -> llmClient.createMessage(request)).map(response -> {
+        return Uni.createFrom().completionStage(() -> client.createMessage(request)).map(response -> {
             String raw = response.text().trim();
 
             if (raw.startsWith("```")) {
@@ -170,11 +164,11 @@ public class PublicChatIntentRouter {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private String resolveClassifierModel() {
-        if (llmProviderAdapter == null) {
-            throw new IllegalStateException("LLM provider adapter not initialised — check llm.provider config");
+    private String resolveClassifierModel(String brandSlug) {
+        if (llmProviderResolver == null) {
+            throw new IllegalStateException("LLM provider resolver not initialised — check llm.provider config");
         }
-        return llmProviderAdapter.modelFor(LlmUseCase.INTENT_CLASSIFIER);
+        return llmProviderResolver.modelFor(brandSlug, LlmUseCase.INTENT_CLASSIFIER);
     }
 
     private record LlmClassifierPayload(String intent, Double confidence, String reason) {}

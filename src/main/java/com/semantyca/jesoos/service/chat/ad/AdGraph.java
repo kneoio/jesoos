@@ -1,11 +1,13 @@
 package com.semantyca.jesoos.service.chat.ad;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.*;
 import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.repository.UserAdRepository;
+import com.semantyca.jesoos.service.chat.llm.BrandLlmProviderResolver;
+import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.llm.LlmRequest;
+import com.semantyca.jesoos.service.chat.llm.LlmResponse;
+import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import com.semantyca.mixpla.model.UserAd;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -58,16 +60,14 @@ public class AdGraph {
     @Inject
     JesoosConfig config;
 
+    @Inject
+    BrandLlmProviderResolver llmProviderResolver;
+
     private CompiledGraph<AdState> compiledGraph;
-    private AnthropicClient anthropicClient;
 
     @PostConstruct
     void init() {
         try {
-            anthropicClient = AnthropicOkHttpClient.builder()
-                    .apiKey(config.getAnthropicApiKey())
-                    .build();
-
             compiledGraph = new StateGraph<>(AdState::new)
                     .addNode("collectTurn",    this::collectTurnNode)
                     .addNode("checkMissing",   this::checkMissingNode)
@@ -100,8 +100,8 @@ public class AdGraph {
                     .map(e -> e.getKey() + ": " + e.getValue())
                     .reduce((a, b) -> a + "; " + b).orElse("none");
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
+            LlmRequest request = LlmRequest.builder()
+                    .model(llmProviderResolver.modelFor(state.brandSlug(), LlmUseCase.FOLLOW_UP))
                     .maxTokens(300)
                     .system("""
                             You are extracting structured fields for a radio advertisement.
@@ -123,14 +123,12 @@ public class AdGraph {
                             - If a field is not present, use ""
                             - Do not repeat already-collected fields unless the user is providing a correction
                             Return ONLY the JSON, no markdown.""")
-                    .addUserMessage(state.userMessage())
+                    .addMessage(LlmMessage.text(LlmMessage.Role.USER, state.userMessage()))
                     .build();
 
-            Message response = anthropicClient.messages().create(params);
-            String raw = response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(b -> b.asText().text())
-                    .findFirst().orElse("{}").trim();
+            LlmResponse response = llmProviderResolver.clientFor(state.brandSlug())
+                    .createMessage(request).toCompletableFuture().join();
+            String raw = response.text() != null ? response.text().trim() : "{}";
             if (raw.startsWith("```")) {
                 raw = raw.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "").trim();
             }
@@ -254,22 +252,21 @@ public class AdGraph {
                 "What would you like to advertise? Tell me what you're promoting, key details, and your contact info.");
     }
 
-    private String generateTitle(String description) {
+    private String generateTitle(String brandSlug, String description) {
+        String fallback = description.length() > 50 ? description.substring(0, 50).trim() : description;
         try {
-            var response = anthropicClient.messages().create(
-                    MessageCreateParams.builder()
-                            .model("claude-haiku-4-5-20251001")
-                            .maxTokens(30)
-                            .addUserMessage("Write a short 3-5 word title summarizing this ad. Reply with the title only, no punctuation: " + description)
-                            .build());
-            return response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(b -> b.asText().text().trim())
-                    .findFirst()
-                    .orElse(description.length() > 50 ? description.substring(0, 50).trim() : description);
+            LlmRequest request = LlmRequest.builder()
+                    .model(llmProviderResolver.modelFor(brandSlug, LlmUseCase.FOLLOW_UP))
+                    .maxTokens(30)
+                    .addMessage(LlmMessage.text(LlmMessage.Role.USER,
+                            "Write a short 3-5 word title summarizing this ad. Reply with the title only, no punctuation: " + description))
+                    .build();
+            LlmResponse response = llmProviderResolver.clientFor(brandSlug)
+                    .createMessage(request).toCompletableFuture().join();
+            return response.text() != null && !response.text().isBlank() ? response.text().trim() : fallback;
         } catch (Exception e) {
             LOGGER.warnf("Title generation failed: %s", e.getMessage());
-            return description.length() > 50 ? description.substring(0, 50).trim() : description;
+            return fallback;
         }
     }
 
@@ -277,7 +274,7 @@ public class AdGraph {
         Map<String, String> vars = state.collectedVars();
         String description = vars.getOrDefault("description", "");
         String contacts = vars.getOrDefault("contacts", "");
-        String title = generateTitle(description);
+        String title = generateTitle(session.getBrandSlug(), description);
 
         UserAd ad = new UserAd();
         ad.setUserId(session.getUserId());
@@ -301,6 +298,7 @@ public class AdGraph {
     private Map<String, Object> buildStateMap(AdSessionData session, String userMessage) {
         Map<String, Object> state = new HashMap<>();
         state.put(AdState.USER_MESSAGE, userMessage);
+        state.put(AdState.BRAND_SLUG, session.getBrandSlug());
         state.put(AdState.PENDING_VAR, session.getPendingVar() != null ? session.getPendingVar() : "");
         state.put(AdState.COLLECTED_VARS, new HashMap<>(session.getCollectedVars()));
         state.put(AdState.USER_DATA, new HashMap<>(session.getUserData()));

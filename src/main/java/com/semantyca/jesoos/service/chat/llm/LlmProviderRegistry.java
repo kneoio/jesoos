@@ -23,7 +23,6 @@ public final class LlmProviderRegistry {
     private static Map<String, LlmProviderAdapter> buildAdapters() {
         Map<String, LlmProviderAdapter> adapters = new LinkedHashMap<>();
         register(adapters, new AnthropicLlmProviderAdapter());
-        register(adapters, new OpenAiLlmProviderAdapter());
         return Map.copyOf(adapters);
     }
 
