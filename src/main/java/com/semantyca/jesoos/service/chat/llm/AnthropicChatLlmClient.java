@@ -5,6 +5,7 @@ import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.core.http.AsyncStreamResponse;
 import com.anthropic.models.messages.*;
+import org.jboss.logging.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -13,6 +14,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class AnthropicChatLlmClient implements ChatLlmClient {
+
+    private static final Logger LOGGER = Logger.getLogger(AnthropicChatLlmClient.class);
 
     private final AnthropicClient client;
 
@@ -146,6 +149,13 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
     }
 
     private static LlmResponse toResponse(Message message) {
+        Usage u = message.usage();
+        LOGGER.infof("[anthropic] input=%d cache_write=%d cache_read=%d output=%d",
+                u.inputTokens(),
+                u.cacheCreationInputTokens().orElse(0L),
+                u.cacheReadInputTokens().orElse(0L),
+                u.outputTokens());
+
         String text = message.content().stream()
                 .flatMap(block -> block.text().stream())
                 .map(TextBlock::text)

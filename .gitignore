@@ -34,3 +34,4 @@ src/main/resources/application-prod.properties
 CLAUDE.md
 /.cursor/
 /memory/
+src/main/java/com/semantyca/jesoos/service/chat/CHAT_WORKFLOW.md
