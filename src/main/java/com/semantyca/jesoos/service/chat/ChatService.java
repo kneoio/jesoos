@@ -163,16 +163,15 @@ public class ChatService {
         return staticDataUni.flatMap(staticData -> resolveUserLabel(user).flatMap(userLabel -> {
             String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
             boolean authenticated = user.getEmail() != null && !user.getEmail().isBlank();
-            String isAuthenticated = Boolean.toString(authenticated);
-            String base = staticData.partialPrompt()
+            // Keep the full template with {{isAuthenticated}} unresolved and the gate intact.
+            // ChatAgent renders the auth slice per iteration from state.userId(), so the prompt
+            // stays consistent with the tool set after an in-conversation sign-in.
+            final String renderedPrompt = staticData.partialPrompt()
                     .replace("{{radioStationStatus}}", stationStatus)
-                    .replace("{{userName}}", userLabel != null ? userLabel : "")
-                    .replace("{{isAuthenticated}}", isAuthenticated);
-            int gateIdx = authenticated ? -1 : base.indexOf("!! AUTHENTICATED ONLY");
-            final String renderedPrompt = gateIdx >= 0 ? base.substring(0, gateIdx).trim() : base;
+                    .replace("{{userName}}", userLabel != null ? userLabel : "");
 
             ChatLogger.request(slugName, user.getId(), user.getEmail(),
-                    Boolean.parseBoolean(isAuthenticated), stationStatus);
+                    authenticated, stationStatus);
 
             assistantNameByConnectionId.put(connectionId, staticData.djName());
             assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());

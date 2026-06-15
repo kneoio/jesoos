@@ -183,7 +183,13 @@ public class ChatAgent {
                 ? llmProviderAdapter.modelFor(LlmUseCase.MAIN_CHAT)
                 : llmProviderAdapter.modelFor(LlmUseCase.FOLLOW_UP);
 
-        String systemPrompt = state.systemPrompt()
+        String base = state.systemPrompt()
+                .replace("{{isAuthenticated}}", Boolean.toString(isAuthenticated));
+        if (!isAuthenticated) {
+            int gateIdx = base.indexOf("!! AUTHENTICATED ONLY");
+            if (gateIdx >= 0) base = base.substring(0, gateIdx).trim();
+        }
+        String systemPrompt = base
                 .replace("{{liveContext}}", state.contextBlock())
                 .replace("{{listenerContext}}", state.listenerContext());
 
