@@ -315,7 +315,9 @@ public class IntroTtsGenerator {
         long maxTokens = 2048L;
         LlmType llmType = agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE;
         LlmTextClient llmTextClient = llmType == LlmType.GROQ ? groqTextClient : anthropicTextClient;
+        String apiKey = llmType == LlmType.GROQ ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         return llmTextClient.createTextMessage(
+                        apiKey,
                         llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel(),
                         maxTokens,
                         getSystemPrompt(agent, language),
@@ -360,8 +362,10 @@ public class IntroTtsGenerator {
         long maxTokens = 2048L;
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        String apiKey = "groq".equals(provider) ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         LlmTextClient llmTextClient = selectLlmClient(provider);
         return llmTextClient.createTextMessage(
+                        apiKey,
                         model,
                         maxTokens,
                         getActionSystemPrompt(agent, language),
@@ -409,11 +413,12 @@ public class IntroTtsGenerator {
                 : (agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE);
         LlmTextClient llmTextClient = llmType == LlmType.GROQ ? groqTextClient : anthropicTextClient;
         String model = llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        String debugApiKey = llmType == LlmType.GROQ ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> generateDraftText(prompt, song, sharerName, agent, stream)
                         .chain(draft -> {
                             String fullPrompt = String.format("%s\n\nDraft input:\n%s", prompt.getPrompt(), draft);
-                            return llmTextClient.createTextMessage(model, 2048L, getActionSystemPrompt(agent, resolvedLanguage), fullPrompt)
+                            return llmTextClient.createTextMessage(debugApiKey, model, 2048L, getActionSystemPrompt(agent, resolvedLanguage), fullPrompt)
                                     .map(response -> new JsonObject()
                                             .put("language", resolvedLanguage.tag())
                                             .put("draft", draft)
@@ -427,8 +432,9 @@ public class IntroTtsGenerator {
         String rendered = renderHandlebars(instruction, contextVars);
         String provider = config.getIntroTtsLlmProvider();
         String model = "groq".equals(provider) ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
+        String apiKey = "groq".equals(provider) ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         LlmTextClient llmTextClient = selectLlmClient(provider);
-        return llmTextClient.createTextMessage(model, 2048L, getActionSystemPrompt(agent, language), rendered)
+        return llmTextClient.createTextMessage(apiKey, model, 2048L, getActionSystemPrompt(agent, language), rendered)
                 .map(response -> new JsonObject()
                         .put("rendered", rendered)
                         .put("llmResponse", stripEmoji(response.text()))

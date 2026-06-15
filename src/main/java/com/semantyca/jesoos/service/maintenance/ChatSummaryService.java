@@ -217,8 +217,9 @@ public class ChatSummaryService {
 
         String provider = config.getSummaryLlmProvider();
         String model = "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
+        String apiKey = "groq".equals(provider) ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         LlmTextClient llmTextClient = selectLlmClient(provider);
-        return llmTextClient.createTextMessage(model, 500L, "You summarize chat history accurately.", prompt)
+        return llmTextClient.createTextMessage(apiKey, model, 500L, "You summarize chat history accurately.", prompt)
                 .map(LlmTextResult::text)
                 .onFailure().recoverWithItem(error -> {
                     LOGGER.error("Failed to generate summary", error);

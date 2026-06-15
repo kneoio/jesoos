@@ -257,10 +257,11 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                     long maxTokens = 2048L;
                     String provider = config.getGeneratedLlmProvider();
                     String model = "groq".equals(provider) ? config.getGeneratedGroqModel() : config.getGeneratedAnthropicModel();
+                    String apiKey = "groq".equals(provider) ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
                     LlmTextClient llmTextClient = selectLlmClient(provider);
 
                     try {
-                        var response = llmTextClient.createTextMessage(model, maxTokens, getSystemPrompt(), fullPrompt)
+                        var response = llmTextClient.createTextMessage(apiKey, model, maxTokens, getSystemPrompt(), fullPrompt)
                                 .await().indefinitely();
                         String text = response.text();
 

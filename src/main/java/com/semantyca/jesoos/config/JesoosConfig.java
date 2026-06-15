@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.config;
 
-import com.semantyca.core.config.LlmConfig;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
@@ -8,7 +7,7 @@ import io.smallrye.config.WithName;
 import java.util.Optional;
 
 @ConfigMapping(prefix = "jesoos")
-public interface JesoosConfig extends LlmConfig {
+public interface JesoosConfig {
     @WithName("streamer")
     String getStreamerHost();
 
