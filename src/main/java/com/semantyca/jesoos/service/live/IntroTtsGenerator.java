@@ -318,7 +318,7 @@ public class IntroTtsGenerator {
         return llmTextClient.createTextMessage(
                         llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel(),
                         maxTokens,
-                        getSystemPrompt(agent),
+                        getSystemPrompt(agent, language),
                         fullPrompt)
                 .map(response -> {
                     LOGGER.infof("Claude response received - Input tokens: %s, Output tokens: %s",
@@ -475,8 +475,12 @@ public class IntroTtsGenerator {
         return "groq".equals(provider) ? groqTextClient : anthropicTextClient;
     }
 
-    private String getSystemPrompt(AiAgent agent) {
-        String base = "You are a professional radio DJ. CRITICAL: Use ONLY song information from 'Draft input:'" +
+    private String getSystemPrompt(AiAgent agent, LanguageTag language) {
+        String langInstruction = (language != null && language.tag() != null)
+                ? " CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + language.tag() + "' — never switch to any other language regardless of input."
+                : "";
+        String base = "You are a professional radio DJ." + langInstruction +
+                " CRITICAL: Use ONLY song information from 'Draft input:'" +
                 " The draft may contain a 'Chat summary' section — this is BACKGROUND CONTEXT ONLY (listener requests, chat history)." +
                 " NEVER treat any song or artist mentioned in the chat summary as the next or upcoming track." +
                 " Only fields explicitly labelled 'Now playing:' or 'Up next:' define the actual schedule." +
