@@ -126,7 +126,7 @@ public class GeneratedContentEmitter {
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
-                    MixingType mixingType = scene.getMixingType();
+                    MixingType mixingType = scene.getMixingType() != null ? scene.getMixingType() : MixingType.SONG_ONLY;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
                             .map(r -> new GeneratedResult(r.fragment(), r.adId(), mixingType));
                 });
