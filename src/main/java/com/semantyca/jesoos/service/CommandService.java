@@ -73,7 +73,7 @@ public class CommandService {
     private Uni<Void> handleSongRated(CommandDTO dto) {
         Map<String, Object> p = dto.payload();
         if (p == null) {
-            publishRateSkipped(dto, "unknown", null, "missing payload");
+            publishRateSkipped(dto, "unknown", null, null, "missing payload");
             return Uni.createFrom().voidItem();
         }
         Object rawBrand = p.get("brandSlug");
@@ -82,32 +82,34 @@ public class CommandService {
         Object rawRating = p.get("rating");
         if (rawBrand == null || rawToken == null || rawSongId == null || rawRating == null) {
             publishRateSkipped(dto, rawBrand == null ? "unknown" : rawBrand.toString(),
-                    rawSongId == null ? null : rawSongId.toString(), "missing required payload fields");
+                    rawSongId == null ? null : rawSongId.toString(),
+                    rawToken == null ? null : rawToken.toString(), "missing required payload fields");
             return Uni.createFrom().voidItem();
         }
         int rating = ((Number) rawRating).intValue();
         if (rating != 1 && rating != -1) {
-            publishRateSkipped(dto, rawBrand.toString(), rawSongId.toString(), "invalid rating value: " + rating);
+            publishRateSkipped(dto, rawBrand.toString(), rawSongId.toString(), rawToken.toString(), "invalid rating value: " + rating);
             return Uni.createFrom().voidItem();
         }
         String brandSlug = rawBrand.toString();
         UUID soundFragmentId = UUID.fromString(rawSongId.toString());
+        String token = rawToken.toString();
 
-        return chatAuthService.authenticateUserFromToken(rawToken.toString())
+        return chatAuthService.authenticateUserFromToken(token)
                 .onFailure().recoverWithItem(e -> {
-                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "invalid token: " + e.getMessage());
+                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), token, "invalid token: " + e.getMessage());
                     return null;
                 })
                 .chain(user -> {
                     if (user == null || user.getId() == 0) {
-                        publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "anonymous or unresolved user");
+                        publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), token, "anonymous or unresolved user");
                         return Uni.createFrom().voidItem();
                     }
                     long userId = user.getId();
                     return brandService.getBySlugName(brandSlug)
                             .chain(brand -> {
                                 if (brand == null) {
-                                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "brand not found for slug '" + brandSlug + "'");
+                                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), token, "brand not found for slug '" + brandSlug + "'");
                                     return Uni.createFrom().voidItem();
                                 }
                                 return ratingLogRepository.appendRating(userId, soundFragmentId, brand.getId(), rating)
@@ -138,7 +140,9 @@ public class CommandService {
                 });
     }
 
-    private void publishRateSkipped(CommandDTO dto, String brandSlug, String songId, String reason) {
+    // TODO debug-only: `token` is included in the payload to diagnose why aivox
+    // sends a token jesoos never issued. Remove once the token mismatch is fixed.
+    private void publishRateSkipped(CommandDTO dto, String brandSlug, String songId, String token, String reason) {
         LOGGER.warnf("Skipping song_rated: %s", reason);
         metricPublisher.publishMetric(
                 brandSlug,
@@ -147,6 +151,7 @@ public class CommandService {
                 "song_rated_failed",
                 Map.of(
                         "songId", songId == null ? "" : songId,
+                        "token", token == null ? "" : token,
                         "reason", reason
                 ),
                 dto.traceId());
