@@ -73,7 +73,7 @@ public class CommandService {
     private Uni<Void> handleSongRated(CommandDTO dto) {
         Map<String, Object> p = dto.payload();
         if (p == null) {
-            LOGGER.warn("song_rated command missing payload");
+            publishRateSkipped(dto, "unknown", null, "missing payload");
             return Uni.createFrom().voidItem();
         }
         Object rawBrand = p.get("brandSlug");
@@ -81,12 +81,13 @@ public class CommandService {
         Object rawSongId = p.get("soundFragmentId");
         Object rawRating = p.get("rating");
         if (rawBrand == null || rawToken == null || rawSongId == null || rawRating == null) {
-            LOGGER.warn("song_rated command missing required payload fields");
+            publishRateSkipped(dto, rawBrand == null ? "unknown" : rawBrand.toString(),
+                    rawSongId == null ? null : rawSongId.toString(), "missing required payload fields");
             return Uni.createFrom().voidItem();
         }
         int rating = ((Number) rawRating).intValue();
         if (rating != 1 && rating != -1) {
-            LOGGER.warnf("Ignored song_rated with invalid rating value: %d", rating);
+            publishRateSkipped(dto, rawBrand.toString(), rawSongId.toString(), "invalid rating value: " + rating);
             return Uni.createFrom().voidItem();
         }
         String brandSlug = rawBrand.toString();
@@ -94,24 +95,61 @@ public class CommandService {
 
         return chatAuthService.authenticateUserFromToken(rawToken.toString())
                 .onFailure().recoverWithItem(e -> {
-                    LOGGER.warnf("Skipping song_rated: invalid token (%s)", e.getMessage());
+                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "invalid token: " + e.getMessage());
                     return null;
                 })
                 .chain(user -> {
                     if (user == null || user.getId() == 0) {
-                        LOGGER.warn("Skipping song_rated: anonymous or unresolved user");
+                        publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "anonymous or unresolved user");
                         return Uni.createFrom().voidItem();
                     }
                     long userId = user.getId();
                     return brandService.getBySlugName(brandSlug)
                             .chain(brand -> {
                                 if (brand == null) {
-                                    LOGGER.warnf("Skipping song_rated: brand not found for slug '%s'", brandSlug);
+                                    publishRateSkipped(dto, brandSlug, soundFragmentId.toString(), "brand not found for slug '" + brandSlug + "'");
                                     return Uni.createFrom().voidItem();
                                 }
-                                return ratingLogRepository.appendRating(userId, soundFragmentId, brand.getId(), rating);
+                                return ratingLogRepository.appendRating(userId, soundFragmentId, brand.getId(), rating)
+                                        .invoke(() -> metricPublisher.publishMetric(
+                                                brandSlug,
+                                                MetricEventType.INFORMATION,
+                                                ProcessType.FLOW,
+                                                "song_rated",
+                                                Map.of(
+                                                        "songId", soundFragmentId.toString(),
+                                                        "userId", userId,
+                                                        "rating", rating
+                                                ),
+                                                dto.traceId()))
+                                        .onFailure().invoke(e -> metricPublisher.publishMetric(
+                                                brandSlug,
+                                                MetricEventType.ERROR,
+                                                ProcessType.FLOW,
+                                                "song_rated_failed",
+                                                Map.of(
+                                                        "songId", soundFragmentId.toString(),
+                                                        "userId", userId,
+                                                        "rating", rating,
+                                                        "error", String.valueOf(e.getMessage())
+                                                ),
+                                                dto.traceId()));
                             });
                 });
+    }
+
+    private void publishRateSkipped(CommandDTO dto, String brandSlug, String songId, String reason) {
+        LOGGER.warnf("Skipping song_rated: %s", reason);
+        metricPublisher.publishMetric(
+                brandSlug,
+                MetricEventType.WARNING,
+                ProcessType.FLOW,
+                "song_rated_failed",
+                Map.of(
+                        "songId", songId == null ? "" : songId,
+                        "reason", reason
+                ),
+                dto.traceId());
     }
 
     private Uni<Void> handleBrandSaved(CommandDTO dto) {
