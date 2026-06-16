@@ -236,19 +236,20 @@ public class ListenersRepository extends AsyncRepository {
             return Uni.createFrom().voidItem();
         }
         String rlsSql = String.format(
-                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, false, false) " +
-                        "ON CONFLICT (reader, entity_id) DO NOTHING",
+                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, true, true) " +
+                        "ON CONFLICT (reader, entity_id) DO UPDATE SET can_edit=true, can_delete=true",
                 entityData.getRlsName()
         );
-        String authorSql = "SELECT author FROM mixpla__brands WHERE id = ANY($1::uuid[])";
+        String ownerSql = "SELECT (owner->>'userId')::bigint AS owner_user_id FROM mixpla__brands WHERE id = ANY($1::uuid[])";
         UUID[] ids = brandIds.toArray(new UUID[0]);
-        return tx.preparedQuery(authorSql)
+        return tx.preparedQuery(ownerSql)
                 .execute(Tuple.of(ids))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUniAndConcatenate(row -> {
-                    long authorId = row.getLong("author");
+                    Long ownerId = row.getLong("owner_user_id");
+                    if (ownerId == null) return Uni.createFrom().voidItem();
                     return tx.preparedQuery(rlsSql)
-                            .execute(Tuple.of(authorId, listenerId))
+                            .execute(Tuple.of(ownerId, listenerId))
                             .onItem().ignore().andContinueWithNull();
                 })
                 .collect().asList()
