@@ -32,8 +32,11 @@ public class QueueSupplier {
     @Channel("streaming")
     Emitter<byte[]> songEmitter;
 
-    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID traceId) {
-        UUID emissionTraceId = UUID.randomUUID();
+    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID parentTraceId) {
+        return sendSongsToQueue(brandSlug, message, parentTraceId, UUID.randomUUID());
+    }
+
+    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID parentTraceId, UUID emissionTraceId) {
         message.setBrandSlug(brandSlug);
         message.setMessageId(UUID.randomUUID());
         message.setTraceId(emissionTraceId);
@@ -51,6 +54,7 @@ public class QueueSupplier {
                 metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
                         Map.of(
                                 "message", message,
+                                "parentTraceId", parentTraceId == null ? "" : parentTraceId.toString(),
                                 "supplied", TimeFormatUtil.formatEpochMillis(now)
                         ),
                         emissionTraceId);
@@ -66,7 +70,7 @@ public class QueueSupplier {
                 metricPublisher.trackEmission(brandSlug, totalDuration);
                 return null;
             } catch (Exception e) {
-                LOGGER.error("Failed to send - brand: {}, messageId: {}, traceId: {}", brandSlug, message.getMessageId(), traceId, e);
+                LOGGER.error("Failed to send - brand: {}, messageId: {}, parentTraceId: {}", brandSlug, message.getMessageId(), parentTraceId, e);
                 throw new RuntimeException("Failed to send message", e);
             }
         });

@@ -109,8 +109,9 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, liveScene.getTraceId());
-                        return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
+                        UUID emissionTraceId = UUID.randomUUID();
+                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
+                        return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId(), emissionTraceId);
                     });
         } else {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
@@ -130,8 +131,9 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
-            publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId());
-            return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId());
+            UUID emissionTraceId = UUID.randomUUID();
+            publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
+            return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId(), emissionTraceId);
         }
     }
 
@@ -198,7 +200,7 @@ public class SongEmitter {
         });
     }
 
-    private void publishExpectedPlayOrder(String brandName, TimelineEntry entry, MixingType mergingMethod, UUID entryTraceId) {
+    private void publishExpectedPlayOrder(String brandName, TimelineEntry entry, MixingType mergingMethod, UUID parentTraceId, UUID emissionTraceId) {
         List<Map<String, Object>> songs = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
             var sf = entry.getSongs().get(i).getSoundFragment();
@@ -210,8 +212,9 @@ public class SongEmitter {
             songs.add(item);
         }
         metricPublisher.publishMetric(brandName, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
-                Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(), "songs", songs),
-                entryTraceId);
+                Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(),
+                        "parentTraceId", parentTraceId == null ? "" : parentTraceId.toString(), "songs", songs),
+                emissionTraceId);
     }
 
     private static MixingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
