@@ -11,6 +11,8 @@ import com.semantyca.jesoos.service.live.DjStateService;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
+import com.semantyca.jesoos.service.chat.ChatAuthService;
+import com.semantyca.jesoos.repository.SoundFragmentRatingLogRepository;
 import com.semantyca.mixpla.dto.queue.command.CommandDTO;
 import com.semantyca.mixpla.dto.queue.command.CommandType;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
@@ -34,6 +36,8 @@ public class CommandService {
     private final OtsStreamScheduler otsStreamScheduler;
     private final MetricPublisher metricPublisher;
     private final BrandService brandService;
+    private final ChatAuthService chatAuthService;
+    private final SoundFragmentRatingLogRepository ratingLogRepository;
 
     @Inject
     public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
@@ -41,7 +45,9 @@ public class CommandService {
                           OneTimeStreamService oneTimeStreamService,
                           OtsStreamScheduler otsStreamScheduler,
                           MetricPublisher metricPublisher,
-                          BrandService brandService) {
+                          BrandService brandService,
+                          ChatAuthService chatAuthService,
+                          SoundFragmentRatingLogRepository ratingLogRepository) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
@@ -49,14 +55,63 @@ public class CommandService {
         this.otsStreamScheduler = otsStreamScheduler;
         this.metricPublisher = metricPublisher;
         this.brandService = brandService;
+        this.chatAuthService = chatAuthService;
+        this.ratingLogRepository = ratingLogRepository;
     }
 
     public Uni<Void> handleQueueCommand(CommandDTO dto) {
         if (dto.type() == CommandType.FLOW_RESTART && "brand_saved".equals(dto.command())) {
             return handleBrandSaved(dto);
         }
-        LOGGER.debugf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
+        if (dto.type() == CommandType.SONG_RATED && "song_rated".equals(dto.command())) {
+            return handleSongRated(dto);
+        }
+        LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
         return Uni.createFrom().voidItem();
+    }
+
+    private Uni<Void> handleSongRated(CommandDTO dto) {
+        Map<String, Object> p = dto.payload();
+        if (p == null) {
+            LOGGER.warn("song_rated command missing payload");
+            return Uni.createFrom().voidItem();
+        }
+        Object rawBrand = p.get("brandSlug");
+        Object rawToken = p.get("jesoosToken");
+        Object rawSongId = p.get("soundFragmentId");
+        Object rawRating = p.get("rating");
+        if (rawBrand == null || rawToken == null || rawSongId == null || rawRating == null) {
+            LOGGER.warn("song_rated command missing required payload fields");
+            return Uni.createFrom().voidItem();
+        }
+        int rating = ((Number) rawRating).intValue();
+        if (rating != 1 && rating != -1) {
+            LOGGER.warnf("Ignored song_rated with invalid rating value: %d", rating);
+            return Uni.createFrom().voidItem();
+        }
+        String brandSlug = rawBrand.toString();
+        UUID soundFragmentId = UUID.fromString(rawSongId.toString());
+
+        return chatAuthService.authenticateUserFromToken(rawToken.toString())
+                .onFailure().recoverWithItem(e -> {
+                    LOGGER.warnf("Skipping song_rated: invalid token (%s)", e.getMessage());
+                    return null;
+                })
+                .chain(user -> {
+                    if (user == null || user.getId() == 0) {
+                        LOGGER.warn("Skipping song_rated: anonymous or unresolved user");
+                        return Uni.createFrom().voidItem();
+                    }
+                    long userId = user.getId();
+                    return brandService.getBySlugName(brandSlug)
+                            .chain(brand -> {
+                                if (brand == null) {
+                                    LOGGER.warnf("Skipping song_rated: brand not found for slug '%s'", brandSlug);
+                                    return Uni.createFrom().voidItem();
+                                }
+                                return ratingLogRepository.appendRating(userId, soundFragmentId, brand.getId(), rating);
+                            });
+                });
     }
 
     private Uni<Void> handleBrandSaved(CommandDTO dto) {
