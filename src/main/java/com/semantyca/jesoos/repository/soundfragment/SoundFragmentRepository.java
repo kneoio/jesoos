@@ -184,6 +184,16 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilter(brandId, filter, limit, excludeIds);
     }
 
+    public Uni<List<SoundFragment>> findByFilterOldest(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findByFilterOldest(brandId, filter, limit, excludeIds);
+    }
+
+    public Uni<List<SoundFragment>> findByFilterRandom(UUID brandId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findByFilterRandom(brandId, filter, limit, excludeIds);
+    }
+
     public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.getBrandCatalogSummary(brandId);

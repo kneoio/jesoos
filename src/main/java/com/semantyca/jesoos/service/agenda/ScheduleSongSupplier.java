@@ -51,27 +51,22 @@ public class ScheduleSongSupplier {
 
         return Uni.combine().all()
                 .unis(
-                        repository.findByFilter(brandId, filter, quantity, effective),
+                        repository.findByFilter(brandId, filter, newest, effective),
+                        repository.findByFilterOldest(brandId, filter, oldest, effective),
+                        repository.findByFilterRandom(brandId, filter, randomCount, effective),
                         sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
                 )
                 .asTuple()
                 .map(tuple -> {
-                    List<SoundFragment> all = tuple.getItem1();
-                    List<SharedSongEntry> shared = tuple.getItem2();
-                    LOGGER.infof("[getSongsForBrand] done in %dms, got %d songs, %d shared", System.currentTimeMillis() - t0, all.size(), shared.size());
-
-                    int size = all.size();
-                    int newestEnd = Math.min(newest, size);
-                    int oldestStart = Math.max(newestEnd, size - oldest);
-
-                    List<SoundFragment> newestList = all.subList(0, newestEnd);
-                    List<SoundFragment> oldestList = all.subList(oldestStart, size);
-                    List<SoundFragment> middle = new ArrayList<>(all.subList(newestEnd, oldestStart));
-                    Collections.shuffle(middle);
-                    List<SoundFragment> randomList = middle.subList(0, Math.min(randomCount, middle.size()));
+                    List<SoundFragment> newestList = tuple.getItem1();
+                    List<SoundFragment> oldestList = tuple.getItem2();
+                    List<SoundFragment> randomList = tuple.getItem3();
+                    List<SharedSongEntry> shared = tuple.getItem4();
+                    LOGGER.infof("[getSongsForBrand] done in %dms, got newest=%d oldest=%d random=%d, %d shared",
+                            System.currentTimeMillis() - t0, newestList.size(), oldestList.size(), randomList.size(), shared.size());
 
                     Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
-                    newestList.forEach(s -> merged.put(s.getId(), s));
+                    newestList.forEach(s -> merged.putIfAbsent(s.getId(), s));
                     oldestList.forEach(s -> merged.putIfAbsent(s.getId(), s));
                     randomList.forEach(s -> merged.putIfAbsent(s.getId(), s));
 
