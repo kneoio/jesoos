@@ -4,19 +4,17 @@ import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
-import com.semantyca.jesoos.repository.UserAdRepository;
-import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService.GenerationResult;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
 import com.semantyca.jesoos.service.live.generated.GeneratedAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
-import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
 import com.semantyca.mixpla.dto.queue.livestream.IntroKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongInfoDTO;
@@ -24,6 +22,7 @@ import com.semantyca.mixpla.dto.queue.livestream.SongKey;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
@@ -52,8 +51,8 @@ import static com.semantyca.mixpla.dto.queue.livestream.SongKey.JINGLE_OUTRO;
 
 @ApplicationScoped
 public class GeneratedContentEmitter {
+    public static final int DEFAULT_JINGLE_DURATION = 5;
     private static final Logger LOGGER = Logger.getLogger(GeneratedContentEmitter.class);
-    private static final int DEFAULT_JINGLE_DURATION = 10;
     private static final int DEFAULT_BACKGROUND_DURATION = 180;
 
     private final GeneratedNewsService generatedNewsService;

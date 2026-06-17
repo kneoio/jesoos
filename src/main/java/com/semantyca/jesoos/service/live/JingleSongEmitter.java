@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.semantyca.jesoos.service.live.StaggeredSongScheduler.DEFAULT_JINGLE_DURATION;
+import static com.semantyca.jesoos.service.live.GeneratedContentEmitter.DEFAULT_JINGLE_DURATION;
 import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 
 @ApplicationScoped

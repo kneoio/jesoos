@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @ApplicationScoped
 public class StaggeredSongScheduler {
     private static final Logger LOGGER = Logger.getLogger(StaggeredSongScheduler.class);
-    public static final int DEFAULT_JINGLE_DURATION = 10;
 
     private final Vertx vertx;
     private final AiAgentService aiAgentService;

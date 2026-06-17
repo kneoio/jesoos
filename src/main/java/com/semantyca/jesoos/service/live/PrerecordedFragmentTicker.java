@@ -36,6 +36,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
 public class PrerecordedFragmentTicker {
@@ -61,7 +62,7 @@ public class PrerecordedFragmentTicker {
         this.staggeredSongScheduler = staggeredSongScheduler;
     }
 
-    @Scheduled(every = "60s", delay = 10, delayUnit = java.util.concurrent.TimeUnit.SECONDS)
+    @Scheduled(every = "60s", delay = 10, delayUnit = TimeUnit.SECONDS)
     void tick() {
         Collection<ILiveStream> streams = brandPool.getStationsSnapshot();
         for (ILiveStream stream : streams) {
