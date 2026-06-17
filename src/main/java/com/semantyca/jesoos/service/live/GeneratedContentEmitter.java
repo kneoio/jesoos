@@ -118,6 +118,15 @@ public class GeneratedContentEmitter {
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
 
+        if (scene.getMixingType() == null) {
+            LOGGER.warnf("No mixing type set for scene '%s', skipping generated content", scene.getSceneTitle());
+            metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW,
+                    "no_mixing_type_for_generated_content",
+                    Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
+                    scene.getTraceId());
+            return Uni.createFrom().voidItem();
+        }
+
         record GeneratedResult(SoundFragment fragment, UUID adId, MixingType mixingType) {}
 
         Uni<GeneratedResult> generatedUni = promptService.getById(promptId, SuperUser.build())
@@ -125,9 +134,8 @@ public class GeneratedContentEmitter {
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
-                    MixingType mixingType = scene.getMixingType() != null ? scene.getMixingType() : MixingType.SONG_ONLY;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
-                            .map(r -> new GeneratedResult(r.fragment(), r.adId(), mixingType));
+                            .map(r -> new GeneratedResult(r.fragment(), r.adId(), scene.getMixingType()));
                 });
 
         return Uni.combine().all().unis(jinglesUni, songsUni, generatedUni).asTuple()
