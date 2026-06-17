@@ -9,9 +9,12 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.PromptEntry;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.prompt.PromptRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.mixpla.model.DjPrompt;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.PromptType;
@@ -32,6 +35,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -47,6 +51,7 @@ public class PrerecordedFragmentTicker {
     private final SoundFragmentRepository soundFragmentRepository;
     private final PromptRepository promptRepository;
     private final StaggeredSongScheduler staggeredSongScheduler;
+    private final MetricPublisher metricPublisher;
     private final Random random = new Random();
 
     private final ConcurrentHashMap<String, Set<String>> firedKeys = new ConcurrentHashMap<>();
@@ -55,11 +60,13 @@ public class PrerecordedFragmentTicker {
     public PrerecordedFragmentTicker(BrandPool brandPool,
                                      SoundFragmentRepository soundFragmentRepository,
                                      PromptRepository promptRepository,
-                                     StaggeredSongScheduler staggeredSongScheduler) {
+                                     StaggeredSongScheduler staggeredSongScheduler,
+                                     MetricPublisher metricPublisher) {
         this.brandPool = brandPool;
         this.soundFragmentRepository = soundFragmentRepository;
         this.promptRepository = promptRepository;
         this.staggeredSongScheduler = staggeredSongScheduler;
+        this.metricPublisher = metricPublisher;
     }
 
     @Scheduled(every = "60s", delay = 10, delayUnit = TimeUnit.SECONDS)
@@ -104,7 +111,10 @@ public class PrerecordedFragmentTicker {
         return promptRepository.getAll(100, 0, SuperUser.build(), filter)
                 .chain(prompts -> {
                     if (prompts.isEmpty()) {
-                        LOGGER.warnf("No %s prompt found, skipping fragment '%s' for brand '%s'", promptType, fragment.getSlugName(), brandSlug);
+                        LOGGER.errorf("No %s prompt found, skipping fragment '%s' for brand '%s'", promptType, fragment.getSlugName(), brandSlug);
+                        metricPublisher.publishMetric(brandSlug, MetricEventType.WARNING, ProcessType.CRON,
+                                "scheduled_fragment_skipped_no_prompt",
+                                Map.of("fragmentSlug", fragment.getSlugName(), "promptType", promptType.name()));
                         return Uni.createFrom().voidItem();
                     }
                     DjPrompt prompt = prompts.get(random.nextInt(prompts.size()));
