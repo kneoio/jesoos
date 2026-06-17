@@ -125,11 +125,11 @@ public class PrerecordedFragmentTicker {
                     scene.setTraceId(UUID.randomUUID());
                     scene.setTimeline(List.of(entry));
 
-                    markFired(brandSlug, fragment.getId(), now);
                     LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' with prompt '%s'",
                             fragment.getType(), fragment.getSlugName(), brandSlug, prompt.getTitle());
 
-                    return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue());
+                    return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue())
+                            .invoke(() -> markFired(brandSlug, fragment.getId(), now));
                 });
     }
 
@@ -160,8 +160,8 @@ public class PrerecordedFragmentTicker {
 
     private boolean alreadyFired(String brandSlug, UUID fragmentId, ZonedDateTime now) {
         String key = fragmentId + ":" + now.toLocalDate() + ":" + now.toLocalTime().withSecond(0).withNano(0).format(TIME_FORMAT);
-        Set<String> brandKeys = firedKeys.computeIfAbsent(brandSlug, k -> ConcurrentHashMap.newKeySet());
-        return !brandKeys.add(key);
+        Set<String> brandKeys = firedKeys.get(brandSlug);
+        return brandKeys != null && brandKeys.contains(key);
     }
 
     private void markFired(String brandSlug, UUID fragmentId, ZonedDateTime now) {
