@@ -21,6 +21,8 @@ import java.util.Map;
 @ApplicationScoped
 public class AgendaTicker {
     private static final Logger LOGGER = Logger.getLogger(AgendaTicker.class);
+    /** Floor for a one-time scene's active window so the 60s tick reliably catches its start. */
+    private static final int MIN_ONE_TIME_WINDOW_SECONDS = 90;
     private final BrandPool brandPool;
     private final ScenePool scenePool;
     private final MetricPublisher metricPublisher;
@@ -44,75 +46,82 @@ public class AgendaTicker {
             LocalTime nowTime = nowDateTime.toLocalTime();
 
             List<LiveScene> scenes = agenda.getLiveScenes();
-            LiveScene activeSceneFound = null;
 
-            for (int i = 0; i < scenes.size(); i++) {
-                LiveScene scene = scenes.get(i);
-                LocalTime nextSceneStartTime = scenes.get((i + 1) % scenes.size()).getOriginalStartTime();
-
-                boolean isActive = scene.isActiveAt(nowTime, nextSceneStartTime);
-
-                if (!isActive) continue;
-                if (scene.isOneTimeRun() && scene.isFinished()) continue;
-
-                activeSceneFound = scene;
-
-                LiveScene currentActive = scenePool.getActiveScene(brandSlug);
-                if (currentActive != null && currentActive == scene) {
-                    LOGGER.debugf("Scene '%s' is already active for brand: %s",
-                            scene.getSceneTitle(), brandSlug);
-                    continue;
-                }
-
-                LOGGER.infof("Active scene found: %s, start: %s", scene.getSceneTitle(), scene.getOriginalStartTime());
-                long lagSeconds = calculateLagSeconds(nowTime, scene.getOriginalStartTime());
-                TriggerContext triggerContext = lagSeconds < 30 ? TriggerContext.ON_TIME : TriggerContext.LATE;
-                processScene(brandSlug, scene, triggerContext);
+            // One-time scenes preempt the loop while they are within their own window;
+            // otherwise the current loop scene is the baseline.
+            LiveScene selected = findActiveOneTime(scenes, nowTime);
+            if (selected == null) {
+                selected = findLoopingScene(scenes, nowTime);
             }
-            
-            // Check if current active oneTimeRun scene is finished after scheduling
-            LiveScene currentActiveScene = scenePool.getActiveScene(brandSlug);
-            if (currentActiveScene != null && currentActiveScene.isOneTimeRun() && currentActiveScene.isFinished()) {
-                LiveScene loopingScene = findLoopingScene(scenes, nowTime);
-                if (loopingScene != null) {
-                    LOGGER.infof("One-time-run scene '%s' finished for brand: %s, resuming looping scene '%s'",
-                            currentActiveScene.getSceneTitle(), brandSlug, loopingScene.getSceneTitle());
+
+            LiveScene currentActive = scenePool.getActiveScene(brandSlug);
+
+            if (selected == null) {
+                if (currentActive != null) {
+                    LOGGER.infof("No active scene for brand: %s, removing '%s' from pool",
+                            brandSlug, currentActive.getSceneTitle());
                     staggeredSongScheduler.cancelBrandTimers(brandSlug);
                     scenePool.removeActiveScene(brandSlug);
-                    processScene(brandSlug, loopingScene, TriggerContext.ON_TIME);
-                } else {
-                    LOGGER.warnf("One-time-run scene '%s' finished for brand: %s, no looping scene found",
-                            currentActiveScene.getSceneTitle(), brandSlug);
                 }
                 return;
             }
-            
-            if (currentActiveScene != null && activeSceneFound == null) {
-                LOGGER.infof("No active scene found for brand: %s, removing scene '%s' from pool",
-                        brandSlug, currentActiveScene.getSceneTitle());
-                staggeredSongScheduler.cancelBrandTimers(brandSlug);
-                scenePool.removeActiveScene(brandSlug);
-            } else if (currentActiveScene != null && currentActiveScene != activeSceneFound) {
-                LOGGER.infof("Active scene changed for brand: %s, removing old scene '%s' from pool",
-                        brandSlug, currentActiveScene.getSceneTitle());
+
+            if (currentActive == selected) {
+                LOGGER.debugf("Scene '%s' already active for brand: %s", selected.getSceneTitle(), brandSlug);
+                return;
+            }
+
+            if (currentActive != null) {
+                LOGGER.infof("Active scene changed for brand %s: '%s' -> '%s'",
+                        brandSlug, currentActive.getSceneTitle(), selected.getSceneTitle());
                 staggeredSongScheduler.cancelBrandTimers(brandSlug);
                 scenePool.removeActiveScene(brandSlug);
             }
+
+            LOGGER.infof("Active scene found: %s, start: %s", selected.getSceneTitle(), selected.getOriginalStartTime());
+            long lagSeconds = calculateLagSeconds(nowTime, selected.getOriginalStartTime());
+            TriggerContext triggerContext = lagSeconds < 30 ? TriggerContext.ON_TIME : TriggerContext.LATE;
+            processScene(brandSlug, selected, triggerContext);
         });
     }
 
-    private LiveScene findLoopingScene(List<LiveScene> scenes, LocalTime nowTime) {
+    /**
+     * The one-time scene whose window [start, start + duration) currently contains now and that
+     * has not finished. Latest-starting wins. Bounding by the scene's own duration (not the next
+     * scene in list order) is what keeps stale past instances from lingering as "active".
+     */
+    private LiveScene findActiveOneTime(List<LiveScene> scenes, LocalTime nowTime) {
         LiveScene best = null;
+        for (LiveScene scene : scenes) {
+            if (!scene.isOneTimeRun() || scene.isFinished()) continue;
+            LocalTime start = scene.getOriginalStartTime();
+            if (start == null || start.isAfter(nowTime)) continue;
+            int windowSeconds = Math.max(scene.getDurationSeconds(), MIN_ONE_TIME_WINDOW_SECONDS);
+            if (calculateLagSeconds(nowTime, start) >= windowSeconds) continue;
+            if (best == null || start.isAfter(best.getOriginalStartTime())) best = scene;
+        }
+        return best;
+    }
+
+    private LiveScene findLoopingScene(List<LiveScene> scenes, LocalTime nowTime) {
+        LiveScene latestBeforeNow = null;
+        LiveScene latestOverall = null;
         for (LiveScene scene : scenes) {
             if (scene.isOneTimeRun()) continue;
             LocalTime start = scene.getOriginalStartTime();
-            if (!start.isAfter(nowTime)) {
-                if (best == null || start.isAfter(best.getOriginalStartTime())) {
-                    best = scene;
-                }
+            if (start == null) continue;
+            if (latestOverall == null || start.isAfter(latestOverall.getOriginalStartTime())) {
+                latestOverall = scene;
+            }
+            if (!start.isAfter(nowTime) &&
+                    (latestBeforeNow == null || start.isAfter(latestBeforeNow.getOriginalStartTime()))) {
+                latestBeforeNow = scene;
             }
         }
-        return best;
+        // The agenda spans one 06:00->06:00 window. If no loop has started yet at this hour
+        // (all starts are later today), the active loop is the last one from before midnight —
+        // it wraps across the rebuild boundary to cover 00:00 until the first loop after 06:00.
+        return latestBeforeNow != null ? latestBeforeNow : latestOverall;
     }
 
     private long calculateLagSeconds(LocalTime nowTime, LocalTime sceneStartTime) {

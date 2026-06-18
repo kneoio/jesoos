@@ -59,20 +59,4 @@ public class LiveScene {
                 e.getStatus() == TimelineEntryStatus.SKIPPED);
     }
 
-    public boolean isActiveAt(LocalTime time, LocalTime nextSceneStartTime) {
-        if (originalStartTime == null) {
-            return false;
-        }
-        
-        if (nextSceneStartTime == null) {
-            return !time.isBefore(originalStartTime);
-        }
-        
-        if (nextSceneStartTime.isAfter(originalStartTime)) {
-            return !time.isBefore(originalStartTime) && time.isBefore(nextSceneStartTime);
-        } else {
-            return !time.isBefore(originalStartTime) || time.isBefore(nextSceneStartTime);
-        }
-    }
-
 }

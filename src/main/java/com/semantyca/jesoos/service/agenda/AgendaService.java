@@ -23,6 +23,7 @@ import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.WayOfSourcing;
 import com.semantyca.mixpla.model.cnst.SourceType;
+import com.semantyca.mixpla.model.cnst.SceneType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -100,6 +101,17 @@ public class AgendaService {
         }
 
         if (timeSlots.isEmpty()) {
+            // No scene declares start times: a LOOP scene becomes the 24h baseline,
+            // anchored at the 06:00 daily rebuild boundary so it covers the whole day/night.
+            Scene baseline = scenes.stream()
+                    .filter(s -> s.getSceneType() == SceneType.LOOP)
+                    .findFirst().orElse(null);
+            if (baseline != null) {
+                timeSlots.add(new SceneTimeSlot(baseline, LocalTime.of(6, 0)));
+            }
+        }
+
+        if (timeSlots.isEmpty()) {
             throw new IllegalStateException("Scenes exist but no start times defined");
         }
 
@@ -125,12 +137,16 @@ public class AgendaService {
         record ExpandedSlot(Scene scene, LocalTime startTime, int durationSeconds) {}
 
         List<ExpandedSlot> expandedSlots = new ArrayList<>();
-        Scene currentLoopScene = null;
+        // Seed with the brand's LOOP scene so one-time gaps are filled even when the
+        // loop scene has no start times of its own (it is the baseline, not a slot).
+        Scene currentLoopScene = scenes.stream()
+                .filter(s -> s.getSceneType() == SceneType.LOOP)
+                .findFirst().orElse(null);
         for (int i = 0; i < timeSlots.size(); i++) {
             SceneTimeSlot slot = timeSlots.get(i);
             LocalTime nextStart = timeSlots.get((i + 1) % timeSlots.size()).startTime();
             int totalGap = calculateDurationUntilNext(slot.startTime(), nextStart);
-            if (!slot.scene().isOneTimeRun()) {
+            if (slot.scene().getSceneType() == SceneType.LOOP) {
                 currentLoopScene = slot.scene();
                 expandedSlots.add(new ExpandedSlot(slot.scene(), slot.startTime(), totalGap));
             } else {
@@ -176,11 +192,11 @@ public class AgendaService {
                                 liveScene.setSceneId(scene.getId());
                                 liveScene.setSceneTitle(scene.getTitle());
                                 liveScene.setOriginalStartTime(sceneOriginalStart);
-                                liveScene.setTraceId(UUID.randomUUID());
+                                liveScene.setTraceId(buildTraceId);
                                 liveScene.setTimeZone(brandZone);
                                 liveScene.setAgentId(sourceBrand.getAiAgentId());
                                 liveScene.setContentStatus(ContentStatus.PENDING);
-                                liveScene.setOneTimeRun(scene.isOneTimeRun());
+                                liveScene.setOneTimeRun(scene.getSceneType() == SceneType.ONE_TIME);
                                 if (scene.getPlaylistRequest() != null && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
                                     liveScene.setMixingType(scene.getPlaylistRequest().getMixingType());
@@ -278,11 +294,11 @@ public class AgendaService {
                                 liveScene.setSceneId(scene.getId());
                                 liveScene.setSceneTitle(scene.getTitle());
                                 liveScene.setOriginalStartTime(sceneStart.toLocalTime());
-                                liveScene.setTraceId(UUID.randomUUID());
+                                liveScene.setTraceId(buildTraceId);
                                 liveScene.setTimeZone(brandZone);
                                 liveScene.setAgentId(brand.getAiAgentId());
                                 liveScene.setContentStatus(ContentStatus.PENDING);
-                                liveScene.setOneTimeRun(scene.isOneTimeRun());
+                                liveScene.setOneTimeRun(scene.getSceneType() == SceneType.ONE_TIME);
                                 if (scene.getPlaylistRequest() != null
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
