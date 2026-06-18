@@ -99,6 +99,10 @@ public class GeneratedContentEmitter {
         UUID promptId = contentPrompts.getFirst().getPromptId();
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
+        if (scene.getMixingType() == null) {
+            return sendGeneratedOnly(brandName, scene, entry, agent, stream, lang, promptId, brandZone, priority);
+        }
+
         Map<String, String> artefacts = scene.getMixingArtefacts();
 
         Uni<List<SoundFragment>> jinglesUni = (artefacts != null && artefacts.containsKey(PlaylistItemType.JINGLE_INTRO.name()))
@@ -117,15 +121,6 @@ public class GeneratedContentEmitter {
 
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
                 scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
-
-        if (scene.getMixingType() == null) {
-            LOGGER.warnf("No mixing type set for scene '%s', skipping generated content", scene.getSceneTitle());
-            metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW,
-                    "no_mixing_type_for_generated_content",
-                    Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
-                    scene.getTraceId());
-            return Uni.createFrom().voidItem();
-        }
 
         record GeneratedResult(SoundFragment fragment, UUID adId, MixingType mixingType) {}
 
@@ -203,6 +198,28 @@ public class GeneratedContentEmitter {
                     dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
                             .call(() -> recordPlayHistory(adId, generated, agent));
+                });
+    }
+
+    private Uni<Void> sendGeneratedOnly(String brandName, LiveScene scene, TimelineEntry entry,
+                                        AiAgent agent, IStream stream, LanguageTag lang,
+                                        UUID promptId, ZoneId brandZone, int priority) {
+        long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
+        return promptService.getById(promptId, SuperUser.build())
+                .flatMap(prompt -> {
+                    boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
+                            && prompt.getTitle().toLowerCase().contains("ad");
+                    AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
+                    return service.generateAudio(promptId, agent, stream, lang, scene)
+                            .flatMap(r -> {
+                                SoundFragment generated = r.fragment();
+                                Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+                                songMap.put(SongKey.SONG_1, new SongInfoDTO(generated.getId(), songDuration(generated)));
+                                SongQueueMessageDTO dto = buildDto(MixingType.SONG_ONLY, scene, entry, deadline, priority);
+                                dto.setSongs(songMap);
+                                return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                                        .call(() -> recordPlayHistory(r.adId(), generated, agent));
+                            });
                 });
     }
 

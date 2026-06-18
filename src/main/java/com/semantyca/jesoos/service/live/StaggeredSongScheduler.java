@@ -83,7 +83,9 @@ public class StaggeredSongScheduler {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
             }
-            if (!entry.isHasIntro() && djStateService.isDjEnabled(brandName)) {
+            boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
+                    && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
+            if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
                 BoostType boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
