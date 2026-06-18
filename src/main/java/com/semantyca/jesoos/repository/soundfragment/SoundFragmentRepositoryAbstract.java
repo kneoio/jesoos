@@ -52,6 +52,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
+        doc.setStreamUrl(row.getString("stream_url"));
         doc.setStatus(row.getInteger("status"));
         doc.setType(PlaylistItemType.valueOf(row.getString("type")));
         doc.setTitle(row.getString("title"));

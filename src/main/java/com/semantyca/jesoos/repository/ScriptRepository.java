@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.model.ScriptVariable;
-import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.embedded.DocumentAccessInfo;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.repository.AsyncRepository;
@@ -133,10 +132,6 @@ public class ScriptRepository extends AsyncRepository {
             conditions.append(" AND t.timing_mode = '").append(filter.getTimingMode().name()).append("'");
         }
 
-        if (filter.getLanguageTag() != null) {
-            conditions.append(" AND t.language_tag = '").append(filter.getLanguageTag().tag()).append("'");
-        }
-
         return conditions.toString();
     }
 
@@ -168,8 +163,8 @@ public class ScriptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, name, slug_name, default_profile_id, description, access_level, language_tag, timing_mode, required_variables) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, name, slug_name, default_profile_id, description, access_level, timing_mode, required_variables) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -187,7 +182,6 @@ public class ScriptRepository extends AsyncRepository {
                         .addString(script.getSlugName())
                         .addUUID(script.getDefaultProfileId())
                         .addString(script.getDescription())
-                        .addString(script.getLanguageTag().tag())
                         .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                         .addJsonArray(requiredVarsJson);
 
@@ -227,8 +221,8 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, slug_name=$2, default_profile_id=$3, description=$4, language_tag=$5, timing_mode=$6, last_mod_user=$7, last_mod_date=$8, required_variables=$9 " +
-                                    "WHERE id=$10";
+                                    " SET name=$1, slug_name=$2, default_profile_id=$3, description=$4, timing_mode=$5, last_mod_user=$6, last_mod_date=$7, required_variables=$8 " +
+                                    "WHERE id=$9";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -237,7 +231,6 @@ public class ScriptRepository extends AsyncRepository {
                                     .addString(script.getSlugName())
                                     .addUUID(script.getDefaultProfileId())
                                     .addString(script.getDescription())
-                                    .addString(script.getLanguageTag().tag())
                                     .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
@@ -289,8 +282,6 @@ public class ScriptRepository extends AsyncRepository {
         doc.setDefaultProfileId(row.getUUID("default_profile_id"));
         doc.setDescription(row.getString("description"));
         doc.setArchived(row.getInteger("archived"));
-        String lang = row.getString("language_tag");
-        doc.setLanguageTag(LanguageTag.fromTag(lang));
         String timingMode = row.getString("timing_mode");
         if (timingMode != null) {
             doc.setTimingMode(SceneTimingMode.valueOf(timingMode));

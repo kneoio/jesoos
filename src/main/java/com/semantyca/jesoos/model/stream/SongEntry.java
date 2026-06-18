@@ -29,6 +29,15 @@ public class SongEntry {
         this.sharerName = sharerName;
     }
 
+    public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName, int durationSeconds) {
+        this.promptEntry = promptEntry;
+        this.id = UUID.randomUUID();
+        this.soundFragment = soundFragment;
+        this.sequenceNumber = sequenceNumber;
+        this.durationSeconds = durationSeconds;
+        this.sharerName = sharerName;
+    }
+
     public boolean isShared() {
         return sharerName != null;
     }

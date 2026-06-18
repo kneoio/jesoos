@@ -97,9 +97,11 @@ public class SongEmitter {
                                 introMap.put(getIntroKeyByIndex(introIndex++), introDto);
                             }
 
-                            songMap.put(getSongKeyByIndex(i),
-                                    new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
-                                            entry.getSongs().get(i).getDurationSeconds()));
+                            var sf = entry.getSongs().get(i).getSoundFragment();
+                            SongInfoDTO info = new SongInfoDTO(sf.getId(), entry.getSongs().get(i).getDurationSeconds());
+                            info.setSourceType(sf.getSource());
+                            info.setStreamUrl(sf.getStreamUrl());
+                            songMap.put(getSongKeyByIndex(i), info);
                         }
 
                         MixingType effectiveStrategy = introMap.isEmpty()
@@ -123,9 +125,11 @@ public class SongEmitter {
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
 
             for (int i = 0; i < entry.getSongs().size(); i++) {
-                songMap.put(getSongKeyByIndex(i),
-                        new SongInfoDTO(entry.getSongs().get(i).getSoundFragment().getId(),
-                                entry.getSongs().get(i).getDurationSeconds()));
+                var sf = entry.getSongs().get(i).getSoundFragment();
+                SongInfoDTO info = new SongInfoDTO(sf.getId(), entry.getSongs().get(i).getDurationSeconds());
+                info.setSourceType(sf.getSource());
+                info.setStreamUrl(sf.getStreamUrl());
+                songMap.put(getSongKeyByIndex(i), info);
             }
 
             dto.setFilePaths(introMap);

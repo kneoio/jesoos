@@ -11,6 +11,7 @@ import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
@@ -45,7 +46,7 @@ public class StaggeredSongScheduler {
     private final DjStateService djStateService;
     private static final Random RANDOM = new Random();
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> brandTimers = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> skipCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> skipCounters = new ConcurrentHashMap<>();
     private final JesoosConfig config;
 
     @Inject
@@ -87,7 +88,13 @@ public class StaggeredSongScheduler {
                 if (boostType != null) {
                     entry.setHasIntro(true);
                     MixingType strategy = entry.getMixingStrategy();
-                    if (boostType == BoostType.JINGLE_INTRO) {
+                    boolean streamEntry = !entry.getSongs().isEmpty()
+                            && entry.getSongs().getFirst().getSoundFragment().getSource() == SourceType.STREAM;
+                    if (streamEntry) {
+                        // Stream entries support intro but never jingle: lock to INTRO_SONG.
+                        entry.setHasJingle(false);
+                        entry.setMixingStrategy(MixingType.INTRO_SONG);
+                    } else if (boostType == BoostType.JINGLE_INTRO) {
                         entry.setHasJingle(true);
                         if (strategy != MixingType.JINGLE_INTRO_SONG) {
                             entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);

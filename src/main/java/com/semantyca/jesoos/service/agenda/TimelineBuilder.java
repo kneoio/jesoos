@@ -7,6 +7,7 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.mixpla.model.CustomAction;
 import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import org.jboss.logging.Logger;
 
 import java.time.Duration;
@@ -101,13 +102,22 @@ public class TimelineBuilder {
                 songIndex++;
             }
 
+            MixingType mergingType = strategy.mergingType();
+            boolean hasJingle = mergingType == MixingType.FILLER_JINGLE || mergingType == MixingType.JINGLE_INTRO_SONG;
+            // A live stream is a single continuous source: aivox only ingests it as SONG_ONLY or
+            // INTRO_SONG (no jingle). Lock stream entries to those, dropping any jingle combo.
+            if (!songList.isEmpty() && songList.getFirst().getSoundFragment().getSource() == SourceType.STREAM) {
+                mergingType = strategy.needsIntros() ? MixingType.INTRO_SONG : MixingType.SONG_ONLY;
+                hasJingle = false;
+            }
+
             TimelineEntry entry = new TimelineEntry(
                 sequenceNumber,
                 currentTime,
                 songList,
-                strategy.mergingType(),
+                mergingType,
                 strategy.needsIntros(),
-                strategy.mergingType() == MixingType.FILLER_JINGLE || strategy.mergingType() == MixingType.JINGLE_INTRO_SONG
+                hasJingle
             );
 
             timeline.add(entry);
