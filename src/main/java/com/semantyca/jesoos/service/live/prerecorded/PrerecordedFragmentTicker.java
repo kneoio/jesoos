@@ -114,7 +114,7 @@ public class PrerecordedFragmentTicker {
         filter.setActivated(true);
 
         UUID traceId = UUID.randomUUID();
-        Map<String, Object> startedPayload = new java.util.LinkedHashMap<>();
+        Map<String, Object> startedPayload = new LinkedHashMap<>();
         startedPayload.put("sf", fragment.getTitle());
         startedPayload.put("promptType", promptType.name());
         if (matchedTask.getTriggerType() == TriggerType.PERIODIC && matchedTask.getPeriodicTrigger() != null) {
