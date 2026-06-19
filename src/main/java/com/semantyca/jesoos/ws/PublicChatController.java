@@ -5,9 +5,11 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.ChatService;
+import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
@@ -30,6 +32,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private final ChatService chatService;
     private final ChatAuthService chatAuthService;
     private final ListenerService listenerService;
+    private final BrandService brandService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
@@ -39,14 +42,16 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         this.chatService = null;
         this.chatAuthService = null;
         this.listenerService = null;
+        this.brandService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService) {
+    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService, BrandService brandService) {
         super(userService);
         this.chatService = chatService;
         this.chatAuthService = chatAuthService;
         this.listenerService = listenerService;
+        this.brandService = brandService;
         if (chatService != null) {
             chatService.setController(this);
         }
@@ -162,6 +167,21 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         IUser user = userHolder.getUser();
         String content = msgJson.getString("content");
 
+        brandService.getBySlugName(brandSlug).subscribe().with(
+                brand -> {
+                    if (brand.getMessagingPolicy() == SubmissionPolicy.NOT_ALLOWED) {
+                        sendError(webSocket, "Messaging is not allowed for this station");
+                        return;
+                    }
+                    handleUserMessageInternal(webSocket, msgJson, connectionId, brandSlug, userHolder, user);
+                },
+                err -> sendError(webSocket, "Failed to verify station policy")
+        );
+    }
+
+    private void handleUserMessageInternal(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
+                                           String brandSlug, UserHolder userHolder, IUser user) {
+        String content = msgJson.getString("content");
         if (content == null || content.trim().isEmpty()) {
             sendError(webSocket, "Message content cannot be empty");
             return;
