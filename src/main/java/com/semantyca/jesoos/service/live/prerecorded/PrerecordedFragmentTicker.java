@@ -13,9 +13,11 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.prompt.PromptRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
+import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import com.semantyca.mixpla.model.DjPrompt;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.MixingType;
@@ -33,6 +35,7 @@ import org.jboss.logging.Logger;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -51,6 +54,7 @@ public class PrerecordedFragmentTicker {
     private final PromptRepository promptRepository;
     private final StaggeredSongScheduler staggeredSongScheduler;
     private final MetricPublisher metricPublisher;
+    private final AiAgentService aiAgentService;
     private final Random random = new Random();
 
     private final ConcurrentHashMap<String, Set<String>> firedKeys = new ConcurrentHashMap<>();
@@ -60,12 +64,14 @@ public class PrerecordedFragmentTicker {
                                      SoundFragmentRepository soundFragmentRepository,
                                      PromptRepository promptRepository,
                                      StaggeredSongScheduler staggeredSongScheduler,
-                                     MetricPublisher metricPublisher) {
+                                     MetricPublisher metricPublisher,
+                                     AiAgentService aiAgentService) {
         this.brandPool = brandPool;
         this.soundFragmentRepository = soundFragmentRepository;
         this.promptRepository = promptRepository;
         this.staggeredSongScheduler = staggeredSongScheduler;
         this.metricPublisher = metricPublisher;
+        this.aiAgentService = aiAgentService;
     }
 
     @Scheduled(every = "60s", delay = 10, delayUnit = TimeUnit.SECONDS)
@@ -158,7 +164,12 @@ public class PrerecordedFragmentTicker {
                             Map.of("scene", scene.getSceneTitle(), "promptType", promptType.name()),traceId);
 
                     return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), traceId)
-                            .invoke(() -> markFired(brandSlug, fragment.getId(), now));
+                            .invoke(() -> markFired(brandSlug, fragment.getId(), now))
+                            .call(() -> aiAgentService.getById(stream.getAiAgentId()).chain(agent -> {
+                                int duration = fragment.getLength() != null ? (int) fragment.getLength().toSeconds() : 0;
+                                return soundFragmentRepository.addPlayHistoryEntry(fragment.getId(),
+                                        new PlayHistory(OffsetDateTime.now(), duration, null, agent.getName()));
+                            }));
                 });
     }
 

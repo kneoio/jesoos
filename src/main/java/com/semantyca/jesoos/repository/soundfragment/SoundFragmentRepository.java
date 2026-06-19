@@ -11,6 +11,7 @@ import com.semantyca.core.repository.exception.UploadAbsenceException;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.table.EntityData;
 import com.semantyca.core.util.WebHelper;
+import com.semantyca.mixpla.model.PlayHistory;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.mixpla.model.soundfragment.BrandSoundFragment;
@@ -172,6 +173,20 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findActiveScheduledByBrand(brandId);
+    }
+
+    public Uni<Void> addPlayHistoryEntry(UUID fragmentId, PlayHistory entry) {
+        String sql = "UPDATE " + entityData.getTableName() +
+                " SET play_history = COALESCE(play_history, '[]'::jsonb) || jsonb_build_array($2::jsonb)" +
+                " WHERE id = $1";
+        try {
+            String entryJson = mapper.writeValueAsString(entry);
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(fragmentId, entryJson))
+                    .replaceWithVoid();
+        } catch (Exception e) {
+            return Uni.createFrom().failure(e);
+        }
     }
 
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
