@@ -158,8 +158,7 @@ public class PrerecordedFragmentTicker {
                             Map.of("scene", scene.getSceneTitle(), "promptType", promptType.name()),traceId);
 
                     return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), traceId)
-                            .invoke(() -> markFired(brandSlug, fragment.getId(), now))
-                            .call(() -> soundFragmentRepository.incrementPlayCount(stream.getMasterBrandId(), fragment.getId()));
+                            .invoke(() -> markFired(brandSlug, fragment.getId(), now));
                 });
     }
 
