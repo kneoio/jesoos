@@ -37,12 +37,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -99,7 +94,7 @@ public class PrerecordedFragmentTicker {
                     Task t = matchedTask(sf, zone, now);
                     return t != null && !alreadyFired(brandSlug, sf.getId(), now) ? new DueFragment(sf, t) : null;
                 })
-                .filter(d -> d != null)
+                .filter(Objects::nonNull)
                 .toList();
 
         if (due.isEmpty()) return Uni.createFrom().voidItem();
@@ -162,7 +157,7 @@ public class PrerecordedFragmentTicker {
                             "prerecorded_firing",
                             Map.of("scene", scene.getSceneTitle(), "promptType", promptType.name()),traceId);
 
-                    return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue())
+                    return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), traceId)
                             .invoke(() -> markFired(brandSlug, fragment.getId(), now));
                 });
     }
