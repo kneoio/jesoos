@@ -199,6 +199,39 @@ public class StaggeredSongScheduler {
                     emissionTraceId
             );
 
+            boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
+                    && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
+            if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
+                BoostType boostType = djStateService.consumeBoostEntry(brandName);
+                if (boostType != null) {
+                    entry.setHasIntro(true);
+                    MixingType strategy = entry.getMixingStrategy();
+                    if (boostType == BoostType.JINGLE_INTRO) {
+                        entry.setHasJingle(true);
+                        if (strategy != MixingType.JINGLE_INTRO_SONG) {
+                            entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);
+                        }
+                    } else {
+                        if (strategy == MixingType.SONG_ONLY
+                                || strategy == MixingType.SONG_CROSSFADE_SONG
+                                || strategy == MixingType.SONG_CROSSFADE_SONG_VAR_1
+                                || strategy == MixingType.FILLER_JINGLE) {
+                            entry.setMixingStrategy(entry.getSongs().size() >= 2
+                                    ? MixingType.SONG_INTRO_SONG
+                                    : MixingType.INTRO_SONG);
+                        }
+                    }
+                    assignBoostPrompt(entry, scene);
+                    metricPublisher.publishMetric(
+                            brandName, MetricEventType.INFORMATION, ProcessType.FLOW,
+                            "dj_boost_applied",
+                            Map.of("boostType", boostType.name(), "entry", entry.getSequenceNumber(),
+                                    "strategy", entry.getMixingStrategy().name()),
+                            emissionTraceId
+                    );
+                }
+            }
+
             emitTimelineEntry(brandName, scene, entry, brandZone, emissionTraceId)
                     .subscribe().with(
                             v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
