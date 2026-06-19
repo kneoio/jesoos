@@ -9,10 +9,8 @@ import com.semantyca.mixpla.model.ScenePrompt;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import org.jboss.logging.Logger;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,14 +43,8 @@ public class TimelineBuilder {
             return timeline;
         }
 
-        LocalTime nowTime = LocalTime.now(scene.getTimeZone());
+        // Agenda is rebuilt at the 00:00 day boundary, so every scene start time belongs to today.
         LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
-        if (scene.getOriginalStartTime().isAfter(nowTime)) {
-            long minutesUntilStart = Duration.between(nowTime, scene.getOriginalStartTime()).toMinutes();
-            if (minutesUntilStart > 12 * 60) {
-                sceneDate = sceneDate.minusDays(1);
-            }
-        }
         LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
         boolean hasActivePrompts = introPrompts != null && !introPrompts.isEmpty()
                 && introPrompts.stream().anyMatch(ScenePrompt::isActive);

@@ -37,7 +37,7 @@ public class DailyAgendaRebuildService {
         this.metricPublisher = metricPublisher;
     }
 
-    @Scheduled(cron = "0 0 5 * * ?") // 5:00 AM daily
+    @Scheduled(cron = "0 0 0 * * ?") // 00:00 daily (day boundary)
     public void rebuildAllAgendas() {
         LOGGER.info("Starting daily agenda rebuild for all active brands");
 

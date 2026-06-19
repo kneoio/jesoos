@@ -30,6 +30,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -91,8 +92,16 @@ public class AgendaService {
             return Uni.createFrom().item(schedule);
         }
 
+        int targetWeekday = LocalDate.now(brandZone).getDayOfWeek().getValue();
+        List<Scene> activeScenes = scenes.stream()
+                .filter(s -> isActiveOnWeekday(s, targetWeekday))
+                .toList();
+        if (activeScenes.isEmpty()) {
+            return Uni.createFrom().item(schedule);
+        }
+
         List<SceneTimeSlot> timeSlots = new ArrayList<>();
-        for (Scene scene : scenes) {
+        for (Scene scene : activeScenes) {
             if (scene.getStartTime() != null && !scene.getStartTime().isEmpty()) {
                 for (LocalTime startTime : scene.getStartTime()) {
                     timeSlots.add(new SceneTimeSlot(scene, startTime));
@@ -102,12 +111,12 @@ public class AgendaService {
 
         if (timeSlots.isEmpty()) {
             // No scene declares start times: a LOOP scene becomes the 24h baseline,
-            // anchored at the 06:00 daily rebuild boundary so it covers the whole day/night.
-            Scene baseline = scenes.stream()
+            // anchored at the 00:00 day boundary so it covers the whole day.
+            Scene baseline = activeScenes.stream()
                     .filter(s -> s.getSceneType() == SceneType.LOOP)
                     .findFirst().orElse(null);
             if (baseline != null) {
-                timeSlots.add(new SceneTimeSlot(baseline, LocalTime.of(6, 0)));
+                timeSlots.add(new SceneTimeSlot(baseline, LocalTime.of(0, 0)));
             }
         }
 
@@ -116,18 +125,6 @@ public class AgendaService {
         }
 
         timeSlots.sort(Comparator.comparing(SceneTimeSlot::startTime));
-
-        LocalTime dayStart = LocalTime.of(6, 0);
-        int shiftIndex = -1;
-        for (int i = 0; i < timeSlots.size(); i++) {
-            if (!timeSlots.get(i).startTime().isBefore(dayStart)) {
-                shiftIndex = i;
-                break;
-            }
-        }
-        if (shiftIndex > 0) {
-            Collections.rotate(timeSlots, -shiftIndex);
-        }
 
         Uni<AiAgent> agentUni = (sourceBrand.getAiAgentId() != null)
                 ? aiAgentService.getById(sourceBrand.getAiAgentId())
@@ -139,7 +136,7 @@ public class AgendaService {
         List<ExpandedSlot> expandedSlots = new ArrayList<>();
         // Seed with the brand's LOOP scene so one-time gaps are filled even when the
         // loop scene has no start times of its own (it is the baseline, not a slot).
-        Scene currentLoopScene = scenes.stream()
+        Scene currentLoopScene = activeScenes.stream()
                 .filter(s -> s.getSceneType() == SceneType.LOOP)
                 .findFirst().orElse(null);
         for (int i = 0; i < timeSlots.size(); i++) {
@@ -460,5 +457,11 @@ public class AgendaService {
 
     static boolean isGeneratedContentScene(PlaylistRequest req) {
         return req != null && req.getSourcing() == WayOfSourcing.GENERATED;
+    }
+
+    // weekday: ISO 1=Monday .. 7=Sunday; null/empty means active every day.
+    private static boolean isActiveOnWeekday(Scene scene, int weekday) {
+        List<Integer> days = scene.getWeekdays();
+        return days == null || days.isEmpty() || days.contains(weekday);
     }
 }
