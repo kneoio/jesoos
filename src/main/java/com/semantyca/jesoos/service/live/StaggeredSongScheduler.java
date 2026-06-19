@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -185,7 +186,20 @@ public class StaggeredSongScheduler {
 
             entry.setStatus(TimelineEntryStatus.EMITTING);
 
-            emitTimelineEntry(brandName, scene, entry, brandZone)
+            UUID emissionTraceId = UUID.randomUUID();
+            metricPublisher.publishMetric(
+                    brandName,
+                    MetricEventType.INFORMATION,
+                    ProcessType.FLOW,
+                    "entry_emitting_started",
+                    Map.of(
+                            "seq", entry.getSequenceNumber(),
+                            "scene", scene.getSceneTitle()
+                    ),
+                    emissionTraceId
+            );
+
+            emitTimelineEntry(brandName, scene, entry, brandZone, emissionTraceId)
                     .subscribe().with(
                             v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
                             err -> {
@@ -219,7 +233,7 @@ public class StaggeredSongScheduler {
                                                 "rootCause", rootCause.getClass().getSimpleName() + ": " + rootMsg,
                                                 "stackTrace", stackSnippet.toString().trim()
                                         ),
-                                        scene.getTraceId()
+                                        emissionTraceId
                                 );
                                 triggerNextEntry(brandName, scene, entry, brandZone);
                             }
@@ -266,31 +280,44 @@ public class StaggeredSongScheduler {
         } else if (djStateService.isDjEnabled(brandName)) {
             priority = StreamPriority.PRIORITIZED_FRONT;
         }
-        return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue());
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue(), UUID.randomUUID());
+    }
+
+    public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, UUID emissionTraceId) {
+        StreamPriority priority = StreamPriority.NORMAL;
+        if (entry.isGenerated()) {
+            priority = StreamPriority.PRIORITIZED_FRONT;
+        } else if (djStateService.isDjEnabled(brandName)) {
+            priority = StreamPriority.PRIORITIZED_FRONT;
+        }
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue(), emissionTraceId);
     }
 
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority) {
+        return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority, UUID.randomUUID());
+    }
+
+    public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, int priority, UUID emissionTraceId) {
         LOGGER.infof("Emitting entry #%d for scene '%s' brand '%s' (generated=%s, jingle=%s)",
                 entry.getSequenceNumber(), liveScene.getSceneTitle(), brandName,
                 entry.isGenerated(), entry.isHasJingle());
         return brandPool.get(brandName)
                 .chain(stream -> {
-
                     return aiAgentService.getById(stream.getAiAgentId())
                             .chain(agent -> {
                                 if (entry.isGenerated()) {
-                                    return generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                    return generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
                                             .onFailure().invoke(err -> LOGGER.error(String.format(
                                                     "Generated content emitter failed for entry #%d scene '%s': %s",
                                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                                 }
                                 if (entry.isHasJingle()) {
-                                    return jingleSongEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                    return jingleSongEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
                                             .onFailure().invoke(err -> LOGGER.error(String.format(
                                                     "Jingle emitter failed for entry #%d scene '%s': %s",
                                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                                 }
-                                return songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority)
+                                return songEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
                                         .onFailure().invoke(err -> LOGGER.error(String.format(
                                                 "Song emitter failed for entry #%d scene '%s': %s",
                                                 entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));

@@ -54,7 +54,8 @@ public class SongEmitter {
                           AiAgent agent,
                           IStream stream,
                           ZoneId brandZone,
-                          int priority) {
+                          int priority,
+                          UUID emissionTraceId) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
         boolean djIsOnline = djStateService.isDjEnabled(brandName);
@@ -66,13 +67,12 @@ public class SongEmitter {
         if (djIsOnline) {
             LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
             boolean shouldGenerateIntros = entry.isHasIntro();
-            UUID entryTraceId = UUID.randomUUID();
             List<Uni<IntroAudioResult>> introUnis = new ArrayList<>();
             for (int i = 0; i < entry.getSongs().size(); i++) {
                 boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
                 if (needsIntro) {
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                            liveScene, entry.getSongs().get(i), agent, stream, lang, entry.getSequenceNumber(), entryTraceId));
+                            liveScene, entry.getSongs().get(i), agent, stream, lang, entry.getSequenceNumber(), emissionTraceId));
                 } else {
                     introUnis.add(Uni.createFrom().nullItem());
                 }
@@ -111,7 +111,6 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        UUID emissionTraceId = UUID.randomUUID();
                         publishExpectedPlayOrder(brandName, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
                         return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId(), emissionTraceId);
                     });
@@ -134,8 +133,6 @@ public class SongEmitter {
 
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
-
-            UUID emissionTraceId = UUID.randomUUID();
 
             publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
             return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId(), emissionTraceId);

@@ -21,6 +21,7 @@ import org.jboss.logging.Logger;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
@@ -100,7 +101,8 @@ public class OtsStreamScheduler {
                 return;
             }
             entry.setStatus(TimelineEntryStatus.EMITTING);
-            emitEntry(masterBrandSlug, otsSlugName, scene, entry, zone, capturedStream)
+            UUID emissionTraceId = UUID.randomUUID();
+            emitEntry(masterBrandSlug, otsSlugName, scene, entry, zone, capturedStream, emissionTraceId)
                     .subscribe().with(
                             v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
                             err -> {
@@ -138,19 +140,19 @@ public class OtsStreamScheduler {
                 .put(entry.getSequenceNumber(), timerId);
     }
 
-    private Uni<Void> emitEntry(String masterBrandSlug, String otsSlugName, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream stream) {
+    private Uni<Void> emitEntry(String masterBrandSlug, String otsSlugName, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream stream, UUID emissionTraceId) {
         LOGGER.infof("[OtsScheduler] emitting entry #%d scene '%s' ots '%s' via brand '%s'",
                 entry.getSequenceNumber(), scene.getSceneTitle(), otsSlugName, masterBrandSlug);
 
         return aiAgentService.getById(scene.getAgentId())
                 .chain(agent -> {
                     if (entry.isGenerated()) {
-                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
                     }
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                        return jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
                     }
-                    return songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue());
+                    return songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
                 });
     }
 

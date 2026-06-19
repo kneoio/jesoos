@@ -51,7 +51,8 @@ public class JingleSongEmitter {
                           AiAgent agent,
                           IStream stream,
                           ZoneId brandZone,
-                          int priority) {
+                          int priority,
+                          UUID emissionTraceId) {
         boolean djEnabled = djStateService.isDjEnabled(brandName);
         long sceneDeadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
 
@@ -76,7 +77,7 @@ public class JingleSongEmitter {
 
                     if (djEnabled && entry.isHasIntro()) {
                         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang, entry.getSequenceNumber(), UUID.randomUUID())
+                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
                                 .chain(introResult -> {
                                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                                     songMap.put(SongKey.JINGLE_1, new SongInfoDTO(jingle.getId(), jingleDuration));

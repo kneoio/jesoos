@@ -89,7 +89,8 @@ public class GeneratedContentEmitter {
                           AiAgent agent,
                           IStream stream,
                           ZoneId brandZone,
-                          int priority) {
+                          int priority,
+                          UUID emissionTraceId) {
 
         List<ScenePrompt> contentPrompts = scene.getContentPrompts();
         if (contentPrompts == null || contentPrompts.isEmpty()) {
@@ -179,7 +180,7 @@ public class GeneratedContentEmitter {
                         promptEntry.setPromptId(selectedIntroPrompt.getPromptId());
                         SongEntry introSongEntry = new SongEntry(generated, promptEntry, entry.getSequenceNumber());
 
-                        return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, agent, stream, lang, entry.getSequenceNumber(), UUID.randomUUID())
+                        return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
                                 .chain(introResult -> {
                                     SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
                                     Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
