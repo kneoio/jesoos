@@ -92,18 +92,24 @@ public class PrerecordedFragmentTicker {
     }
 
     private Uni<Void> processFragments(String brandSlug, ILiveStream stream, List<SoundFragment> fragments, ZoneId zone, ZonedDateTime now) {
-        List<SoundFragment> due = fragments.stream()
-                .filter(sf -> isDue(sf, zone, now) && !alreadyFired(brandSlug, sf.getId(), now))
+        record DueFragment(SoundFragment sf, Task matchedTask) {}
+
+        List<DueFragment> due = fragments.stream()
+                .map(sf -> {
+                    Task t = matchedTask(sf, zone, now);
+                    return t != null && !alreadyFired(brandSlug, sf.getId(), now) ? new DueFragment(sf, t) : null;
+                })
+                .filter(d -> d != null)
                 .toList();
 
         if (due.isEmpty()) return Uni.createFrom().voidItem();
 
-        return Uni.join().all(due.stream().map(sf -> fireFragment(brandSlug, stream, sf, zone, now)).toList())
+        return Uni.join().all(due.stream().map(d -> fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask())).toList())
                 .andCollectFailures()
                 .replaceWithVoid();
     }
 
-    private Uni<Void> fireFragment(String brandSlug, ILiveStream stream, SoundFragment fragment, ZoneId zone, ZonedDateTime now) {
+    private Uni<Void> fireFragment(String brandSlug, ILiveStream stream, SoundFragment fragment, ZoneId zone, ZonedDateTime now, Task matchedTask) {
         PromptType promptType = fragment.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT
                 ? PromptType.ADVERTISEMENT_INTRO
                 : PromptType.PODCAST_INTRO;
@@ -113,9 +119,15 @@ public class PrerecordedFragmentTicker {
         filter.setActivated(true);
 
         UUID traceId = UUID.randomUUID();
+        Map<String, Object> startedPayload = new java.util.LinkedHashMap<>();
+        startedPayload.put("sf", fragment.getTitle());
+        startedPayload.put("promptType", promptType.name());
+        if (matchedTask.getTriggerType() == TriggerType.PERIODIC && matchedTask.getPeriodicTrigger() != null) {
+            LocalTime nextAt = now.toLocalTime().withSecond(0).withNano(0).plusMinutes(matchedTask.getPeriodicTrigger().getInterval());
+            startedPayload.put("nextAt", nextAt.format(TIME_FORMAT));
+        }
         metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
-                "prerecorded_flow_started",
-                Map.of("sf", fragment.getTitle(), "promptType", promptType.name()),traceId);
+                "prerecorded_flow_started", startedPayload, traceId);
 
         return promptRepository.getAll(100, 0, SuperUser.build(), filter)
                 .chain(prompts -> {
@@ -155,8 +167,8 @@ public class PrerecordedFragmentTicker {
                 });
     }
 
-    private boolean isDue(SoundFragment fragment, ZoneId zone, ZonedDateTime now) {
-        if (fragment.getScheduler() == null || fragment.getScheduler().getTasks() == null) return false;
+    private Task matchedTask(SoundFragment fragment, ZoneId zone, ZonedDateTime now) {
+        if (fragment.getScheduler() == null || fragment.getScheduler().getTasks() == null) return null;
         LocalTime nowTime = now.toLocalTime().withSecond(0).withNano(0);
         DayOfWeek today = now.getDayOfWeek();
 
@@ -174,7 +186,7 @@ public class PrerecordedFragmentTicker {
                 if (!nowTime.equals(triggerTime)) continue;
                 if (trigger.getWeekdays() != null && !trigger.getWeekdays().isEmpty()
                         && !trigger.getWeekdays().contains(today.name())) continue;
-                return true;
+                return task;
             } else if (task.getTriggerType() == TriggerType.PERIODIC && task.getPeriodicTrigger() != null) {
                 PeriodicTrigger trigger = task.getPeriodicTrigger();
                 if (trigger.getStartTime() == null || trigger.getEndTime() == null || trigger.getInterval() <= 0) continue;
@@ -191,10 +203,10 @@ public class PrerecordedFragmentTicker {
                 if (nowTime.isBefore(startTime) || nowTime.isAfter(endTime)) continue;
                 long minutesSinceStart = ChronoUnit.MINUTES.between(startTime, nowTime);
                 if (minutesSinceStart % trigger.getInterval() != 0) continue;
-                return true;
+                return task;
             }
         }
-        return false;
+        return null;
     }
 
     private boolean alreadyFired(String brandSlug, UUID fragmentId, ZonedDateTime now) {
