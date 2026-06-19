@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service.live.prerecorded;
 
 import com.semantyca.core.model.scheduler.OnceTrigger;
+import com.semantyca.core.model.scheduler.PeriodicTrigger;
 import com.semantyca.core.model.scheduler.Task;
 import com.semantyca.core.model.cnst.TriggerType;
 import com.semantyca.core.model.user.SuperUser;
@@ -35,6 +36,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -172,6 +174,23 @@ public class PrerecordedFragmentTicker {
                 if (!nowTime.equals(triggerTime)) continue;
                 if (trigger.getWeekdays() != null && !trigger.getWeekdays().isEmpty()
                         && !trigger.getWeekdays().contains(today.name())) continue;
+                return true;
+            } else if (task.getTriggerType() == TriggerType.PERIODIC && task.getPeriodicTrigger() != null) {
+                PeriodicTrigger trigger = task.getPeriodicTrigger();
+                if (trigger.getStartTime() == null || trigger.getEndTime() == null || trigger.getInterval() <= 0) continue;
+                LocalTime startTime, endTime;
+                try {
+                    startTime = LocalTime.parse(trigger.getStartTime(), TIME_FORMAT);
+                    endTime = LocalTime.parse(trigger.getEndTime(), TIME_FORMAT);
+                } catch (Exception e) {
+                    LOGGER.warnf("Cannot parse periodic trigger times for fragment '%s'", fragment.getSlugName());
+                    continue;
+                }
+                if (trigger.getWeekdays() != null && !trigger.getWeekdays().isEmpty()
+                        && !trigger.getWeekdays().contains(today.name())) continue;
+                if (nowTime.isBefore(startTime) || nowTime.isAfter(endTime)) continue;
+                long minutesSinceStart = ChronoUnit.MINUTES.between(startTime, nowTime);
+                if (minutesSinceStart % trigger.getInterval() != 0) continue;
                 return true;
             }
         }
