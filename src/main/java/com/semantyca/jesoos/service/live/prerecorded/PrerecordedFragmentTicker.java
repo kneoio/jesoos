@@ -112,7 +112,7 @@ public class PrerecordedFragmentTicker {
 
         UUID traceId = UUID.randomUUID();
         metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
-                "prerecorded_firing",
+                "prerecorded_flow_started",
                 Map.of("sf", fragment.getTitle(), "promptType", promptType.name()),traceId);
 
         return promptRepository.getAll(100, 0, SuperUser.build(), filter)
