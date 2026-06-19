@@ -265,15 +265,6 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .collect().asList();
     }
 
-    public Uni<Void> incrementPlayCount(UUID brandId, UUID soundFragmentId) {
-        String sql = "UPDATE mixpla__brand_sound_fragments " +
-                "SET played_by_brand_count = played_by_brand_count + 1, last_time_played_by_brand = NOW() " +
-                "WHERE brand_id = $1 AND sound_fragment_id = $2";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, soundFragmentId))
-                .replaceWithVoid();
-    }
-
     public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
                 "JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id " +

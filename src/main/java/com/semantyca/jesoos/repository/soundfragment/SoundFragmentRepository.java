@@ -73,7 +73,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return client.preparedQuery(sql)
                     .execute(Tuple.of(filter.getSearchTerm()))
                     .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                    .onItem().transformToUni(row -> from(row))
+                    .onItem().transformToUni(this::from)
                     .concatenate()
                     .collect().asList();
         }
@@ -81,7 +81,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row))
+                .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
     }
@@ -172,11 +172,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findActiveScheduledByBrand(brandId);
-    }
-
-    public Uni<Void> incrementPlayCount(UUID brandId, UUID soundFragmentId) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.incrementPlayCount(brandId, soundFragmentId);
     }
 
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
