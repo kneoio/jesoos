@@ -97,6 +97,7 @@ public class StaggeredSongScheduler {
                     } else {
                         if (strategy == MixingType.SONG_ONLY
                                 || strategy == MixingType.SONG_CROSSFADE_SONG
+                                || strategy == MixingType.SONG_CROSSFADE_SONG_VAR_1
                                 || strategy == MixingType.FILLER_JINGLE) {
                             entry.setMixingStrategy(entry.getSongs().size() >= 2
                                     ? MixingType.SONG_INTRO_SONG

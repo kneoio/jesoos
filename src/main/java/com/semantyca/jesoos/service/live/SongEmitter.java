@@ -57,13 +57,13 @@ public class SongEmitter {
                           int priority) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
-        boolean djEnabled = djStateService.isDjEnabled(brandName);
+        boolean djIsOnline = djStateService.isDjEnabled(brandName);
         long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
 
-        if (djEnabled) {
+        if (djIsOnline) {
             LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
             boolean shouldGenerateIntros = entry.isHasIntro();
             UUID entryTraceId = UUID.randomUUID();
@@ -136,6 +136,7 @@ public class SongEmitter {
             dto.setSongs(songMap);
 
             UUID emissionTraceId = UUID.randomUUID();
+
             publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
             return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId(), emissionTraceId);
         }

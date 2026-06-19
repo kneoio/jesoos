@@ -11,7 +11,7 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
-import com.semantyca.jesoos.service.live.generated.GeneratedAdService;
+import com.semantyca.jesoos.service.live.generated.GeneratedUserAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
@@ -56,7 +56,7 @@ public class GeneratedContentEmitter {
     private static final int DEFAULT_BACKGROUND_DURATION = 180;
 
     private final GeneratedNewsService generatedNewsService;
-    private final GeneratedAdService generatedAdService;
+    private final GeneratedUserAdService generatedUserAdService;
     private final PromptService promptService;
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
@@ -66,7 +66,7 @@ public class GeneratedContentEmitter {
 
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
-                                   GeneratedAdService generatedAdService,
+                                   GeneratedUserAdService generatedUserAdService,
                                    PromptService promptService,
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
@@ -74,7 +74,7 @@ public class GeneratedContentEmitter {
                                    MetricPublisher metricPublisher,
                                    UserAdRepository userAdRepository) {
         this.generatedNewsService = generatedNewsService;
-        this.generatedAdService = generatedAdService;
+        this.generatedUserAdService = generatedUserAdService;
         this.promptService = promptService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
@@ -128,7 +128,7 @@ public class GeneratedContentEmitter {
                 .flatMap(prompt -> {
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
                             && prompt.getTitle().toLowerCase().contains("ad");
-                    AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
+                    AbstractGeneratedContentService service = isAd ? generatedUserAdService : generatedNewsService;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
                             .map(r -> new GeneratedResult(r.fragment(), r.adId(), scene.getMixingType()));
                 });
@@ -209,7 +209,7 @@ public class GeneratedContentEmitter {
                 .flatMap(prompt -> {
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
                             && prompt.getTitle().toLowerCase().contains("ad");
-                    AbstractGeneratedContentService service = isAd ? generatedAdService : generatedNewsService;
+                    AbstractGeneratedContentService service = isAd ? generatedUserAdService : generatedNewsService;
                     return service.generateAudio(promptId, agent, stream, lang, scene)
                             .flatMap(r -> {
                                 SoundFragment generated = r.fragment();

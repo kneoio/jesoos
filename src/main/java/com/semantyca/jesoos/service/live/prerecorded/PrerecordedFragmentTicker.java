@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.live;
+package com.semantyca.jesoos.service.live.prerecorded;
 
 import com.semantyca.core.model.scheduler.OnceTrigger;
 import com.semantyca.core.model.scheduler.Task;
@@ -12,6 +12,8 @@ import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.prompt.PromptRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
+import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -108,13 +110,18 @@ public class PrerecordedFragmentTicker {
         filter.setPromptType(promptType);
         filter.setActivated(true);
 
+        UUID traceId = UUID.randomUUID();
+        metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
+                "prerecorded_firing",
+                Map.of("sf", fragment.getTitle(), "promptType", promptType.name()),traceId);
+
         return promptRepository.getAll(100, 0, SuperUser.build(), filter)
                 .chain(prompts -> {
                     if (prompts.isEmpty()) {
-                        LOGGER.errorf("No %s prompt found, skipping fragment '%s' for brand '%s'", promptType, fragment.getSlugName(), brandSlug);
-                        metricPublisher.publishMetric(brandSlug, MetricEventType.WARNING, ProcessType.CRON,
-                                "scheduled_fragment_skipped_no_prompt",
-                                Map.of("fragmentSlug", fragment.getSlugName(), "promptType", promptType.name()));
+                        LOGGER.errorf("No %s prompt found for prerecorded, for brand '%s'", promptType, brandSlug);
+                        metricPublisher.publishMetric(brandSlug, MetricEventType.WARNING, ProcessType.FLOW,
+                                "prerecorded_fragment_skipped_no_prompt",
+                                Map.of("fragmentSlug", fragment.getSlugName(), "promptType", promptType.name()), traceId);
                         return Uni.createFrom().voidItem();
                     }
                     DjPrompt prompt = prompts.get(random.nextInt(prompts.size()));
@@ -126,17 +133,20 @@ public class PrerecordedFragmentTicker {
 
                     LocalDateTime emissionTime = now.toLocalDateTime();
                     TimelineEntry entry = new TimelineEntry(0, emissionTime, List.of(songEntry), MixingType.INTRO_SONG, true, false);
-
                     LiveScene scene = new LiveScene();
                     scene.setSceneId(UUID.randomUUID());
-                    scene.setSceneTitle("scheduled-" + fragment.getType().name().toLowerCase());
+                    scene.setSceneTitle("prerecorded-scheduled-" + fragment.getType().name().toLowerCase());
                     scene.setTimeZone(zone);
                     scene.setAgentId(stream.getAiAgentId());
-                    scene.setTraceId(UUID.randomUUID());
+                    scene.setTraceId(traceId);
                     scene.setTimeline(List.of(entry));
+                    scene.setMixingType(MixingType.INTRO_SONG);
 
-                    LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' with prompt '%s'",
+                    LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' with intro prompt '%s'",
                             fragment.getType(), fragment.getSlugName(), brandSlug, prompt.getTitle());
+                    metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
+                            "prerecorded_firing",
+                            Map.of("scene", scene.getSceneTitle(), "promptType", promptType.name()),traceId);
 
                     return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue())
                             .invoke(() -> markFired(brandSlug, fragment.getId(), now));

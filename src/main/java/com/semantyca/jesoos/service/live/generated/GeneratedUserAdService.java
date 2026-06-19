@@ -21,10 +21,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class GeneratedAdService extends AbstractGeneratedContentService {
+public class GeneratedUserAdService extends AbstractGeneratedContentService {
 
     @Inject
-    public GeneratedAdService(
+    public GeneratedUserAdService(
             PromptService promptService,
             SoundFragmentService soundFragmentService,
             SoundFragmentRepository soundFragmentRepository,
@@ -57,7 +57,7 @@ public class GeneratedAdService extends AbstractGeneratedContentService {
                 userAdRepository);
     }
 
-    GeneratedAdService() {
+    GeneratedUserAdService() {
         super(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
