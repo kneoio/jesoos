@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.PromptDTO;
@@ -37,8 +38,23 @@ public class PromptService extends AbstractService<DjPrompt, PromptDTO> {
         return repository.findById(id, user);
     }
 
-   public Uni<DjPrompt> findByLanguage(UUID masterId, LanguageTag languageCode) {
+    public Uni<DjPrompt> findByLanguage(UUID masterId, LanguageTag languageCode) {
         return repository.findByMasterAndLanguage(masterId, languageCode);
+    }
+
+    public record ResolvedPrompt(DjPrompt prompt, boolean fallBacked) {}
+
+    public Uni<ResolvedPrompt> resolveForLanguage(UUID masterId, LanguageTag language) {
+        return getById(masterId, SuperUser.build())
+                .flatMap(masterPrompt -> {
+                    if (masterPrompt.getLanguageTag() == language) {
+                        return Uni.createFrom().item(new ResolvedPrompt(masterPrompt, false));
+                    }
+                    return findByLanguage(masterId, language)
+                            .map(p -> p != null
+                                    ? new ResolvedPrompt(p, false)
+                                    : new ResolvedPrompt(masterPrompt, true));
+                });
     }
 
 }

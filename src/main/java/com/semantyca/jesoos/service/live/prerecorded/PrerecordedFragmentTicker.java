@@ -117,7 +117,7 @@ public class PrerecordedFragmentTicker {
 
         PromptFilter filter = new PromptFilter();
         filter.setPromptType(promptType);
-        filter.setActivated(true);
+        filter.setMaster(true);
 
         UUID traceId = UUID.randomUUID();
         Map<String, Object> startedPayload = new LinkedHashMap<>();

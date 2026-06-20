@@ -45,7 +45,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class AbstractGeneratedContentService implements IGeneratedContent {
     private static final Logger LOGGER = Logger.getLogger(AbstractGeneratedContentService.class);
@@ -126,26 +125,14 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
-        AtomicBoolean fallBacked = new AtomicBoolean(false);
         UUID brandId = stream.getMasterBrandId();
         String sceneTitle = liveScene.getSceneTitle();
         UUID traceId = liveScene.getTraceId();
         OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime endOfDay = startOfDay.plusDays(1);
 
-        return promptService.getById(promptId, SuperUser.build())
-                .flatMap(masterPrompt -> {
-                    if (masterPrompt.getLanguageTag() == airLanguage) {
-                        return Uni.createFrom().item(masterPrompt);
-                    }
-                    return promptService.findByLanguage(promptId, airLanguage)
-                            .map(p -> {
-                                if (p != null) return p;
-                                fallBacked.set(true);
-                                return masterPrompt;
-                            });
-                })
-                .chain(prompt -> generateDraft(prompt, agent, stream, airLanguage)
+        return promptService.resolveForLanguage(promptId, airLanguage)
+                .chain(resolved -> generateDraft(resolved.prompt(), agent, stream, airLanguage)
                         .chain(draftResult -> {
                             String artistKey = buildArtistKey(stream.getSlugName(), promptId, draftResult);
 
@@ -160,7 +147,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                                     new RuntimeException("Text generation failed for scene: " + sceneTitle));
                                         } else {
                                             fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName(), 0)
-                                                    .chain(filePath -> saveSoundFragment(filePath, prompt, brandId, artistKey));
+                                                    .chain(filePath -> saveSoundFragment(filePath, resolved.prompt(), brandId, artistKey));
                                         }
                                         return fragmentUni.map(fragment -> new GenerationResult(fragment, draftResult.selectedAdId()));
                                     });

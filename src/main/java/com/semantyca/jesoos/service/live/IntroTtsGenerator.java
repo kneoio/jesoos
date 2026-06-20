@@ -149,24 +149,12 @@ public class IntroTtsGenerator {
         UUID selectedPromptId = songEntry.getPromptEntry().getPromptId();
         AtomicBoolean fallBacked = new AtomicBoolean(false);
 
-        return promptService.getById(selectedPromptId, SuperUser.build())
-                .flatMap(masterPrompt -> {
-                    if (masterPrompt.getLanguageTag() == language) { //if it is ENG
-                        return Uni.createFrom().item(masterPrompt);
-                    }
-                    return promptService
-                            .findByLanguage(selectedPromptId, language)
-                            .map(p -> {
-                                if (p != null) {
-                                    return p;
-                                } else {
-                                    fallBacked.set(true);
-                                    return masterPrompt;
-                                }
-                            });
+        return promptService.resolveForLanguage(selectedPromptId, language)
+                .chain(resolved -> {
+                    fallBacked.set(resolved.fallBacked());
+                    return generateDraftText(resolved.prompt(), songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
+                            .map(draftContent -> new PromptAndDraft(resolved.prompt(), draftContent));
                 })
-                .chain(prompt -> generateDraftText(prompt, songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
-                        .map(draftContent -> new PromptAndDraft(prompt, draftContent)))
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, language, entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
