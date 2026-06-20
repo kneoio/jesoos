@@ -123,7 +123,7 @@ public class PrerecordedFragmentTicker {
             Collections.shuffle(adPool, random);
             int pickCount = random.nextInt(3) + 1;
             List<SoundFragment> picked = adPool.subList(0, Math.min(pickCount, adPool.size()));
-            Task triggerTask = adsDue.get(0).matchedTask();
+            Task triggerTask = adsDue.getFirst().matchedTask();
             for (SoundFragment ad : picked) {
                 emissions.add(fireFragment(brandSlug, stream, ad, zone, now, triggerTask));
             }
