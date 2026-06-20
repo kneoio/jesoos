@@ -115,7 +115,6 @@ public class PrerecordedFragmentTicker {
 
         List<Uni<Void>> emissions = new ArrayList<>();
 
-        // For ad blocks: pick 1–3 randomly from the full ad pool
         if (!adsDue.isEmpty()) {
             List<SoundFragment> adPool = fragments.stream()
                     .filter(sf -> sf.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT)
@@ -124,14 +123,14 @@ public class PrerecordedFragmentTicker {
             int pickCount = random.nextInt(3) + 1;
             List<SoundFragment> picked = adPool.subList(0, Math.min(pickCount, adPool.size()));
             Task triggerTask = adsDue.getFirst().matchedTask();
-            for (SoundFragment ad : picked) {
-                emissions.add(fireFragment(brandSlug, stream, ad, zone, now, triggerTask));
+            for (int i = 0; i < picked.size(); i++) {
+                emissions.add(fireFragment(brandSlug, stream, picked.get(i), zone, now, triggerTask, i == 0));
             }
         }
 
         // Non-ad fragments fire normally
         for (DueFragment d : othersDue) {
-            emissions.add(fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask()));
+            emissions.add(fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask(), true));
         }
 
         return Uni.join().all(emissions)
@@ -139,25 +138,30 @@ public class PrerecordedFragmentTicker {
                 .replaceWithVoid();
     }
 
-    private Uni<Void> fireFragment(String brandSlug, ILiveStream stream, SoundFragment fragment, ZoneId zone, ZonedDateTime now, Task matchedTask) {
-        PromptType promptType = fragment.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT
-                ? PromptType.ADVERTISEMENT_INTRO
-                : PromptType.PODCAST_INTRO;
-
-        PromptFilter filter = new PromptFilter();
-        filter.setPromptType(promptType);
-        filter.setMaster(true);
-
+    private Uni<Void> fireFragment(String brandSlug, ILiveStream stream, SoundFragment fragment, ZoneId zone, ZonedDateTime now, Task matchedTask, boolean withIntro) {
         UUID traceId = UUID.randomUUID();
         Map<String, Object> startedPayload = new LinkedHashMap<>();
         startedPayload.put("sf", fragment.getTitle());
-        startedPayload.put("promptType", promptType.name());
         if (matchedTask.getTriggerType() == TriggerType.PERIODIC && matchedTask.getPeriodicTrigger() != null) {
             LocalTime nextAt = now.toLocalTime().withSecond(0).withNano(0).plusMinutes(matchedTask.getPeriodicTrigger().getInterval());
             startedPayload.put("nextAt", nextAt.format(TIME_FORMAT));
         }
         metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
                 "prerecorded_flow_started", startedPayload, traceId);
+
+        if (!withIntro) {
+            return emitFragment(brandSlug, stream, fragment, zone, now, traceId, null, MixingType.SONG_ONLY);
+        }
+
+        PromptType promptType = fragment.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT
+                ? PromptType.ADVERTISEMENT_INTRO
+                : PromptType.PODCAST_INTRO;
+
+        startedPayload.put("promptType", promptType.name());
+
+        PromptFilter filter = new PromptFilter();
+        filter.setPromptType(promptType);
+        filter.setMaster(true);
 
         return promptRepository.getAll(100, 0, SuperUser.build(), filter)
                 .chain(prompts -> {
@@ -169,37 +173,44 @@ public class PrerecordedFragmentTicker {
                         return Uni.createFrom().voidItem();
                     }
                     DjPrompt prompt = prompts.get(random.nextInt(prompts.size()));
-
-                    PromptEntry promptEntry = new PromptEntry();
-                    promptEntry.setPromptId(prompt.getId());
-
-                    SongEntry songEntry = new SongEntry(fragment, promptEntry, 0);
-
-                    LocalDateTime emissionTime = now.toLocalDateTime();
-                    TimelineEntry entry = new TimelineEntry(0, emissionTime, List.of(songEntry), MixingType.INTRO_SONG, true, false);
-                    LiveScene scene = new LiveScene();
-                    scene.setSceneId(UUID.randomUUID());
-                    scene.setSceneTitle("prerecorded-scheduled-" + fragment.getType().name().toLowerCase());
-                    scene.setTimeZone(zone);
-                    scene.setAgentId(stream.getAiAgentId());
-                    scene.setTraceId(traceId);
-                    scene.setTimeline(List.of(entry));
-                    scene.setMixingType(MixingType.INTRO_SONG);
-
-                    LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' with intro prompt '%s'",
-                            fragment.getType(), fragment.getSlugName(), brandSlug, prompt.getTitle());
                     metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW,
                             "prerecorded_firing",
-                            Map.of("scene", scene.getSceneTitle(), "promptType", promptType.name()),traceId);
-
-                    return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), traceId)
-                            .invoke(() -> markFired(brandSlug, fragment.getId(), now))
-                            .call(() -> aiAgentService.getById(stream.getAiAgentId()).chain(agent -> {
-                                int duration = fragment.getLength() != null ? (int) fragment.getLength().toSeconds() : 0;
-                                return soundFragmentRepository.addPlayHistoryEntry(fragment.getId(),
-                                        new PlayHistory(OffsetDateTime.now(), duration, null, agent.getName()));
-                            }));
+                            Map.of("scene", "prerecorded-scheduled-" + fragment.getType().name().toLowerCase(), "promptType", promptType.name()), traceId);
+                    return emitFragment(brandSlug, stream, fragment, zone, now, traceId, prompt, MixingType.INTRO_SONG);
                 });
+    }
+
+    private Uni<Void> emitFragment(String brandSlug, ILiveStream stream, SoundFragment fragment, ZoneId zone, ZonedDateTime now, UUID traceId, DjPrompt prompt, MixingType mixingType) {
+        PromptEntry promptEntry = new PromptEntry();
+        if (prompt != null) promptEntry.setPromptId(prompt.getId());
+
+        SongEntry songEntry = new SongEntry(fragment, promptEntry, 0);
+        LocalDateTime emissionTime = now.toLocalDateTime();
+        TimelineEntry entry = new TimelineEntry(0, emissionTime, List.of(songEntry), mixingType, mixingType == MixingType.INTRO_SONG, false);
+        LiveScene scene = new LiveScene();
+        scene.setSceneId(UUID.randomUUID());
+        scene.setSceneTitle("prerecorded-scheduled-" + fragment.getType().name().toLowerCase());
+        scene.setTimeZone(zone);
+        scene.setAgentId(stream.getAiAgentId());
+        scene.setTraceId(traceId);
+        scene.setTimeline(List.of(entry));
+        scene.setMixingType(mixingType);
+
+        if (prompt != null) {
+            LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' with intro prompt '%s'",
+                    fragment.getType(), fragment.getSlugName(), brandSlug, prompt.getTitle());
+        } else {
+            LOGGER.infof("Firing scheduled %s fragment '%s' for brand '%s' (no intro)",
+                    fragment.getType(), fragment.getSlugName(), brandSlug);
+        }
+
+        return staggeredSongScheduler.emitTimelineEntry(brandSlug, scene, entry, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), traceId)
+                .invoke(() -> markFired(brandSlug, fragment.getId(), now))
+                .call(() -> aiAgentService.getById(stream.getAiAgentId()).chain(agent -> {
+                    int duration = fragment.getLength() != null ? (int) fragment.getLength().toSeconds() : 0;
+                    return soundFragmentRepository.addPlayHistoryEntry(fragment.getId(),
+                            new PlayHistory(OffsetDateTime.now(), duration, null, agent.getName()));
+                }));
     }
 
     private Task matchedTask(SoundFragment fragment, ZoneId zone, ZonedDateTime now) {
