@@ -187,7 +187,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY COALESCE(t.boost, 0) DESC, ")
+        sql.append("AND COALESCE(bsf.boost, 0) > -1 ");
+        sql.append(" ORDER BY COALESCE(bsf.boost, 0) DESC, ")
                 .append("COALESCE(bsf.played_by_brand_count, 0) ASC, ")
                 .append("t.id ASC ");
 
@@ -218,7 +219,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY COALESCE(t.boost, 0) DESC, ")
+        sql.append("AND COALESCE(bsf.boost, 0) > -1 ");
+        sql.append(" ORDER BY COALESCE(bsf.boost, 0) DESC, ")
                 .append("COALESCE(bsf.played_by_brand_count, 0) DESC, ")
                 .append("t.id ASC ");
 
@@ -249,7 +251,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY RANDOM() ");
+        sql.append(" ORDER BY RANDOM() * CASE COALESCE(bsf.boost, 0) ")
+                .append("WHEN 2 THEN 4.0 WHEN 1 THEN 2.0 WHEN -1 THEN 0.05 ELSE 1.0 END DESC ");
 
         if (limit > 0) {
             sql.append("LIMIT ").append(limit);

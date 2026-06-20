@@ -225,7 +225,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 + "LEFT JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id "
                 + "AND bsf.brand_id = '" + brandId + "' "
                 + "WHERE t.id IN (" + placeholders + ") AND t.archived = 0 "
-                + "ORDER BY COALESCE(t.boost, 0) DESC, "
+                + "ORDER BY COALESCE(bsf.boost, 0) DESC, "
                 + "COALESCE(bsf.played_by_brand_count, 0) ASC, "
                 + "t.id ASC";
         return client.query(sql)
