@@ -77,7 +77,7 @@ public class DailyAgendaRebuildService {
                 );
     }
 
-    private Uni<Integer> rebuildBrandAgenda(String brandSlug, ILiveStream existingStream) {
+    public Uni<Integer> rebuildBrandAgenda(String brandSlug, ILiveStream existingStream) {
         return brandService.getBySlugName(brandSlug)
                 .onItem().transformToUni(brand -> {
                     if (brand == null) {

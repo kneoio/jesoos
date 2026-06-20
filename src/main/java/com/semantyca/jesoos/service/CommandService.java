@@ -12,6 +12,7 @@ import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
+import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
 import com.semantyca.jesoos.repository.SoundFragmentRatingLogRepository;
 import com.semantyca.mixpla.dto.queue.command.CommandDTO;
 import com.semantyca.mixpla.dto.queue.command.CommandType;
@@ -38,6 +39,7 @@ public class CommandService {
     private final BrandService brandService;
     private final ChatAuthService chatAuthService;
     private final SoundFragmentRatingLogRepository ratingLogRepository;
+    private final DailyAgendaRebuildService dailyAgendaRebuildService;
 
     @Inject
     public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
@@ -47,7 +49,8 @@ public class CommandService {
                           MetricPublisher metricPublisher,
                           BrandService brandService,
                           ChatAuthService chatAuthService,
-                          SoundFragmentRatingLogRepository ratingLogRepository) {
+                          SoundFragmentRatingLogRepository ratingLogRepository,
+                          DailyAgendaRebuildService dailyAgendaRebuildService) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
@@ -57,17 +60,44 @@ public class CommandService {
         this.brandService = brandService;
         this.chatAuthService = chatAuthService;
         this.ratingLogRepository = ratingLogRepository;
+        this.dailyAgendaRebuildService = dailyAgendaRebuildService;
     }
 
     public Uni<Void> handleQueueCommand(CommandDTO dto) {
-        if (dto.type() == CommandType.FLOW_RESTART && "brand_saved".equals(dto.command())) {
-            return handleBrandSaved(dto);
+        return switch (dto.type()) {
+            case FLOW_RESTART -> handleBrandSaved(dto);
+            case SONG_RATED -> handleSongRated(dto);
+            case REBUILD_AGENDA -> handleRebuildAgenda(dto);
+            default -> {
+                LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
+                yield Uni.createFrom().voidItem();
+            }
+        };
+    }
+
+    private Uni<Void> handleRebuildAgenda(CommandDTO dto) {
+        Map<String, Object> p = dto.payload();
+        if (p == null || p.get("brandId") == null) {
+            LOGGER.warn("rebuild_agenda command missing brandId in payload");
+            return Uni.createFrom().voidItem();
         }
-        if (dto.type() == CommandType.SONG_RATED && "song_rated".equals(dto.command())) {
-            return handleSongRated(dto);
-        }
-        LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
-        return Uni.createFrom().voidItem();
+        UUID brandId = UUID.fromString(p.get("brandId").toString());
+        return brandService.getById(brandId)
+                .chain(brand -> {
+                    if (brand == null) {
+                        LOGGER.warnf("Brand %s not found, skipping agenda rebuild", brandId);
+                        return Uni.createFrom().voidItem();
+                    }
+                    return brandPool.get(brand.getSlugName())
+                            .chain(stream -> {
+                                if (stream == null) {
+                                    LOGGER.infof("Brand %s not active, skipping agenda rebuild", brand.getSlugName());
+                                    return Uni.createFrom().voidItem();
+                                }
+                                return dailyAgendaRebuildService.rebuildBrandAgenda(brand.getSlugName(), stream)
+                                        .replaceWithVoid();
+                            });
+                });
     }
 
     private Uni<Void> handleSongRated(CommandDTO dto) {
