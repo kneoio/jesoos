@@ -105,7 +105,36 @@ public class PrerecordedFragmentTicker {
 
         if (due.isEmpty()) return Uni.createFrom().voidItem();
 
-        return Uni.join().all(due.stream().map(d -> fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask())).toList())
+        // Separate ads from non-ads
+        List<DueFragment> adsDue = due.stream()
+                .filter(d -> d.sf().getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT)
+                .toList();
+        List<DueFragment> othersDue = due.stream()
+                .filter(d -> d.sf().getType() != PlaylistItemType.PRERECORDED_ADVERTISEMENT)
+                .toList();
+
+        List<Uni<Void>> emissions = new ArrayList<>();
+
+        // For ad blocks: pick 1–3 randomly from the full ad pool
+        if (!adsDue.isEmpty()) {
+            List<SoundFragment> adPool = fragments.stream()
+                    .filter(sf -> sf.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT)
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            Collections.shuffle(adPool, random);
+            int pickCount = random.nextInt(3) + 1;
+            List<SoundFragment> picked = adPool.subList(0, Math.min(pickCount, adPool.size()));
+            Task triggerTask = adsDue.getFirst().matchedTask();
+            for (SoundFragment ad : picked) {
+                emissions.add(fireFragment(brandSlug, stream, ad, zone, now, triggerTask));
+            }
+        }
+
+        // Non-ad fragments fire normally
+        for (DueFragment d : othersDue) {
+            emissions.add(fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask()));
+        }
+
+        return Uni.join().all(emissions)
                 .andCollectFailures()
                 .replaceWithVoid();
     }
