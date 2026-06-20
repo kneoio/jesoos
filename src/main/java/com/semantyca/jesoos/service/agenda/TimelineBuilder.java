@@ -43,9 +43,16 @@ public class TimelineBuilder {
             return timeline;
         }
 
-        // Agenda is rebuilt at the 00:00 day boundary, so every scene start time belongs to today.
         LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
         LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
+        // If the scene's start lands more than 12 h in the future the station started after midnight
+        // and this is the previous night's overnight scene — shift it back one day so past entries
+        // fire immediately instead of waiting ~24 h.
+        LocalDateTime nowDateTime = LocalDateTime.now(scene.getTimeZone());
+        if (currentTime.isAfter(nowDateTime.plusHours(12))) {
+            sceneDate = sceneDate.minusDays(1);
+            currentTime = sceneDate.atTime(scene.getOriginalStartTime());
+        }
         boolean hasActivePrompts = introPrompts != null && !introPrompts.isEmpty()
                 && introPrompts.stream().anyMatch(ScenePrompt::isActive);
         boolean hasActiveActions = actions != null && !actions.isEmpty();
