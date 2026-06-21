@@ -72,6 +72,7 @@ public class StaggeredSongScheduler {
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
         LocalDateTime now = LocalDateTime.now(scene.getTimeZone());
         List<String> scheduledTimes = new ArrayList<>();
+        int consecutiveBoostIntroCount = 0;
 
         for (TimelineEntry entry : scene.getTimeline()) {
             if (entry.getStatus() == TimelineEntryStatus.SCHEDULED) {
@@ -91,9 +92,10 @@ public class StaggeredSongScheduler {
                     continue;
                 }
             }
+            consecutiveBoostIntroCount = entry.isHasIntro() ? consecutiveBoostIntroCount + 1 : 0;
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
-            if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
+            if (!entry.isHasIntro() && consecutiveBoostIntroCount < 2 && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
                 BoostType boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
