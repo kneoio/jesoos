@@ -1,5 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
+import com.semantyca.jesoos.model.cnst.BoostType;
 import com.semantyca.mixpla.model.cnst.MergingTypeMeta;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import lombok.Getter;
@@ -31,6 +32,10 @@ public class TimelineEntry {
     private boolean hasJingle;
     @Setter
     private boolean generated;
+    @Setter
+    private boolean boosted;
+    @Setter
+    private BoostType boostType;
     @Setter
     private int estimatedDurationSeconds;
 
