@@ -92,7 +92,6 @@ public class StaggeredSongScheduler {
                     continue;
                 }
             }
-            consecutiveBoostIntroCount = entry.isHasIntro() ? consecutiveBoostIntroCount + 1 : 0;
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && consecutiveBoostIntroCount < 2 && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
@@ -132,6 +131,7 @@ public class StaggeredSongScheduler {
                     );
                 }
             }
+            consecutiveBoostIntroCount = entry.isHasIntro() ? consecutiveBoostIntroCount + 1 : 0;
             if (scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone())) {
                 scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime() + "[" + entry.getStatus() + "]");
             }
