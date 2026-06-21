@@ -162,7 +162,7 @@ public class AgendaViewService {
                 .hasIntro(entry.isHasIntro())
                 .hasJingle(entry.isHasJingle())
                 .generated(entry.isGenerated())
-                .boostType(entry.getBoostType() != null ? entry.getBoostType().name() : null)
+                .boost(entry.getBoostType() != null ? entry.getBoostType().name() : null)
                 .status(entry.getStatus().name())
                 .statusHistory(historyDTOs)
                 .build();
