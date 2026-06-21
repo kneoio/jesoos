@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.live;
 
-import com.semantyca.jesoos.model.cnst.BoostType;
+import com.semantyca.mixpla.model.cnst.Boost;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,12 +27,12 @@ public class DjStateService {
         return djEnabledMap.getOrDefault(brandName, false);
     }
 
-    public void activateBoost(String brandName, int entries, BoostType type) {
+    public void activateBoost(String brandName, int entries, Boost type) {
         djBoostMap.put(brandName, new BoostState(new AtomicInteger(entries), type));
         LOGGER.infof("DJ boost activated for brand: %s (%d entries, type=%s)", brandName, entries, type);
     }
 
-    public BoostType consumeBoostEntry(String brandName) {
+    public Boost consumeBoostEntry(String brandName) {
         BoostState state = djBoostMap.get(brandName);
         if (state == null) return null;
         int val = state.remaining().decrementAndGet();

@@ -2,7 +2,7 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.jesoos.model.cnst.BoostType;
+import com.semantyca.mixpla.model.cnst.Boost;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
@@ -95,12 +95,12 @@ public class StaggeredSongScheduler {
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && consecutiveBoostIntroCount < 2 && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
-                BoostType boostType = djStateService.consumeBoostEntry(brandName);
+                Boost boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
-                    entry.setBoostType(boostType);
+                    entry.setBoost(boostType);
                     MixingType strategy = entry.getMixingStrategy();
-                    if (boostType == BoostType.JINGLE_INTRO) {
+                    if (boostType == Boost.SUPER_BOOST) {
                         entry.setHasJingle(true);
                         if (strategy != MixingType.JINGLE_INTRO_SONG) {
                             entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);
@@ -205,12 +205,12 @@ public class StaggeredSongScheduler {
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
-                BoostType boostType = djStateService.consumeBoostEntry(brandName);
+                Boost boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
-                    entry.setBoostType(boostType);
+                    entry.setBoost(boostType);
                     MixingType strategy = entry.getMixingStrategy();
-                    if (boostType == BoostType.JINGLE_INTRO) {
+                    if (boostType == Boost.SUPER_BOOST) {
                         entry.setHasJingle(true);
                         if (strategy != MixingType.JINGLE_INTRO_SONG) {
                             entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);

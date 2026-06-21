@@ -1,7 +1,7 @@
 package com.semantyca.jesoos.service;
 
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.jesoos.model.cnst.BoostType;
+import com.semantyca.mixpla.model.cnst.Boost;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
@@ -211,7 +211,7 @@ public class CommandService {
 
     public Uni<JsonObject> startBrand(String brand) {
         return brandPool.getRadioStream(brand)
-                .invoke(stream -> djStateService.activateBoost(brand, 3, BoostType.JINGLE_INTRO))
+                .invoke(stream -> djStateService.activateBoost(brand, 3, Boost.SUPER_BOOST))
                 .map(this::toResponse)
                 .invoke(response -> LOGGER.infof("Start brand %s", brand));
     }
@@ -223,7 +223,7 @@ public class CommandService {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand is not on-line"));
                     } else {
                         djStateService.enableDj(brand);
-                        djStateService.activateBoost(brand, 3, BoostType.INTRO);
+                        djStateService.activateBoost(brand, 3, Boost.BOOST);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         return Uni.createFrom().item(new JsonObject()
                                 .put("success", true)
