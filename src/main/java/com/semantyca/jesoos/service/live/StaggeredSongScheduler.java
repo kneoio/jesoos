@@ -83,6 +83,14 @@ public class StaggeredSongScheduler {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) {
                 continue;
             }
+            if (entry.getScheduledEmissionTime().isBefore(now)) {
+                LocalDateTime entryEnd = entry.getScheduledEmissionTime()
+                        .plusSeconds(entry.getEstimatedDurationSeconds());
+                if (entryEnd.isBefore(now)) {
+                    entry.setStatus(TimelineEntryStatus.SKIPPED);
+                    continue;
+                }
+            }
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
@@ -120,14 +128,6 @@ public class StaggeredSongScheduler {
                             ),
                             scene.getTraceId()
                     );
-                }
-            }
-            if (entry.getScheduledEmissionTime().isBefore(now)) {
-                LocalDateTime entryEnd = entry.getScheduledEmissionTime()
-                        .plusSeconds(entry.getEstimatedDurationSeconds());
-                if (entryEnd.isBefore(now)) {
-                    entry.setStatus(TimelineEntryStatus.SKIPPED);
-                    continue;
                 }
             }
             if (scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone())) {
