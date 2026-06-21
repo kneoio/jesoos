@@ -40,7 +40,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -115,17 +121,8 @@ public class PrerecordedFragmentTicker {
 
         List<Uni<Void>> emissions = new ArrayList<>();
 
-        if (!adsDue.isEmpty()) {
-            List<SoundFragment> adPool = fragments.stream()
-                    .filter(sf -> sf.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT)
-                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-            Collections.shuffle(adPool, random);
-            int pickCount = random.nextInt(3) + 1;
-            List<SoundFragment> picked = adPool.subList(0, Math.min(pickCount, adPool.size()));
-            Task triggerTask = adsDue.getFirst().matchedTask();
-            for (int i = 0; i < picked.size(); i++) {
-                emissions.add(fireFragment(brandSlug, stream, picked.get(i), zone, now, triggerTask, i == 0));
-            }
+        for (int i = 0; i < adsDue.size(); i++) {
+            emissions.add(fireFragment(brandSlug, stream, adsDue.get(i).sf(), zone, now, adsDue.get(i).matchedTask(), i == 0));
         }
 
         // Non-ad fragments fire normally
