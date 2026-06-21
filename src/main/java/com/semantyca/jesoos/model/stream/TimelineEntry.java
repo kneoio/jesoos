@@ -33,7 +33,7 @@ public class TimelineEntry {
     @Setter
     private boolean generated;
     @Setter
-    private BoostType boostType;
+    private BoostType boostType = BoostType.NONE;
     @Setter
     private int estimatedDurationSeconds;
 
