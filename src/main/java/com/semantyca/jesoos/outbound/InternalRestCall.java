@@ -3,7 +3,6 @@ package com.semantyca.jesoos.outbound;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;

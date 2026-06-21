@@ -120,7 +120,7 @@ public class StaggeredSongScheduler {
                             boostType, entry.getSequenceNumber(), brandName, entry.getMixingStrategy());
                     metricPublisher.publishMetric(
                             brandName,
-                            MetricEventType.INFORMATION,
+                            MetricEventType.WARNING,
                             ProcessType.FLOW,
                             "dj_boost_applied",
                             Map.of(
@@ -225,7 +225,7 @@ public class StaggeredSongScheduler {
                     }
                     assignBoostPrompt(entry, scene);
                     metricPublisher.publishMetric(
-                            brandName, MetricEventType.INFORMATION, ProcessType.FLOW,
+                            brandName, MetricEventType.WARNING, ProcessType.FLOW,
                             "dj_boost_applied",
                             Map.of("boostType", boostType.name(), "entry", entry.getSequenceNumber(),
                                     "strategy", entry.getMixingStrategy().name()),

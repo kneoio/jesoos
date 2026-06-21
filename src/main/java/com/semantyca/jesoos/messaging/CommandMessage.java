@@ -1,8 +1,13 @@
 package com.semantyca.jesoos.messaging;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.Map;
 import java.util.UUID;
 
+@Setter
+@Getter
 public class CommandMessage {
 
     private String type;
@@ -25,21 +30,4 @@ public class CommandMessage {
         return msg;
     }
 
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
-
-    public String getTarget() { return target; }
-    public void setTarget(String target) { this.target = target; }
-
-    public UUID getCorrelationId() { return correlationId; }
-    public void setCorrelationId(UUID correlationId) { this.correlationId = correlationId; }
-
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-
-    public Map<String, Object> getPayload() { return payload; }
-    public void setPayload(Map<String, Object> payload) { this.payload = payload; }
 }
