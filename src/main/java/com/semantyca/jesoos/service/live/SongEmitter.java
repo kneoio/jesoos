@@ -11,6 +11,8 @@ import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.mixpla.model.stream.IStream;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -98,9 +100,7 @@ public class SongEmitter {
                             }
 
                             var sf = entry.getSongs().get(i).getSoundFragment();
-                            SongInfoDTO info = new SongInfoDTO(sf.getId(), entry.getSongs().get(i).getDurationSeconds());
-                            info.setSourceType(sf.getSource());
-                            info.setStreamUrl(sf.getStreamUrl());
+                            SongInfoDTO info = buildSongInfo(sf, entry.getSongs().get(i).getDurationSeconds());
                             songMap.put(getSongKeyByIndex(i), info);
                         }
 
@@ -125,10 +125,7 @@ public class SongEmitter {
 
             for (int i = 0; i < entry.getSongs().size(); i++) {
                 var sf = entry.getSongs().get(i).getSoundFragment();
-                SongInfoDTO info = new SongInfoDTO(sf.getId(), entry.getSongs().get(i).getDurationSeconds());
-                info.setSourceType(sf.getSource());
-                info.setStreamUrl(sf.getStreamUrl());
-                songMap.put(getSongKeyByIndex(i), info);
+                songMap.put(getSongKeyByIndex(i), buildSongInfo(sf, entry.getSongs().get(i).getDurationSeconds()));
             }
 
             dto.setFilePaths(introMap);
@@ -191,9 +188,8 @@ public class SongEmitter {
             introMap.put(IntroKey.INTRO_1, introDto);
 
             Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
-            songMap.put(SongKey.SONG_1, new SongInfoDTO(
-                    entry.getSongs().getFirst().getSoundFragment().getId(),
-                    entry.getSongs().getFirst().getDurationSeconds()));
+            var sfFirst = entry.getSongs().getFirst().getSoundFragment();
+            songMap.put(SongKey.SONG_1, buildSongInfo(sfFirst, entry.getSongs().getFirst().getDurationSeconds()));
 
             message.setFilePaths(introMap);
             message.setSongs(songMap);
@@ -231,5 +227,16 @@ public class SongEmitter {
             };
         }
         return availableTypes;
+    }
+
+    private SongInfoDTO buildSongInfo(SoundFragment sf, int durationSeconds) {
+        SongInfoDTO info = new SongInfoDTO(sf.getId(), durationSeconds);
+        info.setSourceType(sf.getSource());
+        info.setStreamUrl(sf.getStreamUrl());
+        if (sf.getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT) {
+            info.setOverrideTitle("Advertisement");
+            info.setOverrideArtist("");
+        }
+        return info;
     }
 }
