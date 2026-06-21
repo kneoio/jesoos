@@ -69,7 +69,13 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
             sql.append("AND sf.id NOT IN (").append(ids).append(") ");
         }
 
-        sql.append("ORDER BY ").append(orderBy).append(" LIMIT ").append(limit);
+        if ("RANDOM()".equals(orderBy)) {
+            sql.append("ORDER BY RANDOM() * CASE COALESCE(ssf.boost, 0) ")
+                    .append("WHEN 2 THEN 4.0 WHEN 1 THEN 2.0 WHEN -1 THEN 0.05 ELSE 1.0 END DESC ");
+        } else {
+            sql.append("ORDER BY COALESCE(ssf.boost, 0) DESC, ").append(orderBy).append(" ");
+        }
+        sql.append("LIMIT ").append(limit);
         return sql.toString();
     }
 }
