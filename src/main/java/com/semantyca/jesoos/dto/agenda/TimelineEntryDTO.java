@@ -23,7 +23,6 @@ public class TimelineEntryDTO {
     private boolean hasIntro;
     private boolean hasJingle;
     private boolean generated;
-    private boolean boosted;
     private String boostType;
     private int batchId;
     private String status;

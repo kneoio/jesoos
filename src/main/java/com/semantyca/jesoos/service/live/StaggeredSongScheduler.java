@@ -98,7 +98,6 @@ public class StaggeredSongScheduler {
                 BoostType boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
-                    entry.setBoosted(true);
                     entry.setBoostType(boostType);
                     MixingType strategy = entry.getMixingStrategy();
                     if (boostType == BoostType.JINGLE_INTRO) {
@@ -209,7 +208,6 @@ public class StaggeredSongScheduler {
                 BoostType boostType = djStateService.consumeBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
-                    entry.setBoosted(true);
                     entry.setBoostType(boostType);
                     MixingType strategy = entry.getMixingStrategy();
                     if (boostType == BoostType.JINGLE_INTRO) {
