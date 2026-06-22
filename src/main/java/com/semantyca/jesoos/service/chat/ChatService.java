@@ -22,10 +22,13 @@ import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
 import com.semantyca.jesoos.service.chat.ots.OtsContinuationHandler;
 import com.semantyca.jesoos.service.chat.ots.OtsScriptsProvider;
 import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -36,6 +39,7 @@ import org.jboss.logging.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
@@ -82,6 +86,10 @@ public class ChatService {
     ChatAgent chatAgent;
     @Inject
     ChatAuthService chatAuthService;
+    @Inject
+    MetricPublisher metricPublisher;
+    @Inject
+    ChatSessionTracer chatSessionTracer;
 
     @Setter
     private PublicChatController controller;
@@ -143,6 +151,9 @@ public class ChatService {
     }
 
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
+        UUID traceId = chatSessionTracer.resolveTraceId(slugName);
+        metricPublisher.publishMetric(slugName, MetricEventType.DEBUG, ProcessType.FLOW,
+                "chat_user", Map.of("message", userMessage, "userId", user.getId(), "connectionId", connectionId), traceId);
         return intentRouter.decide(connectionId, userMessage, slugName)
                 .flatMap(decision -> {
                     String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
@@ -152,11 +163,11 @@ public class ChatService {
                     if (decision.intent() == ChatIntent.CREATE_AD && adSessionManager.isActive(connectionId)) {
                         return adContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
                     }
-                    return generateBotResponseCore(chunkHandler, completionHandler, connectionId, slugName, user);
+                    return generateBotResponseCore(traceId, userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
                 });
     }
 
-    private Uni<Void> generateBotResponseCore(Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
+    private Uni<Void> generateBotResponseCore(UUID traceId, String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
         BrandStaticData cached = brandStaticCache.get(slugName);
         Uni<BrandStaticData> staticDataUni = cached != null ? Uni.createFrom().item(cached) : buildBrandStaticData(slugName);
 
@@ -179,7 +190,7 @@ public class ChatService {
 
             return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName)
                     .flatMap(history -> runChatLoop(
-                            staticData, renderedPrompt, history, user,
+                            traceId, staticData, renderedPrompt, history, stationStatus, user,
                             chunkHandler, completionHandler, connectionId, slugName));
         })).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
@@ -191,8 +202,8 @@ public class ChatService {
     }
 
     protected Uni<Void> runChatLoop(
-            BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history,
-            IUser user, Consumer<String> chunkHandler,
+            UUID traceId, BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history,
+            String stationStatus, IUser user, Consumer<String> chunkHandler,
             Consumer<String> completionHandler, String connectionId, String slugName) {
         Map<String, Object> initData = new java.util.HashMap<>();
         initData.put(ChatState.USER_ID, user.getId());
@@ -204,10 +215,13 @@ public class ChatService {
         initData.put(ChatState.DJ_LANGUAGES, staticData.djLanguages());
         initData.put(ChatState.ITERATION, 0);
 
+        int startHistorySize = history.size();
+        long startTs = System.currentTimeMillis();
 
         return chatAgent.run(initData).flatMap(finalState -> {
             long finalUserId = finalState.userId();
             String botText = finalState.botResponse();
+            publishChatMetrics(traceId, slugName, finalUserId, stationStatus, finalState.history(), startHistorySize, botText, startTs);
             if (botText == null || botText.isBlank()) {
                 if (finalUserId != 0 && user.getId() == 0) {
                     LOGGER.warnf("[ChatAgent] auth succeeded but LLM silent — sending fallback welcome userId=%d connectionId=%s", finalUserId, connectionId);
@@ -232,6 +246,40 @@ public class ChatService {
             return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId)
                     .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
         });
+    }
+
+    private void publishChatMetrics(UUID traceId, String brand, long userId, String stationStatus,
+                                    List<LlmMessage> agentHistory, int startHistorySize,
+                                    String botText, long startTs) {
+        try {
+            LlmMessage pendingToolUse = null;
+            for (int i = startHistorySize; i < agentHistory.size(); i++) {
+                LlmMessage msg = agentHistory.get(i);
+                if (msg.kind() == LlmMessage.Kind.TOOL_USE) {
+                    pendingToolUse = msg;
+                } else if (msg.kind() == LlmMessage.Kind.TOOL_RESULT && pendingToolUse != null) {
+                    metricPublisher.publishMetric(brand, MetricEventType.DEBUG, ProcessType.FLOW,
+                            "chat_tool", Map.of(
+                                    "tool", pendingToolUse.toolCall().name(),
+                                    "input", pendingToolUse.toolCall().input().toString(),
+                                    "output", msg.toolResultContent() != null ? msg.toolResultContent() : ""),
+                            traceId);
+                    pendingToolUse = null;
+                }
+            }
+            if (botText != null && !botText.isBlank()) {
+                String responseText = botText.replaceAll("(?s)<thinking>.*?</thinking>", "").trim();
+                metricPublisher.publishMetric(brand, MetricEventType.DEBUG, ProcessType.FLOW,
+                        "chat_bot", Map.of(
+                                "response", responseText,
+                                "userId", userId,
+                                "status", stationStatus,
+                                "durationMs", System.currentTimeMillis() - startTs),
+                        traceId);
+            }
+        } catch (Exception e) {
+            LOGGER.warnf("[ChatMetrics] failed to publish brand=%s: %s", brand, e.getMessage());
+        }
     }
 
     protected Uni<BrandStaticData> buildBrandStaticData(String slugName) {
