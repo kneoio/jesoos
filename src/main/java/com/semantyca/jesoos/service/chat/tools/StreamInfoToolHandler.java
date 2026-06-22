@@ -21,7 +21,16 @@ public class StreamInfoToolHandler extends BaseToolHandler {
         LOGGER.infof("[StreamInfo] action=%s, brand=%s", action, brandName);
 
         return playlistQueueService.getQueueByBrandSlug(brandName)
-                .map(queue -> ToolNodeResult.ok(new JsonObject().put("ok", true).put("queue", queue).encode()))
+                .map(queue -> {
+                    if (queue == null || queue.isEmpty()) {
+                        return ToolNodeResult.ok(new JsonObject()
+                                .put("ok", true)
+                                .put("queue", new io.vertx.core.json.JsonArray())
+                                .put("note", "Queue is currently empty — no tracks are scheduled at this moment.")
+                                .encode());
+                    }
+                    return ToolNodeResult.ok(new JsonObject().put("ok", true).put("queue", queue).encode());
+                })
                 .onFailure().recoverWithItem(err -> ToolNodeResult.ok(
                         new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
     }
