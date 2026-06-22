@@ -22,7 +22,6 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.SongEmitter;
-import com.semantyca.jesoos.service.live.scripting.PerplexitySearchHelper;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
@@ -77,7 +76,6 @@ public class ChatAgent {
     @Inject AdGraph adGraph;
     @Inject EventService eventService;
     @Inject ListenerLabelCache listenerLabelCache;
-    @Inject PerplexitySearchHelper perplexitySearchHelper;
     @Inject ChatService publicChatService;
     @Inject ChatAuthService chatAuthService;
     @Inject com.semantyca.jesoos.service.agenda.AgendaViewService agendaViewService;
@@ -246,7 +244,6 @@ public class ChatAgent {
             case "start_one_time_stream"      -> "Setting up your personal stream...";
             case "create_ad"                  -> "Setting up your ad...";
             case "listener_data"              -> "Remembering...";
-            case "stream_info"                -> "Checking stream...";
             case "logoff"                     -> "Signing out...";
             default                           -> null;
         };
@@ -348,8 +345,6 @@ public class ChatAgent {
                 }
                 yield SendUICommandToolHandler.execute(input, connectionId);
             }
-            case "stream_info" -> StreamInfoToolHandler.execute(input, playlistQueueService, brandName);
-            case "perplexity_search" -> PerplexitySearchToolHandler.execute(input, perplexitySearchHelper);
             default -> {
                 LOGGER.warnf("[ChatGraph] unknown tool: %s", toolCall.name());
                 yield Uni.createFrom().item(ToolNodeResult.ok(
@@ -372,7 +367,6 @@ public class ChatAgent {
     private List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages) {
         List<LlmTool> tools = new ArrayList<>();
         tools.add(SendEmailToOwnerTool.toTool());
-        tools.add(StreamInfoTool.toTool());
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
             tools.add(GetBrandCatalogSummary.toTool());
