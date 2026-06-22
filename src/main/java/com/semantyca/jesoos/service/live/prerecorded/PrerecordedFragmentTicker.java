@@ -105,24 +105,9 @@ public class PrerecordedFragmentTicker {
 
         if (due.isEmpty()) return Uni.createFrom().voidItem();
 
-        // Separate ads from non-ads
-        List<DueFragment> adsDue = due.stream()
-                .filter(d -> d.sf().getType() == PlaylistItemType.PRERECORDED_ADVERTISEMENT)
+        List<Uni<Void>> emissions = due.stream()
+                .map(d -> fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask(), true))
                 .toList();
-        List<DueFragment> othersDue = due.stream()
-                .filter(d -> d.sf().getType() != PlaylistItemType.PRERECORDED_ADVERTISEMENT)
-                .toList();
-
-        List<Uni<Void>> emissions = new ArrayList<>();
-
-        for (int i = 0; i < adsDue.size(); i++) {
-            emissions.add(fireFragment(brandSlug, stream, adsDue.get(i).sf(), zone, now, adsDue.get(i).matchedTask(), i == 0));
-        }
-
-        // Non-ad fragments fire normally
-        for (DueFragment d : othersDue) {
-            emissions.add(fireFragment(brandSlug, stream, d.sf(), zone, now, d.matchedTask(), true));
-        }
 
         return Uni.join().all(emissions)
                 .andCollectFailures()
