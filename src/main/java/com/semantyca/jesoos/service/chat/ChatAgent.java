@@ -111,18 +111,31 @@ public class ChatAgent {
         Uni<String> queueUni = internalRestCall.getQueueFromAivox(brandName)
                 .map(queue -> {
                     if (queue == null || queue.isEmpty()) return "";
-                    StringBuilder sb = new StringBuilder("[Live queue: ");
-                    for (int i = 0; i < Math.min(queue.size(), 5); i++) {
+                    String nowPlaying = "";
+                    StringBuilder upcoming = new StringBuilder();
+                    int upcomingCount = 0;
+                    for (int i = 0; i < queue.size(); i++) {
                         JsonObject track = queue.getJsonObject(i);
                         if (track == null) continue;
-                        if (i > 0) sb.append(" → ");
+                        String queueType = track.getString("queueType", "");
                         String title = track.getString("title", "?");
                         String artist = track.getString("artist", "");
-                        sb.append("\"").append(title).append("\"");
-                        if (!artist.isBlank()) sb.append(" by ").append(artist);
+                        String trackStr = "\"" + title + "\"" + (artist.isBlank() ? "" : " by " + artist);
+                        if ("playing".equals(queueType)) {
+                            nowPlaying = "[Now playing: " + trackStr + "]";
+                        } else if (!"played".equals(queueType) && upcomingCount < 5) {
+                            if (upcomingCount > 0) upcoming.append(" → ");
+                            upcoming.append(trackStr);
+                            upcomingCount++;
+                        }
                     }
-                    sb.append("]");
-                    return sb.toString();
+                    StringBuilder result = new StringBuilder();
+                    if (!nowPlaying.isEmpty()) result.append(nowPlaying);
+                    if (upcomingCount > 0) {
+                        if (!result.isEmpty()) result.append(" ");
+                        result.append("[Upcoming: ").append(upcoming).append("]");
+                    }
+                    return result.toString();
                 })
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.warnf("[loadContext] queue fetch failed for brand=%s: %s", brandName, err.getMessage());

@@ -70,10 +70,13 @@ public class InternalRestCall {
                         if (entry == null) continue;
                         JsonObject songInfo = entry.getJsonObject("songInfo");
                         if (songInfo == null) continue;
+                        JsonObject tech = entry.getJsonObject("tech");
+                        String queueType = tech != null ? tech.getString("queueType", "") : "";
                         result.add(new JsonObject()
                                 .put("title", songInfo.getString("title", ""))
                                 .put("artist", songInfo.getString("artist", ""))
-                                .put("labels", songInfo.getValue("labels", "")));
+                                .put("labels", songInfo.getValue("labels", ""))
+                                .put("queueType", queueType));
                     }
                     return result;
                 })
