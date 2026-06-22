@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.chat.tools;
 import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
@@ -25,7 +26,7 @@ public class StreamInfoToolHandler extends BaseToolHandler {
                     if (queue == null || queue.isEmpty()) {
                         return ToolNodeResult.ok(new JsonObject()
                                 .put("ok", true)
-                                .put("queue", new io.vertx.core.json.JsonArray())
+                                .put("queue", new JsonArray())
                                 .put("note", "Queue is currently empty — no tracks are scheduled at this moment.")
                                 .encode());
                     }

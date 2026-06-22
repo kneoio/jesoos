@@ -3,6 +3,8 @@ package com.semantyca.jesoos.outbound;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.mixpla.dto.queue.livestream.SongQueueMessageDTO;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
@@ -48,6 +50,32 @@ public class InternalRestCall {
                             response.statusCode(),
                             response.bodyAsString()
                     ));
+                });
+    }
+
+    public Uni<JsonArray> getQueueFromAivox(String brand) {
+        String endpoint = String.format("%s/aivox/info/queue/%s", config.getAivoxUrl(), brand);
+        return webClient.getAbs(endpoint)
+                .putHeader("X-Client-ID", "mixpla-web")
+                .send()
+                .map(response -> {
+                    if (response.statusCode() != 200) return new JsonArray();
+                    JsonObject body = response.bodyAsJsonObject();
+                    if (body == null) return new JsonArray();
+                    JsonArray fullQueue = body.getJsonArray("fullQueue");
+                    if (fullQueue == null) return new JsonArray();
+                    JsonArray result = new JsonArray();
+                    for (int i = 0; i < fullQueue.size(); i++) {
+                        JsonObject entry = fullQueue.getJsonObject(i);
+                        if (entry == null) continue;
+                        JsonObject songInfo = entry.getJsonObject("songInfo");
+                        if (songInfo == null) continue;
+                        result.add(new JsonObject()
+                                .put("title", songInfo.getString("title", ""))
+                                .put("artist", songInfo.getString("artist", ""))
+                                .put("labels", songInfo.getValue("labels", "")));
+                    }
+                    return result;
                 });
     }
 
