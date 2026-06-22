@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.service.CommandService;
+import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import io.smallrye.mutiny.Uni;
@@ -30,11 +31,32 @@ public class InfoResource extends AbstractResource {
     @Inject
     ScenePool scenePool;
 
+    @Inject
+    PlaylistQueueService playlistQueueService;
+
     public void setupRoutes(Router router) {
         String path = "/jesoos/info";
         router.route(HttpMethod.GET, path + "/:brand/live").handler(this::getLiveStatus);
         router.route(HttpMethod.GET, path + "/:brand/dj-status").handler(this::getDjStatus);
         router.route(HttpMethod.GET, path + "/:brand/agendas").handler(this::getAgendas);
+        router.route(HttpMethod.GET, path + "/queue/:brand").handler(this::validateMixplaAccess).handler(this::getQueueState);
+    }
+
+    private void validateMixplaAccess(RoutingContext rc) {
+        // TODO: validate Mixpla access credentials
+        rc.next();
+    }
+
+    private void getQueueState(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        playlistQueueService.getQueueByBrandSlug(brand)
+                .subscribe().with(
+                        queue -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(new JsonObject().put("ok", true).put("queue", queue).encode()),
+                        err -> handleCommandFailure(rc, brand, "get queue state", err)
+                );
     }
 
     private void getLiveStatus(RoutingContext rc) {

@@ -1,17 +1,11 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.semantyca.core.service.UserService;
-import com.semantyca.jesoos.dto.agenda.TimelineEntryDTO;
 import com.semantyca.jesoos.service.PlaylistQueueService;
-import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
-import io.quarkus.mailer.Mail;
-import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 public class StreamInfoToolHandler extends BaseToolHandler {
@@ -21,27 +15,18 @@ public class StreamInfoToolHandler extends BaseToolHandler {
     public static Uni<ToolNodeResult> execute(
             Map<String, Object> inputMap,
             PlaylistQueueService playlistQueueService,
-            AgendaViewService agendaViewService,
-            String brandName,
-            ReactiveMailer reactiveMailer,
-            UserService userService,
-            long userId,
-            String fromAddress
+            String brandName
     ) {
         String action = (String) inputMap.getOrDefault("action", "get_current_scene");
         LOGGER.infof("[StreamInfo] action=%s, brand=%s", action, brandName);
 
-        return switch (action) {
-            case "get_today_agenda" -> buildAgendaResult(agendaViewService, brandName);
-            case "email_today_agenda" -> sendAgendaEmail(agendaViewService, reactiveMailer, userService,
-                    userId, brandName, fromAddress);
-            default -> playlistQueueService.getQueueByBrandSlug(brandName)
-                    .map(queue -> ToolNodeResult.ok(new JsonObject().put("ok", true).put("queue", queue).encode()))
-                    .onFailure().recoverWithItem(err -> ToolNodeResult.ok(
-                            new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
-        };
+        return playlistQueueService.getQueueByBrandSlug(brandName)
+                .map(queue -> ToolNodeResult.ok(new JsonObject().put("ok", true).put("queue", queue).encode()))
+                .onFailure().recoverWithItem(err -> ToolNodeResult.ok(
+                        new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
     }
 
+    /*
     private static Uni<ToolNodeResult> buildAgendaResult(AgendaViewService agendaViewService, String brandName) {
         return Uni.createFrom().item(() -> {
             var result = buildAgendaContent(agendaViewService, brandName);
@@ -166,4 +151,5 @@ public class StreamInfoToolHandler extends BaseToolHandler {
     }
 
     private record AgendaContent(io.vertx.core.json.JsonArray entries, String formatted) {}
+    */
 }
