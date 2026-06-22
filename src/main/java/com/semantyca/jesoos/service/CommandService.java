@@ -14,7 +14,7 @@ import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
 import com.semantyca.jesoos.repository.SoundFragmentRatingLogRepository;
-import com.semantyca.mixpla.dto.queue.command.CommandDTO;
+import com.semantyca.core.dto.queue.command.CommandDTO;
 import com.semantyca.mixpla.dto.queue.command.CommandType;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
