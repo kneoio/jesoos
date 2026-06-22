@@ -27,6 +27,8 @@ import org.jboss.logging.Logger;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.semantyca.mixpla.dto.queue.command.CommandType.*;
+
 @ApplicationScoped
 public class CommandService {
     private static final Logger LOGGER = Logger.getLogger(CommandService.class);
