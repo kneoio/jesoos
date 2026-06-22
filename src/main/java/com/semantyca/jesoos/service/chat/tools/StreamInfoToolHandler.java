@@ -1,6 +1,6 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.semantyca.jesoos.service.PlaylistQueueService;
+import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -15,13 +15,13 @@ public class StreamInfoToolHandler extends BaseToolHandler {
 
     public static Uni<ToolNodeResult> execute(
             Map<String, Object> inputMap,
-            PlaylistQueueService playlistQueueService,
+            InternalRestCall internalRestCall,
             String brandName
     ) {
         String action = (String) inputMap.getOrDefault("action", "get_current_scene");
         LOGGER.infof("[StreamInfo] action=%s, brand=%s", action, brandName);
 
-        return playlistQueueService.getQueueByBrandSlug(brandName)
+        return internalRestCall.getQueueFromAivox(brandName)
                 .map(queue -> {
                     if (queue == null || queue.isEmpty()) {
                         return ToolNodeResult.ok(new JsonObject()

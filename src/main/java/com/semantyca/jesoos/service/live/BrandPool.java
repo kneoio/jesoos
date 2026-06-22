@@ -9,7 +9,6 @@ import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.mixpla.model.cnst.MixingType;
-import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.agenda.AgendaService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -32,16 +31,14 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
     private final MetricPublisher metricPublisher;
     private final ScenePool scenePool;
     private final DjStateService djStateService;
-    private final PlaylistQueueService playlistQueueService;
 
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool, DjStateService djStateService, PlaylistQueueService playlistQueueService) {
+    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool, DjStateService djStateService) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;
         this.scenePool = scenePool;
         this.djStateService = djStateService;
-        this.playlistQueueService = playlistQueueService;
     }
 
     public Uni<ILiveStream> getRadioStream(String brandName) {
@@ -82,9 +79,6 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
                             });
                 })
                 .onItem().invoke(stream -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", stream.getStatus().name())))
-                .call(stream -> playlistQueueService.resetQueue(brandName)
-                        .onFailure().invoke(err -> LOGGER.warnf("Failed to reset playlist queue for brand '%s': %s", brandName, err.getMessage()))
-                        .onFailure().recoverWithNull())
                 .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 

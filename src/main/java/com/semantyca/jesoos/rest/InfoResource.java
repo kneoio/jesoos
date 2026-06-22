@@ -3,8 +3,8 @@ package com.semantyca.jesoos.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.CommandService;
-import com.semantyca.jesoos.service.PlaylistQueueService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import io.smallrye.mutiny.Uni;
@@ -32,7 +32,7 @@ public class InfoResource extends AbstractResource {
     ScenePool scenePool;
 
     @Inject
-    PlaylistQueueService playlistQueueService;
+    InternalRestCall internalRestCall;
 
     public void setupRoutes(Router router) {
         String path = "/jesoos/info";
@@ -49,7 +49,7 @@ public class InfoResource extends AbstractResource {
 
     private void getQueueState(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        playlistQueueService.getQueueByBrandSlug(brand)
+        internalRestCall.getQueueFromAivox(brand)
                 .subscribe().with(
                         queue -> rc.response()
                                 .setStatusCode(200)

@@ -76,7 +76,8 @@ public class InternalRestCall {
                                 .put("labels", songInfo.getValue("labels", "")));
                     }
                     return result;
-                });
+                })
+                .onFailure().recoverWithItem(new JsonArray());
     }
 
     public Uni<Void> addSongToQueue(SongQueueMessageDTO dto) {

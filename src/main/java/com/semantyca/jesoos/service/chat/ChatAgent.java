@@ -54,7 +54,6 @@ public class ChatAgent {
     @Inject ChatRepository chatRepository;
     @Inject AiHelperService aiHelperService;
     @Inject ListenerService listenerService;
-    @Inject PlaylistQueueService playlistQueueService;
     @Inject BrandService brandService;
     @Inject UserService userService;
     @Inject PublicChatSessionManager sessionManager;
@@ -109,16 +108,16 @@ public class ChatAgent {
         String brandName = state.brandName();
         long userId = state.userId();
 
-        Uni<String> queueUni = playlistQueueService.getQueueByBrandSlug(brandName)
+        Uni<String> queueUni = internalRestCall.getQueueFromAivox(brandName)
                 .map(queue -> {
                     if (queue == null || queue.isEmpty()) return "";
                     StringBuilder sb = new StringBuilder("[Live queue: ");
                     for (int i = 0; i < Math.min(queue.size(), 5); i++) {
-                        io.vertx.core.json.JsonObject track = queue.getJsonObject(i);
+                        JsonObject track = queue.getJsonObject(i);
                         if (track == null) continue;
                         if (i > 0) sb.append(" → ");
-                        String title = track.getString("title", track.getString("name", "?"));
-                        String artist = track.getString("artist", track.getString("artistName", ""));
+                        String title = track.getString("title", "?");
+                        String artist = track.getString("artist", "");
                         sb.append("\"").append(title).append("\"");
                         if (!artist.isBlank()) sb.append(" by ").append(artist);
                     }
@@ -159,7 +158,7 @@ public class ChatAgent {
                 .map(t -> {
                     LOGGER.debugf("[loadContext] context built brand=%s userId=%d", brandName, userId);
                     Map<String, Object> result = new HashMap<>();
-                    result.put(ChatState.CONTEXT_BLOCK, t.getItem1().trim());
+                    result.put(ChatState.CONTEXT_BLOCK, t.getItem1().trim());  //current playing
                     result.put(ChatState.LISTENER_CONTEXT, t.getItem2().trim());
                     return result;
                 })
