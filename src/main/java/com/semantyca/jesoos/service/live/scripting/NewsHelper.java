@@ -7,10 +7,9 @@ import com.semantyca.mixpla.model.news.NewsResponse;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 
@@ -18,61 +17,29 @@ public final class NewsHelper {
     private final WorldNewsApiClient client;
     private final String defaultCountry;
     private final String defaultLanguage;
-    private final Map<String, CachedNews> cache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-    
-    private static class CachedNews {
-        final NewsResponse data;
-        final long timestamp;
-
-        CachedNews(NewsResponse data) {
-            this.data = data;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
-        }
-    }
 
     public NewsHelper(WorldNewsApiClient client, CountryCode defaultCountry, String defaultLanguage) {
         this.client = client;
         this.defaultCountry = defaultCountry.getIsoCode();
         this.defaultLanguage = defaultLanguage;
     }
-    
+
     public NewsResponse search(String text) {
-        return searchWithCache(text, defaultCountry, defaultLanguage, 10);
+        return doSearch(text, defaultCountry, defaultLanguage, 10);
     }
 
     public NewsResponse search(String text, int number) {
-        return searchWithCache(text, defaultCountry, defaultLanguage, number);
+        return doSearch(text, defaultCountry, defaultLanguage, number);
     }
 
     public NewsResponse search(String text, String country, String language) {
-        return searchWithCache(text, country, language, 10);
+        return doSearch(text, country, language, 10);
     }
 
-    private NewsResponse searchWithCache(String text, String country, String language, int number) {
-        String cacheKey = text + "|" + country + "|" + language + "|" + number;
-        
-        CachedNews cached = cache.get(cacheKey);
-        if (cached != null && !cached.isExpired()) {
-            return cached.data;
-        }
-        
-        try {
-            JsonObject jsonResponse = client.searchNews(text, country, language, number)
-                    .await().indefinitely();
-            
-            NewsResponse response = NewsMapper.fromJson(jsonResponse);
-            cache.put(cacheKey, new CachedNews(response));
-            return response;
-        } catch (Exception e) {
-            NewsResponse errorResponse = new NewsResponse();
-            errorResponse.setNews(List.of());
-            return errorResponse;
-        }
+    private NewsResponse doSearch(String text, String country, String language, int number) {
+        JsonObject jsonResponse = client.searchNews(text, country, language, number)
+                .await().atMost(Duration.ofSeconds(30));
+        return NewsMapper.fromJson(jsonResponse);
     }
 
     public List<String> headlines(String text, int number) {

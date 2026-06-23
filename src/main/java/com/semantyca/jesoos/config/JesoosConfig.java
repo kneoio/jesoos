@@ -14,6 +14,10 @@ public interface JesoosConfig {
     @WithName("aivox.url")
     String getAivoxUrl();
 
+    @WithName("autostart.enabled")
+    @WithDefault("true")
+    boolean autostartEnabled();
+
     @WithName("controller.upload.files.path")
     @WithDefault("controller-uploads")
     String getPathUploads();

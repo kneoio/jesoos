@@ -213,6 +213,10 @@ public final class WeatherHelper {
             case BE -> "Brussels";
             case SE -> "Stockholm";
             case NO -> "Oslo";
+            case KZ -> "Astana";
+            case LV -> "Riga";
+            case GE -> "Tbilisi";
+            case KR -> "Seoul";
             case DK -> "Copenhagen";
             case FI -> "Helsinki";
             case IE -> "Dublin";

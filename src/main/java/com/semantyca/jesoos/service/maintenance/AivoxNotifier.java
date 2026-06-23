@@ -1,6 +1,7 @@
 package com.semantyca.jesoos.service.maintenance;
 
 import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.CommandPublisher;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.brand.BrandRepository;
@@ -23,6 +24,9 @@ public class AivoxNotifier {
     private static final Logger LOGGER = Logger.getLogger(AivoxNotifier.class);
 
     @Inject
+    JesoosConfig jesoosConfig;
+
+    @Inject
     BrandRepository brandRepository;
 
     @Inject
@@ -32,6 +36,10 @@ public class AivoxNotifier {
     MetricPublisher metricPublisher;
 
     void onStart(@Observes StartupEvent event) {
+        if (!jesoosConfig.autostartEnabled()) {
+            LOGGER.info("[BOOTSTRAPPER] Auto-start is disabled (aivox.autostart.enabled=false), skipping");
+            return;
+        }
         try {
             TimeUnit.SECONDS.sleep(10);
         } catch (InterruptedException e) {
