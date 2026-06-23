@@ -48,17 +48,24 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
 
     private Uni<SharedSongEntry> fromRow(Row row) {
         return from(row)
-                .map(sf -> new SharedSongEntry(sf, row.getString("source_user_name")));
+                .map(sf -> {
+                    Integer sharedBoost = row.getInteger("shared_boost");
+                    if (sharedBoost != null) {
+                        sf.setBoost(sharedBoost);
+                    }
+                    return new SharedSongEntry(sf, row.getString("source_user_name"));
+                });
     }
 
     private String buildQuery(UUID brandId, PlaylistItemType type, Set<UUID> excludeIds, String orderBy, int limit) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email ")
+                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.boost AS shared_boost ")
                 .append("FROM ").append(entityData.getTableName()).append(" sf ")
                 .append("JOIN ").append(SSF_TABLE).append(" ssf ON ssf.sound_fragment_id = sf.id ")
                 .append("WHERE ssf.target_brand_id = '").append(brandId).append("' ")
                 .append("AND sf.archived = 0 ")
-                .append("AND ssf.status = 505 ");
+                .append("AND ssf.status = 505 ")
+                .append("AND COALESCE(ssf.boost, 0) > -1 ");
 
         if (type != null) {
             sql.append("AND sf.type = '").append(type.name()).append("' ");
