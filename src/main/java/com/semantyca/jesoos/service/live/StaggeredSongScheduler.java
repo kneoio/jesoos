@@ -313,9 +313,9 @@ public class StaggeredSongScheduler {
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone) {
         StreamPriority priority = StreamPriority.NORMAL;
         if (entry.isGenerated()) {
-            priority = StreamPriority.PRIORITIZED_FRONT;
+            priority = StreamPriority.PRIORITIZED;
         } else if (djStateService.isDjEnabled(brandName)) {
-            priority = StreamPriority.PRIORITIZED_FRONT;
+            priority = StreamPriority.PRIORITIZED;
         }
         return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue(), UUID.randomUUID());
     }
@@ -323,9 +323,9 @@ public class StaggeredSongScheduler {
     public Uni<Void> emitTimelineEntry(String brandName, LiveScene liveScene, TimelineEntry entry, ZoneId brandZone, UUID emissionTraceId) {
         StreamPriority priority = StreamPriority.NORMAL;
         if (entry.isGenerated()) {
-            priority = StreamPriority.PRIORITIZED_FRONT;
+            priority = StreamPriority.PRIORITIZED;
         } else if (djStateService.isDjEnabled(brandName)) {
-            priority = StreamPriority.PRIORITIZED_FRONT;
+            priority = StreamPriority.PRIORITIZED;
         }
         return emitTimelineEntry(brandName, liveScene, entry, brandZone, priority.getValue(), emissionTraceId);
     }

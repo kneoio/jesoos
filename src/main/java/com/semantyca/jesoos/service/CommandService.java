@@ -353,7 +353,7 @@ public class CommandService {
                             scene.getTraceId()
                     );
 
-                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), StreamPriority.GENTLE_INTERRUPT.getValue())
+                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), StreamPriority.PRIORITIZED_FRONT.getValue())
                             .map(v -> new JsonObject()
                                     .put("success", true)
                                     .put("brand", brand)
