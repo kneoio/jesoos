@@ -18,6 +18,7 @@ import com.semantyca.core.dto.queue.command.CommandDTO;
 import com.semantyca.mixpla.dto.queue.command.CommandType;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -352,7 +353,7 @@ public class CommandService {
                             scene.getTraceId()
                     );
 
-                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), 8)
+                    return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), StreamPriority.GENTLE_INTERRUPT.getValue())
                             .map(v -> new JsonObject()
                                     .put("success", true)
                                     .put("brand", brand)
