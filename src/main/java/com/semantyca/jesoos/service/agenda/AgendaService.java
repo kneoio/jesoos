@@ -170,11 +170,12 @@ public class AgendaService {
                     LOGGER.infof("[buildAgenda] START scene='%s' duration=%ds excludeIds=%d", scene.getTitle(), durationSeconds, state.usedIds().size());
                     return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
                             .chain(pool -> {
-                                if (pool.songs().isEmpty() && !state.usedIds().isEmpty()) {
-                                    LOGGER.infof("Catalog exhausted for scene '%s', resetting exclusion set (keeping recent half)", scene.getTitle());
-                                    List<UUID> played = new ArrayList<>(state.usedIds());
+                                long estimatedSeconds = pool.songs().stream()
+                                        .mapToLong(sf -> sf.getLength() != null ? sf.getLength().toSeconds() : 180L)
+                                        .sum();
+                                if (estimatedSeconds < durationSeconds && !state.usedIds().isEmpty()) {
+                                    LOGGER.infof("Catalog insufficient for scene '%s' (estimated=%ds required=%ds), resetting exclusion set", scene.getTitle(), estimatedSeconds, durationSeconds);
                                     state.usedIds().clear();
-                                    state.usedIds().addAll(played.subList(played.size() / 2, played.size()));
                                     return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
                                 }
                                 return Uni.createFrom().item(pool);
