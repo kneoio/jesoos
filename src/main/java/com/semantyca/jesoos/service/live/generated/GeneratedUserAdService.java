@@ -11,6 +11,7 @@ import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
+import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
@@ -38,7 +39,8 @@ public class GeneratedUserAdService extends AbstractGeneratedContentService {
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
             FFmpegProvider ffmpegProvider,
-            UserAdRepository userAdRepository
+            UserAdRepository userAdRepository,
+            BrandService brandService
     ) {
         super(
                 promptService,
@@ -54,11 +56,12 @@ public class GeneratedUserAdService extends AbstractGeneratedContentService {
                 draftFactory,
                 aiAgentService,
                 ffmpegProvider,
-                userAdRepository);
+                userAdRepository,
+                brandService);
     }
 
     GeneratedUserAdService() {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Override

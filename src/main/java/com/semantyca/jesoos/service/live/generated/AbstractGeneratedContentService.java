@@ -8,6 +8,7 @@ import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.dto.RlsActionDTO;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.external.ElevenLabsClient;
 import com.semantyca.jesoos.external.GCPTTSClient;
@@ -16,14 +17,17 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.repository.UserAdRepository;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.AiAgentService;
+import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
 import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import com.semantyca.core.model.cnst.RlsActionType;
 import com.semantyca.mixpla.model.DjPrompt;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.aiagent.Voice;
+import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -64,6 +68,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected final AiAgentService aiAgentService;
     protected final FFmpegProvider ffmpegProvider;
     protected final UserAdRepository userAdRepository;
+    protected final BrandService brandService;
 
     protected AbstractGeneratedContentService(
             PromptService promptService,
@@ -79,7 +84,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
             FFmpegProvider ffmpegProvider,
-            UserAdRepository userAdRepository
+            UserAdRepository userAdRepository,
+            BrandService brandService
     ) {
         this.promptService = promptService;
         this.soundFragmentService = soundFragmentService;
@@ -95,6 +101,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.aiAgentService = aiAgentService;
         this.ffmpegProvider = ffmpegProvider;
         this.userAdRepository = userAdRepository;
+        this.brandService = brandService;
     }
 
     protected String buildArtistKey(String brandSlug, UUID promptId, DraftFactory.DraftResult draftResult) {
@@ -162,50 +169,60 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             UUID brandId,
             String artistKey
     ) {
-        return Uni.createFrom().item(() -> {
-            try {
-                Path path = Path.of(ttsFilePath);
-                String fileName = path.getFileName().toString();
-                boolean sourceExists = Files.exists(path);
-                LOGGER.infof(
-                        "saveSoundFragment preparing file copy: source=%s (exists=%s), fileName=%s, brandId=%s, artistKey=%s",
-                        path.toAbsolutePath(), sourceExists, fileName, brandId, artistKey
-                );
+        return brandService.getById(brandId)
+                .chain(brand -> Uni.createFrom().item(() -> {
+                    try {
+                        Path path = Path.of(ttsFilePath);
+                        String fileName = path.getFileName().toString();
+                        boolean sourceExists = Files.exists(path);
+                        LOGGER.infof(
+                                "saveSoundFragment preparing file copy: source=%s (exists=%s), fileName=%s, brandId=%s, artistKey=%s",
+                                path.toAbsolutePath(), sourceExists, fileName, brandId, artistKey
+                        );
 
-                Path targetDir = Paths.get(config.getPathUploads(), "chat-upload-controller", "supervisor", "temp");
-                Files.createDirectories(targetDir);
-                Path targetFile = targetDir.resolve(fileName);
-                Files.copy(path, targetFile, StandardCopyOption.REPLACE_EXISTING);
-                LOGGER.infof(
-                        "saveSoundFragment copied file: target=%s (exists=%s)",
-                        targetFile.toAbsolutePath(), Files.exists(targetFile)
-                );
+                        Path targetDir = Paths.get(config.getPathUploads(), "chat-upload-controller", "supervisor", "temp");
+                        Files.createDirectories(targetDir);
+                        Path targetFile = targetDir.resolve(fileName);
+                        Files.copy(path, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                        LOGGER.infof(
+                                "saveSoundFragment copied file: target=%s (exists=%s)",
+                                targetFile.toAbsolutePath(), Files.exists(targetFile)
+                        );
 
-                int durationSeconds = probeDuration(ttsFilePath);
+                        int durationSeconds = probeDuration(ttsFilePath);
 
-                SoundFragmentDTO dto = new SoundFragmentDTO();
-                dto.setType(getFragmentType());
-                String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
-                dto.setTitle(prompt.getTitle() + " " + currentDate);
-                dto.setArtist(artistKey);
-                dto.setGenres(List.of());
-                dto.setLabels(List.of());
-                dto.setSource(SourceType.TEMPORARY_MIX);
-                dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC));
-                dto.setLength(Duration.ofSeconds(durationSeconds));
-                LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, artistKey=%s, newlyUploaded=%s", brandId, artistKey, fileName);
-                if (brandId == null) {
-                    throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
-                }
-                dto.setRepresentedInBrands(List.of(brandId));
-                dto.setNewlyUploaded(List.of(fileName));
-                dto.setSlugName(WebHelper.generateSlug(dto.getArtist(), dto.getTitle()));
+                        SoundFragmentDTO dto = new SoundFragmentDTO();
+                        dto.setType(getFragmentType());
+                        String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+                        dto.setTitle(prompt.getTitle() + " " + currentDate);
+                        dto.setArtist(artistKey);
+                        dto.setGenres(List.of());
+                        dto.setLabels(List.of());
+                        dto.setSource(SourceType.TEMPORARY_MIX);
+                        dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC));
+                        dto.setLength(Duration.ofSeconds(durationSeconds));
+                        LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, artistKey=%s, newlyUploaded=%s", brandId, artistKey, fileName);
+                        if (brandId == null) {
+                            throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
+                        }
+                        dto.setRepresentedInBrands(List.of(brandId));
+                        dto.setNewlyUploaded(List.of(fileName));
+                        dto.setSlugName(WebHelper.generateSlug(dto.getArtist(), dto.getTitle()));
 
-                return dto;
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to prepare SoundFragment file", e);
-            }
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                        if (brand != null && brand.getOwner() != null && brand.getOwner().getUserId() != null) {
+                            RlsActionDTO ownerGrant = new RlsActionDTO();
+                            ownerGrant.setAction(RlsActionType.GRANT);
+                            ownerGrant.setUserId(brand.getOwner().getUserId());
+                            ownerGrant.setCanEdit(true);
+                            ownerGrant.setCanDelete(true);
+                            dto.setRlsActions(List.of(ownerGrant));
+                        }
+
+                        return dto;
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to prepare SoundFragment file", e);
+                    }
+                }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
         .chain(dto -> soundFragmentService.upsert("new", dto, SuperUser.build(), LanguageCode.en))
         .map(savedDto -> {
             SoundFragment fragment = new SoundFragment();
