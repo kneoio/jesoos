@@ -115,7 +115,7 @@ public class GCPTTSClient implements TTSClient {
             // others
             case NL_NL, NL_BE           -> "nl-NL";
             case DA_DK                  -> "da-DK";
-            case NO_NO, NB_NO           -> "nb-NO";
+            case NB_NO                  -> "nb-NO";
             case PL_PL                  -> "pl-PL";
             case CS_CZ                  -> "cs-CZ";
             case SK_SK                  -> "sk-SK";
