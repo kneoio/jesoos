@@ -147,7 +147,7 @@ public class OtsStreamScheduler {
         return aiAgentService.getById(scene.getAgentId())
                 .chain(agent -> {
                     if (entry.isGenerated()) {
-                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
+                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), emissionTraceId);
                     }
                     if (entry.isHasJingle()) {
                         return jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
