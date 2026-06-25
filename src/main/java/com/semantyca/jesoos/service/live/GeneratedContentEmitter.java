@@ -127,6 +127,7 @@ public class GeneratedContentEmitter {
 
         Uni<GeneratedResult> generatedUni = promptService.getById(promptId, SuperUser.build())
                 .flatMap(prompt -> {
+                    //TODO it is not so strong determination
                     boolean isAd = PromptType.GENERATOR.equals(prompt.getPromptType())
                             && prompt.getTitle().toLowerCase().contains("ad");
                     AbstractGeneratedContentService service = isAd ? generatedUserAdService : generatedNewsService;
