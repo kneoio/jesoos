@@ -117,6 +117,20 @@ public class BrandRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
+    public Uni<List<Brand>> getAutostartStations() {
+        String sql = "SELECT * FROM " + entityData.getTableName() +
+                " WHERE archived = 0" +
+                " AND jsonb_array_length(COALESCE(stream_history, '[]'::jsonb)) > 0" +
+                " AND stream_history -> -1 ->> 'event' = 'started'" +
+                " ORDER BY last_mod_date DESC";
+
+        return client.preparedQuery(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<Brand> findById(UUID id) {
         String sql = "SELECT * FROM %s WHERE id = $1 AND archived = 0";
 

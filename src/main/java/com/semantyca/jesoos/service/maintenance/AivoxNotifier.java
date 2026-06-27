@@ -1,6 +1,5 @@
 package com.semantyca.jesoos.service.maintenance;
 
-import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.messaging.CommandPublisher;
 import com.semantyca.jesoos.messaging.MetricPublisher;
@@ -46,7 +45,7 @@ public class AivoxNotifier {
             Thread.currentThread().interrupt();
         }
 
-        brandRepository.getAll(1000, 0, false, SuperUser.build(), null, null)
+        brandRepository.getAutostartStations()
                 .subscribe().with(
                         brands -> brands.forEach(brand -> {
                             UUID traceId = UUID.randomUUID();
