@@ -63,6 +63,14 @@ public class MetricPublisher {
         nextExpectedEmitAt.put(brandName, Instant.now().plusSeconds(entryDurationSeconds));
     }
 
+    /** Seconds elapsed past the moment the last emitted content was expected to finish.
+     *  Returns Long.MIN_VALUE when the brand has no emission tracked yet. */
+    public long secondsSinceExpectedEmit(String brandName) {
+        Instant expected = nextExpectedEmitAt.get(brandName);
+        if (expected == null) return Long.MIN_VALUE;
+        return Instant.now().getEpochSecond() - expected.getEpochSecond();
+    }
+
     @Scheduled(every = "60s", delay = 120, delayUnit = TimeUnit.SECONDS)
     void checkSilenceRisk() {
         Instant now = Instant.now();
