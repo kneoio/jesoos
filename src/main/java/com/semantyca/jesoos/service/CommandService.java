@@ -70,8 +70,7 @@ public class CommandService {
         return switch (dto.type()) {
             case FLOW_RESTART -> handleBrandSaved(dto);
             case SONG_RATED -> handleSongRated(dto);
-            // Wake = rebuild: a fresh agenda lets AgendaTicker/SceneTicker re-select and emit.
-            case WAKE_UP_DJ, REBUILD_AGENDA -> handleRebuildAgenda(dto);
+            case REBUILD_AGENDA -> handleRebuildAgenda(dto);
             default -> {
                 LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
                 yield Uni.createFrom().voidItem();
