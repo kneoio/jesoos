@@ -58,7 +58,7 @@ public class AivoxNotifier {
                             metricPublisher.publishMetric(
                                     brand.getSlugName(),
                                     MetricEventType.INFORMATION,
-                                    ProcessType.INDEPENDENT,
+                                    ProcessType.FLOW,
                                     "aivox_init_brand_sent",
                                     Map.of("brand", brand.getSlugName()),
                                     traceId
