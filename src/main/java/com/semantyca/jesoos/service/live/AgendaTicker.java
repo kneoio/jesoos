@@ -51,7 +51,7 @@ public class AgendaTicker {
             // otherwise the current loop scene is the baseline.
             LiveScene selected = findActiveOneTime(scenes, nowTime);
             if (selected == null) {
-                selected = findLoopingScene(scenes, nowTime);
+                selected = findLoopingScene(scenes, nowDateTime);
             }
 
             LiveScene currentActive = scenePool.getActiveScene(brandSlug);
@@ -103,25 +103,43 @@ public class AgendaTicker {
         return best;
     }
 
-    private LiveScene findLoopingScene(List<LiveScene> scenes, LocalTime nowTime) {
-        LiveScene latestBeforeNow = null;
+    /**
+     * The active loop is the not-finished loop scene whose absolute window
+     * [start, end) currently contains now; latest-starting wins. Bounding by each scene's own
+     * end (and skipping finished ones) is what keeps a stale or oversized segment from latching
+     * as "active" and starving emission. Absolute timestamps handle cross-midnight windows.
+     */
+    private LiveScene findLoopingScene(List<LiveScene> scenes, LocalDateTime nowDateTime) {
+        LiveScene bestInWindow = null;
+        LiveScene latestStarted = null;
         LiveScene latestOverall = null;
         for (LiveScene scene : scenes) {
-            if (scene.isOneTimeRun()) continue;
-            LocalTime start = scene.getOriginalStartTime();
-            if (start == null) continue;
-            if (latestOverall == null || start.isAfter(latestOverall.getOriginalStartTime())) {
+            if (scene.isOneTimeRun() || scene.isFinished()) continue;
+            LocalDateTime start = sceneStart(scene);
+            LocalDateTime end = scene.getEndTime();
+            if (start == null || end == null) continue;
+            if (latestOverall == null || start.isAfter(sceneStart(latestOverall))) {
                 latestOverall = scene;
             }
-            if (!start.isAfter(nowTime) &&
-                    (latestBeforeNow == null || start.isAfter(latestBeforeNow.getOriginalStartTime()))) {
-                latestBeforeNow = scene;
+            if (start.isAfter(nowDateTime)) continue;
+            if (latestStarted == null || start.isAfter(sceneStart(latestStarted))) {
+                latestStarted = scene;
+            }
+            if (nowDateTime.isBefore(end) &&
+                    (bestInWindow == null || start.isAfter(sceneStart(bestInWindow)))) {
+                bestInWindow = scene;
             }
         }
-        // The agenda spans one 06:00->06:00 window. If no loop has started yet at this hour
-        // (all starts are later today), the active loop is the last one from before midnight —
-        // it wraps across the rebuild boundary to cover 00:00 until the first loop after 06:00.
-        return latestBeforeNow != null ? latestBeforeNow : latestOverall;
+        if (bestInWindow != null) return bestInWindow;
+        // No window contains now (gap between segments, or all still ahead): fall back to the
+        // latest loop that has already started, else the latest-starting loop overall.
+        return latestStarted != null ? latestStarted : latestOverall;
+    }
+
+    private LocalDateTime sceneStart(LiveScene scene) {
+        var timeline = scene.getTimeline();
+        if (timeline == null || timeline.isEmpty()) return null;
+        return timeline.get(0).getScheduledEmissionTime();
     }
 
     private long calculateLagSeconds(LocalTime nowTime, LocalTime sceneStartTime) {
