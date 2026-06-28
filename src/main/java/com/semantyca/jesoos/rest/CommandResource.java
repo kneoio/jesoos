@@ -32,11 +32,14 @@ public class CommandResource extends AbstractResource {
 
     private void handleStart(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        commandService.startBrand(slugName)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.startBrand(slugName, traceId)
                 .subscribe().with(
                         response -> rc.response()
                                 .setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, slugName, "start", failure)
                 );
@@ -44,47 +47,55 @@ public class CommandResource extends AbstractResource {
 
     private void handleStop(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        commandService.stopBrand(slugName)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.stopBrand(slugName, traceId)
                 .subscribe().with(
-                        response -> {
-                            LOGGER.infof("Stop command executed for brand: %s", slugName);
-                            rc.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(response.encode());
-                        },
+                        response -> rc.response().setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
+                                .end(response.encode()),
                         failure -> handleCommandFailure(rc, slugName, "stop", failure)
                 );
     }
 
     private void handleEnableDj(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        commandService.enableDj(slugName)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.enableDj(slugName, traceId)
                 .subscribe().with(
-                        response -> {
-                            LOGGER.infof("DJ enabled via command for brand: %s", slugName);
-                            rc.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(response.encode());
-                        },
+                        response -> rc.response().setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
+                                .end(response.encode()),
                         failure -> handleCommandFailure(rc, slugName, "enable-dj", failure)
                 );
     }
 
     private void handleDisableDj(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        commandService.disableDj(slugName)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.disableDj(slugName, traceId)
                 .subscribe().with(
-                        response -> {
-                            LOGGER.infof("DJ disabled via command for brand: %s", slugName);
-                            rc.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(response.encode());
-                        },
+                        response -> rc.response().setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
+                                .end(response.encode()),
                         failure -> handleCommandFailure(rc, slugName, "disable-dj", failure)
                 );
     }
 
     private void handleBackpressure(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
-        commandService.backpressure(slugName)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.backpressure(slugName, traceId)
                 .subscribe().with(
-                        response -> rc.response()
-                                .setStatusCode(200)
+                        response -> rc.response().setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, slugName, "backpressure", failure));
     }
@@ -93,16 +104,18 @@ public class CommandResource extends AbstractResource {
         String slugName = rc.pathParam("brand").toLowerCase();
         String sceneIdParam = rc.pathParam("sceneId");
         String seqNumParam = rc.pathParam("sequenceNumber");
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
 
         try {
             UUID sceneId = UUID.fromString(sceneIdParam);
             int sequenceNumber = Integer.parseInt(seqNumParam);
-            commandService.emitTimelineEntry(slugName, sceneId, sequenceNumber)
+            commandService.emitTimelineEntry(slugName, sceneId, sequenceNumber, traceId)
                     .subscribe().with(
-                            response -> {
-                                LOGGER.infof("Timeline entry #%d from scene %s emitted via command for brand: %s", sequenceNumber, sceneId, slugName);
-                                rc.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(response.encode());
-                            },
+                            response -> rc.response().setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .putHeader("X-Trace-Id", traceId.toString())
+                                    .end(response.encode()),
                             failure -> handleCommandFailure(rc, slugName, "emit-timeline-entry", failure)
                     );
         } catch (IllegalArgumentException e) {
@@ -115,13 +128,15 @@ public class CommandResource extends AbstractResource {
         }
     }
 
-
     private void handleOtsStart(RoutingContext rc) {
         String otsSlug = rc.pathParam("otsSlug");
-        commandService.startOts(otsSlug)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.startOts(otsSlug, traceId)
                 .subscribe().with(
                         response -> rc.response().setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, otsSlug, "ots-start", failure)
                 );
@@ -129,10 +144,13 @@ public class CommandResource extends AbstractResource {
 
     private void handleOtsStop(RoutingContext rc) {
         String otsSlug = rc.pathParam("otsSlug");
-        commandService.stopOts(otsSlug)
+        String traceHeader = rc.request().getHeader("X-Trace-Id");
+        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
+        commandService.stopOts(otsSlug, traceId)
                 .subscribe().with(
                         response -> rc.response().setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
+                                .putHeader("X-Trace-Id", traceId.toString())
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, otsSlug, "ots-stop", failure)
                 );

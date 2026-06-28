@@ -212,14 +212,20 @@ public class CommandService {
                 });
     }
 
-    public Uni<JsonObject> startBrand(String brand) {
+    public Uni<JsonObject> startBrand(String brand, UUID traceId) {
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "brand_start_received", Map.of("brand", brand), traceId);
         return brandPool.getRadioStream(brand)
                 .invoke(stream -> djStateService.activateBoost(brand, 3, Boost.SUPER_BOOST))
                 .map(this::toResponse)
-                .invoke(response -> LOGGER.infof("Start brand %s", brand));
+                .invoke(response -> {
+                    LOGGER.infof("Start brand %s", brand);
+                    metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "brand_start_ok", Map.of("brand", brand), traceId);
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "brand_start_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
-    public Uni<JsonObject> enableDj(String brand) {
+    public Uni<JsonObject> enableDj(String brand, UUID traceId) {
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "enable_dj_received", Map.of("brand", brand), traceId);
         return brandPool.get(brand)
                 .chain(stream -> {
                     if (stream == null) {
@@ -228,41 +234,46 @@ public class CommandService {
                         djStateService.enableDj(brand);
                         djStateService.activateBoost(brand, 3, Boost.BOOST);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
+                        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "enable_dj_ok", Map.of("brand", brand), traceId);
                         return Uni.createFrom().item(new JsonObject()
                                 .put("success", true)
                                 .put("brand", brand)
                                 .put("djEnabled", true)
                                 .put("message", "DJ intros will be generated"));
                     }
-                });
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "enable_dj_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
-    public Uni<JsonObject> disableDj(String brand) {
+    public Uni<JsonObject> disableDj(String brand, UUID traceId) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
-
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "disable_dj_received", Map.of("brand", brand), traceId);
         return Uni.createFrom().item(() -> {
             djStateService.disableDj(brand);
+            metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "disable_dj_ok", Map.of("brand", brand), traceId);
             return new JsonObject()
                     .put("success", true)
                     .put("brand", brand)
                     .put("djEnabled", false)
                     .put("message", "DJ intros disabled, songs only mode");
-        });
+        }).onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "disable_dj_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
-    public Uni<JsonObject> backpressure(String brand) {
+    public Uni<JsonObject> backpressure(String brand, UUID traceId) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "backpressure_received", Map.of("brand", brand), traceId);
         return Uni.createFrom().item(() -> {
             int pending = staggeredSongScheduler.backpressure(brand);
+            metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "backpressure_ok", Map.of("brand", brand, "pendingSkips", pending), traceId);
             return new JsonObject()
                     .put("success", true)
                     .put("brand", brand)
                     .put("pendingSkips", pending);
-        });
+        }).onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "backpressure_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
     public Uni<Boolean> getDjStatus(String brand) {
@@ -273,16 +284,17 @@ public class CommandService {
         return Uni.createFrom().item(() -> djStateService.isDjEnabled(brand));
     }
 
-    public Uni<JsonObject> stopBrand(String brand) {
+    public Uni<JsonObject> stopBrand(String brand, UUID traceId) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
-
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "brand_stop_received", Map.of("brand", brand), traceId);
         djStateService.disableDj(brand);
         return brandPool.stopAndRemove(brand)
                 .map(stoppedAgenda -> {
                     if (stoppedAgenda != null) {
                         LOGGER.infof("Stopped brand: %s, status: %s", brand, stoppedAgenda.getStatus());
+                        metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "brand_stop_ok", Map.of("brand", brand, "status", stoppedAgenda.getStatus().name()), traceId);
                         return new JsonObject()
                                 .put("success", true)
                                 .put("brand", brand)
@@ -290,22 +302,25 @@ public class CommandService {
                                 .put("message", "Brand stopped and removed from pool");
                     } else {
                         LOGGER.warnf("Brand %s not found in pool", brand);
+                        metricPublisher.publishMetric(brand, MetricEventType.WARNING, ProcessType.FLOW, "brand_stop_not_found", Map.of("brand", brand), traceId);
                         return new JsonObject()
                                 .put("success", false)
                                 .put("brand", brand)
                                 .put("message", "Brand not found in pool");
                     }
-                });
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "brand_stop_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
-    public Uni<JsonObject> emitTimelineEntry(String brand, UUID sceneId, int sequenceNumber) {
+    public Uni<JsonObject> emitTimelineEntry(String brand, UUID sceneId, int sequenceNumber, UUID traceId) {
         if (brand == null || brand.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
         if (sceneId == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing sceneId parameter"));
         }
-
+        metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "emit_timeline_entry_received",
+                Map.of("brand", brand, "sceneId", sceneId.toString(), "sequenceNumber", sequenceNumber), traceId);
         return brandPool.get(brand)
                 .chain(stream -> {
                     if (stream == null) {
@@ -340,30 +355,23 @@ public class CommandService {
                     LOGGER.infof("Manually emitting timeline entry #%d from scene %s ('%s') for brand: %s",
                             sequenceNumber, sceneId, scene.getSceneTitle(), brand);
 
-                    metricPublisher.publishMetric(
-                            brand,
-                            MetricEventType.COMMAND,
-                            ProcessType.INDEPENDENT,
-                            "command_emit_timeline_entry",
-                            Map.of(
-                                    "sceneId", sceneId.toString(),
-                                    "sceneTitle", scene.getSceneTitle(),
-                                    "sequenceNumber", sequenceNumber
-                            ),
-                            scene.getTraceId()
-                    );
-
                     return staggeredSongScheduler.emitTimelineEntry(brand, scene, entry, scene.getTimeZone(), StreamPriority.PRIORITIZED_FRONT.getValue())
-                            .map(v -> new JsonObject()
-                                    .put("success", true)
-                                    .put("brand", brand)
-                                    .put("sceneId", sceneId.toString())
-                                    .put("sceneTitle", scene.getSceneTitle())
-                                    .put("sequenceNumber", sequenceNumber)
-                                    .put("message", "Timeline entry emitted"));
+                            .map(v -> {
+                                metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "emit_timeline_entry_ok",
+                                        Map.of("brand", brand, "sceneId", sceneId.toString(), "sceneTitle", scene.getSceneTitle(), "sequenceNumber", sequenceNumber), traceId);
+                                return new JsonObject()
+                                        .put("success", true)
+                                        .put("brand", brand)
+                                        .put("sceneId", sceneId.toString())
+                                        .put("sceneTitle", scene.getSceneTitle())
+                                        .put("sequenceNumber", sequenceNumber)
+                                        .put("message", "Timeline entry emitted");
+                            });
                 })
                 .onFailure().recoverWithItem(failure -> {
                     LOGGER.errorf(failure, "Failed to emit timeline entry #%d from scene %s for brand: %s", sequenceNumber, sceneId, brand);
+                    metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "emit_timeline_entry_failed",
+                            Map.of("brand", brand, "sceneId", sceneId.toString(), "sequenceNumber", sequenceNumber, "error", failure.getMessage()), traceId);
                     return new JsonObject()
                             .put("success", false)
                             .put("brand", brand)
@@ -373,17 +381,24 @@ public class CommandService {
                 });
     }
 
-    public Uni<JsonObject> startOts(String otsSlugName) {
+    public Uni<JsonObject> startOts(String otsSlugName, UUID traceId) {
+        metricPublisher.publishMetric(otsSlugName, MetricEventType.COMMAND, ProcessType.FLOW, "ots_start_received", Map.of("otsSlugName", otsSlugName), traceId);
         return oneTimeStreamService.start(otsSlugName)
-                .map(stream -> new JsonObject()
-                        .put("success", true)
-                        .put("otsSlugName", stream.getSlugName())
-                        .put("status", stream.getStatus().name())
-                        .put("message", "OTS stream started"));
+                .map(stream -> {
+                    metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_start_ok", Map.of("otsSlugName", otsSlugName, "status", stream.getStatus().name()), traceId);
+                    return new JsonObject()
+                            .put("success", true)
+                            .put("otsSlugName", stream.getSlugName())
+                            .put("status", stream.getStatus().name())
+                            .put("message", "OTS stream started");
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(otsSlugName, MetricEventType.ERROR, ProcessType.FLOW, "ots_start_failed", Map.of("otsSlugName", otsSlugName, "error", e.getMessage()), traceId));
     }
 
-    public Uni<JsonObject> stopOts(String otsSlugName) {
+    public Uni<JsonObject> stopOts(String otsSlugName, UUID traceId) {
+        metricPublisher.publishMetric(otsSlugName, MetricEventType.COMMAND, ProcessType.FLOW, "ots_stop_received", Map.of("otsSlugName", otsSlugName), traceId);
         otsStreamScheduler.cancelOtsTimers(otsSlugName);
+        metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);
         return Uni.createFrom().item(new JsonObject()
                 .put("success", true)
                 .put("otsSlugName", otsSlugName)
