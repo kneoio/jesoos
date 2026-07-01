@@ -4,5 +4,5 @@ import com.semantyca.mixpla.model.cnst.Boost;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-record BoostState(AtomicInteger remaining, Boost type) {
+record LiveBoostState(AtomicInteger remaining, Boost type) {
 }

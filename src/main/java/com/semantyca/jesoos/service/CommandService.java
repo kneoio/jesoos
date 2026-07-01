@@ -215,7 +215,7 @@ public class CommandService {
     public Uni<JsonObject> startBrand(String brand, UUID traceId) {
         metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "brand_start_received", Map.of("brand", brand), traceId);
         return brandPool.getRadioStream(brand)
-                .invoke(stream -> djStateService.activateBoost(brand, 3, Boost.SUPER_BOOST))
+                .invoke(stream -> djStateService.activateLiveBoost(brand, 3, Boost.SUPER_BOOST))
                 .map(this::toResponse)
                 .invoke(response -> {
                     LOGGER.infof("Start brand %s", brand);
@@ -232,7 +232,7 @@ public class CommandService {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand is not on-line"));
                     } else {
                         djStateService.enableDj(brand);
-                        djStateService.activateBoost(brand, 3, Boost.BOOST);
+                        djStateService.activateLiveBoost(brand, 3, Boost.BOOST);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "enable_dj_ok", Map.of("brand", brand), traceId);
                         return Uni.createFrom().item(new JsonObject()

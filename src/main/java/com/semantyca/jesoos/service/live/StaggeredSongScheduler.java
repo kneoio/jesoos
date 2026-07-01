@@ -95,7 +95,7 @@ public class StaggeredSongScheduler {
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && consecutiveBoostIntroCount < 2 && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
-                Boost boostType = djStateService.consumeBoostEntry(brandName);
+                Boost boostType = djStateService.consumeLiveBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
                     entry.setBoost(boostType);
@@ -205,7 +205,7 @@ public class StaggeredSongScheduler {
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
             if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
-                Boost boostType = djStateService.consumeBoostEntry(brandName);
+                Boost boostType = djStateService.consumeLiveBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
                     entry.setBoost(boostType);

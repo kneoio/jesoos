@@ -350,6 +350,7 @@ public class AgendaService {
         return switch (sourcing) {
             case GENERATED -> Uni.createFrom().item(new SongPool(List.of(), Map.of()));
             case QUERY -> {
+                // TODO: also include shared sound fragments in QUERY sourcing (currently RANDOM only)
                 PlaylistRequest req = new PlaylistRequest();
                 req.setSearchTerm(playlistRequest.getSearchTerm());
                 req.setGenres(playlistRequest.getGenres());
