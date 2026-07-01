@@ -15,7 +15,7 @@ build pipeline, the emission pipeline, and the invariants that must not be broke
 
 | Term | Meaning |
 |---|---|
-| **Brand** | A station. Owns a timezone, one or more `Script`s, and an optional `AiAgent`. Root of everything. |
+| **Brand** | A station. Owns a timezone, one or more `Script`s, and a **mandatory** `AiAgent` (every brand has one). Root of everything. |
 | **Script** | An ordered container of `Scene`s for a brand. The agenda is built from one script. |
 | **Scene** | An authored programming block: a `PlaylistRequest` (how to source songs), `introPrompts`, `actions`, `talkativity`, `weekdays`, `startTime`s, and a `SceneType`. |
 | **SceneType.LOOP** | The 24h **baseline** scene. Fills all time not claimed by a one-time scene. Anchored at 00:00 if it declares no start time. |
@@ -23,6 +23,8 @@ build pipeline, the emission pipeline, and the invariants that must not be broke
 | **Talkativity** | `0.0–1.0` probability knob controlling how often DJ intros (TTS) are inserted vs. pure song/jingle transitions. |
 | **PlaylistRequest / WayOfSourcing** | How a scene gets its songs: `GENERATED` (AI content, no catalog songs), `QUERY` (filter by genre/label/search), `STATIC_LIST` (explicit ids), or default `RANDOM` (newest/oldest/random mix + shared fragments). |
 | **SongPool** | The fetched `List<SoundFragment>` + a `sharerMap` (id → sharer name) for shared songs. |
+| **SF (SoundFragment)** | The shared audio-item model (song / jingle / generated content / stream). "SF" is the platform-wide shorthand. |
+| **OTS (One-Time Stream)** | A temporary, **user-started** personal stream, separate from the brand's continuous radio. Has its own slug/name and a **parent** radio (master brand) whose songs (SF) it borrows; runs an OTS-specific script anchored on the moment it starts. See §3a. |
 | **StreamAgenda** | The built product: an ordered set of `LiveScene`s for a brand, with a timezone and build timestamp. Held per-brand in `BrandPool`. |
 | **LiveScene** | A runtime scene: carries the `timeline`, `contentStatus`, `traceId`, agent id, one-time flag, and `fitSeconds`. |
 | **TimelineEntry** | One emission unit inside a scene: 1–2 songs + a `MixingType`, a `scheduledEmissionTime`, an estimated duration, intro/jingle flags, and a `TimelineEntryStatus`. |
@@ -109,7 +111,8 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
 - Sets `fitSeconds` and `timelineBuild=true` on the scene.
 
 ### 2c. Prompt / language assignment (`assignPromptsToTimeline`)
-- Only if the brand has an `AiAgent`. Pool = active `introPrompts` + `actions`.
+- The brand's `AiAgent` is **mandatory** (always present). Pool = active `introPrompts` + `actions`.
+  (Any `agent == null` guards in the code are defensive legacy, not an optional path.)
 - For each entry marked `hasIntro`, at the intro-bearing song index (`introAtIndex`), assign a random prompt/action and a weight-selected language onto the `PromptEntry`.
 
 ---
@@ -151,7 +154,22 @@ Invariants — **do not silently change**:
 
 ### 3a. Rebuild & OTS
 - `DailyAgendaRebuildService` @ `00:00` rebuilds every active brand's agenda (day boundary — matches the loop's 00:00 anchor). Failures recover per-brand, never abort the batch.
-- OTS uses `buildOtsAgenda` + `OtsStreamScheduler` (parallel scenes, explicit durations); same emitters, different assembly.
+- **One-Time Stream (OTS)** — a temporary, **user-started** stream, separate from the brand's
+  continuous radio. Lifecycle:
+  1. **Create (dormant).** `OneTimeStreamService.run(masterBrandSlug, scriptId, vars, user)` builds an
+     OTS agenda via `buildOtsAgenda` — an **OTS-specific script**, scenes laid **sequentially and
+     anchored at the start moment** (not wall-clock), played one-by-one; no loop baseline. The stream
+     is created and stays **dormant**, waiting to be started.
+  2. **Start.** When the user starts it (aivox `start-ots` → jesoos `startOts` →
+     `OtsStreamScheduler.scheduleStream`), entries emit with `otsSlugName` set, via the same
+     `SongEmitter` / `JingleSongEmitter` / `GeneratedContentEmitter` (prioritized).
+  3. **Songs from the parent.** Emission runs against the **master (parent) brand** — the OTS borrows
+     its `SoundFragment`s (SF) from the parent radio's catalog, so every OTS has a parent stream.
+  4. **Complete → teardown (intended; not fully wired yet).** When an OTS finishes, everything it
+     created should be cleaned up — removed from the pool, timers cancelled, streams shut down. The
+     teardown methods exist (`cancelOtsTimers`, `OneTimeStreamService.delete` → `pool.stopAndRemove`;
+     aivox `stopAndRemoveStation` → `shutdown`), but **automatic completion-triggered cleanup is a
+     TODO** — today teardown runs only via an explicit delete/stop, not when the last scene ends.
 
 ### 3b. External commands (`CommandService`, `CommandResource`, `CommandConsumer`)
 The live pipeline is steered from outside via REST (`CommandResource`) and RabbitMQ
