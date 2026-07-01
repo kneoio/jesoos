@@ -47,6 +47,49 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 
 ---
 
+## Engineering Conventions (all Mixpla services)
+
+- **Reactive first.** Use the Quarkus reactive stack (Mutiny `Uni`/`Multi`, Vert.x). Never block the
+  event loop; offload blocking work to a worker pool.
+- **Performance is a priority**, especially the audio path in `jesoos` and `aivox`. Avoid expensive
+  re-initialization on hot paths.
+- **Shared / reused FFmpeg.** FFmpeg startup is expensive — reuse a single shared/pooled FFmpeg
+  (executor) instance instead of spawning/initializing per call. `jesoos` and `aivox` follow the same
+  approach for audio processing.
+- **Keep libraries current.** Upgrading a dependency to use its latest features is encouraged (shared
+  `2next` bumps still follow the 2Next Change Policy above).
+- **Database changes need approval.** Schema / DDL changes are fine in general, but only **after
+  Aida's explicit permission**. Propose the change (show the `ALTER`s) and wait for approval — never
+  alter the database structure on your own initiative.
+- **Consistent design patterns.** Match the structure the surrounding code already uses; don't invent
+  per-feature variations for the same kind of work.
+- **Observability = metrics + logs.** Publish **important events as metrics** (RabbitMQ → metriq),
+  which metriq renders in its own frontend (`metriq/frontend`). Metrics **complement** logs, they do
+  not replace them — keep meaningful logs too. Use **JBoss logging** (`org.jboss.logging.Logger`),
+  Quarkus-native, as the standard logging API.
+- **Data access / RLS.** Row-Level Security is a **datanest** concern (CRUD backend for the
+  Mixdeck/42next SPAs — every query is user-scoped). Backend services (`jesoos`, `aivox`) run as a
+  trusted system user and **skip RLS for performance**.
+
+---
+
+## Inter-service Messaging (all Mixpla services)
+
+Services talk over **RabbitMQ**, not REST. Three logical channels, DTOs shared from `2next`
+(`com.semantyca.mixpla.dto.queue.*`):
+
+- **Streaming / entities** — `jesoos → aivox`, one `SongQueueMessageDTO` per timeline entry
+  (channel `streaming`, routing key = brand slug).
+- **Metrics** — every service → `metriq`, `MetricEventDTO` (channel `metrics`).
+- **Commands** — control messages between services, `CommandDTO` (command channels).
+
+**Prefer async messaging over REST.** The platform targets **Kubernetes-native horizontal scaling** —
+any service may run as **many pods** (aivox is the first/primary candidate). Synchronous REST between
+services does not scale cleanly across pods, so **new inter-service calls should go through the queues,
+not REST**. Some REST calls still exist (legacy) and should be migrated to messaging when touched.
+
+---
+
 ## Project Purpose (whole Mixpla platform)
 
 Mixpla is **one system**; the split into microservices is a deployment/scalability choice
@@ -72,7 +115,7 @@ Core packages:
 - `com.semantyca.mixpla.*`
 - `com.semantyca.officeframe.*`
 
-Location: `/home/aidazi/IdeaProjects/2next/`
+The shared **`2next`** repo — consumed as the Maven artifact `com.semantyca:2next` (GitHub Packages).
 
 ### What 2Next shares
 
@@ -114,5 +157,5 @@ Because these are shared, a change here is a change to **every** service's contr
 
 ## Legacy System
 
-`/home/aidazi/IdeaProjects/KneoBroadcaster/` — the original monolith Mixpla was split out of.
-Reference only; not a build target.
+The **`KneoBroadcaster`** repo — the original monolith Mixpla was split out of. Reference only; not a
+build target.
