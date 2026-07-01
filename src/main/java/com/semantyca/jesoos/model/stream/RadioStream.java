@@ -33,7 +33,7 @@ public class RadioStream extends AbstractStream {
         this.aiOverriding = brand.getAiOverriding();
         this.profileOverriding = brand.getProfileOverriding();
         this.country = brand.getCountry();
-        this.scripts = brand.getScripts();
+        this.scripts = brand.getScriptIds();
     }
 
     @Override

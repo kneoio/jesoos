@@ -40,7 +40,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                     }
                     return repository.getScriptEntriesForBrand(brand.getId())
                             .onItem().transform(scripts -> {
-                                brand.setScripts(scripts);
+                                brand.setScriptIds(scripts);
                                 return brand;
                             });
                 });

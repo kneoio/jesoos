@@ -63,7 +63,7 @@ public class AgendaService {
     }
 
     public Uni<StreamAgenda> getStreamAgenda(Brand sourceBrand, IUser user) {
-        UUID scriptId = sourceBrand.getScripts().getFirst().getScriptId();
+        UUID scriptId = sourceBrand.getScriptIds().getFirst().getScriptId();
         return getStreamAgenda(sourceBrand, scriptId, user);
     }
 
