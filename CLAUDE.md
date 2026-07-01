@@ -152,10 +152,3 @@ Because these are shared, a change here is a change to **every** service's contr
 - All other services — including `2next` — have their own owner/agent. Do **not** modify them; for
   those, only **describe** the required changes.
 - Never implement cross-service changes unless **explicitly requested**.
-
----
-
-## Legacy System
-
-The **`KneoBroadcaster`** repo — the original monolith Mixpla was split out of. Reference only; not a
-build target.
