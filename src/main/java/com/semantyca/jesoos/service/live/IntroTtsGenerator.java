@@ -289,7 +289,7 @@ public class IntroTtsGenerator {
     private Uni<String> generateSpokenText(DjPrompt prompt, String draftContent, AiAgent agent, LanguageTag language, UUID traceId, String brandName, int entrySeq) {
         if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
             LOGGER.errorf("Draft content contains error, skipping generation: %s", draftContent);
-            metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+            metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                     Map.of("reason", "draft_content_error", "promptId", prompt.getId().toString(), "draft", draftContent), traceId);
             return Uni.createFrom().item((String) null);
         }
@@ -326,7 +326,7 @@ public class IntroTtsGenerator {
                     if (text.contains("technical difficulty")
                             || text.contains("technical error")
                             || text.contains("technical issue")) {
-                        metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                                 Map.of("reason", "technical_difficulty_detected", "promptId", prompt.getId().toString()), traceId);
                         return null;
                     }
@@ -374,7 +374,7 @@ public class IntroTtsGenerator {
                     if (text.contains("technical difficulty")
                             || text.contains("technical error")
                             || text.contains("technical issue")) {
-                        metricPublisher.publishMetric(brandName, MetricEventType.WARNING, ProcessType.FLOW, "intro_spoken_text_generation_failed",
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_spoken_text_generation_failed",
                                 Map.of("reason", "technical_difficulty_detected", "actionName", action.getName()), traceId);
                         return null;
                     }
