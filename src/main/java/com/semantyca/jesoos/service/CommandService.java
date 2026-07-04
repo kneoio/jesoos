@@ -71,6 +71,14 @@ public class CommandService {
             case FLOW_RESTART -> handleBrandSaved(dto);
             case SONG_RATED -> handleSongRated(dto);
             case REBUILD_AGENDA -> handleRebuildAgenda(dto);
+            case JESOOS_START_BRAND -> {
+                Object rawBrand = dto.payload() != null ? dto.payload().get("brand") : null;
+                if (rawBrand == null) {
+                    LOGGER.warnf("JESOOS_START_BRAND missing brand in payload, traceId=%s", dto.traceId());
+                    yield Uni.createFrom().voidItem();
+                }
+                yield startBrand(rawBrand.toString(), dto.traceId()).replaceWithVoid();
+            }
             default -> {
                 LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
                 yield Uni.createFrom().voidItem();
