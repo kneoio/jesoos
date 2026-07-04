@@ -141,13 +141,34 @@ cross-turn state lives in the session, not the graph).
 
 ## 7. Advertisements (authenticated only)
 
-State machine in `AdSessionManager` + `AdGraph`.
-- `create_ad` starts the interactive flow and returns a `firstQuestion` — say it
-  verbatim, don't pre-collect details or explain the process first.
-- The graph extracts `description / details / contacts` (+ structured user_data) over
-  several turns, then saves a `UserAd` and generates a title.
-- While an Ad session is active, the router routes to `AdContinuationHandler`.
-- If anonymous → invite sign-in first. Never use `inform_owner` as an ad fallback.
+State machine in `AdSessionManager` + `AdGraph`. Gated per-brand by
+`Brand.chatFeatureFlags` (extensible flag map, see `CreateAdToolHandler.resolveAdType`):
+- `CREATE_AD` (default **on**) → personal/classified ads (bicycle, car, job, ...).
+- `STORE_PROMO` (default **off**) → store/business promotions (discounts, sales).
+- Neither flag on → `create_ad` tool withheld entirely (`ChatAgent.getToolsForUser`) and
+  `mainPrompt.hbs` tells the DJ to decline conversationally (`{{adEnabled}}`); the tool
+  handler also rejects defensively if it's still invoked.
+
+`create_ad` starts the interactive flow and returns a `firstQuestion` (wording depends on
+which type(s) are enabled) — say it verbatim, don't pre-collect details or explain the
+process first.
+
+**Ad type resolution:**
+- Only one flag enabled → that brand's session is fixed to that type from the start
+  (`CLASSIFIED` or `STORE_PROMO`), no classification needed.
+- Both flags enabled → type is ambiguous at session start; `AdGraph`'s `classifyAdType`
+  node classifies it from the user's first reply (LLM call), then locks it in for the
+  rest of the session.
+
+**Per-type fields** (`AdGraph.requiredVarsFor`):
+- `CLASSIFIED`: `description / details / contacts` (+ structured user_data: category,
+  price, location, brand, year, condition, mileage).
+- `STORE_PROMO`: `description / validity` — **no contacts**, no category questions.
+
+Saves a `UserAd` (title auto-generated) with `adType` and, for `STORE_PROMO`, `validity`
+stored in `userData`. While an Ad session is active, the router routes to
+`AdContinuationHandler`. If anonymous → invite sign-in first. Never use `inform_owner` as
+an ad fallback.
 
 ---
 

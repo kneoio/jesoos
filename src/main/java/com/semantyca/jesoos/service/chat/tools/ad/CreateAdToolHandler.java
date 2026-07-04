@@ -42,7 +42,8 @@ public class CreateAdToolHandler extends BaseToolHandler {
 
         return brandService.getBySlugName(brandName)
                 .flatMap(brand -> {
-                    if (Boolean.FALSE.equals(brand.getChatFeatureFlags().get("CREATE_AD"))) {
+                    String adType = resolveAdType(brand.getChatFeatureFlags());
+                    if (adType == null) {
                         JsonObject payload = new JsonObject().put("ok", false).put("error", "Ads are not enabled for this station");
                         handler.addToolUseToHistory(toolCall, conversationHistory);
                         handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
@@ -52,6 +53,7 @@ public class CreateAdToolHandler extends BaseToolHandler {
                     AdSessionData session = new AdSessionData(
                             brandName, brand.getId(), userId);
                     session.setDjName(djName);
+                    session.setAdType(adType.isEmpty() ? null : adType);
                     adSessionManager.start(connectionId, session);
 
                     return adGraph.generateFirstQuestion(session)
@@ -85,12 +87,14 @@ public class CreateAdToolHandler extends BaseToolHandler {
             long userId, String brandName, String djName, String connectionId) {
         return brandService.getBySlugName(brandName)
                 .chain(brand -> {
-                    if (Boolean.FALSE.equals(brand.getChatFeatureFlags().get("CREATE_AD"))) {
+                    String adType = resolveAdType(brand.getChatFeatureFlags());
+                    if (adType == null) {
                         return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                 new JsonObject().put("ok", false).put("error", "Ads are not enabled for this station").encode()));
                     }
                     AdSessionData session = new AdSessionData(brandName, brand.getId(), userId);
                     session.setDjName(djName);
+                    session.setAdType(adType.isEmpty() ? null : adType);
                     adSessionManager.start(connectionId, session);
                     return adGraph.generateFirstQuestion(session)
                             .map(firstQuestion -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
@@ -99,5 +103,17 @@ public class CreateAdToolHandler extends BaseToolHandler {
                 })
                 .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                         new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));
+    }
+
+    /**
+     * Resolves which ad type a brand accepts: null if neither is enabled, "" if both are
+     * (ambiguous — AdGraph classifies per-request), otherwise the single enabled type.
+     */
+    private static String resolveAdType(Map<String, Boolean> flags) {
+        boolean classifiedEnabled = !Boolean.FALSE.equals(flags.get("CREATE_AD"));
+        boolean storePromoEnabled = Boolean.TRUE.equals(flags.get("STORE_PROMO"));
+        if (!classifiedEnabled && !storePromoEnabled) return null;
+        if (classifiedEnabled && storePromoEnabled) return "";
+        return storePromoEnabled ? "STORE_PROMO" : "CLASSIFIED";
     }
 }

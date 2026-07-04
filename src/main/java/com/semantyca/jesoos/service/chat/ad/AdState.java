@@ -18,6 +18,7 @@ public class AdState extends AgentState {
     public static final String SAVED_AD_ID     = "savedAdId";
     public static final String USER_DATA       = "userData";
     public static final String BRAND_SLUG      = "brandSlug";
+    public static final String AD_TYPE         = "adType";
 
     public AdState(Map<String, Object> initData) {
         super(initData);
@@ -29,6 +30,7 @@ public class AdState extends AgentState {
     public String action()        { return this.<String>value(ACTION).orElse("ask"); }
     public String nextQuestion()  { return this.<String>value(NEXT_QUESTION).orElse(""); }
     public String savedAdId()     { return this.<String>value(SAVED_AD_ID).orElse(null); }
+    public String adType()        { String v = this.<String>value(AD_TYPE).orElse(null); return v == null || v.isBlank() ? null : v; }
 
     @SuppressWarnings("unchecked")
     public Map<String, String> collectedVars() {

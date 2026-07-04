@@ -19,6 +19,8 @@ public class AdSessionData {
     private String pendingVar;
     @Setter
     private String djName = "DJ";
+    @Setter
+    private String adType;
 
     public AdSessionData(String brandSlug, UUID brandId, long userId) {
         this.brandSlug = brandSlug;

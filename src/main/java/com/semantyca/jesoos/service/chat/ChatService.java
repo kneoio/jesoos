@@ -295,7 +295,9 @@ public class ChatService {
                         com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
                         String otsScripts = tuple.getItem2();
                         assert station != null;
-                        boolean adEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get("CREATE_AD"));
+                        boolean classifiedAdsEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get("CREATE_AD"));
+                        boolean storePromoEnabled = Boolean.TRUE.equals(station.getChatFeatureFlags().get("STORE_PROMO"));
+                        boolean adEnabled = classifiedAdsEnabled || storePromoEnabled;
                         String djName = agent.getName();
                         String djLanguages = agent.getPreferredLang().stream()
                                 .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
