@@ -149,7 +149,7 @@ public class OtsGraph {
         String brandSlug = state.brandSlug();
         Map<String, Object> vars = new HashMap<>(state.collectedVars());
 
-        return oneTimeStreamService.run(brandSlug, scriptId, vars, true, SuperUser.build())
+        return oneTimeStreamService.run(brandSlug, scriptId, vars, SuperUser.build())
                 .map(stream -> {
                     String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
                     LOGGER.infof("[OtsGraph] stream started slugName=%s url=%s", stream.getSlugName(), mixplaUrl);
