@@ -213,6 +213,7 @@ public class ChatService {
         initData.put(ChatState.SYSTEM_PROMPT, renderedPrompt);
         initData.put(ChatState.DJ_NAME, staticData.djName());
         initData.put(ChatState.DJ_LANGUAGES, staticData.djLanguages());
+        initData.put(ChatState.AD_ENABLED, staticData.adEnabled());
         initData.put(ChatState.ITERATION, 0);
 
         int startHistorySize = history.size();
@@ -294,6 +295,7 @@ public class ChatService {
                         com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
                         String otsScripts = tuple.getItem2();
                         assert station != null;
+                        boolean adEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get("CREATE_AD"));
                         String djName = agent.getName();
                         String djLanguages = agent.getPreferredLang().stream()
                                 .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
@@ -309,8 +311,9 @@ public class ChatService {
                                 .replace("{{djCopilotName}}", "")
                                 .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
                                 .replace("{{otsScripts}}", sanitizePromptValue(otsScripts))
-                                .replace("{{submissionPolicy}}", station.getSubmissionPolicy().name());
-                        BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt);
+                                .replace("{{submissionPolicy}}", station.getSubmissionPolicy().name())
+                                .replace("{{adEnabled}}", Boolean.toString(adEnabled));
+                        BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt, adEnabled);
                         brandStaticCache.put(slugName, data);
                         return data;
                     });

@@ -18,7 +18,9 @@ import lombok.Setter;
 
 import java.net.URL;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Setter
@@ -59,6 +61,7 @@ public class BrandDTO extends AbstractDTO {
     private SubmissionPolicy oneTimeStreamPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private Map<String, Boolean> chatFeatureFlags = new HashMap<>();
     private Integer isTemporary = 0;
     private UUID aiAgentId;
     private UUID profileId;

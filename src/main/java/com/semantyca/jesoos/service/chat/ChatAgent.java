@@ -183,7 +183,7 @@ public class ChatAgent {
         boolean isAuthenticated = state.userId() != 0;
         String djLanguages = state.djLanguages();
         String brandName = state.brandName();
-        List<LlmTool> tools = getToolsForUser(isAuthenticated, djLanguages);
+        List<LlmTool> tools = getToolsForUser(isAuthenticated, djLanguages, state.adEnabled());
 
         String model = state.iteration() == 0
                 ? llmProviderResolver.modelFor(brandName, LlmUseCase.MAIN_CHAT)
@@ -376,7 +376,7 @@ public class ChatAgent {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages) {
+    private List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages, boolean adEnabled) {
         List<LlmTool> tools = new ArrayList<>();
         tools.add(SendEmailToOwnerTool.toTool());
         if (isAuthenticated) {
@@ -387,7 +387,9 @@ public class ChatAgent {
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool(djLanguages));
             tools.add(StartOneTimeStreamTool.toTool());
-            tools.add(CreateAdTool.toTool());
+            if (adEnabled) {
+                tools.add(CreateAdTool.toTool());
+            }
             tools.add(ManageEventsTool.toTool());
             tools.add(SendUICommandTool.toTool());
             tools.add(LogoffTool.toTool());

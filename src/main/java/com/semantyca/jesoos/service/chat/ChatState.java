@@ -17,6 +17,7 @@ public class ChatState extends AgentState {
     public static final String SYSTEM_PROMPT    = "systemPrompt";
     public static final String DJ_NAME          = "djName";
     public static final String DJ_LANGUAGES     = "djLanguages";
+    public static final String AD_ENABLED       = "adEnabled";
     public static final String TOOL_CALL        = "toolCall";
     public static final String BOT_RESPONSE     = "botResponse";
     public static final String CONTEXT_BLOCK    = "contextBlock";
@@ -41,6 +42,7 @@ public class ChatState extends AgentState {
     public String systemPrompt()  { return (String) data().getOrDefault(SYSTEM_PROMPT, ""); }
     public String djName()        { return (String) data().getOrDefault(DJ_NAME, ""); }
     public String djLanguages()   { return (String) data().getOrDefault(DJ_LANGUAGES, ""); }
+    public boolean adEnabled()     { return (boolean) data().getOrDefault(AD_ENABLED, true); }
     public LlmToolCall toolCall()   { return (LlmToolCall) data().get(TOOL_CALL); }
     public String botResponse()    { return (String) data().get(BOT_RESPONSE); }
     public String contextBlock()   { return (String) data().getOrDefault(CONTEXT_BLOCK, ""); }

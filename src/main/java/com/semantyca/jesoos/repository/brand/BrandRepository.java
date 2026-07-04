@@ -28,7 +28,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.semantyca.mixpla.repository.MixplaNameResolver.RADIO_STATION;
@@ -186,6 +188,13 @@ public class BrandRepository extends AsyncRepository {
         doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
         doc.setMessagingPolicy(SubmissionPolicy.valueOf(row.getString("messaging_policy")));
         doc.setTitleFont(row.getString("title_font"));
+
+        JsonObject chatFeatureFlagsJson = row.getJsonObject("chat_feature_flags");
+        if (chatFeatureFlagsJson != null) {
+            Map<String, Boolean> chatFeatureFlags = new HashMap<>();
+            chatFeatureFlagsJson.getMap().forEach((key, value) -> chatFeatureFlags.put(key, (Boolean) value));
+            doc.setChatFeatureFlags(chatFeatureFlags);
+        }
 
         JsonArray bitRateJson = row.getJsonArray("bit_rate");
         if (bitRateJson != null && !bitRateJson.isEmpty()) {

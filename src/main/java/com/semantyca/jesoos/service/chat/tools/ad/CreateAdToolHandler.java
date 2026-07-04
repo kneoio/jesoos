@@ -42,6 +42,13 @@ public class CreateAdToolHandler extends BaseToolHandler {
 
         return brandService.getBySlugName(brandName)
                 .flatMap(brand -> {
+                    if (Boolean.FALSE.equals(brand.getChatFeatureFlags().get("CREATE_AD"))) {
+                        JsonObject payload = new JsonObject().put("ok", false).put("error", "Ads are not enabled for this station");
+                        handler.addToolUseToHistory(toolCall, conversationHistory);
+                        handler.addToolResultToHistory(toolCall, payload.encode(), conversationHistory);
+                        return streamFn.apply(handler.buildFollowUpParams(systemPromptCall2, conversationHistory));
+                    }
+
                     AdSessionData session = new AdSessionData(
                             brandName, brand.getId(), userId);
                     session.setDjName(djName);
@@ -78,6 +85,10 @@ public class CreateAdToolHandler extends BaseToolHandler {
             long userId, String brandName, String djName, String connectionId) {
         return brandService.getBySlugName(brandName)
                 .chain(brand -> {
+                    if (Boolean.FALSE.equals(brand.getChatFeatureFlags().get("CREATE_AD"))) {
+                        return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Ads are not enabled for this station").encode()));
+                    }
                     AdSessionData session = new AdSessionData(brandName, brand.getId(), userId);
                     session.setDjName(djName);
                     adSessionManager.start(connectionId, session);
