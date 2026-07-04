@@ -20,10 +20,7 @@ public class StartOneTimeStreamTool {
                                 "description", "UUID of the script (from list_ots_scripts)"),
                         "userVariables", Map.of(
                                 "type", "object",
-                                "description", "Key-value pairs for script required variables collected from the user"),
-                        "startImmediately", Map.of(
-                                "type", "boolean",
-                                "description", "Whether to start the stream immediately (default true)")
+                                "description", "Key-value pairs for script required variables collected from the user")
                 ),
                 List.of("brandSlugName", "scriptId")
         );

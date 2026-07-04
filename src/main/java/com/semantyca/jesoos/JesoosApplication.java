@@ -3,6 +3,7 @@ package com.semantyca.jesoos;
 import com.semantyca.jesoos.rest.AuthResource;
 import com.semantyca.jesoos.rest.ChatUploadResource;
 import com.semantyca.jesoos.rest.CommandResource;
+import com.semantyca.jesoos.rest.OtsResource;
 import com.semantyca.jesoos.rest.DebugResource;
 import com.semantyca.jesoos.rest.InfoResource;
 import com.semantyca.jesoos.rest.SoundFragmentUploadResource;
@@ -23,6 +24,9 @@ public class JesoosApplication {
     CommandResource commandResource;
 
     @Inject
+    OtsResource otsResource;
+
+    @Inject
     InfoResource infoResource;
 
     @Inject
@@ -40,6 +44,7 @@ public class JesoosApplication {
     void setupRoutes(@Observes Router router) {
         authResource.setupRoutes(router);
         commandResource.setupRoutes(router);
+        otsResource.setupRoutes(router);
         infoResource.setupRoutes(router);
         publicChatController.setupRoutes(router);
         chatUploadResource.setupRoutes(router);

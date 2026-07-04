@@ -64,12 +64,6 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
             vars.forEach((k, v) -> userVariables.put(k.toString(), v));
         }
 
-        boolean startImmediately = true;
-        if (inputMap.containsKey("startImmediately")) {
-            startImmediately = Boolean.parseBoolean(inputMap.get("startImmediately").toString());
-        }
-        boolean finalStartImmediately = startImmediately;
-
         return scriptService.getById(scriptId, SuperUser.build())
                 .flatMap(script -> {
                     List<ScriptVariable> requiredVars = script.getRequiredVariables();
@@ -106,7 +100,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
                     }
 
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Starting one-time stream...");
-                    return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, finalStartImmediately, SuperUser.build())
+                    return oneTimeStreamService.run(brandSlugName, scriptId, userVariables, SuperUser.build())
                             .flatMap(stream -> {
                                 String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
                                 String mixplaUrl = "https://mixpla.online/" + stream.getSlugName();
@@ -158,8 +152,6 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
         Map<String, Object> userVariables = new HashMap<>();
         if (inputMap.get("userVariables") instanceof Map<?, ?> vars)
             vars.forEach((k, v) -> userVariables.put(k.toString(), v));
-        boolean startImmediately = inputMap.containsKey("startImmediately")
-                ? Boolean.parseBoolean(inputMap.get("startImmediately").toString()) : true;
         UUID finalScriptId = scriptId;
         return scriptService.getById(scriptId, SuperUser.build())
                 .chain(script -> {
@@ -181,7 +173,7 @@ public class StartOneTimeStreamToolHandler extends BaseToolHandler {
                                                     .put("missingVars", new io.vertx.core.json.JsonArray(new ArrayList<>(missing))).encode()));
                         }
                     }
-                    return oneTimeStreamService.run(brandSlugName, finalScriptId, userVariables, startImmediately, SuperUser.build())
+                    return oneTimeStreamService.run(brandSlugName, finalScriptId, userVariables, SuperUser.build())
                             .map(stream -> {
                                 String hlsUrl = streamHost + "/" + stream.getSlugName() + "/radio/stream.m3u8";
                                 return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
