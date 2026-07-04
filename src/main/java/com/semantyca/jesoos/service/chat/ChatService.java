@@ -27,6 +27,7 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
 import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.jesoos.ws.PublicChatController;
+import com.semantyca.mixpla.model.cnst.ChatFeatureFlag;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
@@ -295,8 +296,8 @@ public class ChatService {
                         com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
                         String otsScripts = tuple.getItem2();
                         assert station != null;
-                        boolean classifiedAdsEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get("CREATE_AD"));
-                        boolean storePromoEnabled = Boolean.TRUE.equals(station.getChatFeatureFlags().get("STORE_PROMO"));
+                        boolean classifiedAdsEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get(ChatFeatureFlag.CREATE_AD));
+                        boolean storePromoEnabled = Boolean.TRUE.equals(station.getChatFeatureFlags().get(ChatFeatureFlag.STORE_PROMO));
                         boolean adEnabled = classifiedAdsEnabled || storePromoEnabled;
                         String djName = agent.getName();
                         String djLanguages = agent.getPreferredLang().stream()

@@ -12,6 +12,7 @@ import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.brand.Owner;
 import com.semantyca.mixpla.model.brand.ProfileOverriding;
+import com.semantyca.mixpla.model.cnst.ChatFeatureFlag;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
 import com.semantyca.mixpla.repository.MixplaNameResolver;
@@ -191,8 +192,12 @@ public class BrandRepository extends AsyncRepository {
 
         JsonObject chatFeatureFlagsJson = row.getJsonObject("chat_feature_flags");
         if (chatFeatureFlagsJson != null) {
-            Map<String, Boolean> chatFeatureFlags = new HashMap<>();
-            chatFeatureFlagsJson.getMap().forEach((key, value) -> chatFeatureFlags.put(key, (Boolean) value));
+            Map<ChatFeatureFlag, Boolean> chatFeatureFlags = new HashMap<>();
+            chatFeatureFlagsJson.getMap().forEach((key, value) -> {
+                try {
+                    chatFeatureFlags.put(ChatFeatureFlag.valueOf(key), (Boolean) value);
+                } catch (IllegalArgumentException ignored) {}
+            });
             doc.setChatFeatureFlags(chatFeatureFlags);
         }
 

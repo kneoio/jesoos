@@ -8,6 +8,7 @@ import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
 import com.semantyca.jesoos.service.chat.tools.BaseToolHandler;
+import com.semantyca.mixpla.model.cnst.ChatFeatureFlag;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -109,9 +110,9 @@ public class CreateAdToolHandler extends BaseToolHandler {
      * Resolves which ad type a brand accepts: null if neither is enabled, "" if both are
      * (ambiguous — AdGraph classifies per-request), otherwise the single enabled type.
      */
-    private static String resolveAdType(Map<String, Boolean> flags) {
-        boolean classifiedEnabled = !Boolean.FALSE.equals(flags.get("CREATE_AD"));
-        boolean storePromoEnabled = Boolean.TRUE.equals(flags.get("STORE_PROMO"));
+    private static String resolveAdType(Map<ChatFeatureFlag, Boolean> flags) {
+        boolean classifiedEnabled = !Boolean.FALSE.equals(flags.get(ChatFeatureFlag.CREATE_AD));
+        boolean storePromoEnabled = Boolean.TRUE.equals(flags.get(ChatFeatureFlag.STORE_PROMO));
         if (!classifiedEnabled && !storePromoEnabled) return null;
         if (classifiedEnabled && storePromoEnabled) return "";
         return storePromoEnabled ? "STORE_PROMO" : "CLASSIFIED";

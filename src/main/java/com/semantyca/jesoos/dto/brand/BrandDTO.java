@@ -5,6 +5,7 @@ import com.semantyca.core.dto.AbstractDTO;
 import com.semantyca.core.dto.validation.ValidCountry;
 import com.semantyca.core.dto.validation.ValidLocalizedName;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.cnst.ChatFeatureFlag;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
@@ -61,7 +62,7 @@ public class BrandDTO extends AbstractDTO {
     private SubmissionPolicy oneTimeStreamPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
-    private Map<String, Boolean> chatFeatureFlags = new HashMap<>();
+    private Map<ChatFeatureFlag, Boolean> chatFeatureFlags = new HashMap<>();
     private Integer isTemporary = 0;
     private UUID aiAgentId;
     private UUID profileId;
