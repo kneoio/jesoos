@@ -22,6 +22,7 @@ import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.SongEmitter;
+import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
 import io.quarkus.mailer.reactive.ReactiveMailer;
@@ -65,6 +66,7 @@ public class ChatAgent {
     @Inject BrandPool brandPool;
     @Inject SongEmitter songEmitter;
     @Inject SoundFragmentService soundFragmentService;
+    @Inject SharedSoundFragmentService sharedSoundFragmentService;
     @Inject IntroTtsGenerator introTtsGenerator;
     @Inject InternalRestCall internalRestCall;
     @Inject OneTimeStreamService oneTimeStreamService;
@@ -342,7 +344,7 @@ public class ChatAgent {
             case "inform_owner" -> SendEmailToOwnerToolHandler.execute(input, brandService, userService,
                     reactiveMailer, config.getFromAddress(), userId, brandName);
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
-                    soundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
+                    soundFragmentService, sharedSoundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
                     listenerLabelCache, brandService, brandName, userId);
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.execute(input, aiAgentService,
                     brandPool, introTtsGenerator, internalRestCall);

@@ -25,6 +25,11 @@ public class SharedSoundFragmentService {
         this.repository = repository;
     }
 
+    public Uni<Void> shareContribution(UUID soundFragmentId, UUID targetBrandId, long sourceUserId,
+                                        String sourceUserName, String sourceUserEmail) {
+        return repository.shareContribution(soundFragmentId, targetBrandId, sourceUserId, sourceUserName, sourceUserEmail);
+    }
+
     public Uni<List<SharedSongEntry>> getForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         int newest = Math.max(1, (int) Math.ceil(quantity * 0.4));
         int random = Math.max(1, quantity - newest);
