@@ -52,17 +52,13 @@ public class ChatUploadResource extends AbstractResource {
                 .subscribe().with(
                         user -> {
                             if (user.getId() == 0 || !sessionManager.hasUploadPermission(user.getId())) {
-                                rc.response().setStatusCode(403)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "Upload not available — ask the DJ first").encode());
+                                rc.fail(403, new IllegalArgumentException("Upload not available — ask the DJ first"));
                                 return;
                             }
 
                             var uploads = rc.fileUploads();
                             if (uploads == null || uploads.isEmpty()) {
-                                rc.response().setStatusCode(400)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "No file uploaded").encode());
+                                rc.fail(400, new IllegalArgumentException("No file uploaded"));
                                 return;
                             }
 
@@ -71,9 +67,7 @@ public class ChatUploadResource extends AbstractResource {
                             try {
                                 safeFilename = FileSecurityUtils.sanitizeFilename(upload.fileName());
                             } catch (SecurityException e) {
-                                rc.response().setStatusCode(400)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "Invalid filename").encode());
+                                rc.fail(400, new IllegalArgumentException("Invalid filename"));
                                 return;
                             }
 
@@ -92,10 +86,7 @@ public class ChatUploadResource extends AbstractResource {
                                 Path destFile = FileSecurityUtils.secureResolve(destDir, uniqueFilename);
                                 Files.move(Paths.get(upload.uploadedFileName()), destFile, StandardCopyOption.REPLACE_EXISTING);
                             } catch (IOException | SecurityException e) {
-                                LOGGER.errorf("Failed to save upload for user %s: %s", user.getLogin(), e.getMessage());
-                                rc.response().setStatusCode(500)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "Failed to save file").encode());
+                                rc.fail(500, new RuntimeException("Failed to save file for user " + user.getLogin() + ": " + e.getMessage(), e));
                                 return;
                             }
 
@@ -104,9 +95,7 @@ public class ChatUploadResource extends AbstractResource {
                                     .putHeader("Content-Type", "application/json")
                                     .end(new JsonObject().put("filename", uniqueFilename).encode());
                         },
-                        err -> rc.response().setStatusCode(401)
-                                .putHeader("Content-Type", "application/json")
-                                .end(new JsonObject().put("error", "Authentication required").encode())
+                        err -> rc.fail(401, new IllegalArgumentException("Authentication required"))
                 );
     }
 }

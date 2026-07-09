@@ -32,22 +32,19 @@ public class OtsResource extends AbstractResource {
         String brand = rc.pathParam("brand");
         JsonObject body = rc.body().asJsonObject();
         if (body == null) {
-            rc.response().setStatusCode(400).putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "Missing request body").encode());
+            rc.fail(400, new IllegalArgumentException("Missing request body"));
             return;
         }
         String scriptIdStr = body.getString("scriptId");
         if (scriptIdStr == null) {
-            rc.response().setStatusCode(400).putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "Missing scriptId").encode());
+            rc.fail(400, new IllegalArgumentException("Missing scriptId"));
             return;
         }
         UUID scriptId;
         try {
             scriptId = UUID.fromString(scriptIdStr);
         } catch (Exception e) {
-            rc.response().setStatusCode(400).putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "Invalid scriptId").encode());
+            rc.fail(400, new IllegalArgumentException("Invalid scriptId"));
             return;
         }
         Map<String, Object> userVariables = new HashMap<>();
@@ -73,8 +70,7 @@ public class OtsResource extends AbstractResource {
                 .subscribe().with(
                         stream -> {
                             if (stream == null) {
-                                rc.response().setStatusCode(404).putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "Not found").encode());
+                                rc.fail(404);
                             } else {
                                 rc.response().setStatusCode(200).putHeader("Content-Type", "application/json")
                                         .end(new JsonObject()

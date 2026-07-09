@@ -72,13 +72,7 @@ public class InfoResource extends AbstractResource {
                     .setStatusCode(200)
                     .putHeader("Content-Type", "application/json")
                     .end(json);
-        }).onFailure(err -> {
-            LOGGER.error("Failed to serialize live status for brand: " + brand, err);
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", err.getMessage()).encode());
-        });
+        }).onFailure(err -> rc.fail(500, new RuntimeException("Failed to serialize live status for brand " + brand + ": " + err.getMessage(), err)));
     }
 
     private void getAgendas(RoutingContext rc) {
@@ -95,10 +89,7 @@ public class InfoResource extends AbstractResource {
                 .subscribe().with(
                         json -> {
                             if (json == null) {
-                                rc.response()
-                                        .setStatusCode(404)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject().put("error", "Agenda not found for brand: " + brand).encode());
+                                rc.fail(404, new IllegalArgumentException("Agenda not found for brand: " + brand));
                                 return;
                             }
                             rc.response()
@@ -106,13 +97,7 @@ public class InfoResource extends AbstractResource {
                                     .putHeader("Content-Type", "application/json")
                                     .end(json);
                         },
-                        err -> {
-                            LOGGER.error("Failed to serialize agenda for brand: " + brand, err);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(new JsonObject().put("error", err.getMessage()).encode());
-                        }
+                        err -> rc.fail(500, new RuntimeException("Failed to serialize agenda for brand " + brand + ": " + err.getMessage(), err))
                 );
     }
 

@@ -56,17 +56,13 @@ public class DebugResource extends AbstractResource {
         try {
             body = rc.body().asJsonObject();
         } catch (Exception e) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "invalid JSON body").encode());
+            rc.fail(400, new IllegalArgumentException("invalid JSON body"));
             return;
         }
 
         String instruction = body.getString("instruction");
         if (instruction == null || instruction.isBlank()) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "instruction is required").encode());
+            rc.fail(400, new IllegalArgumentException("instruction is required"));
             return;
         }
 
@@ -106,17 +102,13 @@ public class DebugResource extends AbstractResource {
         try {
             body = rc.body().asJsonObject();
         } catch (Exception e) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "invalid JSON body").encode());
+            rc.fail(400, new IllegalArgumentException("invalid JSON body"));
             return;
         }
 
         String promptIdStr = body.getString("promptId");
         if (promptIdStr == null || promptIdStr.isBlank()) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "promptId is required").encode());
+            rc.fail(400, new IllegalArgumentException("promptId is required"));
             return;
         }
 
@@ -124,9 +116,7 @@ public class DebugResource extends AbstractResource {
         try {
             promptId = UUID.fromString(promptIdStr);
         } catch (Exception e) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "invalid promptId").encode());
+            rc.fail(400, new IllegalArgumentException("invalid promptId"));
             return;
         }
 
@@ -150,9 +140,7 @@ public class DebugResource extends AbstractResource {
             try {
                 language = LanguageTag.fromTag(langTag);
             } catch (Exception e) {
-                rc.response().setStatusCode(400)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject().put("error", "invalid language tag").encode());
+                rc.fail(400, new IllegalArgumentException("invalid language tag"));
                 return;
             }
         }
@@ -164,9 +152,7 @@ public class DebugResource extends AbstractResource {
             try {
                 overrideLlmType = LlmType.valueOf(llmTypeStr.toUpperCase());
             } catch (Exception e) {
-                rc.response().setStatusCode(400)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject().put("error", "invalid llmType").encode());
+                rc.fail(400, new IllegalArgumentException("invalid llmType"));
                 return;
             }
         }
@@ -193,17 +179,13 @@ public class DebugResource extends AbstractResource {
         try {
             body = rc.body().asJsonObject();
         } catch (Exception e) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "invalid JSON body").encode());
+            rc.fail(400, new IllegalArgumentException("invalid JSON body"));
             return;
         }
 
         String code = body.getString("code");
         if (code == null || code.isBlank()) {
-            rc.response().setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "code is required").encode());
+            rc.fail(400, new IllegalArgumentException("code is required"));
             return;
         }
 
