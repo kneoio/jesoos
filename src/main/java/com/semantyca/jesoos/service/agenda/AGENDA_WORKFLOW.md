@@ -225,8 +225,11 @@ generated and mixing is downgraded to song/jingle only. Pipeline per intro:
 ```
 resolveForLanguage(promptId, lang)                 (or CustomAction path)
   → DraftFactory builds draft (song facts, sharerName, optional chat summary)
-  → LLM spoken text  (Anthropic or Groq per agent.llmType; system prompt = "professional radio DJ",
-                       language BCP-47-locked; emoji stripped; "technical difficulty" → discarded)
+  → LLM spoken text  (Anthropic or Groq per agent.llmType; system prompt from
+                       `prompts/introSystemPrompt.hbs` (regular flow) or
+                       `prompts/introActionSystemPrompt.hbs` (CustomAction flow) —
+                       language BCP-47-locked, non-Latin song/artist names transliterated rather
+                       than refused; emoji stripped; "technical difficulty" → discarded)
   → TTS engine per agent Voice.engineType: ElevenLabs | Modelslab | GCP | Fish Audio
   → mp3 saved to {uploads}/intro-tts/temp
   → ffprobe → IntroAudioResult(filePath, durationSeconds, gain, engineType)
@@ -313,7 +316,8 @@ to deliver content in different languages across the broadcast — reflecting mu
   context, and (for generated content) weather/news from external APIs. Drafts are authored in
   **English** regardless of output language.
 - **Prompt** is the LLM instruction; the emitter sends `prompt.getPrompt()` + `"Draft input:\n" +
-  draft` to Anthropic/Groq under a "professional radio DJ" system prompt. The model turns the
+  draft` to Anthropic/Groq under the shared system prompt (`prompts/introSystemPrompt.hbs`,
+  Handlebars-rendered with `langInstruction`/`manner`). The model turns the
   factual draft into spoken radio text in the chosen language; emoji stripped; obvious error/"technical
   difficulty" outputs are discarded in favour of the language fallback.
 

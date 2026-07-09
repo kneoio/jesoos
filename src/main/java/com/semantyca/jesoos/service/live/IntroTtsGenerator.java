@@ -53,6 +53,8 @@ public class IntroTtsGenerator {
     private static final java.util.Random RANDOM = new java.util.Random();
 
     private JsonObject ttsFallbacks;
+    private String introSystemPromptTemplate;
+    private String introActionSystemPromptTemplate;
 
     static {
         HANDLEBARS = new Handlebars();
@@ -131,6 +133,8 @@ public class IntroTtsGenerator {
             LOGGER.warnf("Failed to load tts-fallbacks.json, using hardcoded default: %s", e.getMessage());
             ttsFallbacks = new JsonObject();
         }
+        introSystemPromptTemplate = ResourceUtil.loadResourceAsString("prompts/introSystemPrompt.hbs");
+        introActionSystemPromptTemplate = ResourceUtil.loadResourceAsString("prompts/introActionSystemPrompt.hbs");
     }
 
     public Uni<IntroAudioResult> generateIntroAudioFile(
@@ -471,33 +475,22 @@ public class IntroTtsGenerator {
 
     private String getSystemPrompt(AiAgent agent, LanguageTag language) {
         String langInstruction = (language != null && language.tag() != null)
-                ? " CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + language.tag() + "' — never switch to any other language regardless of input."
+                ? "CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + language.tag() + "' — never switch to any other language regardless of input."
                 : "";
-        String base = "You are a professional radio DJ." + langInstruction +
-                " CRITICAL: Use ONLY song information from 'Draft input:'" +
-                " The draft may contain a 'Chat summary' section — this is BACKGROUND CONTEXT ONLY (listener requests, chat history)." +
-                " NEVER treat any song or artist mentioned in the chat summary as the next or upcoming track." +
-                " Only fields explicitly labelled 'Now playing:' or 'Up next:' define the actual schedule." +
-                " If no 'Up next:' field is present, do NOT mention a next song at all." +
-                " Respond only with the spoken radio text, no explanations or meta-commentary.";
-        if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
-            return base + " Your manner: " + agent.getManner();
-        }
-        return base;
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("langInstruction", langInstruction);
+        ctx.put("manner", agent != null ? agent.getManner() : null);
+        return renderHandlebars(introSystemPromptTemplate, ctx);
     }
 
     private String getActionSystemPrompt(AiAgent agent, LanguageTag language) {
-        String langName = language != null ? language.tag() : null;
-        String langInstruction = langName != null
-                ? " CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + langName + "' — never switch to any other language regardless of input."
+        String langInstruction = (language != null && language.tag() != null)
+                ? "CRITICAL: You MUST respond exclusively in the language with BCP-47 tag '" + language.tag() + "' — never switch to any other language regardless of input."
                 : "";
-        String base = "You are a professional radio DJ." + langInstruction +
-                " Do NOT introduce or mention your own name; only use your name if it is explicitly stated in the user's instruction." +
-                " Respond only with the spoken radio text, no explanations or meta-commentary.";
-        if (agent != null && agent.getManner() != null && !agent.getManner().isBlank()) {
-            return base + " Your manner: " + agent.getManner();
-        }
-        return base;
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("langInstruction", langInstruction);
+        ctx.put("manner", agent != null ? agent.getManner() : null);
+        return renderHandlebars(introActionSystemPromptTemplate, ctx);
     }
 
     private Uni<IntroAudioResult> calculateDuration(String filePath, LanguageTag languageTag, boolean fallBacked, float gain, TTSEngineType engineType) {
