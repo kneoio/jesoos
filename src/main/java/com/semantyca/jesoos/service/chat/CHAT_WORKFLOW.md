@@ -2,11 +2,11 @@
 
 Quick orientation for the `com.semantyca.jesoos.service.chat` package. Read this before
 diving into individual files; it captures the runtime flow, auth model, and each
-sub-workflow (sign-in, playing songs, upload, OTS, ads, memory, events) so you don't
+sub-workflow (sign-in, playing songs, upload, ads, memory, events) so you don't
 have to reverse-engineer them.
 
-> Prompt text lives in `src/main/resources/prompts/mainPrompt.hbs` (main agent) and
-> `otsPrompt.hbs` (OTS question generation). Behaviour rules are split between the
+> Prompt text lives in `src/main/resources/prompts/mainPrompt.hbs` (main agent).
+> Behaviour rules are split between the
 > **prompt** (what the LLM is told to do) and **code** (what is actually enforced).
 > Tool gating and auth state are enforced in code — never trust the prompt alone.
 
@@ -18,7 +18,6 @@ have to reverse-engineer them.
 PublicChatController (WS)
   → ChatService.generateBotResponse(msg, ..., slug, user)
       → PublicChatIntentRouter.decide(connectionId, msg, slug)
-          • OTS session active  → OtsContinuationHandler  (deterministic, no LLM)
           • Ad  session active  → AdContinuationHandler   (deterministic, no LLM)
           • else                → generateBotResponseCore
       → generateBotResponseCore
@@ -56,7 +55,7 @@ block; per-request `liveContext` + `listenerContext` go into a trailing volatile
 - Anonymous: `inform_owner`, `start_auth`, `verify_code`.
 - Authenticated: all of the above-minus-auth plus `search_brand_sound_fragments`,
   `get_brand_catalog_summary`, `listener_data`, `find_community_member`, `upload_song`,
-  `play_song_with_intro`, `start_one_time_stream`, `create_ad`, `manage_events`,
+  `play_song_with_intro`, `create_ad`, `manage_events`,
   `send_ui_command`, `logoff`.
 
 **Sign-in flow** (anonymous asks for any gated feature):
@@ -88,7 +87,6 @@ authenticated; `logoff` signs out and clears history.
 | `find_community_member` | warm recognition only (privacy-limited) |
 | `inform_owner` | email the station owner |
 | `manage_events` | list / upsert station events |
-| `start_one_time_stream` | start an OTS (personal stream) |
 | `create_ad` | start the interactive ad flow |
 
 **Tool etiquette:** call tools silently and immediately — no "let me check…" narration
@@ -106,7 +104,7 @@ before a call. Live queue / "what's playing" is already in context (injected by 
    to the queue — never claim it is "playing now".
 
 This 3-turn dance is enforced by the prompt, not code, so the LLM must track its place
-from history. (A future refactor may promote it to a sub-graph like OTS/Ad.)
+from history. (A future refactor may promote it to a sub-graph like Ad.)
 
 ---
 
@@ -125,21 +123,7 @@ Preconditions, in order:
 
 ---
 
-## 6. One-Time Stream (OTS)
-
-State machine in `OtsSessionManager` + `OtsGraph` (graph runs START→END once per turn;
-cross-turn state lives in the session, not the graph).
-- Suggest passively only when the user mentions a matching occasion; **never** start on
-  context alone.
-- When the user explicitly asks: pick a script id from `{{otsScripts}}`, then ask for
-  each required variable **one at a time** until all are collected, then
-  `start_one_time_stream`. Share the exact `mixplaUrl` from the result.
-- While an OTS session is active, the router routes every turn to
-  `OtsContinuationHandler` (deterministic, no classifier call).
-
----
-
-## 7. Advertisements (authenticated only)
+## 6. Advertisements (authenticated only)
 
 State machine in `AdSessionManager` + `AdGraph`. Gated per-brand by
 `Brand.chatFeatureFlags` (extensible flag map, see `CreateAdToolHandler.resolveAdType`):
@@ -172,7 +156,7 @@ an ad fallback.
 
 ---
 
-## 8. Listener memory, community, events
+## 7. Listener memory, community, events
 
 - **Memory:** when a user shares personal info, call `listener_data action=set` BEFORE
   replying; acknowledge naturally (never "saved/noted"). Fields: preferred_name, city,
@@ -186,7 +170,7 @@ an ad fallback.
 
 ---
 
-## 9. Topic scope & security (always on)
+## 8. Topic scope & security (always on)
 
 - In scope: music, this station, the Mixpla platform, light rapport.
 - Out of scope: politics/religion, unrelated news, medical/legal/financial advice,
@@ -203,7 +187,6 @@ an ad fallback.
 | Orchestration | `ChatService`, `ChatAgent`, `PublicChatIntentRouter` |
 | Auth | `ChatAuthService`, `tools/auth/*` |
 | Provider / LLM | `llm/BrandLlmProviderResolver`, `llm/AnthropicChatLlmClient`, `llm/LlmRequest` |
-| OTS | `ots/OtsSessionManager`, `ots/OtsGraph`, `ots/OtsContinuationHandler` |
 | Ads | `ad/AdSessionManager`, `ad/AdGraph`, `ad/AdContinuationHandler` |
 | Tools | `tools/*` |
-| Prompts | `resources/prompts/mainPrompt.hbs`, `otsPrompt.hbs` |
+| Prompts | `resources/prompts/mainPrompt.hbs` |

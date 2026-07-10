@@ -10,14 +10,10 @@ import com.semantyca.jesoos.service.*;
 import com.semantyca.jesoos.service.chat.ad.AdGraph;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
 import com.semantyca.jesoos.service.chat.llm.*;
-import com.semantyca.jesoos.service.chat.ots.OtsGraph;
-import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import com.semantyca.jesoos.service.chat.tools.*;
 import com.semantyca.jesoos.service.chat.tools.ad.CreateAdTool;
 import com.semantyca.jesoos.service.chat.tools.ad.CreateAdToolHandler;
 import com.semantyca.jesoos.service.chat.tools.auth.*;
-import com.semantyca.jesoos.service.chat.tools.ots.StartOneTimeStreamTool;
-import com.semantyca.jesoos.service.chat.tools.ots.StartOneTimeStreamToolHandler;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
@@ -69,10 +65,6 @@ public class ChatAgent {
     @Inject SharedSoundFragmentService sharedSoundFragmentService;
     @Inject IntroTtsGenerator introTtsGenerator;
     @Inject InternalRestCall internalRestCall;
-    @Inject OneTimeStreamService oneTimeStreamService;
-    @Inject ScriptService scriptService;
-    @Inject OtsSessionManager otsSessionManager;
-    @Inject OtsGraph otsGraph;
     @Inject AdSessionManager adSessionManager;
     @Inject AdGraph adGraph;
     @Inject EventService eventService;
@@ -255,7 +247,6 @@ public class ChatAgent {
             case "upload_song"                -> "Uploading your track...";
             case "search_brand_sound_fragments" -> "Searching catalog...";
             case "get_brand_catalog_summary"  -> "Loading catalog...";
-            case "start_one_time_stream"      -> "Setting up your personal stream...";
             case "create_ad"                  -> "Setting up your ad...";
             case "listener_data"              -> "Remembering...";
             case "logoff"                     -> "Signing out...";
@@ -348,8 +339,6 @@ public class ChatAgent {
                     listenerLabelCache, brandService, brandName, userId);
             case "play_song_with_intro" -> PlaySongWithIntroToolHandler.execute(input, aiAgentService,
                     brandPool, introTtsGenerator, internalRestCall);
-            case "start_one_time_stream" -> StartOneTimeStreamToolHandler.execute(input, oneTimeStreamService,
-                    scriptService, otsSessionManager, otsGraph, config.getStreamerHost(), djName, connectionId);
             case "create_ad" -> CreateAdToolHandler.execute(input, brandService, adSessionManager, adGraph,
                     userId, brandName, djName, connectionId);
             case "manage_events" -> ManageEventsToolHandler.execute(input, eventService, brandService, brandName);
@@ -388,7 +377,6 @@ public class ChatAgent {
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(UploadSongTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool(djLanguages));
-            tools.add(StartOneTimeStreamTool.toTool());
             if (adEnabled) {
                 tools.add(CreateAdTool.toTool());
             }

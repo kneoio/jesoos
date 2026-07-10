@@ -8,7 +8,6 @@ import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmUseCase;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
-import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -30,9 +29,6 @@ public class PublicChatIntentRouter {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Inject
-    OtsSessionManager otsSessionManager;
-
-    @Inject
     AdSessionManager adSessionManager;
 
     @Inject
@@ -46,8 +42,7 @@ public class PublicChatIntentRouter {
 
     PublicChatIntentRouter() {}
 
-    PublicChatIntentRouter(OtsSessionManager otsSessionManager, ChatLlmClient llmClient) {
-        this.otsSessionManager = otsSessionManager;
+    PublicChatIntentRouter(ChatLlmClient llmClient) {
         this.llmClient = llmClient;
         this.config = null;
     }
@@ -74,9 +69,6 @@ public class PublicChatIntentRouter {
      * Returns UNKNOWN to hand off to the LLM when no rule matches.
      */
     private IntentDecision applyDeterministicRules(String connectionId) {
-        if (otsSessionManager.isActive(connectionId)) {
-            return IntentDecision.deterministic(ChatIntent.START_OTS, "active OTS session");
-        }
         if (adSessionManager.isActive(connectionId)) {
             return IntentDecision.deterministic(ChatIntent.CREATE_AD, "active Ad session");
         }
@@ -91,25 +83,18 @@ public class PublicChatIntentRouter {
                 .system("""
                         Classify the user message intent.
 
-                        START_OTS: user explicitly wants to create a personalised one-time radio stream (OTS) for a special occasion such as a birthday party, workout session, celebration, event, or gathering. They typically know what OTS means and ask for it directly.
                         CREATE_AD: user wants to create, place, or record an advertisement or ad spot on the radio station.
                         NORMAL_CHAT: anything else — browsing, asking questions, requesting a song, replying yes/no/ok to the bot, small talk, etc.
 
-                        When in doubt, choose NORMAL_CHAT. Only return START_OTS or CREATE_AD when the intent is unambiguous.
+                        When in doubt, choose NORMAL_CHAT. Only return CREATE_AD when the intent is unambiguous.
 
                         Reply with ONLY a single JSON object, no markdown and no extra text.
                         Required JSON fields:
-                        - intent: "START_OTS", "CREATE_AD", or "NORMAL_CHAT"
+                        - intent: "CREATE_AD" or "NORMAL_CHAT"
                         - confidence: number from 0 to 1
                         - reason: short string
 
                         Examples:
-                        User: "I want to create an OTS for my birthday party"
-                        {"intent":"START_OTS","confidence":0.98,"reason":"explicit OTS request for birthday party"}
-
-                        User: "can we do ots now?"
-                        {"intent":"START_OTS","confidence":0.95,"reason":"direct OTS request using the term"}
-
                         User: "I want to place an ad on your radio"
                         {"intent":"CREATE_AD","confidence":0.97,"reason":"explicit ad placement request"}
 
@@ -123,7 +108,7 @@ public class PublicChatIntentRouter {
                         {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"single-word reply"}
 
                         User: "can I order a song?"
-                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"song request, not OTS or ad"}
+                        {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"song request, not an ad"}
 
                         User: "what's playing?"
                         {"intent":"NORMAL_CHAT","confidence":0.99,"reason":"status question"}
@@ -150,9 +135,6 @@ public class PublicChatIntentRouter {
             }
 
             double confidence = payload.confidence() == null ? 0.0 : Math.max(0.0, Math.min(1.0, payload.confidence()));
-            if ("START_OTS".equals(payload.intent()) && confidence >= 0.85) {
-                return IntentDecision.llm(ChatIntent.START_OTS, confidence, payload.reason());
-            }
             if ("CREATE_AD".equals(payload.intent()) && confidence >= 0.85) {
                 return IntentDecision.llm(ChatIntent.CREATE_AD, confidence, payload.reason());
             }

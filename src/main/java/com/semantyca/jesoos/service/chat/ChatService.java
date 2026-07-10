@@ -19,9 +19,6 @@ import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
 import com.semantyca.jesoos.service.chat.llm.LlmProviderRegistry;
-import com.semantyca.jesoos.service.chat.ots.OtsContinuationHandler;
-import com.semantyca.jesoos.service.chat.ots.OtsScriptsProvider;
-import com.semantyca.jesoos.service.chat.ots.OtsSessionManager;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.ScenePool;
@@ -72,13 +69,7 @@ public class ChatService {
     @Inject
     UserService userService;
     @Inject
-    OtsSessionManager otsSessionManager;
-    @Inject
     AdSessionManager adSessionManager;
-    @Inject
-    OtsScriptsProvider otsScriptsProvider;
-    @Inject
-    OtsContinuationHandler otsContinuationHandler;
     @Inject
     AdContinuationHandler adContinuationHandler;
     @Inject
@@ -158,9 +149,6 @@ public class ChatService {
         return intentRouter.decide(connectionId, userMessage, slugName)
                 .flatMap(decision -> {
                     String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
-                    if (decision.intent() == ChatIntent.START_OTS && otsSessionManager.isActive(connectionId)) {
-                        return otsContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
-                    }
                     if (decision.intent() == ChatIntent.CREATE_AD && adSessionManager.isActive(connectionId)) {
                         return adContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
                     }
@@ -291,10 +279,8 @@ public class ChatService {
             Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni = station != null && station.getAiAgentId() != null
                     ? aiAgentService.getById(station.getAiAgentId())
                     : Uni.createFrom().item(() -> null);
-            return Uni.combine().all().unis(agentUni, otsScriptsProvider.buildScriptsText()).asTuple()
-                    .map(tuple -> {
-                        com.semantyca.mixpla.model.aiagent.AiAgent agent = tuple.getItem1();
-                        String otsScripts = tuple.getItem2();
+            return agentUni
+                    .map(agent -> {
                         assert station != null;
                         boolean classifiedAdsEnabled = !Boolean.FALSE.equals(station.getChatFeatureFlags().get(ChatFeatureFlag.CREATE_AD));
                         boolean storePromoEnabled = Boolean.TRUE.equals(station.getChatFeatureFlags().get(ChatFeatureFlag.STORE_PROMO));
@@ -313,7 +299,6 @@ public class ChatService {
                                 .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
                                 .replace("{{djCopilotName}}", "")
                                 .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()))
-                                .replace("{{otsScripts}}", sanitizePromptValue(otsScripts))
                                 .replace("{{submissionPolicy}}", station.getSubmissionPolicy().name())
                                 .replace("{{adEnabled}}", Boolean.toString(adEnabled));
                         BrandStaticData data = new BrandStaticData(djName, agent.getTtsSetting().getDj().getId(), djLanguages, partialPrompt, adEnabled);

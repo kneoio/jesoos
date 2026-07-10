@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service.agenda;
 
 import com.semantyca.jesoos.model.stream.SharedSongEntry;
 import com.semantyca.jesoos.model.stream.SongPool;
+import com.semantyca.jesoos.model.stream.SongSourceScope;
 import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.mixpla.model.PlaylistRequest;
@@ -36,7 +37,7 @@ public class ScheduleSongSupplier {
         this.sharedSoundFragmentService = sharedSoundFragmentService;
     }
 
-    public Uni<SongPool> getSongsRandomly(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
+    public Uni<SongPool> getSongsRandomly(SongSourceScope scope, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
 
@@ -47,15 +48,32 @@ public class ScheduleSongSupplier {
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
 
         long t0 = System.currentTimeMillis();
-        LOGGER.infof("[getSongsForBrand] brand=%s type=%s quantity=%d excludeIds=%d", brandId, type, quantity, effective.size());
+        LOGGER.infof("[getSongsForBrand] scope=%s type=%s quantity=%d excludeIds=%d", scope, type, quantity, effective.size());
+
+        Uni<List<SoundFragment>> newestUni;
+        Uni<List<SoundFragment>> oldestUni;
+        Uni<List<SoundFragment>> randomUni;
+        Uni<List<SharedSongEntry>> sharedUni;
+
+        switch (scope) {
+            case SongSourceScope.BrandScope brandScope -> {
+                UUID brandId = brandScope.brandId();
+                newestUni = repository.findByFilter(brandId, filter, newest, effective);
+                oldestUni = repository.findByFilterOldest(brandId, filter, oldest, effective);
+                randomUni = repository.findByFilterRandom(brandId, filter, randomCount, effective);
+                sharedUni = sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective);
+            }
+            case SongSourceScope.OwnerScope ownerScope -> {
+                long userId = ownerScope.userId();
+                newestUni = repository.findByOwner(userId, filter, newest, effective);
+                oldestUni = repository.findByOwnerOldest(userId, filter, oldest, effective);
+                randomUni = repository.findByOwnerRandom(userId, filter, randomCount, effective);
+                sharedUni = Uni.createFrom().item(List.of());
+            }
+        }
 
         return Uni.combine().all()
-                .unis(
-                        repository.findByFilter(brandId, filter, newest, effective),
-                        repository.findByFilterOldest(brandId, filter, oldest, effective),
-                        repository.findByFilterRandom(brandId, filter, randomCount, effective),
-                        sharedSoundFragmentService.getForBrand(brandId, type, quantity, effective)
-                )
+                .unis(newestUni, oldestUni, randomUni, sharedUni)
                 .asTuple()
                 .map(tuple -> {
                     List<SoundFragment> newestList = tuple.getItem1();
@@ -83,18 +101,24 @@ public class ScheduleSongSupplier {
                 });
     }
 
-    public Uni<List<SoundFragment>> getSongsByQuery(UUID brandId, PlaylistRequest playlistRequest, int quantity) {
+    public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity) {
         SoundFragmentFilter filter = buildFilter(playlistRequest);
-        return repository.findByFilter(brandId, filter, quantity)
-                .map(fragments -> limitQuantity(fragments, quantity));
+        Uni<List<SoundFragment>> fragmentsUni = switch (scope) {
+            case SongSourceScope.BrandScope brandScope -> repository.findByFilter(brandScope.brandId(), filter, quantity);
+            case SongSourceScope.OwnerScope ownerScope -> repository.findByOwner(ownerScope.userId(), filter, quantity, Set.of());
+        };
+        return fragmentsUni.map(fragments -> limitQuantity(fragments, quantity));
     }
 
-    public Uni<List<SoundFragment>> getSongsFromStaticList(UUID brandId, List<UUID> soundFragmentIds, int quantity) {
+    public Uni<List<SoundFragment>> getSongsFromStaticList(SongSourceScope scope, List<UUID> soundFragmentIds, int quantity) {
         if (soundFragmentIds == null || soundFragmentIds.isEmpty()) {
             return Uni.createFrom().item(List.of());
         }
-        return repository.findByIdsForBrand(brandId, soundFragmentIds)
-                .map(fragments -> limitQuantity(fragments, quantity));
+        Uni<List<SoundFragment>> fragmentsUni = switch (scope) {
+            case SongSourceScope.BrandScope brandScope -> repository.findByIdsForBrand(brandScope.brandId(), soundFragmentIds);
+            case SongSourceScope.OwnerScope ownerScope -> repository.findByIdsForOwner(ownerScope.userId(), soundFragmentIds);
+        };
+        return fragmentsUni.map(fragments -> limitQuantity(fragments, quantity));
     }
 
     private List<SoundFragment> limitQuantity(List<SoundFragment> fragments, int quantity) {

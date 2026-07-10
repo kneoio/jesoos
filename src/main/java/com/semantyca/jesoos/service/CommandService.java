@@ -79,6 +79,14 @@ public class CommandService {
                 }
                 yield startBrand(rawBrand.toString(), dto.traceId()).replaceWithVoid();
             }
+            case JESOOS_START_OTS -> {
+                Object rawSlug = dto.payload() != null ? dto.payload().get("slug") : null;
+                if (rawSlug == null) {
+                    LOGGER.warnf("JESOOS_START_OTS missing slug in payload, traceId=%s", dto.traceId());
+                    yield Uni.createFrom().voidItem();
+                }
+                yield oneTimeStreamService.startFromDefinition(rawSlug.toString()).replaceWithVoid();
+            }
             default -> {
                 LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
                 yield Uni.createFrom().voidItem();

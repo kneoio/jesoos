@@ -209,6 +209,26 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilterRandom(brandId, filter, limit, excludeIds);
     }
 
+    public Uni<List<SoundFragment>> findByOwner(long userId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
+        SoundFragmentOwnerRepository ownerRepository = new SoundFragmentOwnerRepository(client, mapper, rlsRepository);
+        return ownerRepository.findByOwner(userId, filter, limit, excludeIds);
+    }
+
+    public Uni<List<SoundFragment>> findByOwnerOldest(long userId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
+        SoundFragmentOwnerRepository ownerRepository = new SoundFragmentOwnerRepository(client, mapper, rlsRepository);
+        return ownerRepository.findByOwnerOldest(userId, filter, limit, excludeIds);
+    }
+
+    public Uni<List<SoundFragment>> findByOwnerRandom(long userId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds) {
+        SoundFragmentOwnerRepository ownerRepository = new SoundFragmentOwnerRepository(client, mapper, rlsRepository);
+        return ownerRepository.findByOwnerRandom(userId, filter, limit, excludeIds);
+    }
+
+    public Uni<List<SoundFragment>> findByIdsForOwner(long userId, List<UUID> ids) {
+        SoundFragmentOwnerRepository ownerRepository = new SoundFragmentOwnerRepository(client, mapper, rlsRepository);
+        return ownerRepository.findByIdsForOwner(userId, ids);
+    }
+
     public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.getBrandCatalogSummary(brandId);

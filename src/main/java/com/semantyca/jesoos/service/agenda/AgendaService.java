@@ -168,7 +168,8 @@ public class AgendaService {
                 chain = prev.chain(state -> {
                     long sceneT0 = System.currentTimeMillis();
                     LOGGER.infof("[buildAgenda] START scene='%s' duration=%ds excludeIds=%d", scene.getTitle(), durationSeconds, state.usedIds().size());
-                    return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds())
+                    SongSourceScope brandScope = new SongSourceScope.BrandScope(sourceBrand.getId());
+                    return fetchSongsForSceneWithDuration(brandScope, scene, durationSeconds, songSupplier, state.usedIds())
                             .chain(pool -> {
                                 long estimatedSeconds = pool.songs().stream()
                                         .mapToLong(sf -> sf.getLength() != null ? sf.getLength().toSeconds() : 180L)
@@ -176,7 +177,7 @@ public class AgendaService {
                                 if (estimatedSeconds < durationSeconds && !state.usedIds().isEmpty()) {
                                     LOGGER.infof("Catalog insufficient for scene '%s' (estimated=%ds required=%ds), resetting exclusion set", scene.getTitle(), estimatedSeconds, durationSeconds);
                                     state.usedIds().clear();
-                                    return fetchSongsForSceneWithDuration(sourceBrand, scene, durationSeconds, songSupplier, state.usedIds());
+                                    return fetchSongsForSceneWithDuration(brandScope, scene, durationSeconds, songSupplier, state.usedIds());
                                 }
                                 return Uni.createFrom().item(pool);
                             })
@@ -249,17 +250,16 @@ public class AgendaService {
         });
     }
 
-    public Uni<StreamAgenda> buildOtsAgenda(Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
+    public Uni<StreamAgenda> buildOtsAgenda(SongSourceScope scope, UUID agentId, ZoneId zone, UUID scriptId, LocalDateTime startTime, IUser user) {
         return scriptService.getById(scriptId, user)
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AgendaService::orderedSceneSet)
-                        .chain(scenes -> buildOtsAgendaFromScenes(brand, startTime, scenes, user)));
+                        .chain(scenes -> buildOtsAgendaFromScenes(scope, agentId, zone, startTime, scenes, user)));
     }
 
-    private Uni<StreamAgenda> buildOtsAgendaFromScenes(Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
-        ZoneId brandZone = brand.getTimeZone();
+    private Uni<StreamAgenda> buildOtsAgendaFromScenes(SongSourceScope scope, UUID agentId, ZoneId zone, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
         StreamAgenda schedule = new StreamAgenda(startTime);
-        schedule.setTimeZone(brandZone);
+        schedule.setTimeZone(zone);
         UUID buildTraceId = UUID.randomUUID();
 
         if (scenes == null || scenes.isEmpty()) {
@@ -275,13 +275,13 @@ public class AgendaService {
             currentTime = currentTime.plusSeconds(durationSeconds);
 
             TimelineBuilder timelineBuilder = new TimelineBuilder();
-            Uni<AiAgent> agentUni = (brand.getAiAgentId() != null)
-                    ? aiAgentService.getById(brand.getAiAgentId())
+            Uni<AiAgent> agentUni = (agentId != null)
+                    ? aiAgentService.getById(agentId)
                     : Uni.createFrom().nullItem();
 
             sceneUnis.add(
                     Uni.combine().all().unis(
-                                    fetchSongsForSceneWithDuration(brand, scene, durationSeconds, scheduleSongSupplier),
+                                    fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier),
                                     agentUni
                             ).asTuple()
                             .map(tuple -> {
@@ -293,8 +293,8 @@ public class AgendaService {
                                 liveScene.setSceneTitle(scene.getTitle());
                                 liveScene.setOriginalStartTime(sceneStart.toLocalTime());
                                 liveScene.setTraceId(buildTraceId);
-                                liveScene.setTimeZone(brandZone);
-                                liveScene.setAgentId(brand.getAiAgentId());
+                                liveScene.setTimeZone(zone);
+                                liveScene.setAgentId(agentId);
                                 liveScene.setContentStatus(ContentStatus.PENDING);
                                 liveScene.setOneTimeRun(scene.getSceneType() == SceneType.ONE_TIME);
                                 if (scene.getPlaylistRequest() != null
@@ -335,11 +335,11 @@ public class AgendaService {
         }
     }
 
-    private Uni<SongPool> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
-        return fetchSongsForSceneWithDuration(brand, scene, maxDurationSeconds, songSupplier, Set.of());
+    private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of());
     }
 
-    private Uni<SongPool> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
+    private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
@@ -358,14 +358,14 @@ public class AgendaService {
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
-                yield songSupplier.getSongsByQuery(brand.getId(), req, songCount)
+                yield songSupplier.getSongsByQuery(scope, req, songCount)
                         .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
             }
-            case STATIC_LIST -> songSupplier.getSongsFromStaticList(brand.getId(), playlistRequest.getSoundFragments(), maxDurationSeconds)
+            case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments(), maxDurationSeconds)
                     .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
             default -> {
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
-                yield songSupplier.getSongsRandomly(brand.getId(), PlaylistItemType.SONG, songCount, excludeIds)
+                yield songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, excludeIds)
                         .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
             }
         };

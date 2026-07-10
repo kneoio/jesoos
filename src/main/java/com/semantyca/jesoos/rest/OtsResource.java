@@ -52,7 +52,7 @@ public class OtsResource extends AbstractResource {
         if (vars != null) {
             vars.forEach(entry -> userVariables.put(entry.getKey(), entry.getValue()));
         }
-        oneTimeStreamService.run(brand, scriptId, userVariables, SuperUser.build())
+        oneTimeStreamService.run(brand, scriptId, null, userVariables, SuperUser.build())
                 .subscribe().with(
                         stream -> rc.response().setStatusCode(200).putHeader("Content-Type", "application/json")
                                 .end(new JsonObject()
