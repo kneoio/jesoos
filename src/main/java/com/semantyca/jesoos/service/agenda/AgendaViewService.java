@@ -12,6 +12,7 @@ import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.BrandPool;
+import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -33,6 +34,9 @@ public class AgendaViewService {
     BrandPool brandPool;
 
     @Inject
+    OneTimeStreamPool oneTimeStreamPool;
+
+    @Inject
     PromptService promptService;
 
     public AgendaDTO getAgendaByBrand(String brand) {
@@ -44,35 +48,49 @@ public class AgendaViewService {
                 .orElse(null);
     }
 
-    public Uni<AgendaDTO> getAgendaByBrandAsync(String brand) {
-        ILiveStream stream = brandPool.getStationsSnapshot().stream()
-                .filter(s -> s.getSlugName().equals(brand))
+    public Uni<AgendaDTO> getAgendaByBrandAsync(String slug) {
+        return resolveStream(slug)
+                .chain(stream -> {
+                    if (stream == null) return Uni.createFrom().nullItem();
+
+                    Set<UUID> promptIds = stream.getAgenda().getLiveScenes().stream()
+                            .flatMap(scene -> scene.getTimeline() == null ? Stream.empty() : scene.getTimeline().stream())
+                            .flatMap(entry -> entry.getSongs().stream())
+                            .map(SongEntry::getPromptEntry)
+                            .filter(pe -> pe != null && pe.getPromptId() != null)
+                            .map(PromptEntry::getPromptId)
+                            .collect(Collectors.toSet());
+
+                    if (promptIds.isEmpty()) {
+                        return Uni.createFrom().item(buildAgendaDTO(stream, Map.of()));
+                    }
+
+                    return Multi.createFrom().iterable(promptIds)
+                            .onItem().transformToUniAndMerge(id ->
+                                    promptService.getById(id, SuperUser.build())
+                                            .map(p -> Map.entry(id, p.getTitle()))
+                                            .onFailure().recoverWithItem(Map.entry(id, ""))
+                            )
+                            .collect().asMap(Map.Entry::getKey, Map.Entry::getValue)
+                            .map(titleMap -> buildAgendaDTO(stream, titleMap));
+                });
+    }
+
+    // A "brand" slug in the REST/UI sense can be either a continuous radio brand or an OTS's own
+    // slug -- try the brand pool first (in-memory, synchronous), then fall back to the OTS pool.
+    private Uni<ILiveStream> resolveStream(String slug) {
+        ILiveStream brandStream = brandPool.getStationsSnapshot().stream()
+                .filter(s -> s.getSlugName().equals(slug))
                 .filter(s -> s.getAgenda() != null)
                 .findFirst()
                 .orElse(null);
 
-        if (stream == null) return Uni.createFrom().nullItem();
-
-        Set<UUID> promptIds = stream.getAgenda().getLiveScenes().stream()
-                .flatMap(scene -> scene.getTimeline() == null ? Stream.empty() : scene.getTimeline().stream())
-                .flatMap(entry -> entry.getSongs().stream())
-                .map(SongEntry::getPromptEntry)
-                .filter(pe -> pe != null && pe.getPromptId() != null)
-                .map(PromptEntry::getPromptId)
-                .collect(Collectors.toSet());
-
-        if (promptIds.isEmpty()) {
-            return Uni.createFrom().item(buildAgendaDTO(stream, Map.of()));
+        if (brandStream != null) {
+            return Uni.createFrom().item(brandStream);
         }
 
-        return Multi.createFrom().iterable(promptIds)
-                .onItem().transformToUniAndMerge(id ->
-                        promptService.getById(id, SuperUser.build())
-                                .map(p -> Map.entry(id, p.getTitle()))
-                                .onFailure().recoverWithItem(Map.entry(id, ""))
-                )
-                .collect().asMap(Map.Entry::getKey, Map.Entry::getValue)
-                .map(titleMap -> buildAgendaDTO(stream, titleMap));
+        return oneTimeStreamPool.get(slug)
+                .map(ots -> (ots != null && ots.getAgenda() != null) ? (ILiveStream) ots : null);
     }
 
     private AgendaDTO buildAgendaDTO(ILiveStream stream, Map<UUID, String> promptTitles) {

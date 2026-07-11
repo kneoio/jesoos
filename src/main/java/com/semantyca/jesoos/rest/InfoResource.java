@@ -6,7 +6,9 @@ import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.CommandService;
 import com.semantyca.jesoos.service.agenda.AgendaViewService;
+import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.jesoos.service.live.ScenePool;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -30,6 +32,9 @@ public class InfoResource extends AbstractResource {
 
     @Inject
     ScenePool scenePool;
+
+    @Inject
+    OneTimeStreamPool oneTimeStreamPool;
 
     @Inject
     InternalRestCall internalRestCall;
@@ -62,17 +67,36 @@ public class InfoResource extends AbstractResource {
     private void getLiveStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         LiveScene activeScene = scenePool.getActiveScene(brand);
-        rc.vertx().executeBlocking(() -> {
-            if (activeScene == null) {
-                return new JsonObject().put("live", false).encode();
-            }
-            return OBJECT_MAPPER.writeValueAsString(activeScene);
-        }).onSuccess(json -> {
-            rc.response()
-                    .setStatusCode(200)
-                    .putHeader("Content-Type", "application/json")
-                    .end(json);
-        }).onFailure(err -> rc.fail(500, new RuntimeException("Failed to serialize live status for brand " + brand + ": " + err.getMessage(), err)));
+        if (activeScene != null) {
+            rc.vertx().executeBlocking(() -> OBJECT_MAPPER.writeValueAsString(activeScene))
+                    .onSuccess(json -> rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(json))
+                    .onFailure(err -> rc.fail(500, new RuntimeException("Failed to serialize live status for brand " + brand + ": " + err.getMessage(), err)));
+            return;
+        }
+
+        // No radio scene ticking for this slug -- OTS doesn't go through ScenePool (it emits
+        // sequentially, not on the AgendaTicker's wall-clock schedule), so report its own
+        // pool status instead of just "live": false.
+        oneTimeStreamPool.get(brand)
+                .subscribe().with(
+                        ots -> {
+                            JsonObject json = ots == null
+                                    ? new JsonObject().put("live", false)
+                                    : new JsonObject()
+                                            .put("live", ots.getStatus() == StreamStatus.WARMING_UP || ots.getStatus() == StreamStatus.ON_LINE)
+                                            .put("ots", true)
+                                            .put("status", ots.getStatus().name())
+                                            .put("slugName", ots.getSlugName());
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(json.encode());
+                        },
+                        err -> rc.fail(500, new RuntimeException("Failed to fetch live status for " + brand + ": " + err.getMessage(), err))
+                );
     }
 
     private void getAgendas(RoutingContext rc) {
@@ -103,7 +127,11 @@ public class InfoResource extends AbstractResource {
 
     private void getDjStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-        commandService.getDjStatus(brand)
+        // DJ on/off is a per-brand toggle (CommandService.enableDj/disableDj); an OTS's own slug
+        // never has one set. For a brand-scoped OTS, report the master brand's toggle instead of
+        // always "false" -- matches SongEmitter/JingleSongEmitter's djBrandSlug resolution.
+        resolveDjBrandSlug(brand)
+                .chain(commandService::getDjStatus)
                 .subscribe()
                 .with(
                         djEnabled -> {
@@ -115,6 +143,11 @@ public class InfoResource extends AbstractResource {
                         },
                         failure -> handleCommandFailure(rc, brand, "get DJ status", failure)
                 );
+    }
+
+    private Uni<String> resolveDjBrandSlug(String slug) {
+        return oneTimeStreamPool.get(slug)
+                .map(ots -> (ots != null && ots.getMasterBrand() != null) ? ots.getMasterBrand().getSlugName() : slug);
     }
 
 }
