@@ -16,6 +16,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import static com.semantyca.jesoos.util.AiHelperUtils.getSongKeyByIndex;
 
 @ApplicationScoped
 public class JingleSongEmitter {
+    private static final Logger LOGGER = Logger.getLogger(JingleSongEmitter.class);
 
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
@@ -45,7 +47,8 @@ public class JingleSongEmitter {
         this.djStateService = djStateService;
     }
 
-    public Uni<Void> send(String brandName,
+    public Uni<Void> send(String streamSlug,
+                          String djBrandSlug,
                           LiveScene scene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -53,8 +56,15 @@ public class JingleSongEmitter {
                           ZoneId brandZone,
                           int priority,
                           UUID emissionTraceId) {
-        boolean djEnabled = djStateService.isDjEnabled(brandName);
+        // DJ on/off is a per-brand toggle; djBrandSlug is null for owner-scoped OTS (no brand to
+        // check), which means no intros — not the routing slug.
+        boolean djEnabled = djBrandSlug != null && djStateService.isDjEnabled(djBrandSlug);
         long sceneDeadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
+
+        if (stream.getMasterBrandId() == null) {
+            LOGGER.warnf("Owner-scoped OTS stream '%s' has no master brand — jingles are sourced from a " +
+                    "brand catalog, so this entry will fall back to plain song only", streamSlug);
+        }
 
         return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getMasterBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
@@ -69,7 +79,7 @@ public class JingleSongEmitter {
                         SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, MixingType.SONG_ONLY, sceneDeadline, priority);
                         dto.setFilePaths(new HashMap<>());
                         dto.setSongs(songMap);
-                        return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                        return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId());
                     }
 
                     SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
@@ -92,7 +102,7 @@ public class JingleSongEmitter {
                                     SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, MixingType.JINGLE_INTRO_SONG, sceneDeadline, priority);
                                     dto.setFilePaths(Map.of(IntroKey.INTRO_1, introDto));
                                     dto.setSongs(songMap);
-                                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                                    return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId());
                                 });
                     }
 
@@ -106,7 +116,7 @@ public class JingleSongEmitter {
                     SongQueueMessageDTO dto = createBaseSongQueueMessage(scene, entry, MixingType.FILLER_JINGLE, sceneDeadline, priority);
                     dto.setFilePaths(new HashMap<>());
                     dto.setSongs(songMap);
-                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId());
+                    return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId());
                 });
     }
 

@@ -50,7 +50,8 @@ public class SongEmitter {
         this.metricPublisher = metricPublisher;
     }
 
-    public Uni<Void> send(String brandName,
+    public Uni<Void> send(String streamSlug,
+                          String djBrandSlug,
                           LiveScene liveScene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -60,7 +61,9 @@ public class SongEmitter {
                           UUID emissionTraceId) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
-        boolean djIsOnline = djStateService.isDjEnabled(brandName);
+        // DJ on/off is a per-brand toggle (CommandService.enableDj/disableDj); djBrandSlug is null
+        // for owner-scoped OTS (no brand to check), which means no intros — not the routing slug.
+        boolean djIsOnline = djBrandSlug != null && djStateService.isDjEnabled(djBrandSlug);
         long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
@@ -111,8 +114,8 @@ public class SongEmitter {
                         message.setFilePaths(introMap);
                         message.setSongs(songMap);
 
-                        publishExpectedPlayOrder(brandName, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
-                        return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId(), emissionTraceId);
+                        publishExpectedPlayOrder(streamSlug, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
+                        return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId);
                     });
         } else {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
@@ -131,8 +134,8 @@ public class SongEmitter {
             dto.setFilePaths(introMap);
             dto.setSongs(songMap);
 
-            publishExpectedPlayOrder(brandName, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
-            return queueSupplier.sendSongsToQueue(brandName, dto, liveScene.getTraceId(), emissionTraceId);
+            publishExpectedPlayOrder(streamSlug, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
+            return queueSupplier.sendSongsToQueue(streamSlug, dto, liveScene.getTraceId(), emissionTraceId);
         }
     }
 
@@ -156,7 +159,7 @@ public class SongEmitter {
         return true;
     }
 
-    public Uni<Void> sendWithCustomIntro(String brandName,
+    public Uni<Void> sendWithCustomIntro(String streamSlug,
                                           LiveScene liveScene,
                                           TimelineEntry entry,
                                           String customIntroText,
@@ -176,7 +179,7 @@ public class SongEmitter {
                 lang,
                 liveScene.getSceneTitle(),
                 liveScene.getTraceId(),
-                brandName,
+                streamSlug,
                 entry.getSequenceNumber()
         ).chain(introResult -> {
             SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, MixingType.INTRO_SONG, sceneDeadlineForAivoxAwareness, priority);
@@ -194,11 +197,11 @@ public class SongEmitter {
             message.setFilePaths(introMap);
             message.setSongs(songMap);
 
-            return queueSupplier.sendSongsToQueue(brandName, message, liveScene.getTraceId());
+            return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId());
         });
     }
 
-    private void publishExpectedPlayOrder(String brandName, TimelineEntry entry, MixingType mergingMethod, UUID parentTraceId, UUID emissionTraceId) {
+    private void publishExpectedPlayOrder(String streamSlug, TimelineEntry entry, MixingType mergingMethod, UUID parentTraceId, UUID emissionTraceId) {
         List<Map<String, Object>> songs = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
             var sf = entry.getSongs().get(i).getSoundFragment();
@@ -209,7 +212,7 @@ public class SongEmitter {
             item.put("artist", sf.getArtist());
             songs.add(item);
         }
-        metricPublisher.publishMetric(brandName, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
+        metricPublisher.publishMetric(streamSlug, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
                 Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(),
                         "parentTraceId", parentTraceId == null ? "" : parentTraceId.toString(), "songs", songs),
                 emissionTraceId);

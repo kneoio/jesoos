@@ -56,17 +56,21 @@ public class OtsStreamScheduler {
     }
 
     public void scheduleStream(OneTimeStream stream) {
-        String otsSlugName = stream.getSlugName();
-        String masterBrandSlug = stream.getMasterBrand().getSlugName();
+        // Routing/tag identity is always the OTS's own slug — aivox's LiveStreamPool keys the
+        // station on it directly (initializeOtsStation(slug, ...)), brand-scoped or not. The
+        // master brand (if any) only feeds song-sourcing/codec defaults and the DJ on/off toggle
+        // (owner-scoped OTS has neither a master brand nor a DJ toggle to check).
+        String streamSlug = stream.getSlugName();
+        String djBrandSlug = stream.getMasterBrand() != null ? stream.getMasterBrand().getSlugName() : null;
         ZoneId zone = stream.getTimeZone();
 
         for (LiveScene scene : stream.getAgenda().getLiveScenes()) {
-            scene.setOtsSlugName(otsSlugName);
-            scheduleSceneSongs(otsSlugName, masterBrandSlug, scene, zone, stream);
+            scene.setOtsSlugName(streamSlug);
+            scheduleSceneSongs(streamSlug, djBrandSlug, scene, zone, stream);
         }
     }
 
-    private void scheduleSceneSongs(String otsSlugName, String masterBrandSlug, LiveScene scene, ZoneId zone, IStream streamRef) {
+    private void scheduleSceneSongs(String streamSlug, String djBrandSlug, LiveScene scene, ZoneId zone, IStream streamRef) {
         LocalDateTime now = LocalDateTime.now(zone);
 
         for (TimelineEntry entry : scene.getTimeline()) {
@@ -79,11 +83,11 @@ public class OtsStreamScheduler {
                     continue;
                 }
             }
-            scheduleEntry(otsSlugName, masterBrandSlug, scene, entry, zone, streamRef);
+            scheduleEntry(streamSlug, djBrandSlug, scene, entry, zone, streamRef);
         }
     }
 
-    private void scheduleEntry(String otsSlugName, String masterBrandSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream streamRef) {
+    private void scheduleEntry(String streamSlug, String djBrandSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream streamRef) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
             return;
         }
@@ -102,15 +106,15 @@ public class OtsStreamScheduler {
             }
             entry.setStatus(TimelineEntryStatus.EMITTING);
             UUID emissionTraceId = UUID.randomUUID();
-            emitEntry(masterBrandSlug, otsSlugName, scene, entry, zone, capturedStream, emissionTraceId)
+            emitEntry(streamSlug, djBrandSlug, scene, entry, zone, capturedStream, emissionTraceId)
                     .subscribe().with(
                             v -> entry.setStatus(TimelineEntryStatus.COMPLETED),
                             err -> {
                                 entry.setStatus(TimelineEntryStatus.FAILED);
                                 LOGGER.errorf(err, "OTS entry #%d FAILED for scene '%s' ots '%s'",
-                                        entry.getSequenceNumber(), scene.getSceneTitle(), otsSlugName);
+                                        entry.getSequenceNumber(), scene.getSceneTitle(), streamSlug);
                                 metricPublisher.publishMetric(
-                                        otsSlugName,
+                                        streamSlug,
                                         MetricEventType.ERROR,
                                         ProcessType.FLOW,
                                         "ots_entry_failed",
@@ -126,33 +130,33 @@ public class OtsStreamScheduler {
         };
 
         if (triggerTime <= now) {
-            removeTimer(otsSlugName, entry.getSequenceNumber());
+            removeTimer(streamSlug, entry.getSequenceNumber());
             task.run();
             return;
         }
 
         long delay = triggerTime - now;
         long timerId = vertx.setTimer(delay, id -> {
-            removeTimer(otsSlugName, entry.getSequenceNumber());
+            removeTimer(streamSlug, entry.getSequenceNumber());
             task.run();
         });
-        otsTimers.computeIfAbsent(otsSlugName, k -> new ConcurrentHashMap<>())
+        otsTimers.computeIfAbsent(streamSlug, k -> new ConcurrentHashMap<>())
                 .put(entry.getSequenceNumber(), timerId);
     }
 
-    private Uni<Void> emitEntry(String masterBrandSlug, String otsSlugName, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream stream, UUID emissionTraceId) {
-        LOGGER.infof("[OtsScheduler] emitting entry #%d scene '%s' ots '%s' via brand '%s'",
-                entry.getSequenceNumber(), scene.getSceneTitle(), otsSlugName, masterBrandSlug);
+    private Uni<Void> emitEntry(String streamSlug, String djBrandSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream stream, UUID emissionTraceId) {
+        LOGGER.infof("[OtsScheduler] emitting entry #%d scene '%s' stream '%s'",
+                entry.getSequenceNumber(), scene.getSceneTitle(), streamSlug);
 
         return aiAgentService.getById(scene.getAgentId())
                 .chain(agent -> {
                     if (entry.isGenerated()) {
-                        return generatedContentEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), emissionTraceId);
+                        return generatedContentEmitter.send(streamSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED_FRONT.getValue(), emissionTraceId);
                     }
                     if (entry.isHasJingle()) {
-                        return jingleSongEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
+                        return jingleSongEmitter.send(streamSlug, djBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
                     }
-                    return songEmitter.send(masterBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
+                    return songEmitter.send(streamSlug, djBrandSlug, scene, entry, agent, stream, zone, StreamPriority.PRIORITIZED.getValue(), emissionTraceId);
                 });
     }
 

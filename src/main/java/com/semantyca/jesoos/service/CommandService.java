@@ -1,23 +1,18 @@
 package com.semantyca.jesoos.service;
 
+import com.semantyca.core.dto.queue.command.CommandDTO;
 import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.mixpla.model.cnst.Boost;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
-import com.semantyca.jesoos.service.live.BrandPool;
-import com.semantyca.jesoos.service.live.DjStateService;
-import com.semantyca.jesoos.service.live.OtsStreamScheduler;
-import com.semantyca.jesoos.service.live.ScenePool;
-import com.semantyca.jesoos.service.live.StaggeredSongScheduler;
-import com.semantyca.jesoos.service.chat.ChatAuthService;
-import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
 import com.semantyca.jesoos.repository.SoundFragmentRatingLogRepository;
-import com.semantyca.core.dto.queue.command.CommandDTO;
-import com.semantyca.mixpla.dto.queue.command.CommandType;
+import com.semantyca.jesoos.service.chat.ChatAuthService;
+import com.semantyca.jesoos.service.live.*;
+import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.cnst.Boost;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -85,7 +80,7 @@ public class CommandService {
                     LOGGER.warnf("JESOOS_START_OTS missing slug in payload, traceId=%s", dto.traceId());
                     yield Uni.createFrom().voidItem();
                 }
-                yield oneTimeStreamService.startFromDefinition(rawSlug.toString()).replaceWithVoid();
+                yield startOts(rawSlug.toString(), dto.traceId()).replaceWithVoid();
             }
             default -> {
                 LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());

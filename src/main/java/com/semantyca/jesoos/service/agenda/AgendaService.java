@@ -250,17 +250,18 @@ public class AgendaService {
         });
     }
 
-    public Uni<StreamAgenda> buildOtsAgenda(SongSourceScope scope, UUID agentId, ZoneId zone, UUID scriptId, LocalDateTime startTime, IUser user) {
+    public Uni<StreamAgenda> buildOtsAgenda(String streamSlug, SongSourceScope scope, UUID agentId, ZoneId zone, UUID scriptId, LocalDateTime startTime, IUser user) {
         return scriptService.getById(scriptId, user)
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AgendaService::orderedSceneSet)
-                        .chain(scenes -> buildOtsAgendaFromScenes(scope, agentId, zone, startTime, scenes, user)));
+                        .chain(scenes -> buildOtsAgendaFromScenes(streamSlug, scope, agentId, zone, startTime, scenes, user)));
     }
 
-    private Uni<StreamAgenda> buildOtsAgendaFromScenes(SongSourceScope scope, UUID agentId, ZoneId zone, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
+    private Uni<StreamAgenda> buildOtsAgendaFromScenes(String streamSlug, SongSourceScope scope, UUID agentId, ZoneId zone, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
         StreamAgenda schedule = new StreamAgenda(startTime);
         schedule.setTimeZone(zone);
         UUID buildTraceId = UUID.randomUUID();
+        long buildT0 = System.currentTimeMillis();
 
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
@@ -320,9 +321,41 @@ public class AgendaService {
                 .map(liveScenes -> {
                     for (LiveScene liveScene : liveScenes) {
                         schedule.addScene(liveScene);
+                        if (liveScene.getFitSeconds() > 360) {
+                            metricPublisher.publishMetric(
+                                    streamSlug,
+                                    MetricEventType.WARNING,
+                                    ProcessType.INDEPENDENT,
+                                    "scene_content_gap",
+                                    Map.of(
+                                            "scene", liveScene.getSceneTitle(),
+                                            "sceneId", liveScene.getSceneId().toString(),
+                                            "gapMinutes", TimeFormatUtil.toRoundedMinutes(liveScene.getFitSeconds())
+                                    )
+                            );
+                        }
                     }
+                    long elapsedMs = System.currentTimeMillis() - buildT0;
+                    metricPublisher.publishMetric(
+                            streamSlug,
+                            MetricEventType.INFORMATION,
+                            ProcessType.INDEPENDENT,
+                            "agenda_build_completed",
+                            Map.of(
+                                    "elapsedMs", elapsedMs,
+                                    "elapsedSec", elapsedMs / 1000,
+                                    "scenes", liveScenes.size()
+                            )
+                    );
                     return schedule;
-                });
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(
+                        streamSlug,
+                        MetricEventType.ERROR,
+                        ProcessType.INDEPENDENT,
+                        "agenda_empty_or_failed",
+                        Map.of("stream", streamSlug, "error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())
+                ));
     }
 
     private int calculateDurationUntilNext(LocalTime start, LocalTime next) {

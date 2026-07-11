@@ -120,7 +120,7 @@ public class OneTimeStreamService {
                                                     ? new SongSourceScope.BrandScope(brand.getId())
                                                     : new SongSourceScope.OwnerScope(definition.getAuthor());
 
-                                            return agendaService.buildOtsAgenda(scope, stream.getAiAgentId(), stream.getTimeZone(),
+                                            return agendaService.buildOtsAgenda(stream.getSlugName(), scope, stream.getAiAgentId(), stream.getTimeZone(),
                                                             definition.getScriptId(), LocalDateTime.now(stream.getTimeZone()), actingUser)
                                                     .invoke(agenda -> {
                                                         stream.setAgenda(agenda);

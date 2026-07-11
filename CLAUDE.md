@@ -9,8 +9,11 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 ## Documentation Map
 
 - `service/chat/CHAT_WORKFLOW.md` — public chat / LLM agent flow (auth, tools, OTS, ads).
-- `service/agenda/AGENDA_WORKFLOW.md` — agenda build → live emission: scenes, timeline, mixing,
-  talkativity, TTS, generated content, Catalog vs Live Boost, shared fragments, commands, metrics.
+- `service/agenda/RADIO_WORKFLOW.md` — continuous brand radio: agenda build → live emission,
+  scenes, timeline, mixing, talkativity, TTS, generated content, Catalog vs Live Boost, shared
+  fragments, commands, metrics.
+- `service/live/OTS_WORKFLOW.md` — one-time-stream (OTS) lifecycle: brand-scoped vs owner-scoped,
+  routing identity, DJ-toggle handling. Coherent with aivox's `OTS_SCOPE.md`/`RADIO_SCOPE.md`.
 
 ## jesoos Notes
 

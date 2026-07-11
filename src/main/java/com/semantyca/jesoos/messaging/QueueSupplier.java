@@ -32,12 +32,14 @@ public class QueueSupplier {
     @Channel("streaming")
     Emitter<byte[]> songEmitter;
 
-    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID parentTraceId) {
-        return sendSongsToQueue(brandSlug, message, parentTraceId, UUID.randomUUID());
+    public Uni<Void> sendSongsToQueue(String streamSlug, SongQueueMessageDTO message, UUID parentTraceId) {
+        return sendSongsToQueue(streamSlug, message, parentTraceId, UUID.randomUUID());
     }
 
-    public Uni<Void> sendSongsToQueue(String brandSlug, SongQueueMessageDTO message, UUID parentTraceId, UUID emissionTraceId) {
-        message.setBrandSlug(brandSlug);
+    public Uni<Void> sendSongsToQueue(String streamSlug, SongQueueMessageDTO message, UUID parentTraceId, UUID emissionTraceId) {
+        // message.setBrandSlug is the 2next/aivox wire field name — it's really "which aivox
+        // station to route to" (brand or OTS), kept as-is here since it's a cross-service contract.
+        message.setBrandSlug(streamSlug);
         message.setMessageId(UUID.randomUUID());
         message.setTraceId(emissionTraceId);
         long now = System.currentTimeMillis();
@@ -47,11 +49,11 @@ public class QueueSupplier {
             try {
                 byte[] bytes = objectMapper.writeValueAsBytes(message);
                 OutgoingRabbitMQMetadata metadata = new OutgoingRabbitMQMetadata.Builder()
-                        .withRoutingKey(brandSlug)
+                        .withRoutingKey(streamSlug)
                         .build();
                 Message<byte[]> msg = Message.of(bytes).addMetadata(metadata);
                 songEmitter.send(msg);
-                metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
+                metricPublisher.publishMetric(streamSlug, MetricEventType.INFORMATION, ProcessType.FLOW, "entry_emitted",
                         Map.of(
                                 "message", message,
                                 "parentTraceId", parentTraceId == null ? "" : parentTraceId.toString(),
@@ -67,10 +69,10 @@ public class QueueSupplier {
                     totalDuration += message.getFilePaths().values().stream()
                             .mapToInt(IntroInfoDTO::getDurationSeconds).sum();
                 }
-                metricPublisher.trackEmission(brandSlug, totalDuration);
+                metricPublisher.trackEmission(streamSlug, totalDuration);
                 return null;
             } catch (Exception e) {
-                LOGGER.error("Failed to send - brand: {}, messageId: {}, parentTraceId: {}", brandSlug, message.getMessageId(), parentTraceId, e);
+                LOGGER.error("Failed to send - stream: {}, messageId: {}, parentTraceId: {}", streamSlug, message.getMessageId(), parentTraceId, e);
                 throw new RuntimeException("Failed to send message", e);
             }
         });

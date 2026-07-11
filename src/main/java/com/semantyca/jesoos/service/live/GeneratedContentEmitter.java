@@ -83,7 +83,7 @@ public class GeneratedContentEmitter {
         this.userAdRepository = userAdRepository;
     }
 
-    public Uni<Void> send(String brandName,
+    public Uni<Void> send(String streamSlug,
                           LiveScene scene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -101,10 +101,18 @@ public class GeneratedContentEmitter {
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
         if (scene.getMixingType() == null) {
-            return sendGeneratedOnly(brandName, scene, entry, agent, stream, lang, promptId, brandZone, priority);
+            return sendGeneratedOnly(streamSlug, scene, entry, agent, stream, lang, promptId, brandZone, priority);
         }
 
         Map<String, String> artefacts = scene.getMixingArtefacts();
+
+        if (stream.getMasterBrandId() == null
+                && (artefacts == null || !artefacts.containsKey(PlaylistItemType.JINGLE_INTRO.name())
+                        || !artefacts.containsKey(PlaylistItemType.BACKGROUND_LOOP.name()))) {
+            LOGGER.warnf("Owner-scoped OTS stream '%s' has no master brand — jingle/background artefacts for " +
+                    "mixing type %s that aren't explicitly set on the scene are sourced from a brand catalog " +
+                    "and will likely be unavailable", streamSlug, scene.getMixingType());
+        }
 
         Uni<List<SoundFragment>> jinglesUni = (artefacts != null && artefacts.containsKey(PlaylistItemType.JINGLE_INTRO.name()))
                 ? soundFragmentService.getById(UUID.fromString(artefacts.get(PlaylistItemType.JINGLE_INTRO.name())))
@@ -144,16 +152,16 @@ public class GeneratedContentEmitter {
                     MixingType mixingType = tuple.getItem3().mixingType();
 
                     if (jingles.isEmpty()) {
-                        LOGGER.warnf("No jingles available for brand '%s', skipping generated content", brandName);
-                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,
+                        LOGGER.warnf("No jingles available for brand '%s', skipping generated content", streamSlug);
+                        metricPublisher.publishMetric(streamSlug, MetricEventType.ERROR, ProcessType.FLOW,
                                 "no_jingles_for_generated_content",
                                 Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
                                 scene.getTraceId());
                         return Uni.createFrom().voidItem();
                     }
                     if (songs.isEmpty()) {
-                        LOGGER.warnf("No songs available for background for brand '%s', skipping generated content", brandName);
-                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW,
+                        LOGGER.warnf("No songs available for background for brand '%s', skipping generated content", streamSlug);
+                        metricPublisher.publishMetric(streamSlug, MetricEventType.ERROR, ProcessType.FLOW,
                                 "no_background_songs_for_generated_content",
                                 Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
                                 scene.getTraceId());
@@ -191,19 +199,19 @@ public class GeneratedContentEmitter {
                                     introMap.put(IntroKey.INTRO_1, introDto);
                                     dto.setFilePaths(introMap);
                                     dto.setSongs(songMap);
-                                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                                    return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                                             .call(() -> recordPlayHistory(adId, generated, agent));
                                 });
                     }
 
                     SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
                     dto.setSongs(songMap);
-                    return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                    return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                             .call(() -> recordPlayHistory(adId, generated, agent));
                 });
     }
 
-    private Uni<Void> sendGeneratedOnly(String brandName, LiveScene scene, TimelineEntry entry,
+    private Uni<Void> sendGeneratedOnly(String streamSlug, LiveScene scene, TimelineEntry entry,
                                         AiAgent agent, IStream stream, LanguageTag lang,
                                         UUID promptId, ZoneId brandZone, int priority) {
         long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
@@ -219,7 +227,7 @@ public class GeneratedContentEmitter {
                                 songMap.put(SongKey.SONG_1, new SongInfoDTO(generated.getId(), songDuration(generated)));
                                 SongQueueMessageDTO dto = buildDto(MixingType.SONG_ONLY, scene, entry, deadline, priority);
                                 dto.setSongs(songMap);
-                                return queueSupplier.sendSongsToQueue(brandName, dto, scene.getTraceId())
+                                return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                                         .call(() -> recordPlayHistory(r.adId(), generated, agent));
                             });
                 });
