@@ -3,14 +3,12 @@ package com.semantyca.jesoos.model.stream;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.util.WebHelper;
 import com.semantyca.mixpla.model.Script;
-import com.semantyca.mixpla.model.brand.AiOverriding;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.brand.BrandScriptEntry;
 import com.semantyca.mixpla.model.cnst.AiAgentStatus;
 import com.semantyca.mixpla.model.cnst.ManagedBy;
 import com.semantyca.mixpla.model.stream.IStreamer;
 import com.semantyca.mixpla.model.stream.OtsDefinition;
-import com.semantyca.officeframe.model.cnst.CountryCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -37,6 +35,7 @@ public class OneTimeStream extends AbstractStream {
     private LocalDateTime lastDeliveryAt;
     private int lastDeliveredSongsDuration;
     private LocalDateTime scheduledOfflineAt;
+    private boolean isSynthetic;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this(masterBrand, script, userVariables, null);
@@ -71,7 +70,8 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public OneTimeStream(OtsDefinition definition, Script script, Brand masterBrand, ZoneId fallbackTimeZone) {
-        this.masterBrand = masterBrand;
+        this.isSynthetic = masterBrand == null;
+        this.masterBrand = masterBrand != null ? masterBrand : new SyntheticBrand(fallbackTimeZone);
         this.streamId = UUID.randomUUID().toString();
         this.script = script;
         this.userVariables = definition.getUserVariables() != null ? definition.getUserVariables() : Map.of();
@@ -85,24 +85,16 @@ public class OneTimeStream extends AbstractStream {
         this.profileId = script.getDefaultProfileId();
         this.scripts = List.of(new BrandScriptEntry(script.getId(), this.userVariables));
 
-        if (masterBrand != null) {
-            this.timeZone = masterBrand.getTimeZone();
-            this.bitRate = masterBrand.getBitRate();
-            this.aiOverriding = masterBrand.getAiOverriding();
-            this.country = masterBrand.getCountry();
-            this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : masterBrand.getAiAgentId();
-        } else {
-            this.timeZone = fallbackTimeZone;
-            this.bitRate = 64;
-            this.aiOverriding = new AiOverriding();
-            this.country = CountryCode.UNKNOWN;
-            this.aiAgentId = definition.getAgentId();
-        }
+        this.timeZone = this.masterBrand.getTimeZone();
+        this.bitRate = this.masterBrand.getBitRate();
+        this.aiOverriding = this.masterBrand.getAiOverriding();
+        this.country = this.masterBrand.getCountry();
+        this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.masterBrand.getAiAgentId();
     }
 
     @Override
     public UUID getBrandId() {
-        return masterBrand != null ? masterBrand.getId() : null;
+        return isSynthetic ? null : masterBrand.getId();
     }
 
     @Override
