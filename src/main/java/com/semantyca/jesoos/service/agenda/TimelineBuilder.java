@@ -25,13 +25,47 @@ public class TimelineBuilder {
      */
     public static final int INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS = 30;
 
+    @FunctionalInterface
+    private interface StrategySelector {
+        MixingStrategy select(int availableSongCount, boolean allowIntros, double talkativity,
+                              MixingType lastType, int consecutiveCount, int consecutive2SongCount,
+                              int consecutiveIntroCount);
+    }
+
     public List<TimelineEntry> buildTimeline(LiveScene scene,
                                              List<SongEntry> songs,
                                              int sceneDurationSeconds,
                                              double talkativity,
                                              List<ScenePrompt> introPrompts,
-                                             List<CustomAction> actions,
-                                             boolean allowJingles) {
+                                             List<CustomAction> actions) {
+        return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
+                MixingTypeShuffler::selectStrategy, true);
+    }
+
+    /**
+     * OTS: unlike radio, never overshoot-trims the last entry's intro. SONG_ONLY should only ever
+     * come from a scene having no active intro content, not from a budget-overshoot downgrade.
+     */
+    public List<TimelineEntry> buildOtsTimeline(LiveScene scene,
+                                                List<SongEntry> songs,
+                                                int sceneDurationSeconds,
+                                                double talkativity,
+                                                List<ScenePrompt> introPrompts,
+                                                List<CustomAction> actions) {
+        return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
+                (availableSongCount, allowIntros, ignoredTalkativity, lastType, consecutiveCount, consecutive2SongCount, consecutiveIntroCount) ->
+                        MixingTypeShuffler.selectOtsStrategy(availableSongCount, consecutive2SongCount),
+                false);
+    }
+
+    private List<TimelineEntry> buildTimeline(LiveScene scene,
+                                              List<SongEntry> songs,
+                                              int sceneDurationSeconds,
+                                              double talkativity,
+                                              List<ScenePrompt> introPrompts,
+                                              List<CustomAction> actions,
+                                              StrategySelector strategySelector,
+                                              boolean allowOvershootTrim) {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
@@ -90,7 +124,7 @@ public class TimelineBuilder {
             assert songs != null;
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
-            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount, allowJingles);
+            MixingStrategy strategy = strategySelector.select(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
@@ -133,7 +167,7 @@ public class TimelineBuilder {
         int contentDurationSeconds = calculateContentDurationSeconds(timeline);
         int fitSeconds = sceneDurationSeconds - contentDurationSeconds;
 
-        if (-fitSeconds > INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS && !timeline.isEmpty()) {
+        if (allowOvershootTrim && -fitSeconds > INTRO_TRIM_OVERSHOOT_THRESHOLD_SECONDS && !timeline.isEmpty()) {
             TimelineEntry last = timeline.getLast();
             MixingType downgraded = INTRO_DOWNGRADE.get(last.getMixingStrategy());
             if (downgraded != null) {

@@ -11,7 +11,6 @@ import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
-import com.semantyca.mixpla.model.stream.OtsDefinition;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -115,7 +114,7 @@ public class OneTimeStreamService {
                                             OneTimeStream stream = new OneTimeStream(definition, script, brand, zoneId);
                                             stream.setStatus(StreamStatus.PENDING);
 
-                                            return agendaService.buildAgenda(stream.getSlugName(), stream.getMasterBrand(),
+                                            return agendaService.buildAgenda(stream.getSlugName(), stream.getBrand(),
                                                             definition.getScriptId(), LocalDateTime.now(stream.getTimeZone()), actingUser)
                                                     .invoke(agenda -> {
                                                         stream.setAgenda(agenda);

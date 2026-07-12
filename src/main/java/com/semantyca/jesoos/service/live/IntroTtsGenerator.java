@@ -27,7 +27,7 @@ import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.LlmType;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.json.JsonArray;
@@ -141,7 +141,7 @@ public class IntroTtsGenerator {
             LiveScene liveScene,
             SongEntry songEntry,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             LanguageTag language,
             int entrySeq,
             UUID entryTraceId
@@ -168,7 +168,7 @@ public class IntroTtsGenerator {
             LiveScene liveScene,
             SongEntry songEntry,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             LanguageTag language,
             int entrySeq,
             UUID entryTraceId
@@ -276,13 +276,13 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, String sharerName, AiAgent agent, IStream stream) {
+    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, String sharerName, AiAgent agent, ILiveStream stream) {
         return draftFactory.createDraft(
                 song,
                 agent,
                 stream,
                 prompt.getDraftId(),
-                new HashMap<>(),
+                stream.getUserVariables(),
                 sharerName
         ).map(result -> {
             LOGGER.infof("Draft content received: %s", result.text());
@@ -399,7 +399,7 @@ public class IntroTtsGenerator {
                 });
     }
 
-    public Uni<JsonObject> debugPrompt(UUID promptId, SoundFragment song, String sharerName, AiAgent agent, LanguageTag language, IStream stream, LlmType overrideLlmType) {
+    public Uni<JsonObject> debugPrompt(UUID promptId, SoundFragment song, String sharerName, AiAgent agent, LanguageTag language, ILiveStream stream, LlmType overrideLlmType) {
         LanguageTag resolvedLanguage = language != null ? language : AiHelperUtils.selectLanguageByWeight(agent);
         LlmType llmType = overrideLlmType != null ? overrideLlmType
                 : (agent != null && agent.getLlmType() != null ? agent.getLlmType() : LlmType.CLAUDE);

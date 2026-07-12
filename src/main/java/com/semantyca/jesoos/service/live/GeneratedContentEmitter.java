@@ -29,7 +29,7 @@ import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.PromptType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -87,7 +87,7 @@ public class GeneratedContentEmitter {
                           LiveScene scene,
                           TimelineEntry entry,
                           AiAgent agent,
-                          IStream stream,
+                          ILiveStream stream,
                           ZoneId brandZone,
                           int priority,
                           UUID emissionTraceId) {
@@ -212,7 +212,7 @@ public class GeneratedContentEmitter {
     }
 
     private Uni<Void> sendGeneratedOnly(String streamSlug, LiveScene scene, TimelineEntry entry,
-                                        AiAgent agent, IStream stream, LanguageTag lang,
+                                        AiAgent agent, ILiveStream stream, LanguageTag lang,
                                         UUID promptId, ZoneId brandZone, int priority) {
         long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
         return promptService.getById(promptId, SuperUser.build())

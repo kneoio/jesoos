@@ -16,20 +16,13 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Setter
 @Getter
 public abstract class AbstractStream implements IStream, ILiveStream {
     protected String streamId;
-    protected Brand masterBrand;
+    protected Brand brand;
     protected String slugName;
     protected EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     protected StreamStatus status = StreamStatus.OFF_LINE;
@@ -54,6 +47,7 @@ public abstract class AbstractStream implements IStream, ILiveStream {
     protected LanguageTag broadcastingLanguage;
     protected LanguageTag streamLanguage;
     protected final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
+    protected Map<String, Object> userVariables = Map.of();
 
     @Override
     public void setStatus(StreamStatus newStatus) {
@@ -70,13 +64,4 @@ public abstract class AbstractStream implements IStream, ILiveStream {
             this.status = newStatus;
         }
     }
-
-    public Set<UUID> getFetchedSongsInScene(UUID sceneId) {
-        return fetchedSongsByScene.computeIfAbsent(sceneId, k -> new HashSet<>());
-    }
-
-    public void clearSceneState(UUID sceneId) {
-        fetchedSongsByScene.remove(sceneId);
-    }
-
 }

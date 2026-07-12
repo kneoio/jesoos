@@ -28,7 +28,6 @@ public class OneTimeStream extends AbstractStream {
     private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStream.class);
 
     private Script script;
-    private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
 
     private UUID currentSceneId;
@@ -42,7 +41,7 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables, UUID agentId) {
-        this.masterBrand = masterBrand;
+        this.brand = masterBrand;
         this.streamId = UUID.randomUUID().toString();
         this.script = script;
         this.userVariables = userVariables;
@@ -72,10 +71,10 @@ public class OneTimeStream extends AbstractStream {
     public OneTimeStream(OtsDefinition definition, Script script, Brand brand, ZoneId fallbackTimeZone) {
         if (brand == null) {
             this.isSynthetic = true;
-            this.masterBrand = new SyntheticBrand(fallbackTimeZone, definition.getAuthor());
+            this.brand = new SyntheticBrand(fallbackTimeZone, definition.getAuthor());
         } else {
             this.isSynthetic = false;
-            this.masterBrand = brand;
+            this.brand = brand;
         }
         this.streamId = UUID.randomUUID().toString();
         this.script = script;
@@ -90,12 +89,12 @@ public class OneTimeStream extends AbstractStream {
         this.profileId = script.getDefaultProfileId();
         this.scripts = List.of(new BrandScriptEntry(script.getId(), this.userVariables));
 
-        this.timeZone = this.masterBrand.getTimeZone();
-        this.bitRate = this.masterBrand.getBitRate();
-        this.aiOverriding = this.masterBrand.getAiOverriding();
-        this.country = this.masterBrand.getCountry();
-        this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.masterBrand.getAiAgentId();
-        this.masterBrand.setAiAgentId(this.aiAgentId);
+        this.timeZone = this.brand.getTimeZone();
+        this.bitRate = this.brand.getBitRate();
+        this.aiOverriding = this.brand.getAiOverriding();
+        this.country = this.brand.getCountry();
+        this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.brand.getAiAgentId();
+        this.brand.setAiAgentId(this.aiAgentId);
     }
 
     @Override

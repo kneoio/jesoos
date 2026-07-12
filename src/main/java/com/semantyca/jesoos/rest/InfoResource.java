@@ -77,9 +77,6 @@ public class InfoResource extends AbstractResource {
             return;
         }
 
-        // No radio scene ticking for this slug -- OTS doesn't go through ScenePool (it emits
-        // sequentially, not on the AgendaTicker's wall-clock schedule), so report its own
-        // pool status instead of just "live": false.
         oneTimeStreamPool.get(brand)
                 .subscribe().with(
                         ots -> {
@@ -127,12 +124,7 @@ public class InfoResource extends AbstractResource {
 
     private void getDjStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-        // DJ on/off is a per-brand toggle (CommandService.enableDj/disableDj); an OTS's own slug
-        // never has one set. For a brand-scoped OTS, report the master brand's toggle instead of
-        // always "false". Note OTS emission itself ignores this toggle entirely and always talks
-        // (OtsStreamScheduler forces djOn=true) -- this endpoint just reports informational status.
-        resolveDjBrandSlug(brand)
-                .chain(commandService::getDjStatus)
+        commandService.getDjStatus(brand)
                 .subscribe()
                 .with(
                         djEnabled -> {
@@ -144,11 +136,6 @@ public class InfoResource extends AbstractResource {
                         },
                         failure -> handleCommandFailure(rc, brand, "get DJ status", failure)
                 );
-    }
-
-    private Uni<String> resolveDjBrandSlug(String slug) {
-        return oneTimeStreamPool.get(slug)
-                .map(ots -> (ots != null && ots.getMasterBrand() != null) ? ots.getMasterBrand().getSlugName() : slug);
     }
 
 }

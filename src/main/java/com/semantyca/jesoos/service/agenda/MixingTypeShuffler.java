@@ -4,15 +4,16 @@ import com.semantyca.mixpla.model.cnst.MixingType;
 
 public class MixingTypeShuffler {
 
+    /** Radio: jingles are always eligible (probabilistic, see JINGLE_CHANCE below). */
     public static MixingStrategy selectStrategy(int availableSongCount, boolean allowIntros, double talkativity,
                                                  MixingType lastType, int consecutiveCount, int consecutive2SongCount,
-                                                 int consecutiveIntroCount, boolean allowJingles) {
+                                                 int consecutiveIntroCount) {
         if (consecutiveIntroCount >= 2 && talkativity < 1.0) {
             allowIntros = false;
         }
         if (allowIntros && Math.random() < talkativity) {
             if (availableSongCount == 1) {
-                MixingType type = (allowJingles && Math.random() < 0.5) ? MixingType.JINGLE_INTRO_SONG : MixingType.INTRO_SONG;
+                MixingType type = Math.random() < 0.5 ? MixingType.JINGLE_INTRO_SONG : MixingType.INTRO_SONG;
                 return new MixingStrategy(type, 1, true);
             }
             // Force single after 2 consecutive 2-song entries, otherwise ~50% chance of 2-song
@@ -20,7 +21,7 @@ public class MixingTypeShuffler {
                 MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
                 return new MixingStrategy(type, 2, true);
             }
-            MixingType type = (allowJingles && Math.random() < 0.5) ? MixingType.JINGLE_INTRO_SONG : MixingType.INTRO_SONG;
+            MixingType type = Math.random() < 0.5 ? MixingType.JINGLE_INTRO_SONG : MixingType.INTRO_SONG;
             return new MixingStrategy(type, 1, true);
         }
 
@@ -34,7 +35,19 @@ public class MixingTypeShuffler {
         if (blockSingle && availableSongCount >= 2 && !blockCrossfade) {
             return new MixingStrategy(MixingType.SONG_CROSSFADE_SONG, 2, false);
         }
-        MixingType type = (allowJingles && Math.random() < 0.5) ? MixingType.FILLER_JINGLE : MixingType.SONG_ONLY;
+        MixingType type = Math.random() < 0.5 ? MixingType.FILLER_JINGLE : MixingType.SONG_ONLY;
         return new MixingStrategy(type, 1, false);
+    }
+
+    public static MixingStrategy selectOtsStrategy(int availableSongCount, int consecutive2SongCount) {
+        if (availableSongCount == 1) {
+            return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+        }
+        // Force single after 2 consecutive 2-song entries, otherwise ~50% chance of 2-song
+        if (consecutive2SongCount < 2 && Math.random() < 0.5) {
+            MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
+            return new MixingStrategy(type, 2, true);
+        }
+        return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
     }
 }

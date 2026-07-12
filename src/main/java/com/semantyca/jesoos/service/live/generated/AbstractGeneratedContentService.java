@@ -31,7 +31,7 @@ import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
@@ -119,7 +119,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     public Uni<GenerationResult> generateAudio(
             UUID promptId,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
@@ -129,7 +129,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     private Uni<GenerationResult> generateAndSave(
             UUID promptId,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
@@ -249,7 +249,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         }
     }
 
-    private Uni<DraftFactory.DraftResult> generateDraft(DjPrompt prompt, AiAgent agent, IStream stream, LanguageTag airLanguage) {
+    private Uni<DraftFactory.DraftResult> generateDraft(DjPrompt prompt, AiAgent agent, ILiveStream stream, LanguageTag airLanguage) {
         return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
                 .chain(draftResult -> Uni.createFrom().item(() -> {
                     String draftContent = draftResult.text();

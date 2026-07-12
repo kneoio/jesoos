@@ -168,7 +168,7 @@ public class RadioAgendaService extends AbstractAgendaService {
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
                                 List<TimelineEntry> timeline = new TimelineBuilder().buildTimeline(
-                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions(), true);
+                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
 

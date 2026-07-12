@@ -22,7 +22,7 @@ import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.AiOverriding;
 import com.semantyca.mixpla.model.brand.ProfileOverriding;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.mixpla.template.GroovyTemplateEngine;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
@@ -86,7 +86,7 @@ public class DraftFactory {
     public Uni<DraftResult> createDraft(
             SoundFragment song,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             UUID draftId,
             Map<String, Object> userVariables,
             String sharerName
@@ -155,7 +155,7 @@ public class DraftFactory {
             String templateCode,
             SoundFragment song,
             AiAgent agent,
-            IStream stream,
+            ILiveStream stream,
             String sharerName
     ) {
         LanguageTag selectedLanguage = com.semantyca.jesoos.util.AiHelperUtils.selectLanguageByWeight(agent);
@@ -215,7 +215,7 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             AiAgent copilot,
-            IStream stream,
+            ILiveStream stream,
             Profile profile,
             List<String> genres,
             List<String> labels,
@@ -295,7 +295,7 @@ public class DraftFactory {
 
     public Uni<Map<String, Object>> buildActionContext(
             SoundFragment song,
-            IStream stream,
+            ILiveStream stream,
             List<String> contextVars,
             LanguageTag language,
             AiAgent agent

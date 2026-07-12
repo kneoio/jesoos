@@ -10,7 +10,7 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import jakarta.annotation.PreDestroy;
@@ -66,7 +66,7 @@ public class OtsStreamScheduler {
         }
     }
 
-    private void scheduleSceneSongs(String streamSlug, LiveScene scene, ZoneId zone, IStream streamRef) {
+    private void scheduleSceneSongs(String streamSlug, LiveScene scene, ZoneId zone, ILiveStream streamRef) {
         LocalDateTime now = LocalDateTime.now(zone);
 
         for (TimelineEntry entry : scene.getTimeline()) {
@@ -83,7 +83,7 @@ public class OtsStreamScheduler {
         }
     }
 
-    private void scheduleEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream streamRef) {
+    private void scheduleEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream streamRef) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
             return;
         }
@@ -93,7 +93,7 @@ public class OtsStreamScheduler {
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long triggerTime = emissionTime - leadTimeMs;
 
-        IStream capturedStream = streamRef;
+        ILiveStream capturedStream = streamRef;
         Runnable task = () -> {
             long deadline = scene.getEndTime().atZone(zone).toInstant().toEpochMilli();
             if (System.currentTimeMillis() >= deadline) {
@@ -140,7 +140,7 @@ public class OtsStreamScheduler {
                 .put(entry.getSequenceNumber(), timerId);
     }
 
-    private Uni<Void> emitEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, IStream stream, UUID emissionTraceId) {
+    private Uni<Void> emitEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream stream, UUID emissionTraceId) {
         LOGGER.infof("[OtsScheduler] emitting entry #%d scene '%s' stream '%s'",
                 entry.getSequenceNumber(), scene.getSceneTitle(), streamSlug);
 

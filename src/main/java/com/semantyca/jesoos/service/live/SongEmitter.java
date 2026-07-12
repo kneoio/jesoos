@@ -13,7 +13,7 @@ import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
-import com.semantyca.mixpla.model.stream.IStream;
+import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -52,7 +52,7 @@ public class SongEmitter {
                           LiveScene liveScene,
                           TimelineEntry entry,
                           AiAgent agent,
-                          IStream stream,
+                          ILiveStream stream,
                           ZoneId brandZone,
                           int priority,
                           UUID emissionTraceId) {

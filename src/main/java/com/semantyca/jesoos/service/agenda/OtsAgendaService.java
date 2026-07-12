@@ -35,13 +35,15 @@ public class OtsAgendaService extends AbstractAgendaService {
     }
 
     public Uni<StreamAgenda> buildAgenda(String streamSlug, Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
+        assert scriptService != null;
+        assert sceneService != null;
         return scriptService.getById(scriptId, user)
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AbstractAgendaService::orderedSceneSet)
-                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes, user)));
+                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes)));
     }
 
-    private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes, IUser user) {
+    private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes) {
         ZoneId zone = brand.getTimeZone();
         UUID agentId = brand.getAiAgentId();
         SongSourceScope scope = brand.getId() != null
@@ -66,9 +68,13 @@ public class OtsAgendaService extends AbstractAgendaService {
             currentTime = currentTime.plusSeconds(durationSeconds);
 
             TimelineBuilder timelineBuilder = new TimelineBuilder();
-            Uni<AiAgent> agentUni = (agentId != null)
-                    ? aiAgentService.getById(agentId)
-                    : Uni.createFrom().nullItem();
+            Uni<AiAgent> agentUni;
+            if ((agentId != null)) {
+                assert aiAgentService != null;
+                agentUni = aiAgentService.getById(agentId);
+            } else {
+                agentUni = Uni.createFrom().nullItem();
+            }
 
             double otsTalkativity = 1.0;
             sceneUnis.add(
@@ -99,8 +105,8 @@ public class OtsAgendaService extends AbstractAgendaService {
                                 liveScene.setActions(scene.getActions());
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
-                                List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
-                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions(), false);
+                                List<TimelineEntry> timeline = timelineBuilder.buildOtsTimeline(
+                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions());
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
                                 return liveScene;
@@ -113,6 +119,7 @@ public class OtsAgendaService extends AbstractAgendaService {
                     for (LiveScene liveScene : liveScenes) {
                         schedule.addScene(liveScene);
                         if (liveScene.getFitSeconds() > 360) {
+                            assert metricPublisher != null;
                             metricPublisher.publishMetric(
                                     streamSlug,
                                     MetricEventType.WARNING,
@@ -127,6 +134,7 @@ public class OtsAgendaService extends AbstractAgendaService {
                         }
                     }
                     long elapsedMs = System.currentTimeMillis() - buildT0;
+                    assert metricPublisher != null;
                     metricPublisher.publishMetric(
                             streamSlug,
                             MetricEventType.INFORMATION,
@@ -140,12 +148,15 @@ public class OtsAgendaService extends AbstractAgendaService {
                     );
                     return schedule;
                 })
-                .onFailure().invoke(e -> metricPublisher.publishMetric(
-                        streamSlug,
-                        MetricEventType.ERROR,
-                        ProcessType.INDEPENDENT,
-                        "agenda_empty_or_failed",
-                        Map.of("stream", streamSlug, "error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())
-                ));
+                .onFailure().invoke(e -> {
+                    assert metricPublisher != null;
+                    metricPublisher.publishMetric(
+                            streamSlug,
+                            MetricEventType.ERROR,
+                            ProcessType.INDEPENDENT,
+                            "agenda_empty_or_failed",
+                            Map.of("stream", streamSlug, "error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())
+                    );
+                });
     }
 }
