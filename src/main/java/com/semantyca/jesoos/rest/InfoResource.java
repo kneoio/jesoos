@@ -129,7 +129,8 @@ public class InfoResource extends AbstractResource {
         String brand = rc.pathParam("brand");
         // DJ on/off is a per-brand toggle (CommandService.enableDj/disableDj); an OTS's own slug
         // never has one set. For a brand-scoped OTS, report the master brand's toggle instead of
-        // always "false" -- matches SongEmitter/JingleSongEmitter's djBrandSlug resolution.
+        // always "false". Note OTS emission itself ignores this toggle entirely and always talks
+        // (OtsStreamScheduler forces djOn=true) -- this endpoint just reports informational status.
         resolveDjBrandSlug(brand)
                 .chain(commandService::getDjStatus)
                 .subscribe()

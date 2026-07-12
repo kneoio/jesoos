@@ -133,7 +133,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             LanguageTag airLanguage,
             LiveScene liveScene
     ) {
-        UUID brandId = stream.getMasterBrandId();
+        UUID brandId = stream.getBrandId();
         String sceneTitle = liveScene.getSceneTitle();
         UUID traceId = liveScene.getTraceId();
         OffsetDateTime startOfDay = LocalDate.now(stream.getTimeZone()).atStartOfDay().atOffset(ZoneOffset.UTC);
@@ -203,7 +203,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         dto.setLength(Duration.ofSeconds(durationSeconds));
                         LOGGER.infof("saveSoundFragment DTO ready: brandId=%s, artistKey=%s, newlyUploaded=%s", brandId, artistKey, fileName);
                         if (brandId == null) {
-                            throw new IllegalStateException("brandId is null — stream.getMasterBrandId() returned null");
+                            throw new IllegalStateException("brandId is null — stream.getBrandId() returned null");
                         }
                         dto.setRepresentedInBrands(List.of(brandId));
                         dto.setNewlyUploaded(List.of(fileName));

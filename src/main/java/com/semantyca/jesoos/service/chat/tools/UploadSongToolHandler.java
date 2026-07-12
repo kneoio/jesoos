@@ -75,7 +75,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                     return brandPool.get(brandName)
                                             .chain(stream -> {
                                                 Uni<UUID> brandIdUni = stream != null
-                                                        ? Uni.createFrom().item(stream.getMasterBrandId())
+                                                        ? Uni.createFrom().item(stream.getBrandId())
                                                         : brandService.getBySlugName(brandName).map(brand -> brand != null ? brand.getId() : null);
                                                 return brandIdUni.chain(brandId ->
                                                         soundFragmentService.upsert("new", dto, user, com.semantyca.core.model.cnst.LanguageCode.en)

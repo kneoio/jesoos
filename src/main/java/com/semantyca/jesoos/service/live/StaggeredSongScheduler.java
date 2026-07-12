@@ -349,12 +349,12 @@ public class StaggeredSongScheduler {
                                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                                 }
                                 if (entry.isHasJingle()) {
-                                    return jingleSongEmitter.send(brandName, brandName, liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
+                                    return jingleSongEmitter.send(brandName, djStateService.isDjEnabled(brandName), liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
                                             .onFailure().invoke(err -> LOGGER.error(String.format(
                                                     "Jingle emitter failed for entry #%d scene '%s': %s",
                                                     entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));
                                 }
-                                return songEmitter.send(brandName, brandName, liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
+                                return songEmitter.send(brandName, djStateService.isDjEnabled(brandName), liveScene, entry, agent, stream, brandZone, priority, emissionTraceId)
                                         .onFailure().invoke(err -> LOGGER.error(String.format(
                                                 "Song emitter failed for entry #%d scene '%s': %s",
                                                 entry.getSequenceNumber(), liveScene.getSceneTitle(), err.getMessage()), err));

@@ -79,7 +79,7 @@ public class PrerecordedFragmentTicker {
         Collection<ILiveStream> streams = brandPool.getStationsSnapshot();
         for (ILiveStream stream : streams) {
             String brandSlug = stream.getSlugName();
-            UUID brandId = stream.getMasterBrandId();
+            UUID brandId = stream.getBrandId();
             ZoneId zone = stream.getTimeZone();
             ZonedDateTime now = ZonedDateTime.now(zone);
 

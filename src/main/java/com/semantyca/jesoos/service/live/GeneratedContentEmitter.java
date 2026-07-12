@@ -106,7 +106,7 @@ public class GeneratedContentEmitter {
 
         Map<String, String> artefacts = scene.getMixingArtefacts();
 
-        if (stream.getMasterBrandId() == null
+        if (stream.getBrandId() == null
                 && (artefacts == null || !artefacts.containsKey(PlaylistItemType.JINGLE_INTRO.name())
                         || !artefacts.containsKey(PlaylistItemType.BACKGROUND_LOOP.name()))) {
             LOGGER.warnf("Owner-scoped OTS stream '%s' has no master brand — jingle/background artefacts for " +
@@ -118,14 +118,14 @@ public class GeneratedContentEmitter {
                 ? soundFragmentService.getById(UUID.fromString(artefacts.get(PlaylistItemType.JINGLE_INTRO.name())))
                         .map(List::of)
                         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getMasterBrandId())
+                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE_INTRO, stream.getBrandId())
                         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         Uni<List<SoundFragment>> songsUni = (artefacts != null && artefacts.containsKey(PlaylistItemType.BACKGROUND_LOOP.name()))
                 ? soundFragmentService.getById(UUID.fromString(artefacts.get(PlaylistItemType.BACKGROUND_LOOP.name())))
                         .map(List::of)
                         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getMasterBrandId())
+                : soundFragmentService.getByTypeAndBrand(PlaylistItemType.BACKGROUND_LOOP, stream.getBrandId())
                         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
 
         List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :

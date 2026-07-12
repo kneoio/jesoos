@@ -28,7 +28,7 @@ mandatory-when-`brandId`-is-null `agentId`:
 | `OneTimeStream.masterBrand` | The resolved `Brand` | `null` |
 | Timezone / country / bitrate / `aiOverriding` | Inherited from the master brand | Fallback: owner's timezone (else system default), `64` kbps, `CountryCode.UNKNOWN`, default `AiOverriding` |
 | Codec/bitrate on the aivox side | Inherited from the master brand | Fixed aivox default: `OPUS`, `64000` (`LiveStreamPool.OWNER_SCOPED_OTS_BASE_BITRATE`) |
-| DJ intros (TTS) | Follow the master brand's live `isDjEnabled` toggle | **Always off** — there is no brand DJ toggle to check (see §3) |
+| DJ intros (TTS) | **Always on** — same as owner-scoped, ignores the master brand's `isDjEnabled` toggle entirely (see §3) | **Always on** |
 | `aiAgentId` | `definition.getAgentId()` if set, else the master brand's | `definition.getAgentId()` (mandatory) |
 
 `OtsService.coldStart` (aivox) only refuses to start when there is **neither** a brand **nor**
@@ -62,21 +62,24 @@ the master brand's slug — as:
   not renamed here),
 - the `otsSlugName` tag on each `LiveScene`/`SongQueueMessageDTO`.
 
-**A previous bug conflated this with the DJ-toggle check.** `SongEmitter`/`JingleSongEmitter`
-also call `djStateService.isDjEnabled(...)` to decide whether to generate a TTS intro — that
-toggle is genuinely per-**brand** (`CommandService.enableDj`/`disableDj`, REST/RabbitMQ), not
-per-OTS-slug; nobody ever calls `enableDj(theOtsSlug)`. `OtsStreamScheduler` used to read
-`stream.getMasterBrand().getSlugName()` once and pass that single value for *both* routing and
+**A previous bug conflated routing with the DJ-toggle check, and a later product decision
+removed the DJ-toggle check from OTS entirely.** `SongEmitter`/`JingleSongEmitter` used to call
+`djStateService.isDjEnabled(...)` (a per-**brand** toggle, `CommandService.enableDj`/`disableDj`)
+to decide whether to generate a TTS intro. `OtsStreamScheduler` originally read
+`stream.getMasterBrand().getSlugName()` once and passed that single value for *both* routing and
 the DJ check — which NPE'd the moment `masterBrand` was null (owner-scoped OTS), and would have
-been the wrong value for routing even when it wasn't null. The fix threads **two** separate,
-explicitly-named values from `scheduleStream` down through `scheduleSceneSongs` →
-`scheduleEntry` → `emitEntry` → `SongEmitter.send`/`JingleSongEmitter.send`:
-- `streamSlug` — always `stream.getSlugName()`, never null. Routing + tagging.
-- `djBrandSlug` — `stream.getMasterBrand().getSlugName()` if a master brand exists, else `null`.
-  DJ-toggle check only; `SongEmitter`/`JingleSongEmitter` treat `null` as "no brand to check →
-  no intros" rather than calling into `DjStateService` with a null key.
+been the wrong value for routing even when it wasn't null. The immediate fix split that into two
+values (`streamSlug` for routing, a separate nullable brand slug for the DJ check). Explicitly
+decided afterward: **an OTS always talks, brand-scoped or not** — a personal one-time stream
+shouldn't go silent just because its (optional) master brand's ambient live DJ happens to be
+toggled off. So `SongEmitter.send`/`JingleSongEmitter.send` now take a plain `boolean djOn`
+instead of a brand slug to check: radio callers (`StaggeredSongScheduler`) still resolve it from
+`djStateService.isDjEnabled(brandName)`; `OtsStreamScheduler` always passes `true`. `streamSlug`
+remains the sole routing/tagging identity, threaded through `scheduleStream` →
+`scheduleSceneSongs` → `scheduleEntry` → `emitEntry` unchanged.
 
-Don't re-merge these into one parameter — that's exactly the confusion that caused the bug.
+Don't reintroduce a brand-slug-based DJ lookup for OTS — that's exactly the confusion that
+caused the original bug, and the "always on" decision means OTS has no use for one at all.
 
 ## 4. Lifecycle
 
@@ -123,9 +126,11 @@ a brand slug, at two layers:
 Same spirit as `../agenda/RADIO_WORKFLOW.md` §6 — this is settled behavior, refine don't
 redesign. In particular:
 1. **Never reintroduce a single "brand slug" parameter that does double duty** for routing and
-   for a brand-specific lookup (DJ toggle, catalog scope). Owner-scoped OTS has no brand — any
-   code path that assumes one will NPE or silently misbehave for it. Grep `getMasterBrand(`/
-   `getMasterBrandId(` before adding a new one; null-check.
+   for a brand-specific lookup (catalog scope, codec/bitrate defaults). Owner-scoped OTS has no
+   brand — any code path that assumes one will NPE or silently misbehave for it. Grep
+   `getMasterBrand(`/`getMasterBrandId(` before adding a new one; null-check. DJ status is no
+   longer one of these lookups — OTS always talks (see §3) — but the principle still applies to
+   song-sourcing and defaults.
 2. **Keep this doc and aivox's `OTS_SCOPE.md`/`RADIO_SCOPE.md` coherent.** They describe the two
    ends of the same contract (jesoos decides *when*/*what* to emit; aivox decides *how* to serve
    the station). A routing-identity or scope-semantics change on one side is a change to both.

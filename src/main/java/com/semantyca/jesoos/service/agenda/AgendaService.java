@@ -206,7 +206,7 @@ public class AgendaService {
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
                                 List<TimelineEntry> timeline = new TimelineBuilder().buildTimeline(
-                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
+                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions(), true);
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
 
@@ -280,9 +280,10 @@ public class AgendaService {
                     ? aiAgentService.getById(agentId)
                     : Uni.createFrom().nullItem();
 
+            double otsTalkativity = 1.0;
             sceneUnis.add(
                     Uni.combine().all().unis(
-                                    fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier),
+                                    fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, otsTalkativity),
                                     agentUni
                             ).asTuple()
                             .map(tuple -> {
@@ -309,7 +310,7 @@ public class AgendaService {
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
                                 List<TimelineEntry> timeline = timelineBuilder.buildTimeline(
-                                        liveScene, songEntries, durationSeconds, scene.getTalkativity(), scene.getIntroPrompts(), scene.getActions());
+                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions(), false);
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
                                 return liveScene;
@@ -369,10 +370,18 @@ public class AgendaService {
     }
 
     private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier) {
-        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of());
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), scene.getTalkativity());
     }
 
     private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, scene.getTalkativity());
+    }
+
+    private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, double talkativity) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), talkativity);
+    }
+
+    private Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<UUID> excludeIds, double talkativity) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
@@ -392,14 +401,14 @@ public class AgendaService {
                 req.setSource(playlistRequest.getSource());
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsByQuery(scope, req, songCount)
-                        .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
+                        .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments(), maxDurationSeconds)
-                    .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, scene.getTalkativity()), Map.of()));
+                    .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             default -> {
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, excludeIds)
-                        .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, scene.getTalkativity()), pool.sharerMap()));
+                        .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
             }
         };
     }

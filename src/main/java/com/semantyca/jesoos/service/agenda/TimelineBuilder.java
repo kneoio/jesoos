@@ -30,7 +30,8 @@ public class TimelineBuilder {
                                              int sceneDurationSeconds,
                                              double talkativity,
                                              List<ScenePrompt> introPrompts,
-                                             List<CustomAction> actions) {
+                                             List<CustomAction> actions,
+                                             boolean allowJingles) {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
@@ -89,7 +90,7 @@ public class TimelineBuilder {
             assert songs != null;
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
-            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
+            MixingStrategy strategy = MixingTypeShuffler.selectStrategy(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount, allowJingles);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {

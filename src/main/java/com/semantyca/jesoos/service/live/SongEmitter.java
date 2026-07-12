@@ -36,22 +36,19 @@ public class SongEmitter {
 
     private final IntroTtsGenerator introTtsGenerator;
     private final QueueSupplier queueSupplier;
-    private final DjStateService djStateService;
     private final MetricPublisher metricPublisher;
 
     @Inject
     public SongEmitter(IntroTtsGenerator introTtsGenerator,
                        QueueSupplier queueSupplier,
-                       DjStateService djStateService,
                        MetricPublisher metricPublisher) {
         this.introTtsGenerator = introTtsGenerator;
         this.queueSupplier = queueSupplier;
-        this.djStateService = djStateService;
         this.metricPublisher = metricPublisher;
     }
 
     public Uni<Void> send(String streamSlug,
-                          String djBrandSlug,
+                          boolean djOn,
                           LiveScene liveScene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -61,9 +58,10 @@ public class SongEmitter {
                           UUID emissionTraceId) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
-        // DJ on/off is a per-brand toggle (CommandService.enableDj/disableDj); djBrandSlug is null
-        // for owner-scoped OTS (no brand to check), which means no intros — not the routing slug.
-        boolean djIsOnline = djBrandSlug != null && djStateService.isDjEnabled(djBrandSlug);
+        // DJ on/off is a per-brand toggle for radio (CommandService.enableDj/disableDj); OTS
+        // callers force this true always -- a personal one-time stream always talks, regardless
+        // of whether its (optional) master brand's live DJ happens to be toggled on.
+        boolean djIsOnline = djOn;
         long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()

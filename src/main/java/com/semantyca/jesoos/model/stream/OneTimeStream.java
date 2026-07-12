@@ -101,7 +101,7 @@ public class OneTimeStream extends AbstractStream {
     }
 
     @Override
-    public UUID getMasterBrandId() {
+    public UUID getBrandId() {
         return masterBrand != null ? masterBrand.getId() : null;
     }
 

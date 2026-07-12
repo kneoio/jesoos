@@ -273,7 +273,7 @@ public class DraftFactory {
         data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
-        UserAdHelper adsHelper = new UserAdHelper(dbClient, stream.getMasterBrandId());
+        UserAdHelper adsHelper = new UserAdHelper(dbClient, stream.getBrandId());
         data.put("ads", adsHelper);
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         data.put("chatSummary", chatSummary != null ? chatSummary : "");

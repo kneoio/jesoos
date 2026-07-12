@@ -34,21 +34,18 @@ public class JingleSongEmitter {
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
     private final IntroTtsGenerator introTtsGenerator;
-    private final DjStateService djStateService;
 
     @Inject
     public JingleSongEmitter(SoundFragmentService soundFragmentService,
                              QueueSupplier queueSupplier,
-                             IntroTtsGenerator introTtsGenerator,
-                             DjStateService djStateService) {
+                             IntroTtsGenerator introTtsGenerator) {
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
         this.introTtsGenerator = introTtsGenerator;
-        this.djStateService = djStateService;
     }
 
     public Uni<Void> send(String streamSlug,
-                          String djBrandSlug,
+                          boolean djOn,
                           LiveScene scene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -56,17 +53,17 @@ public class JingleSongEmitter {
                           ZoneId brandZone,
                           int priority,
                           UUID emissionTraceId) {
-        // DJ on/off is a per-brand toggle; djBrandSlug is null for owner-scoped OTS (no brand to
-        // check), which means no intros — not the routing slug.
-        boolean djEnabled = djBrandSlug != null && djStateService.isDjEnabled(djBrandSlug);
+        // DJ on/off is a per-brand toggle for radio; OTS callers force this true always -- a
+        // personal one-time stream always talks, regardless of the master brand's live toggle.
+        boolean djEnabled = djOn;
         long sceneDeadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
 
-        if (stream.getMasterBrandId() == null) {
+        if (stream.getBrandId() == null) {
             LOGGER.warnf("Owner-scoped OTS stream '%s' has no master brand — jingles are sourced from a " +
                     "brand catalog, so this entry will fall back to plain song only", streamSlug);
         }
 
-        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getMasterBrandId())
+        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getBrandId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .chain(jingles -> {
                     if (jingles.isEmpty()) {
