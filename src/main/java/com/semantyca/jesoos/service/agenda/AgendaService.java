@@ -423,8 +423,10 @@ public class AgendaService {
 
         List<SoundFragment> selectedSongs = new ArrayList<>();
         int totalTimeUsed = 0;
+        int index = 0;
 
-        for (SoundFragment song : songsPool) {
+        while (totalTimeUsed < sceneDurationSeconds) {
+            SoundFragment song = songsPool.get(index % songsPool.size());
             int songDurationSeconds = song.getLength() != null
                     ? (int) song.getLength().toSeconds()
                     : 180;
@@ -435,10 +437,7 @@ public class AgendaService {
 
             selectedSongs.add(song);
             totalTimeUsed += timePerSong;
-
-            if (totalTimeUsed >= sceneDurationSeconds) {
-                break;
-            }
+            index++;
         }
 
         LOGGER.debugf(
