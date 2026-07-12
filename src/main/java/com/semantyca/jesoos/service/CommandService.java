@@ -33,6 +33,7 @@ public class CommandService {
     private final StaggeredSongScheduler staggeredSongScheduler;
     private final OneTimeStreamService oneTimeStreamService;
     private final OtsStreamScheduler otsStreamScheduler;
+    private final OneTimeStreamPool oneTimeStreamPool;
     private final MetricPublisher metricPublisher;
     private final BrandService brandService;
     private final ChatAuthService chatAuthService;
@@ -44,6 +45,7 @@ public class CommandService {
                           StaggeredSongScheduler staggeredSongScheduler,
                           OneTimeStreamService oneTimeStreamService,
                           OtsStreamScheduler otsStreamScheduler,
+                          OneTimeStreamPool oneTimeStreamPool,
                           MetricPublisher metricPublisher,
                           BrandService brandService,
                           ChatAuthService chatAuthService,
@@ -54,6 +56,7 @@ public class CommandService {
         this.staggeredSongScheduler = staggeredSongScheduler;
         this.oneTimeStreamService = oneTimeStreamService;
         this.otsStreamScheduler = otsStreamScheduler;
+        this.oneTimeStreamPool = oneTimeStreamPool;
         this.metricPublisher = metricPublisher;
         this.brandService = brandService;
         this.chatAuthService = chatAuthService;
@@ -392,11 +395,14 @@ public class CommandService {
     public Uni<JsonObject> stopOts(String otsSlugName, UUID traceId) {
         metricPublisher.publishMetric(otsSlugName, MetricEventType.COMMAND, ProcessType.FLOW, "ots_stop_received", Map.of("otsSlugName", otsSlugName), traceId);
         otsStreamScheduler.cancelOtsTimers(otsSlugName);
-        metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);
-        return Uni.createFrom().item(new JsonObject()
-                .put("success", true)
-                .put("otsSlugName", otsSlugName)
-                .put("message", "OTS stream stopped"));
+        return oneTimeStreamPool.stopAndRemove(otsSlugName)
+                .map(stream -> {
+                    metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);
+                    return new JsonObject()
+                            .put("success", true)
+                            .put("otsSlugName", otsSlugName)
+                            .put("message", "OTS stream stopped");
+                });
     }
 
     private JsonObject toResponse(ILiveStream agendaHolder) {

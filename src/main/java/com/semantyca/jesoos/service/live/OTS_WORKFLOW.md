@@ -106,8 +106,8 @@ caused the original bug, and the "always on" decision means OTS has no use for o
 5. **Explicit stop.** `CommandService.stopOts` is queue-only — reached via the RabbitMQ
    `JESOOS_STOP_OTS` command (`CommandService.handleQueueCommand`), no REST path (REST-triggered
    stop was removed; commands go over the queue, not REST, per the platform's messaging
-   convention). It cancels the stream's timers but — unlike natural completion above — does not
-   currently remove the stream from `OneTimeStreamPool` or notify aivox.
+   convention). It cancels the stream's timers and removes it from `OneTimeStreamPool` — unlike
+   natural completion above, it does not currently notify aivox.
 
 ## 5. Metrics
 
