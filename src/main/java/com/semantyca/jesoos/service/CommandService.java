@@ -68,6 +68,7 @@ public class CommandService {
             case REBUILD_AGENDA -> handleRebuildAgenda(dto);
             case JESOOS_START_BRAND -> startBrand(dto.payload().get("brand").toString(), dto.traceId()).replaceWithVoid();
             case JESOOS_START_OTS -> startOts(dto.payload().get("slug").toString(), dto.traceId()).replaceWithVoid();
+            case JESOOS_STOP_OTS -> stopOts(dto.payload().get("slug").toString(), dto.traceId()).replaceWithVoid();
             default -> {
                 LOGGER.warnf("Ignored queue command: type=%s", dto.type());
                 yield Uni.createFrom().voidItem();

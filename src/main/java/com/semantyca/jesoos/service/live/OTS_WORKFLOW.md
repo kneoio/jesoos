@@ -96,12 +96,18 @@ caused the original bug, and the "always on" decision means OTS has no use for o
    `PRIORITIZED_FRONT` for generated content, `PRIORITIZED` otherwise).
 3. **Songs from the parent-or-owner catalog.** See §2 — `SongSourceScope.BrandScope` or
    `.OwnerScope` depending on whether `masterBrand` is present.
-4. **Complete → teardown (intended; not fully wired yet).** When an OTS finishes, everything it
-   created should be cleaned up — removed from the pool, timers cancelled, streams shut down. The
-   teardown methods exist (`OtsStreamScheduler.cancelOtsTimers`, `OneTimeStreamService.delete` →
-   `pool.stopAndRemove`; aivox `stopAndRemoveStation` → `shutdown`), but **automatic
-   completion-triggered cleanup is a TODO** — today teardown runs only via an explicit
-   delete/stop, not when the last scene ends.
+4. **Complete → teardown.** `OtsStreamScheduler.checkOtsFinished` runs after every `TimelineEntry`
+   reaches a terminal status; once every `LiveScene` in the agenda is `isFinished()` (guarded to
+   fire once per stream), it publishes an `ots_finished` metric, sends aivox the
+   `CommandType.JESOOS_OTS_FINISHED` command (`{"streamSlug": ...}`, aivox tears down its station
+   via `LiveStreamPool.stopAndRemoveStation`), cancels remaining timers
+   (`OtsStreamScheduler.cancelOtsTimers`), and removes the stream from jesoos's own
+   `OneTimeStreamPool` (`pool.stopAndRemove`).
+5. **Explicit stop.** `CommandService.stopOts` is queue-only — reached via the RabbitMQ
+   `JESOOS_STOP_OTS` command (`CommandService.handleQueueCommand`), no REST path (REST-triggered
+   stop was removed; commands go over the queue, not REST, per the platform's messaging
+   convention). It cancels the stream's timers but — unlike natural completion above — does not
+   currently remove the stream from `OneTimeStreamPool` or notify aivox.
 
 ## 5. Metrics
 

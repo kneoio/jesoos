@@ -27,7 +27,6 @@ public class CommandResource extends AbstractResource {
         router.route(HttpMethod.POST, path + "/:brand/emit-timeline-entry/:sceneId/:sequenceNumber").handler(this::handleEmitTimelineEntry);
         router.route(HttpMethod.POST, path + "/:brand/backpressure").handler(this::handleBackpressure);
         router.route(HttpMethod.POST, path + "/ots/:otsSlug/start").handler(this::handleOtsStart);
-        router.route(HttpMethod.POST, path + "/ots/:otsSlug/stop").handler(this::handleOtsStop);
     }
 
     @Deprecated
@@ -140,20 +139,6 @@ public class CommandResource extends AbstractResource {
                                 .putHeader("X-Trace-Id", traceId.toString())
                                 .end(response.encode()),
                         failure -> handleCommandFailure(rc, otsSlug, "ots-start", failure)
-                );
-    }
-
-    private void handleOtsStop(RoutingContext rc) {
-        String otsSlug = rc.pathParam("otsSlug");
-        String traceHeader = rc.request().getHeader("X-Trace-Id");
-        UUID traceId = traceHeader != null ? UUID.fromString(traceHeader) : UUID.randomUUID();
-        commandService.stopOts(otsSlug, traceId)
-                .subscribe().with(
-                        response -> rc.response().setStatusCode(200)
-                                .putHeader("Content-Type", "application/json")
-                                .putHeader("X-Trace-Id", traceId.toString())
-                                .end(response.encode()),
-                        failure -> handleCommandFailure(rc, otsSlug, "ots-stop", failure)
                 );
     }
 
