@@ -31,6 +31,8 @@ public class RadioAgendaService extends AbstractAgendaService {
     private static final Logger LOGGER = Logger.getLogger(RadioAgendaService.class);
 
     record SceneTimeSlot(Scene scene, LocalTime startTime) {}
+    record BuildState(List<LiveScene> liveScenes, Set<UUID> usedIds) {}
+    record ExpandedSlot(Scene scene, LocalTime startTime, int durationSeconds) {}
 
     @Inject
     public RadioAgendaService(ScriptService scriptService,
@@ -93,8 +95,7 @@ public class RadioAgendaService extends AbstractAgendaService {
                 ? aiAgentService.getById(sourceBrand.getAiAgentId())
                 : Uni.createFrom().nullItem();
 
-        record BuildState(List<LiveScene> liveScenes, Set<UUID> usedIds) {}
-        record ExpandedSlot(Scene scene, LocalTime startTime, int durationSeconds) {}
+
 
         List<ExpandedSlot> expandedSlots = new ArrayList<>();
         Scene currentLoopScene = activeScenes.stream()
