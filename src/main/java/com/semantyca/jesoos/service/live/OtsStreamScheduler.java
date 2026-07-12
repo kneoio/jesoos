@@ -83,7 +83,7 @@ public class OtsStreamScheduler {
         }
     }
 
-    private void scheduleEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream streamRef) {
+    private void scheduleEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream capturedStream) {
         if (!entry.compareAndSetStatus(TimelineEntryStatus.PENDING, TimelineEntryStatus.SCHEDULED)) {
             return;
         }
@@ -93,7 +93,6 @@ public class OtsStreamScheduler {
         long leadTimeMs = config.getAivoxDelaySeconds() * 1000L;
         long triggerTime = emissionTime - leadTimeMs;
 
-        ILiveStream capturedStream = streamRef;
         Runnable task = () -> {
             long deadline = scene.getEndTime().atZone(zone).toInstant().toEpochMilli();
             if (System.currentTimeMillis() >= deadline) {
