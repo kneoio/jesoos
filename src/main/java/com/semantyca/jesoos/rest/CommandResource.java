@@ -30,6 +30,7 @@ public class CommandResource extends AbstractResource {
         router.route(HttpMethod.POST, path + "/ots/:otsSlug/stop").handler(this::handleOtsStop);
     }
 
+    @Deprecated
     private void handleStart(RoutingContext rc) {
         String slugName = rc.pathParam("brand").toLowerCase();
         String traceHeader = rc.request().getHeader("X-Trace-Id");

@@ -2,19 +2,10 @@
 
 > **Scope: the continuous brand radio only.** A radio station *is* a brand's station — always
 > brand-scoped, infinite by nature, started manually. For the one-time, ephemeral, brand-**or**
-> agent-scoped personal stream (OTS), see `../live/OTS_WORKFLOW.md` instead — it reuses the
+> user-scoped personal stream (OTS), see `../live/OTS_WORKFLOW.md` instead — it reuses the
 > build/timeline/emitter primitives documented here but has its own routing identity and
 > lifecycle. Coherent with aivox's own `RADIO_SCOPE.md` / `OTS_SCOPE.md` split — keep the two
 > pairs of docs in sync.
-
-Orientation for the agenda subsystem: how a brand's scripts/scenes become a concrete,
-time-stamped `StreamAgenda`, and how that agenda is ticked into live emission toward
-`aivox`. Read this before touching `service/agenda/*` or `service/live/*`; it captures the
-build pipeline, the emission pipeline, and the invariants that must not be broken.
-
-> This subsystem is deterministic scheduling, **not** an LLM flow. The only AI touch-points
-> are prompt/language *selection* (`assignPromptsToTimeline`) and downstream TTS in the
-> emitters. Timing, ordering, and gating are pure code — never move them into prompts.
 
 ---
 
@@ -30,8 +21,8 @@ build pipeline, the emission pipeline, and the invariants that must not be broke
 | **Talkativity** | `0.0–1.0` probability knob controlling how often DJ intros (TTS) are inserted vs. pure song/jingle transitions. |
 | **PlaylistRequest / WayOfSourcing** | How a scene gets its songs: `GENERATED` (AI content, no catalog songs), `QUERY` (filter by genre/label/search), `STATIC_LIST` (explicit ids), or default `RANDOM` (newest/oldest/random mix + shared fragments). |
 | **SongPool** | The fetched `List<SoundFragment>` + a `sharerMap` (id → sharer name) for shared songs. |
-| **SF (SoundFragment)** | The shared audio-item model (song / jingle / generated content / stream). "SF" is the platform-wide shorthand. |
-| **OTS (One-Time Stream)** | A temporary, **user- or agent-started** personal stream, separate from the brand's continuous radio. Always has its own slug/routing identity; a master brand is *optional* (brand-scoped vs owner-scoped) and, when present, only supplies song-sourcing/defaults — see `../live/OTS_WORKFLOW.md`. |
+| **SF (SoundFragment)** | The audio-item model (song / jingle / generated content / stream). "SF" is the platform-wide shorthand. |
+| **OTS (One-Time Stream)** | A temporary, **user-started** personal stream, separate from the brand's continuous radio. Always has its own slug/routing identity; a brand is *optional* (brand-scoped vs owner-scoped) and, when present, only supplies song-sourcing/defaults — see `../live/OTS_WORKFLOW.md`. |
 | **StreamAgenda** | The built product: an ordered set of `LiveScene`s for a brand, with a timezone and build timestamp. Held per-brand in `BrandPool`. |
 | **LiveScene** | A runtime scene: carries the `timeline`, `contentStatus`, `traceId`, agent id, one-time flag, and `fitSeconds`. |
 | **TimelineEntry** | One emission unit inside a scene: 1–2 songs + a `MixingType`, a `scheduledEmissionTime`, an estimated duration, intro/jingle flags, and a `TimelineEntryStatus`. |
@@ -92,7 +83,7 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
 > Boost biases *song selection during build*; Live Boost *forces DJ intros on-air during
 > emission*. Don't conflate them.
 
-**Shared sound fragments.** A brand's pool is not only its own catalog — other users/brands can
+**Shared sound fragments(SFF).** A brand's pool is not only its own catalog — other users/brands can
 *share* songs into it (`shared_sound_fragments` join, `SharedSoundFragmentService` /
 `SharedSoundFragmentRepository`). During build they are treated as follows:
 - **Currently only in the `RANDOM`/default sourcing path** (`getSongsRandomly`). `QUERY` and
@@ -158,32 +149,6 @@ Invariants — **do not silently change**:
 - **Backpressure** (`backpressure(brand)`) queues skip counts consumed at fire time; a failed entry triggers the next immediately (`triggerNextEntry`).
 - **Timer hygiene:** `cancelBrandTimers` on scene change / removal / shutdown — always cancel when you deactivate.
 - **Every stage emits metrics** with the propagated `traceId` / `emissionTraceId`. Preserve trace propagation end-to-end.
-
-### 3a. Rebuild
-- `DailyAgendaRebuildService` @ `00:00` rebuilds every active brand's agenda (day boundary — matches the loop's 00:00 anchor). Failures recover per-brand, never abort the batch.
-- For the one-time-stream (OTS) lifecycle — creation, start, brand-scoped vs owner-scoped song
-  sourcing, routing identity, teardown — see `../live/OTS_WORKFLOW.md`. OTS reuses this file's
-  `TimelineBuilder`/emitter/`QueueSupplier` machinery but is scheduled by `OtsStreamScheduler`,
-  not `StaggeredSongScheduler`.
-
-### 3b. External commands (`CommandService`, `CommandResource`, `CommandConsumer`)
-The live pipeline is steered from outside via REST (`CommandResource`) and RabbitMQ
-(`CommandConsumer` → `CommandType`). Key controls:
-- **`enableDj` / `disableDj`** — flip the per-brand TTS master gate (§4e). `disableDj` is a
-  **cost-saving** switch: aivox signals jesoos when **nobody is listening** to the station, so
-  jesoos stops generating (paid) DJ intros / TTS while the audience is empty; `enableDj` turns them
-  back on. This is the main lever that keeps LLM/TTS spend tied to actual listeners.
-  **Verified extra behaviour:** `enableDj` also applies a **Live Boost** (`activateLiveBoost(brand,
-  3, BOOST)`), so right after a listener connects the DJ **immediately talks more** for the first few
-  entries — a lively welcome instead of silence — then settles back to the scene's talkativity.
-- **`backpressure`** — aivox reports it is behind; `StaggeredSongScheduler.backpressure(brand)`
-  increments a per-brand skip counter, and the next N scheduled entries are `SKIPPED` at fire time
-  instead of emitted, letting aivox catch up without a growing backlog.
-- **`REBUILD_AGENDA`** — rebuild a brand's agenda on demand (same path as the daily job).
-- **`FLOW_RESTART`** (brand saved) / **`SONG_RATED`** — react to brand edits and rating signals.
-
-Every command publishes `*_received` / `*_ok` / `*_failed` metrics with the propagated `traceId`.
-
 ---
 
 ## 4. Mixing, talkativity, TTS & generated content
