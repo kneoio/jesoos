@@ -25,6 +25,8 @@ import java.util.*;
 @ApplicationScoped
 public class OtsAgendaService extends AbstractAgendaService {
 
+    private record BuildState(List<LiveScene> liveScenes, LocalDateTime currentTime) {}
+
     @Inject
     public OtsAgendaService(ScriptService scriptService,
                              AiAgentService aiAgentService,
@@ -59,33 +61,29 @@ public class OtsAgendaService extends AbstractAgendaService {
             return Uni.createFrom().item(schedule);
         }
 
-        List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
-        LocalDateTime currentTime = startTime;
+        Uni<AiAgent> agentUni;
+        if (agentId != null) {
+            assert aiAgentService != null;
+            agentUni = aiAgentService.getById(agentId);
+        } else {
+            agentUni = Uni.createFrom().nullItem();
+        }
 
-        for (Scene scene : scenes) {
-            int durationSeconds = scene.getDurationSeconds();
-            LocalDateTime sceneStart = currentTime;
-            currentTime = currentTime.plusSeconds(durationSeconds);
+        double otsTalkativity = 1.0;
 
-            TimelineBuilder timelineBuilder = new TimelineBuilder();
-            Uni<AiAgent> agentUni;
-            if ((agentId != null)) {
-                assert aiAgentService != null;
-                agentUni = aiAgentService.getById(agentId);
-            } else {
-                agentUni = Uni.createFrom().nullItem();
-            }
+        // Scenes are built sequentially, not in parallel: a ONE_TIME scene's real content length
+        // (not its nominal Scene.durationSeconds) determines when the next scene actually starts.
+        Uni<List<LiveScene>> chain = agentUni.chain(agent -> {
+            Uni<BuildState> stateChain = Uni.createFrom().item(new BuildState(new ArrayList<>(), startTime));
 
-            double otsTalkativity = 1.0;
-            sceneUnis.add(
-                    Uni.combine().all().unis(
-                                    fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, otsTalkativity),
-                                    agentUni
-                            ).asTuple()
-                            .map(tuple -> {
-                                SongPool pool = tuple.getItem1();
-                                AiAgent agent = tuple.getItem2();
+            for (Scene scene : scenes) {
+                stateChain = stateChain.chain(state -> {
+                    boolean oneTimeRun = scene.getSceneType() == SceneType.ONE_TIME;
+                    int durationSeconds = scene.getDurationSeconds();
+                    LocalDateTime sceneStart = state.currentTime();
 
+                    return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, otsTalkativity, oneTimeRun)
+                            .map(pool -> {
                                 LiveScene liveScene = new LiveScene();
                                 liveScene.setSceneId(scene.getId());
                                 liveScene.setSceneTitle(scene.getTitle());
@@ -94,7 +92,7 @@ public class OtsAgendaService extends AbstractAgendaService {
                                 liveScene.setTimeZone(zone);
                                 liveScene.setAgentId(agentId);
                                 liveScene.setContentStatus(ContentStatus.PENDING);
-                                liveScene.setOneTimeRun(scene.getSceneType() == SceneType.ONE_TIME);
+                                liveScene.setOneTimeRun(oneTimeRun);
                                 if (scene.getPlaylistRequest() != null
                                         && isGeneratedContentScene(scene.getPlaylistRequest())) {
                                     liveScene.setContentPrompts(scene.getPlaylistRequest().getContentPrompts());
@@ -105,16 +103,22 @@ public class OtsAgendaService extends AbstractAgendaService {
                                 liveScene.setActions(scene.getActions());
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
-                                List<TimelineEntry> timeline = timelineBuilder.buildOtsTimeline(
+                                List<TimelineEntry> timeline = new TimelineBuilder().buildOtsTimeline(
                                         liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions());
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
-                                return liveScene;
-                            })
-            );
-        }
 
-        return Uni.join().all(sceneUnis).andFailFast()
+                                LocalDateTime nextStart = liveScene.getEndTime() != null ? liveScene.getEndTime() : sceneStart;
+                                state.liveScenes().add(liveScene);
+                                return new BuildState(state.liveScenes(), nextStart);
+                            });
+                });
+            }
+
+            return stateChain.map(BuildState::liveScenes);
+        });
+
+        return chain
                 .map(liveScenes -> {
                     for (LiveScene liveScene : liveScenes) {
                         schedule.addScene(liveScene);

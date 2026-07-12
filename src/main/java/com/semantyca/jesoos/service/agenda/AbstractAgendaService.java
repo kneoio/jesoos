@@ -82,10 +82,22 @@ public abstract class AbstractAgendaService {
     }
 
     protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, double talkativity) {
-        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), talkativity);
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), talkativity, false);
+    }
+
+    protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, double talkativity, boolean oneTimeRun) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), talkativity, oneTimeRun);
     }
 
     protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds, double talkativity) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, talkativity, false);
+    }
+
+    /**
+     * oneTimeRun scenes play the fetched content once at its natural length: no duration-fit
+     * loop/repeat, no truncation to maxDurationSeconds.
+     */
+    protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds, double talkativity, boolean oneTimeRun) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
@@ -105,14 +117,14 @@ public abstract class AbstractAgendaService {
                 req.setSource(playlistRequest.getSource());
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsByQuery(scope, req, songCount)
-                        .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
+                        .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments(), maxDurationSeconds)
-                    .map(songs -> new SongPool(stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
+                    .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             default -> {
                 int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, excludeIds)
-                        .map(pool -> new SongPool(stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
+                        .map(pool -> new SongPool(oneTimeRun ? pool.songs() : stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
             }
         };
     }
