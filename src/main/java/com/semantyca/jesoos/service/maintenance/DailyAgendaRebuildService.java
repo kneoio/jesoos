@@ -4,7 +4,7 @@ import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.service.BrandService;
-import com.semantyca.jesoos.service.agenda.AgendaService;
+import com.semantyca.jesoos.service.agenda.RadioAgendaService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -24,12 +24,12 @@ public class DailyAgendaRebuildService {
     private static final Logger LOGGER = Logger.getLogger(DailyAgendaRebuildService.class);
     
     private final BrandPool brandPool;
-    private final AgendaService agendaService;
+    private final RadioAgendaService agendaService;
     private final BrandService brandService;
     private final MetricPublisher metricPublisher;
 
     @Inject
-    public DailyAgendaRebuildService(BrandPool brandPool, AgendaService agendaService,
+    public DailyAgendaRebuildService(BrandPool brandPool, RadioAgendaService agendaService,
                                      BrandService brandService, MetricPublisher metricPublisher) {
         this.brandPool = brandPool;
         this.agendaService = agendaService;

@@ -69,9 +69,14 @@ public class OneTimeStream extends AbstractStream {
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
     }
 
-    public OneTimeStream(OtsDefinition definition, Script script, Brand masterBrand, ZoneId fallbackTimeZone) {
-        this.isSynthetic = masterBrand == null;
-        this.masterBrand = masterBrand != null ? masterBrand : new SyntheticBrand(fallbackTimeZone);
+    public OneTimeStream(OtsDefinition definition, Script script, Brand brand, ZoneId fallbackTimeZone) {
+        if (brand == null) {
+            this.isSynthetic = true;
+            this.masterBrand = new SyntheticBrand(fallbackTimeZone, definition.getAuthor());
+        } else {
+            this.isSynthetic = false;
+            this.masterBrand = brand;
+        }
         this.streamId = UUID.randomUUID().toString();
         this.script = script;
         this.userVariables = definition.getUserVariables() != null ? definition.getUserVariables() : Map.of();
@@ -90,16 +95,22 @@ public class OneTimeStream extends AbstractStream {
         this.aiOverriding = this.masterBrand.getAiOverriding();
         this.country = this.masterBrand.getCountry();
         this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.masterBrand.getAiAgentId();
+        this.masterBrand.setAiAgentId(this.aiAgentId);
     }
 
     @Override
     public UUID getBrandId() {
-        return isSynthetic ? null : masterBrand.getId();
+        return null;
     }
 
     @Override
     public IStreamer getStreamer() {
         return null;
+    }
+
+    @Override
+    public String getDescription() {
+        return super.getDescription();
     }
 
     @Override

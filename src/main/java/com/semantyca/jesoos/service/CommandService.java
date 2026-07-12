@@ -66,24 +66,10 @@ public class CommandService {
             case FLOW_RESTART -> handleBrandSaved(dto);
             case SONG_RATED -> handleSongRated(dto);
             case REBUILD_AGENDA -> handleRebuildAgenda(dto);
-            case JESOOS_START_BRAND -> {
-                Object rawBrand = dto.payload() != null ? dto.payload().get("brand") : null;
-                if (rawBrand == null) {
-                    LOGGER.warnf("JESOOS_START_BRAND missing brand in payload, traceId=%s", dto.traceId());
-                    yield Uni.createFrom().voidItem();
-                }
-                yield startBrand(rawBrand.toString(), dto.traceId()).replaceWithVoid();
-            }
-            case JESOOS_START_OTS -> {
-                Object rawSlug = dto.payload() != null ? dto.payload().get("slug") : null;
-                if (rawSlug == null) {
-                    LOGGER.warnf("JESOOS_START_OTS missing slug in payload, traceId=%s", dto.traceId());
-                    yield Uni.createFrom().voidItem();
-                }
-                yield startOts(rawSlug.toString(), dto.traceId()).replaceWithVoid();
-            }
+            case JESOOS_START_BRAND -> startBrand(dto.payload().get("brand").toString(), dto.traceId()).replaceWithVoid();
+            case JESOOS_START_OTS -> startOts(dto.payload().get("slug").toString(), dto.traceId()).replaceWithVoid();
             default -> {
-                LOGGER.warnf("Ignored queue command: type=%s command=%s", dto.type(), dto.command());
+                LOGGER.warnf("Ignored queue command: type=%s", dto.type());
                 yield Uni.createFrom().voidItem();
             }
         };
@@ -91,10 +77,6 @@ public class CommandService {
 
     private Uni<Void> handleRebuildAgenda(CommandDTO dto) {
         Map<String, Object> p = dto.payload();
-        if (p == null || p.get("brandId") == null) {
-            LOGGER.warn("rebuild_agenda command missing brandId in payload");
-            return Uni.createFrom().voidItem();
-        }
         UUID brandId = UUID.fromString(p.get("brandId").toString());
         return brandService.getById(brandId)
                 .chain(brand -> {

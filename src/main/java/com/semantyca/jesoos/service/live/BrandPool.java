@@ -9,7 +9,7 @@ import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.mixpla.model.cnst.MixingType;
-import com.semantyca.jesoos.service.agenda.AgendaService;
+import com.semantyca.jesoos.service.agenda.RadioAgendaService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamStatus;
@@ -27,13 +27,13 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
     private static final Logger LOGGER = Logger.getLogger(BrandPool.class);
 
     private final BrandService brandService;
-    private final AgendaService agendaService;
+    private final RadioAgendaService agendaService;
     private final MetricPublisher metricPublisher;
     private final ScenePool scenePool;
     private final DjStateService djStateService;
 
     @Inject
-    public BrandPool(BrandService brandService, AgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool, DjStateService djStateService) {
+    public BrandPool(BrandService brandService, RadioAgendaService agendaService, MetricPublisher metricPublisher, ScenePool scenePool, DjStateService djStateService) {
         this.brandService = brandService;
         this.agendaService = agendaService;
         this.metricPublisher = metricPublisher;

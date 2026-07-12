@@ -4,10 +4,9 @@ import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.model.stream.OneTimeStream;
-import com.semantyca.jesoos.model.stream.SongSourceScope;
 import com.semantyca.jesoos.repository.OneTimeStreamRepository;
 import com.semantyca.jesoos.repository.OtsDefinitionRepository;
-import com.semantyca.jesoos.service.agenda.AgendaService;
+import com.semantyca.jesoos.service.agenda.OtsAgendaService;
 import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.jesoos.service.live.OtsStreamScheduler;
 import com.semantyca.mixpla.model.brand.Brand;
@@ -31,7 +30,7 @@ public class OneTimeStreamService {
     private final ScriptService scriptService;
     private final OneTimeStreamRepository repository;
     private final OtsDefinitionRepository otsDefinitionRepository;
-    private final AgendaService agendaService;
+    private final OtsAgendaService agendaService;
     private final UserService userService;
     private final OneTimeStreamPool pool;
     private final OtsStreamScheduler otsStreamScheduler;
@@ -40,7 +39,7 @@ public class OneTimeStreamService {
     public OneTimeStreamService(BrandService brandService, ScriptService scriptService,
                                 OneTimeStreamRepository repository,
                                 OtsDefinitionRepository otsDefinitionRepository,
-                                AgendaService agendaService,
+                                OtsAgendaService agendaService,
                                 UserService userService,
                                 OneTimeStreamPool pool, OtsStreamScheduler otsStreamScheduler) {
         this.brandService = brandService;
@@ -77,7 +76,7 @@ public class OneTimeStreamService {
                 });
     }
 
-    public Uni<OneTimeStream> startFromDefinition(String slugName) {
+    public Uni<OneTimeStream> start(String slugName) {
         IUser actingUser = SuperUser.build();
         return otsDefinitionRepository.findBySlugName(slugName)
                 .chain(definition -> {
@@ -109,18 +108,14 @@ public class OneTimeStreamService {
                                                 return Uni.createFrom().failure(new RuntimeException("OTS definition missing agentId for owner scope: " + slugName));
                                             }
 
-                                            ZoneId fallbackZone = (owner != null && owner.getTimeZone() != null)
+                                            ZoneId zoneId = (owner != null && owner.getTimeZone() != null)
                                                     ? owner.getTimeZone().toZoneId()
                                                     : ZoneId.systemDefault();
 
-                                            OneTimeStream stream = new OneTimeStream(definition, script, brand, fallbackZone);
+                                            OneTimeStream stream = new OneTimeStream(definition, script, brand, zoneId);
                                             stream.setStatus(StreamStatus.PENDING);
 
-                                            SongSourceScope scope = brand != null
-                                                    ? new SongSourceScope.BrandScope(brand.getId())
-                                                    : new SongSourceScope.OwnerScope(definition.getAuthor());
-
-                                            return agendaService.buildOtsAgenda(stream.getSlugName(), scope, stream.getAiAgentId(), stream.getTimeZone(),
+                                            return agendaService.buildAgenda(stream.getSlugName(), stream.getMasterBrand(),
                                                             definition.getScriptId(), LocalDateTime.now(stream.getTimeZone()), actingUser)
                                                     .invoke(agenda -> {
                                                         stream.setAgenda(agenda);
@@ -133,10 +128,6 @@ public class OneTimeStreamService {
                                         });
                             });
                 });
-    }
-
-    public Uni<OneTimeStream> start(String otsSlugName) {
-        return startFromDefinition(otsSlugName);
     }
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {
