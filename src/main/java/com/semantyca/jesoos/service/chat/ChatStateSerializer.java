@@ -44,6 +44,9 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
         writeString(out, (String) data.get(ChatState.SESSION_TOKEN));
         writeString(out, (String) data.get(ChatState.SESSION_USER_NAME));
         out.writeInt(toInt(data.get(ChatState.ITERATION)));
+        // Must be serialized or it is lost between graph nodes — the tool node would then see isOts=false
+        // and route OTS song search/play to the brand handlers (wrong scope, brand lookup by OTS slug).
+        out.writeBoolean(toBool(data.get(ChatState.IS_OTS)));
 
         @SuppressWarnings("unchecked")
         List<LlmMessage> history = (List<LlmMessage>) data.get(ChatState.HISTORY);
@@ -68,6 +71,7 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
         data.put(ChatState.SESSION_TOKEN, readString(in));
         data.put(ChatState.SESSION_USER_NAME, readString(in));
         data.put(ChatState.ITERATION, in.readInt());
+        data.put(ChatState.IS_OTS, in.readBoolean());
 
         String historyJson = readString(in);
         List<LlmMessage> history = mapper.readValue(historyJson != null ? historyJson : "[]", historyType);
@@ -108,5 +112,9 @@ public class ChatStateSerializer extends StateSerializer<ChatState> {
         if (v instanceof Integer i) return i;
         if (v instanceof Long l) return l.intValue();
         return 0;
+    }
+
+    private static boolean toBool(Object v) {
+        return v instanceof Boolean b && b;
     }
 }
