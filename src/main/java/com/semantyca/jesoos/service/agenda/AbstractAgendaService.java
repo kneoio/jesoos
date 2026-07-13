@@ -115,14 +115,14 @@ public abstract class AbstractAgendaService {
                 req.setLabels(playlistRequest.getLabels());
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
-                int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
+                int songCount = oneTimeRun ? 1 : Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsByQuery(scope, req, songCount)
                         .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments(), maxDurationSeconds)
                     .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             default -> {
-                int songCount = Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
+                int songCount = oneTimeRun ? 1 : Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
                 yield songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, excludeIds)
                         .map(pool -> new SongPool(oneTimeRun ? pool.songs() : stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
             }
