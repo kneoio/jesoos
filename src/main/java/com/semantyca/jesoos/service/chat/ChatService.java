@@ -341,16 +341,24 @@ public class ChatService {
                 // UI selection copy for the template, not hosting guidance, so it is deliberately not used.
                 String eventName = stream.getLocalizedName() != null
                         ? stream.getLocalizedName().getOrDefault(LanguageCode.en, slug) : slug;
-                String eventContext = stream.getChatContext() != null ? stream.getChatContext() : "";
-                return buildOtsStaticFromAgent(slug, stream.getAiAgentId(), eventName, eventContext);
+                return buildOtsStaticFromAgent(slug, stream.getAiAgentId(), eventName, otsEventContextOrDefault(stream.getChatContext()));
             }
             return otsDefinitionRepository.findBySlugName(slug).flatMap(def -> {
                 if (def == null) return Uni.createFrom().nullItem();
                 String eventName = def.getName() != null ? def.getName() : slug;
-                String eventContext = def.getChatContext() != null ? def.getChatContext() : "";
-                return buildOtsStaticFromAgent(slug, def.getAgentId(), eventName, eventContext);
+                return buildOtsStaticFromAgent(slug, def.getAgentId(), eventName, otsEventContextOrDefault(def.getChatContext()));
             });
         });
+    }
+
+    // Fallback so {{eventContext}} is never blank — otsPrompt.hbs is filled by plain String.replace
+    // (no Handlebars conditionals), so an empty value would leave a dangling "follow the block above"
+    // instruction pointing at nothing. When the curator left chatContext empty, host generically.
+    private static final String OTS_DEFAULT_EVENT_CONTEXT =
+            "No special notes for this event — host it warmly and naturally, guided by its name.";
+
+    protected static String otsEventContextOrDefault(String chatContext) {
+        return (chatContext != null && !chatContext.isBlank()) ? chatContext : OTS_DEFAULT_EVENT_CONTEXT;
     }
 
     protected Uni<BrandStaticData> buildOtsStaticFromAgent(String slug, java.util.UUID agentId, String eventName, String eventContext) {
