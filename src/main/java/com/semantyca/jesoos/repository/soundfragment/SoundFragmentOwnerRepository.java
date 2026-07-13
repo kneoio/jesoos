@@ -43,6 +43,39 @@ public class SoundFragmentOwnerRepository extends SoundFragmentRepositoryAbstrac
         return findOrdered(userId, filter, limit, excludeIds, "RANDOM()");
     }
 
+    // Owner-scoped keyword search — mirrors SoundFragmentBrandRepository.findForBrandWithFilter's
+    // keyword clause (search_name ILIKE + trigram similarity), but scoped to t.author instead of a brand.
+    // Used by the OTS chat search path for owner-scoped one-time streams (no brand catalog behind them).
+    public Uni<List<SoundFragment>> findByOwnerWithKeyword(long userId, String keyword, SoundFragmentFilter filter, int limit, int offset) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
+        sql.append("WHERE t.author = ").append(userId).append(" ");
+        sql.append("AND t.archived = 0 ");
+        if (hasKeyword) {
+            sql.append("AND (t.search_name ILIKE '%' || $1 || '%' OR similarity(t.search_name, $1) > 0.05) ");
+        }
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+        sql.append("ORDER BY t.reg_date DESC ");
+        if (limit > 0) sql.append("LIMIT ").append(limit).append(" ");
+        if (offset > 0) sql.append("OFFSET ").append(offset);
+
+        LOGGER.debugf("findByOwnerWithKeyword (owner) SQL: %s", sql);
+
+        io.vertx.mutiny.sqlclient.PreparedQuery<io.vertx.mutiny.sqlclient.RowSet<io.vertx.mutiny.sqlclient.Row>> query =
+                client.preparedQuery(sql.toString());
+        Uni<io.vertx.mutiny.sqlclient.RowSet<io.vertx.mutiny.sqlclient.Row>> exec = hasKeyword
+                ? query.execute(io.vertx.mutiny.sqlclient.Tuple.of(keyword.toLowerCase()))
+                : query.execute();
+        return exec
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(this::from)
+                .concatenate()
+                .collect().asList();
+    }
+
     private Uni<List<SoundFragment>> findOrdered(long userId, SoundFragmentFilter filter, int limit, Set<UUID> excludeIds, String orderBy) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");

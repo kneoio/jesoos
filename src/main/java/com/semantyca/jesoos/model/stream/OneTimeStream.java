@@ -35,6 +35,8 @@ public class OneTimeStream extends AbstractStream {
     private int lastDeliveredSongsDuration;
     private LocalDateTime scheduledOfflineAt;
     private boolean isSynthetic;
+    // Instance-level hosting guidance for the OTS chat DJ (from OtsDefinition.chatContext).
+    private String chatContext;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this(masterBrand, script, userVariables, null);
@@ -95,6 +97,7 @@ public class OneTimeStream extends AbstractStream {
         this.country = this.brand.getCountry();
         this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.brand.getAiAgentId();
         this.brand.setAiAgentId(this.aiAgentId);
+        this.chatContext = definition.getChatContext();
     }
 
     @Override

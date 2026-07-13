@@ -109,6 +109,16 @@ caused the original bug, and the "always on" decision means OTS has no use for o
    convention). It cancels the stream's timers and removes it from `OneTimeStreamPool` — unlike
    natural completion above, it does not currently notify aivox.
 
+## 4b. Event chat (guest DJ chat)
+
+An OTS can be chatted with, event-scoped, via the same public chat WebSocket as brand radio — a mode
+branch, not a separate service. Guests open the event URL/QR (the slug **is** the access token, no
+sign-in) and ask the DJ to play songs and read shout-outs/congratulations. Detection is authoritative
+by slug (`OtsDefinitionRepository.findBySlugName` when the slug is not a brand). Song search/play use the
+OTS's `SongSourceScope` and route on the OTS slug; the chat is ephemeral and purged on teardown
+(`ChatService.purgeOtsChat`, called from `checkOtsFinished` here and `CommandService.stopOts`). Full
+detail in `../chat/CHAT_WORKFLOW.md` §9.
+
 ## 5. Metrics
 
 OTS mirrors the radio contract (`../agenda/RADIO_WORKFLOW.md` §5) — same event types, same

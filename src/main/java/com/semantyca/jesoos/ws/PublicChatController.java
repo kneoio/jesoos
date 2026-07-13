@@ -7,6 +7,7 @@ import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
+import com.semantyca.jesoos.repository.OtsDefinitionRepository;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.ChatService;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
@@ -33,6 +34,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private final ChatAuthService chatAuthService;
     private final ListenerService listenerService;
     private final BrandService brandService;
+    private final OtsDefinitionRepository otsDefinitionRepository;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
@@ -43,15 +45,17 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         this.chatAuthService = null;
         this.listenerService = null;
         this.brandService = null;
+        this.otsDefinitionRepository = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService, BrandService brandService) {
+    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService, BrandService brandService, OtsDefinitionRepository otsDefinitionRepository) {
         super(userService);
         this.chatService = chatService;
         this.chatAuthService = chatAuthService;
         this.listenerService = listenerService;
         this.brandService = brandService;
+        this.otsDefinitionRepository = otsDefinitionRepository;
         if (chatService != null) {
             chatService.setController(this);
         }
@@ -162,25 +166,44 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         });
     }
 
-    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, 
+    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
                                   String brandSlug, UserHolder userHolder) {
         IUser user = userHolder.getUser();
-        String content = msgJson.getString("content");
 
         brandService.getBySlugName(brandSlug).subscribe().with(
                 brand -> {
-                    if (brand.getMessagingPolicy() == SubmissionPolicy.NOT_ALLOWED) {
-                        sendError(webSocket, "Messaging is not allowed for this station");
-                        return;
+                    if (brand != null) {
+                        if (brand.getMessagingPolicy() == SubmissionPolicy.NOT_ALLOWED) {
+                            sendError(webSocket, "Messaging is not allowed for this station");
+                            return;
+                        }
+                        handleUserMessageInternal(webSocket, msgJson, connectionId, brandSlug, userHolder, user, false);
+                    } else {
+                        // Not a brand — the slug may be an OTS (event) slug, which doubles as the access token.
+                        resolveOtsOrError(webSocket, msgJson, connectionId, brandSlug, userHolder, user);
                     }
-                    handleUserMessageInternal(webSocket, msgJson, connectionId, brandSlug, userHolder, user);
                 },
-                err -> sendError(webSocket, "Failed to verify station policy")
+                err -> resolveOtsOrError(webSocket, msgJson, connectionId, brandSlug, userHolder, user)
+        );
+    }
+
+    private void resolveOtsOrError(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
+                                   String brandSlug, UserHolder userHolder, IUser user) {
+        assert otsDefinitionRepository != null;
+        otsDefinitionRepository.findBySlugName(brandSlug).subscribe().with(
+                def -> {
+                    if (def != null) {
+                        handleUserMessageInternal(webSocket, msgJson, connectionId, brandSlug, userHolder, user, true);
+                    } else {
+                        sendError(webSocket, "Station not found");
+                    }
+                },
+                e -> sendError(webSocket, "Failed to verify station")
         );
     }
 
     private void handleUserMessageInternal(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
-                                           String brandSlug, UserHolder userHolder, IUser user) {
+                                           String brandSlug, UserHolder userHolder, IUser user, boolean isOts) {
         String content = msgJson.getString("content");
         if (content == null || content.trim().isEmpty()) {
             sendError(webSocket, "Message content cannot be empty");
@@ -193,8 +216,9 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
 
+        // OTS is not a brand — no brand-listener registration; every URL holder is a welcome guest.
         Uni<Void> ensureRegistration;
-        if (!isAnonymous(user) && !registeredStations.contains(brandSlug)) {
+        if (!isOts && !isAnonymous(user) && !registeredStations.contains(brandSlug)) {
             assert chatAuthService != null;
             ensureRegistration = chatAuthService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
                     .invoke(() -> registeredStations.add(brandSlug));
@@ -208,12 +232,12 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         ensureRegistration
                 .chain(() -> resolvedUsername)
-                .chain(username -> chatService.processUserMessage(username, content, connectionId, brandSlug, user))
+                .chain(username -> chatService.processUserMessage(username, content, connectionId, brandSlug, user, isOts))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
                             webSocket.writeTextMessage(ChatMessageDTO.processing("...", connectionId).build().toJson());
-                            sendBotResponse(webSocket, content, connectionId, brandSlug, userHolder);
+                            sendBotResponse(webSocket, content, connectionId, brandSlug, userHolder, isOts);
                         },
                         err -> {
                             LOG.error("Error processing user message", err);
@@ -222,8 +246,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 );
     }
 
-    private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
-                                String brandSlug, UserHolder userHolder) {
+    private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId,
+                                String brandSlug, UserHolder userHolder, boolean isOts) {
         IUser user = userHolder.getUser();
         chatService.generateBotResponse(
                 userMessage,
@@ -231,7 +255,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 webSocket::writeTextMessage,
                 connectionId,
                 brandSlug,
-                user
+                user,
+                isOts
         ).subscribe().with(
                 v -> {},
                 e -> {
@@ -244,9 +269,18 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, UserHolder userHolder) {
         String brandSlug = msgJson.getString("brandSlug");
         Integer limit = msgJson.getInteger("limit", 50);
-
         IUser user = userHolder.getUser();
-        chatService.getChatHistory(brandSlug, limit, connectionId, user)
+
+        // Determine chat scope: a known brand slug -> PUBLIC; otherwise treat as OTS (unknown slugs
+        // simply return an empty OTS history).
+        brandService.getBySlugName(brandSlug).subscribe().with(
+                brand -> loadHistory(webSocket, brandSlug, limit, connectionId, user, brand == null),
+                err -> loadHistory(webSocket, brandSlug, limit, connectionId, user, true)
+        );
+    }
+
+    private void loadHistory(ServerWebSocket webSocket, String brandSlug, int limit, String connectionId, IUser user, boolean isOts) {
+        chatService.getChatHistory(brandSlug, limit, connectionId, user, isOts)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {

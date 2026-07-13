@@ -229,6 +229,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return ownerRepository.findByIdsForOwner(userId, ids);
     }
 
+    public Uni<List<SoundFragment>> findByOwnerWithKeyword(long userId, String keyword, SoundFragmentFilter filter, int limit, int offset) {
+        SoundFragmentOwnerRepository ownerRepository = new SoundFragmentOwnerRepository(client, mapper, rlsRepository);
+        return ownerRepository.findByOwnerWithKeyword(userId, keyword, filter, limit, offset);
+    }
+
     public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.getBrandCatalogSummary(brandId);

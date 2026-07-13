@@ -42,6 +42,7 @@ public class OtsDefinitionRepository extends AsyncRepository {
         doc.setScriptId(row.getUUID("script_id"));
         doc.setBrandId(row.getUUID("brand_id"));
         doc.setAgentId(row.getUUID("agent_id"));
+        doc.setChatContext(row.getString("chat_context"));
         JsonObject vars = row.getJsonObject("user_variables");
         if (vars != null) {
             doc.setUserVariables(vars.getMap());

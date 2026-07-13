@@ -90,6 +90,26 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
+    // Owner-scoped AI search — sibling of getBrandSoundFragmentsForAiWithFilter for OTS chat over an
+    // owner-scoped one-time stream (no brand catalog). Returns plain SoundFragmentDTOs (no brand play stats).
+    public Uni<List<SoundFragmentDTO>> getOwnerSoundFragmentsForAiWithFilter(long userId, String keyword, SoundFragmentFilter filter, int limit, int offset) {
+        assert repository != null;
+        return repository.findByOwnerWithKeyword(userId, keyword, filter, limit, offset)
+                .chain(fragments -> {
+                    if (fragments.isEmpty()) {
+                        return Uni.createFrom().item(Collections.<SoundFragmentDTO>emptyList());
+                    }
+                    List<Uni<SoundFragmentDTO>> unis = fragments.stream()
+                            .map(f -> mapToDTO(f, false, null))
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to search fragments for owner: %s", userId, failure);
+                    return Uni.<List<SoundFragmentDTO>>createFrom().failure(failure);
+                });
+    }
+
     public Uni<io.vertx.core.json.JsonObject> getBrandCatalogSummary(String brandName) {
         assert repository != null;
         assert brandService != null;

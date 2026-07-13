@@ -41,6 +41,10 @@ public class OtsStreamScheduler {
     private final JesoosConfig config;
     private final OneTimeStreamPool pool;
 
+    // Field-injected to avoid a constructor cycle (ChatService transitively wires ChatAgent).
+    @Inject
+    com.semantyca.jesoos.service.chat.ChatService chatService;
+
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> otsTimers = new ConcurrentHashMap<>();
     private final Set<String> finishedStreams = ConcurrentHashMap.newKeySet();
 
@@ -197,6 +201,7 @@ public class OtsStreamScheduler {
                 traceId
         );
         cancelOtsTimers(streamSlug);
+        chatService.purgeOtsChat(streamSlug);
         pool.stopAndRemove(streamSlug).subscribe().with(
                 v -> {},
                 err -> LOGGER.errorf(err, "Failed to stop/remove finished OTS '%s'", streamSlug)

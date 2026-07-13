@@ -180,11 +180,53 @@ an ad fallback.
 
 ---
 
+## 9. OTS (event) chat mode
+
+A second, event-scoped chat mode shares the same WebSocket, `ChatService`, and `ChatAgent` — it is a
+**branch inside the existing flow**, not a parallel service. It backs one-time streams (OTS): a guest
+opens the event URL/QR and chats with the event DJ. See `../live/OTS_WORKFLOW.md` for the OTS lifecycle.
+
+- **Detection (authoritative, by slug).** The slug doubles as the event access token and never collides
+  with a brand slug. `PublicChatController` resolves the incoming `brandSlug` against `BrandService`
+  first; if it is **not** a brand, it checks `OtsDefinitionRepository.findBySlugName` — a hit routes the
+  turn as OTS (`isOts=true`), threaded through `processUserMessage` / `generateBotResponse` /
+  `getChatHistory`. Brands never incur the extra lookup. The brand messaging-policy gate is skipped for
+  OTS, and there is no brand-listener registration.
+- **No auth.** The URL is the gate. Guests stay anonymous (`userId=0`) but get the full OTS tool set —
+  no sign-in flow, no `{{isAuthenticated}}` gate (otsPrompt has none).
+- **Prompt / static data.** `otsPrompt.hbs` is **event-neutral** (no brand/ads/upload/auth, and no
+  baked-in "party" tone) — so a presentation, ceremony, or launch reads correctly, not just a
+  celebration. Two injected values, both **instance-level** (this specific event, not the reusable Script
+  template):
+  - `{{eventName}}` — the definition/instance name (`stream.getLocalizedName()`), **not** `Script.getName()`
+    (which is the template's catalog name).
+  - `{{eventContext}}` — how to host THIS event. Sourced from the dedicated instance field
+    `OtsDefinition.chatContext` (2next 1.4.113, column `mixpla__ots_definitions.chat_context`), carried on
+    the live `OneTimeStream`. **Not** `Script.getDescription()` — that is UI *selection* copy for picking
+    the template ("handles a birthday, plays 3h, stages…"), not hosting guidance.
+
+  DJ name/voice/languages come from the OTS agent. `ChatService.buildOtsStaticData` prefers the live
+  `OneTimeStreamPool` stream (agent already resolved) and falls back to the definition when the OTS isn't
+  started yet. Cached in `otsStaticCache` (parallel to `brandStaticCache`), dropped on teardown.
+- **Tools (anonymous-allowed).** `ChatAgent.getToolsForOts` exposes only `search_brand_sound_fragments`
+  and `play_song_with_intro`. `executeToolCall` routes these to OTS handlers when `state.isOts()`:
+  - `SearchOtsSoundFragmentsToolHandler` — searches the OTS's `SongSourceScope`: master-brand catalog
+    (brand-scoped) or the owner's catalog (owner-scoped synthetic brand, via
+    `AiHelperService.searchOwnerSoundFragmentsForAi`).
+  - `PlaySongForOtsToolHandler` — resolves the stream from `OneTimeStreamPool` (not `BrandPool`) and
+    routes the injected song on the **OTS slug** (`brandSlug` + `otsSlugName`), per OTS_WORKFLOW §3.
+- **Ephemeral, persist-then-purge.** Messages persist under `ChatType.OTS` tagged by the OTS slug (so
+  refresh survives and the brand summary cron — which filters `chat_type='PUBLIC'` — ignores them; OTS
+  chat is never summarized). On teardown, `ChatService.purgeOtsChat(slug)` drops the static cache and
+  hard-deletes the rows (`ChatRepository.deleteOtsMessages`). Called from both
+  `OtsStreamScheduler.checkOtsFinished` (natural completion) and `CommandService.stopOts` (explicit stop).
+
 ## Key files
 
 | Area | File |
 |---|---|
 | Orchestration | `ChatService`, `ChatAgent`, `PublicChatIntentRouter` |
+| OTS chat | `otsPrompt.hbs`, `tools/SearchOtsSoundFragmentsToolHandler`, `tools/PlaySongForOtsToolHandler`, `ChatService.buildOtsStaticData`/`purgeOtsChat` |
 | Auth | `ChatAuthService`, `tools/auth/*` |
 | Provider / LLM | `llm/BrandLlmProviderResolver`, `llm/AnthropicChatLlmClient`, `llm/LlmRequest` |
 | Ads | `ad/AdSessionManager`, `ad/AdGraph`, `ad/AdContinuationHandler` |

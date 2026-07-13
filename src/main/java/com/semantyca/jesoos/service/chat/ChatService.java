@@ -51,11 +51,18 @@ public class ChatService {
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
     protected final JesoosConfig config;
+    protected final String otsPrompt;
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     protected final ConcurrentHashMap<String, BrandStaticData> brandStaticCache = new ConcurrentHashMap<>();
+    // OTS chat is event-scoped and ephemeral — keyed by the OTS slug, dropped on teardown (purgeOtsChat).
+    protected final ConcurrentHashMap<String, BrandStaticData> otsStaticCache = new ConcurrentHashMap<>();
 
     @Inject
     protected ScenePool scenePool;
+    @Inject
+    protected com.semantyca.jesoos.service.live.OneTimeStreamPool oneTimeStreamPool;
+    @Inject
+    protected com.semantyca.jesoos.repository.OtsDefinitionRepository otsDefinitionRepository;
     @Inject
     protected BrandService brandService;
     @Inject
@@ -92,6 +99,7 @@ public class ChatService {
         this.aiHelperService = null;
         this.config = null;
         this.mainPrompt = null;
+        this.otsPrompt = null;
     }
 
     @Inject
@@ -104,20 +112,22 @@ public class ChatService {
             this.aiHelperService = aiHelperService;
             this.config = config;
             this.mainPrompt = ResourceUtil.loadResourceAsString("prompts/mainPrompt.hbs");
+            this.otsPrompt = ResourceUtil.loadResourceAsString("prompts/otsPrompt.hbs");
         } else {
             this.llmClient = null;
             this.llmProviderAdapter = null;
             this.aiHelperService = null;
             this.config = null;
             this.mainPrompt = null;
+            this.otsPrompt = null;
         }
     }
 
-    public Uni<String> processUserMessage(String username, String content, String connectionId, String brandName, IUser user) {
+    public Uni<String> processUserMessage(String username, String content, String connectionId, String brandName, IUser user, boolean isOts) {
         return Uni.createFrom().item(() -> {
             ChatMessageEnvelope message = ChatMessageEnvelope.of(MessageType.USER, username, content, System.currentTimeMillis(), connectionId);
 
-            chatRepository.saveChatMessage(user.getId(), brandName, ChatType.PUBLIC, message).subscribe().with(
+            chatRepository.saveChatMessage(user.getId(), brandName, isOts ? ChatType.OTS : ChatType.PUBLIC, message).subscribe().with(
                     success -> {},
                     failure -> LOGGER.error("Failed to save user message", failure)
             );
@@ -128,8 +138,8 @@ public class ChatService {
         });
     }
 
-    public Uni<String> getChatHistory(String brandName, int limit, String connectionId, IUser user) {
-        return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, ChatType.PUBLIC, limit)
+    public Uni<String> getChatHistory(String brandName, int limit, String connectionId, IUser user, boolean isOts) {
+        return chatRepository.getRecentChatMessages(user.getId(), connectionId, brandName, isOts ? ChatType.OTS : ChatType.PUBLIC, limit)
                 .map(recentMessages -> {
                     JsonArray messages = new JsonArray();
                     recentMessages.forEach(messages::add);
@@ -142,23 +152,33 @@ public class ChatService {
                 });
     }
 
-    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
+    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user, boolean isOts) {
         UUID traceId = chatSessionTracer.resolveTraceId(slugName);
         metricPublisher.publishMetric(slugName, MetricEventType.DEBUG, ProcessType.FLOW,
                 "chat_user", Map.of("message", userMessage, "userId", user.getId(), "connectionId", connectionId), traceId);
+        // OTS chat has no ad flow — go straight to the core with the OTS tool set.
+        if (isOts) {
+            return generateBotResponseCore(traceId, userMessage, chunkHandler, completionHandler, connectionId, slugName, user, true);
+        }
         return intentRouter.decide(connectionId, userMessage, slugName)
                 .flatMap(decision -> {
                     String djName = assistantNameByConnectionId.getOrDefault(connectionId, "DJ");
                     if (decision.intent() == ChatIntent.CREATE_AD && adSessionManager.isActive(connectionId)) {
                         return adContinuationHandler.execute(userMessage, djName, user, connectionId, slugName, chunkHandler, completionHandler);
                     }
-                    return generateBotResponseCore(traceId, userMessage, chunkHandler, completionHandler, connectionId, slugName, user);
+                    return generateBotResponseCore(traceId, userMessage, chunkHandler, completionHandler, connectionId, slugName, user, false);
                 });
     }
 
-    private Uni<Void> generateBotResponseCore(UUID traceId, String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
-        BrandStaticData cached = brandStaticCache.get(slugName);
-        Uni<BrandStaticData> staticDataUni = cached != null ? Uni.createFrom().item(cached) : buildBrandStaticData(slugName);
+    private Uni<Void> generateBotResponseCore(UUID traceId, String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user, boolean isOts) {
+        Uni<BrandStaticData> staticDataUni;
+        if (isOts) {
+            BrandStaticData otsCached = otsStaticCache.get(slugName);
+            staticDataUni = otsCached != null ? Uni.createFrom().item(otsCached) : buildOtsStaticData(slugName);
+        } else {
+            BrandStaticData cached = brandStaticCache.get(slugName);
+            staticDataUni = cached != null ? Uni.createFrom().item(cached) : buildBrandStaticData(slugName);
+        }
 
         return staticDataUni.flatMap(staticData -> resolveUserLabel(user).flatMap(userLabel -> {
             String stationStatus = scenePool.getActiveScene(slugName) != null ? "online" : "offline";
@@ -177,10 +197,10 @@ public class ChatService {
             assistantNameByConnectionId.put(connectionId + "_voice", staticData.djPrimaryVoices());
             assistantNameByConnectionId.put(connectionId + "_lang", staticData.djLanguages());
 
-            return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName)
+            return loadConversationHistoryWithSummary(user.getId(), connectionId, slugName, isOts)
                     .flatMap(history -> runChatLoop(
                             traceId, staticData, renderedPrompt, history, stationStatus, user,
-                            chunkHandler, completionHandler, connectionId, slugName));
+                            chunkHandler, completionHandler, connectionId, slugName, isOts));
         })).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("generateBotResponse failed or timed out for connectionId=%s: %s", connectionId, err.getMessage());
@@ -193,7 +213,7 @@ public class ChatService {
     protected Uni<Void> runChatLoop(
             UUID traceId, BrandStaticData staticData, String renderedPrompt, List<LlmMessage> history,
             String stationStatus, IUser user, Consumer<String> chunkHandler,
-            Consumer<String> completionHandler, String connectionId, String slugName) {
+            Consumer<String> completionHandler, String connectionId, String slugName, boolean isOts) {
         Map<String, Object> initData = new java.util.HashMap<>();
         initData.put(ChatState.USER_ID, user.getId());
         initData.put(ChatState.CONNECTION_ID, connectionId);
@@ -203,6 +223,7 @@ public class ChatService {
         initData.put(ChatState.DJ_NAME, staticData.djName());
         initData.put(ChatState.DJ_LANGUAGES, staticData.djLanguages());
         initData.put(ChatState.AD_ENABLED, staticData.adEnabled());
+        initData.put(ChatState.IS_OTS, isOts);
         initData.put(ChatState.ITERATION, 0);
 
         int startHistorySize = history.size();
@@ -216,7 +237,7 @@ public class ChatService {
                 if (finalUserId != 0 && user.getId() == 0) {
                     LOGGER.warnf("[ChatAgent] auth succeeded but LLM silent — sending fallback welcome userId=%d connectionId=%s", finalUserId, connectionId);
                     return emitPrecomputedResponse("You're all set! Welcome to " + slugName + ". What would you like to do?",
-                            chunkHandler, completionHandler, connectionId, slugName, finalUserId)
+                            chunkHandler, completionHandler, connectionId, slugName, finalUserId, isOts)
                             .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
                 }
                 LOGGER.warnf("[ChatAgent] empty botResponse userId=%d connectionId=%s", finalUserId, connectionId);
@@ -233,7 +254,7 @@ public class ChatService {
             chatRepository.replaceConversationHistory(
                     ChatRepository.connectionKey(connectionId),
                     finalState.history());
-            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId)
+            return emitPrecomputedResponse(responseText, chunkHandler, completionHandler, connectionId, slugName, finalUserId, isOts)
                     .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
         });
     }
@@ -308,6 +329,63 @@ public class ChatService {
         });
     }
 
+    // Event-scoped counterpart of buildBrandStaticData. DJ/languages/voice come from the OTS agent;
+    // the prompt is otsPrompt.hbs (no brand/auth/ads). Prefers the live pool stream (agent already
+    // resolved); falls back to the definition when the OTS is defined but not yet cold-started.
+    protected Uni<BrandStaticData> buildOtsStaticData(String slug) {
+        return oneTimeStreamPool.get(slug).flatMap(stream -> {
+            if (stream != null) {
+                // Event NAME is the instance name (definition name → stream localizedName), not the
+                // reusable Script template's name. Event CONTEXT (how to host THIS event) is the instance-
+                // level OtsDefinition.chatContext, carried on the live stream. The Script's description is
+                // UI selection copy for the template, not hosting guidance, so it is deliberately not used.
+                String eventName = stream.getLocalizedName() != null
+                        ? stream.getLocalizedName().getOrDefault(LanguageCode.en, slug) : slug;
+                String eventContext = stream.getChatContext() != null ? stream.getChatContext() : "";
+                return buildOtsStaticFromAgent(slug, stream.getAiAgentId(), eventName, eventContext);
+            }
+            return otsDefinitionRepository.findBySlugName(slug).flatMap(def -> {
+                if (def == null) return Uni.createFrom().nullItem();
+                String eventName = def.getName() != null ? def.getName() : slug;
+                String eventContext = def.getChatContext() != null ? def.getChatContext() : "";
+                return buildOtsStaticFromAgent(slug, def.getAgentId(), eventName, eventContext);
+            });
+        });
+    }
+
+    protected Uni<BrandStaticData> buildOtsStaticFromAgent(String slug, java.util.UUID agentId, String eventName, String eventContext) {
+        Uni<com.semantyca.mixpla.model.aiagent.AiAgent> agentUni = agentId != null
+                ? aiAgentService.getById(agentId)
+                : Uni.createFrom().item(() -> null);
+        return agentUni.map(agent -> {
+            String djName = agent != null && agent.getName() != null ? agent.getName() : "DJ";
+            String djLanguages = agent != null ? agent.getPreferredLang().stream()
+                    .sorted(java.util.Comparator.comparingDouble(com.semantyca.mixpla.model.aiagent.LanguagePreference::getWeight).reversed())
+                    .map(lp -> lp.getLanguageTag().tag()).reduce((a, b) -> a + "," + b).orElse("") : "";
+            String djVoices = agent != null && agent.getTtsSetting() != null && agent.getTtsSetting().getDj() != null
+                    ? agent.getTtsSetting().getDj().getId() : "";
+            String partialPrompt = getOtsPrompt()
+                    .replace("{{djName}}", sanitizePromptValue(djName))
+                    .replace("{{eventName}}", sanitizePromptValue(eventName))
+                    .replace("{{eventSlug}}", sanitizePromptValue(slug))
+                    .replace("{{eventContext}}", sanitizePromptValue(eventContext))
+                    .replace("{{djLanguages}}", sanitizePromptValue(djLanguages))
+                    .replace("{{musicMetadata}}", sanitizePromptValue(aiHelperService.getCachedMusicMetadata()));
+            BrandStaticData data = new BrandStaticData(djName, djVoices, djLanguages, partialPrompt, false);
+            otsStaticCache.put(slug, data);
+            return data;
+        });
+    }
+
+    /** Drop all trace of an OTS chat when its stream tears down (natural completion or explicit stop). */
+    public void purgeOtsChat(String slug) {
+        otsStaticCache.remove(slug);
+        assistantNameByConnectionId.remove(slug);
+        chatRepository.deleteOtsMessages(slug).subscribe().with(
+                v -> LOGGER.infof("[ots-chat] purged chat for OTS '%s'", slug),
+                err -> LOGGER.warnf("[ots-chat] failed to purge chat for OTS '%s': %s", slug, err.getMessage()));
+    }
+
     protected Uni<String> resolveUserLabel(IUser user) {
         if (user.getId() == 0) return Uni.createFrom().item("");
         return listenerService.resolveDisplayName(user.getId(), null);
@@ -319,7 +397,8 @@ public class ChatService {
             Consumer<String> completionHandler,
             String connectionId,
             String brandName,
-            long userId) {
+            long userId,
+            boolean isOts) {
         return Uni.createFrom().item(() -> {
             String responseText = precomputedText
                     .replaceAll("(?s)<thinking>.*?</thinking>", "")
@@ -340,7 +419,7 @@ public class ChatService {
 
             ChatMessageEnvelope botMessage = ChatMessageEnvelope.of(MessageType.BOT, djName, responseText, System.currentTimeMillis(), connectionId);
 
-            chatRepository.saveChatMessage(userId, brandName, ChatType.PUBLIC, botMessage).subscribe().with(
+            chatRepository.saveChatMessage(userId, brandName, isOts ? ChatType.OTS : ChatType.PUBLIC, botMessage).subscribe().with(
                     success -> {},
                     failure -> LOGGER.error("Failed to save bot message", failure)
             );
@@ -354,9 +433,14 @@ public class ChatService {
         }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName) {
+    protected Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId, String brandName, boolean isOts) {
         List<LlmMessage> rawHistory = chatRepository.getConversationHistory(ChatRepository.connectionKey(connectionId));
         List<LlmMessage> currentHistory = trimOrphanedUserMessages(rawHistory);
+
+        // OTS chat is ephemeral — no summarization, just the live in-memory conversation.
+        if (isOts) {
+            return Uni.createFrom().item(currentHistory);
+        }
 
         return chatSummaryService.getLatestUserSummary(userId, brandName, ChatType.PUBLIC)
                 .map(summaryText -> {
@@ -445,6 +529,15 @@ public class ChatService {
             return !custom.isBlank() ? custom : this.mainPrompt;
         } catch (Exception ignored) {
             return this.mainPrompt;
+        }
+    }
+
+    protected String getOtsPrompt() {
+        try {
+            String custom = ResourceUtil.loadResourceAsString("/prompts/otsPrompt.hbs");
+            return !custom.isBlank() ? custom : this.otsPrompt;
+        } catch (Exception ignored) {
+            return this.otsPrompt;
         }
     }
 

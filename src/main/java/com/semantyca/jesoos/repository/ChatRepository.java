@@ -248,6 +248,19 @@ public class ChatRepository extends AsyncRepository {
                 );
     }
 
+    // Ephemeral OTS chat: hard-delete every message for an event stream on teardown. The OTS slug
+    // doubles as the event access token and never collides with a brand name, so brand_name = $1 is safe.
+    public Uni<Void> deleteOtsMessages(String otsSlug) {
+        String sql = "DELETE FROM " + entityData.getTableName() +
+                " WHERE brand_name = $1 AND chat_type = '" + ChatType.OTS.name() + "'";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(otsSlug))
+                .replaceWithVoid()
+                .onFailure().invoke(throwable ->
+                        LOGGER.error("Failed to delete OTS chat messages for {}", otsSlug, throwable)
+                );
+    }
+
     public Uni<Void> deleteOldSummarizedMessages(int daysOld) {
         String sql = "DELETE FROM " + entityData.getTableName() +
                 " WHERE summarized_at IS NOT NULL AND summarized_at < $1";

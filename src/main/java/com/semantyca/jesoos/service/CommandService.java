@@ -40,6 +40,10 @@ public class CommandService {
     private final SoundFragmentRatingLogRepository ratingLogRepository;
     private final DailyAgendaRebuildService dailyAgendaRebuildService;
 
+    // Field-injected to avoid enlarging the constructor / a wiring cycle; used to purge ephemeral OTS chat on stop.
+    @jakarta.inject.Inject
+    com.semantyca.jesoos.service.chat.ChatService chatService;
+
     @Inject
     public CommandService(DjStateService djStateService, BrandPool brandPool, ScenePool scenePool,
                           StaggeredSongScheduler staggeredSongScheduler,
@@ -395,6 +399,7 @@ public class CommandService {
     public Uni<JsonObject> stopOts(String otsSlugName, UUID traceId) {
         metricPublisher.publishMetric(otsSlugName, MetricEventType.COMMAND, ProcessType.FLOW, "ots_stop_received", Map.of("otsSlugName", otsSlugName), traceId);
         otsStreamScheduler.cancelOtsTimers(otsSlugName);
+        chatService.purgeOtsChat(otsSlugName);
         return oneTimeStreamPool.stopAndRemove(otsSlugName)
                 .map(stream -> {
                     metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);

@@ -4,6 +4,7 @@ import com.google.common.math.StatsAccumulator;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.jesoos.dto.BrandSoundFragmentAiDTO;
 import com.semantyca.jesoos.dto.BrandSoundFragmentDTO;
+import com.semantyca.jesoos.dto.SoundFragmentDTO;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
@@ -125,6 +126,41 @@ public class AiHelperService {
                 });
     }
 
+    // Owner-scoped sibling of searchBrandSoundFragmentsForAi — used by OTS chat over an owner-scoped
+    // one-time stream. Same AiDTO shape so the chat search tool handler is scope-agnostic.
+    public Uni<List<BrandSoundFragmentAiDTO>> searchOwnerSoundFragmentsForAi(
+            long userId,
+            String keyword,
+            List<String> genreNames,
+            List<String> labelNames,
+            Integer limit,
+            Integer offset
+    ) {
+        int actualLimit = (limit != null && limit > 0) ? Math.min(limit, 10) : 10;
+        int actualOffset = (offset != null && offset >= 0) ? offset : 0;
+
+        Uni<List<UUID>> genreIdsUni = resolveGenreNamesToIds(genreNames);
+        Uni<List<UUID>> labelIdsUni = resolveLabelNamesToIds(labelNames);
+
+        return Uni.combine().all().unis(genreIdsUni, labelIdsUni).asTuple()
+                .chain(tuple -> {
+                    SoundFragmentFilter filter = new SoundFragmentFilter();
+                    if (!tuple.getItem1().isEmpty()) filter.setGenre(tuple.getItem1());
+                    if (!tuple.getItem2().isEmpty()) filter.setLabels(tuple.getItem2());
+
+                    return soundFragmentService.getOwnerSoundFragmentsForAiWithFilter(userId, keyword, filter, actualLimit, actualOffset)
+                            .chain(dtos -> {
+                                if (dtos == null || dtos.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentAiDTO>emptyList());
+                                }
+                                List<Uni<BrandSoundFragmentAiDTO>> aiDtoUnis = dtos.stream()
+                                        .map(this::mapDtoToBrandSoundFragmentAiDTO)
+                                        .collect(Collectors.toList());
+                                return Uni.join().all(aiDtoUnis).andFailFast();
+                            });
+                });
+    }
+
     public Uni<JsonObject> getBrandCatalogSummaryForAi(String brandName) {
         return soundFragmentService.getBrandCatalogSummary(brandName);
     }
@@ -171,6 +207,43 @@ public class AiHelperService {
 
         List<UUID> genreIds = brandFragment.getSoundFragmentDTO().getGenres();
         List<UUID> labelIds = brandFragment.getSoundFragmentDTO().getLabels();
+
+        Uni<List<String>> genresUni = (genreIds != null && !genreIds.isEmpty())
+                ? Uni.join().all(genreIds.stream()
+                .map(genreId -> genreService.getById(genreId)
+                        .map(genre -> genre.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                        .onFailure().recoverWithItem("Unknown"))
+                .collect(Collectors.toList())).andFailFast()
+                : Uni.createFrom().item(Collections.<String>emptyList());
+
+        Uni<List<String>> labelsUni = (labelIds != null && !labelIds.isEmpty())
+                ? Uni.join().all(labelIds.stream()
+                .map(labelId -> labelService.getById(labelId)
+                        .map(label -> label.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                        .onFailure().recoverWithItem("Unknown"))
+                .collect(Collectors.toList())).andFailFast()
+                : Uni.createFrom().item(Collections.<String>emptyList());
+
+        return Uni.combine().all().unis(genresUni, labelsUni).asTuple()
+                .map(tuple -> {
+                    aiDto.setGenres(tuple.getItem1());
+                    aiDto.setLabels(tuple.getItem2());
+                    return aiDto;
+                });
+    }
+
+    // Owner-scoped variant of mapToBrandSoundFragmentAiDTO: builds the same AiDTO from a plain
+    // SoundFragmentDTO (no brand association, so no brand play stats).
+    private Uni<BrandSoundFragmentAiDTO> mapDtoToBrandSoundFragmentAiDTO(SoundFragmentDTO dto) {
+        BrandSoundFragmentAiDTO aiDto = new BrandSoundFragmentAiDTO();
+        aiDto.setId(dto.getId());
+        aiDto.setTitle(dto.getTitle());
+        aiDto.setArtist(dto.getArtist());
+        aiDto.setAlbum(dto.getAlbum());
+        aiDto.setDescription(dto.getDescription());
+
+        List<UUID> genreIds = dto.getGenres();
+        List<UUID> labelIds = dto.getLabels();
 
         Uni<List<String>> genresUni = (genreIds != null && !genreIds.isEmpty())
                 ? Uni.join().all(genreIds.stream()

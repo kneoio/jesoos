@@ -17,6 +17,7 @@ import com.semantyca.jesoos.service.chat.tools.auth.*;
 import com.semantyca.jesoos.service.live.AiHelperService;
 import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
+import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
@@ -60,6 +61,7 @@ public class ChatAgent {
     @Inject ReactiveMailer reactiveMailer;
     @Inject AiAgentService aiAgentService;
     @Inject BrandPool brandPool;
+    @Inject OneTimeStreamPool oneTimeStreamPool;
     @Inject SongEmitter songEmitter;
     @Inject SoundFragmentService soundFragmentService;
     @Inject SharedSoundFragmentService sharedSoundFragmentService;
@@ -177,7 +179,9 @@ public class ChatAgent {
         boolean isAuthenticated = state.userId() != 0;
         String djLanguages = state.djLanguages();
         String brandName = state.brandName();
-        List<LlmTool> tools = getToolsForUser(isAuthenticated, djLanguages, state.adEnabled());
+        List<LlmTool> tools = state.isOts()
+                ? getToolsForOts(djLanguages)
+                : getToolsForUser(isAuthenticated, djLanguages, state.adEnabled());
 
         String model = state.iteration() == 0
                 ? llmProviderResolver.modelFor(brandName, LlmUseCase.MAIN_CHAT)
@@ -328,7 +332,9 @@ public class ChatAgent {
                     chatAuthService, controller, brandName, connectionId, metricPublisher);
             case "logoff" -> LogoffToolHandler.execute(input, sessionManager, userService, controller,
                     publicChatService, metricPublisher, brandName, userId, connectionId);
-            case "search_brand_sound_fragments" -> SearchBrandSoundFragmentsToolHandler.execute(input, aiHelperService);
+            case "search_brand_sound_fragments" -> state.isOts()
+                    ? SearchOtsSoundFragmentsToolHandler.execute(input, brandName, oneTimeStreamPool, aiHelperService)
+                    : SearchBrandSoundFragmentsToolHandler.execute(input, aiHelperService);
             case "get_brand_catalog_summary" -> GetBrandCatalogSummaryToolHandler.execute(input, aiHelperService);
             case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, userId);
             case "find_community_member" -> FindCommunityMemberToolHandler.execute(input, listenerService, brandName, userId);
@@ -337,8 +343,11 @@ public class ChatAgent {
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
                     soundFragmentService, sharedSoundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
                     listenerLabelCache, brandService, brandName, userId);
-            case "play_song_with_intro" -> PlaySongWithIntroToolHandler.execute(input, aiAgentService,
-                    brandPool, introTtsGenerator, internalRestCall);
+            case "play_song_with_intro" -> state.isOts()
+                    ? PlaySongForOtsToolHandler.execute(input, brandName, aiAgentService,
+                        oneTimeStreamPool, introTtsGenerator, internalRestCall)
+                    : PlaySongWithIntroToolHandler.execute(input, aiAgentService,
+                        brandPool, introTtsGenerator, internalRestCall);
             case "create_ad" -> CreateAdToolHandler.execute(input, brandService, adSessionManager, adGraph,
                     userId, brandName, djName, connectionId);
             case "manage_events" -> ManageEventsToolHandler.execute(input, eventService, brandService, brandName);
@@ -365,6 +374,16 @@ public class ChatAgent {
                 throw new RuntimeException("ChatGraph execution failed", e);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    // OTS chat runs for anonymous event guests (no auth). The only capabilities are finding a song
+    // and queueing it with a spoken shout-out/dedication. Scope (brand vs owner catalog) and routing
+    // are resolved inside the OTS handlers from the live stream, not here.
+    private List<LlmTool> getToolsForOts(String djLanguages) {
+        List<LlmTool> tools = new ArrayList<>();
+        tools.add(SearchBrandSoundFragments.toTool());
+        tools.add(PlaySongWithIntroTool.toTool(djLanguages));
+        return tools;
     }
 
     private List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages, boolean adEnabled) {

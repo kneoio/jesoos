@@ -25,6 +25,7 @@ public class ChatState extends AgentState {
     public static final String SESSION_TOKEN    = "sessionToken";
     public static final String SESSION_USER_NAME = "sessionUserName";
     public static final String LISTENER_CONTEXT = "listenerContext";
+    public static final String IS_OTS           = "isOts";
 
     public ChatState(Map<String, Object> initData) {
         super(initData);
@@ -49,6 +50,7 @@ public class ChatState extends AgentState {
     public String sessionToken()    { return (String) data().get(SESSION_TOKEN); }
     public String sessionUserName() { return (String) data().get(SESSION_USER_NAME); }
     public String listenerContext() { return (String) data().getOrDefault(LISTENER_CONTEXT, ""); }
+    public boolean isOts()          { return (boolean) data().getOrDefault(IS_OTS, false); }
     public int iteration()        {
         Object v = data().getOrDefault(ITERATION, 0);
         if (v instanceof Integer i) return i;
