@@ -50,4 +50,19 @@ public class MixingTypeShuffler {
         }
         return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
     }
+
+    /**
+     * One-time-run scene (OTS, or a radio ONE_TIME slot): the DJ greets exactly once for the whole
+     * scene, no matter how many songs it plays. Every entry after the first intro gets none.
+     */
+    public static MixingStrategy selectOneTimeRunStrategy(int availableSongCount, boolean introUsed) {
+        if (introUsed) {
+            return availableSongCount >= 2
+                    ? new MixingStrategy(MixingType.SONG_CROSSFADE_SONG, 2, false)
+                    : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
+        }
+        return availableSongCount >= 2
+                ? new MixingStrategy(MixingType.SONG_INTRO_SONG, 2, true)
+                : new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+    }
 }
