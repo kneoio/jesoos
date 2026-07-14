@@ -11,8 +11,6 @@ import com.semantyca.mixpla.model.stream.IStreamer;
 import com.semantyca.mixpla.model.stream.OtsDefinition;
 import lombok.Getter;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -24,18 +22,13 @@ import java.util.UUID;
 @Setter
 @Getter
 public class OneTimeStream extends AbstractStream {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStream.class);
-
     private Script script;
     private AiAgentStatus aiAgentStatus;
-
     private UUID currentSceneId;
     private LocalDateTime lastDeliveryAt;
     private int lastDeliveredSongsDuration;
     private LocalDateTime scheduledOfflineAt;
     private boolean isSynthetic;
-    // Instance-level hosting guidance for the OTS chat DJ (from OtsDefinition.chatContext).
     private String chatContext;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
@@ -52,10 +45,6 @@ public class OneTimeStream extends AbstractStream {
         String displayName = script.getName();
         if (displayName.length() > 40) {
             displayName = displayName.substring(0, 40) + "...";
-        }
-        this.slugName = WebHelper.generateSlug(displayName) + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF));
-        if (this.slugName.length() > 50) {
-            this.slugName = this.slugName.substring(0, 50);
         }
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
         localizedName.put(LanguageCode.en, displayName);
@@ -90,7 +79,6 @@ public class OneTimeStream extends AbstractStream {
         this.color = WebHelper.generateRandomBrightColor();
         this.profileId = script.getDefaultProfileId();
         this.scripts = List.of(new BrandScriptEntry(script.getId(), this.userVariables));
-
         this.timeZone = this.brand.getTimeZone();
         this.bitRate = this.brand.getBitRate();
         this.aiOverriding = this.brand.getAiOverriding();
