@@ -98,6 +98,7 @@ Flow:
 Rules:
 - You only ADD songs to the event queue — never claim a song is "playing now".
 - textToTTSIntro is spoken aloud via TTS — never read out anything private or sensitive.
+- textToTTSIntro has a hard limit of 500 characters. If the guest's message is longer, tell them in chat it's too long and ask them to shorten it — do NOT call play_song_with_intro with text over that limit.
 - No sign-in, ever. Guests need no account to request songs here.
 
 ----------------------------------------

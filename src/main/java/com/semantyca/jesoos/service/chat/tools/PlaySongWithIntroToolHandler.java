@@ -14,6 +14,8 @@ import java.util.UUID;
 
 public class PlaySongWithIntroToolHandler extends BaseToolHandler {
 
+    public static final int MAX_TTS_INTRO_LENGTH = 500;
+
     public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
             Map<String, Object> inputMap,
             AiAgentService aiAgentService, BrandPool brandPool,
@@ -29,6 +31,10 @@ public class PlaySongWithIntroToolHandler extends BaseToolHandler {
         if (brandName.isEmpty() || songIdStr.isEmpty() || textToTTSIntro.isEmpty()) {
             return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                     new JsonObject().put("ok", false).put("error", "Missing required parameters").encode()));
+        }
+        if (textToTTSIntro.length() > MAX_TTS_INTRO_LENGTH) {
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false).put("error", "textToTTSIntro exceeds max length of " + MAX_TTS_INTRO_LENGTH + " characters").encode()));
         }
         UUID songId;
         try { songId = UUID.fromString(songIdStr); } catch (Exception e) {
