@@ -124,7 +124,9 @@ public class TimelineBuilder {
             assert songs != null;
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
-            MixingStrategy strategy = strategySelector.select(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
+            MixingStrategy strategy = scene.isOneTimeRun()
+                    ? MixingTypeShuffler.selectOneTimeRunStrategy(remainingSongs)
+                    : strategySelector.select(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
 
             List<SongEntry> songList;
             if (strategy.songsQuantity() == 2 && songIndex + 1 < songs.size()) {
@@ -149,6 +151,8 @@ public class TimelineBuilder {
 
             timeline.add(entry);
             sequenceNumber++;
+
+            if (scene.isOneTimeRun()) break;
 
             if (strategy.mergingType() == lastMixingType) {
                 consecutiveMixingCount++;
