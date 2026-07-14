@@ -31,34 +31,6 @@ public class OneTimeStream extends AbstractStream {
     private boolean isSynthetic;
     private String chatContext;
 
-    public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
-        this(masterBrand, script, userVariables, null);
-    }
-
-    public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables, UUID agentId) {
-        this.brand = masterBrand;
-        this.streamId = UUID.randomUUID().toString();
-        this.script = script;
-        this.userVariables = userVariables;
-        this.createdAt = LocalDateTime.now();
-        this.managedBy = ManagedBy.DJ;
-        String displayName = script.getName();
-        if (displayName.length() > 40) {
-            displayName = displayName.substring(0, 40) + "...";
-        }
-        EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-        localizedName.put(LanguageCode.en, displayName);
-        this.localizedName = localizedName;
-        this.timeZone = masterBrand.getTimeZone();
-        this.color = WebHelper.generateRandomBrightColor();
-        this.aiAgentId = agentId != null ? agentId : masterBrand.getAiAgentId();
-        this.profileId = script.getDefaultProfileId();
-        this.bitRate = masterBrand.getBitRate();
-        this.aiOverriding = masterBrand.getAiOverriding();
-        this.country = masterBrand.getCountry();
-        this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
-    }
-
     public OneTimeStream(OtsDefinition definition, Script script, Brand brand, ZoneId fallbackTimeZone) {
         if (brand == null) {
             this.isSynthetic = true;

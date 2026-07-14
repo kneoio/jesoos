@@ -18,8 +18,6 @@ import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Map;
-import java.util.UUID;
 
 @ApplicationScoped
 public class OneTimeStreamService {
@@ -49,30 +47,6 @@ public class OneTimeStreamService {
         this.userService = userService;
         this.pool = pool;
         this.otsStreamScheduler = otsStreamScheduler;
-    }
-
-    public Uni<OneTimeStream> run(String brandSlugName, UUID scriptId, UUID agentId, Map<String, Object> userVariables, IUser user) {
-        return brandService.getBySlugName(brandSlugName)
-                .chain(brand -> {
-                    if (brand == null) {
-                        return Uni.createFrom().failure(new RuntimeException("Brand not found: " + brandSlugName));
-                    }
-                    return scriptService.getById(scriptId, user)
-                            .chain(script -> {
-                                if (script == null) {
-                                    return Uni.createFrom().failure(new RuntimeException("Script not found: " + scriptId));
-                                }
-                                Map<String, Object> vars = userVariables != null ? userVariables : Map.of();
-                                OneTimeStream stream = new OneTimeStream(brand, script, vars, agentId);
-                                stream.setStatus(StreamStatus.PENDING);
-                                return repository.insert(stream)
-                                        .invoke(() -> {
-                                            pool.add(stream);
-                                            LOGGER.infof("[OTS] Created: slugName=%s", stream.getSlugName());
-                                        })
-                                        .replaceWith(stream);
-                            });
-                });
     }
 
     public Uni<OneTimeStream> start(String slugName) {

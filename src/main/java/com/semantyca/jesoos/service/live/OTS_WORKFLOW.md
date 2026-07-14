@@ -83,8 +83,7 @@ caused the original bug, and the "always on" decision means OTS has no use for o
 
 ## 4. Lifecycle
 
-1. **Create (dormant).** `OneTimeStreamService.run(brandSlugName, scriptId, vars, user)` (legacy,
-   brand-required REST path) or `startFromDefinition(slugName)` (datanest-backed, supports both
+1. **Create (dormant).** `OneTimeStreamService.start(slugName)` (datanest-backed, supports both
    scopes) builds an OTS agenda via `AgendaService.buildOtsAgenda` — an OTS-specific script,
    scenes laid **sequentially and anchored at the start moment** (not wall-clock), played
    one-by-one, no loop baseline (see `../agenda/RADIO_WORKFLOW.md` §2 for the shared build
