@@ -199,6 +199,8 @@ public class GeneratedContentEmitter {
                                     introMap.put(IntroKey.INTRO_1, introDto);
                                     dto.setFilePaths(introMap);
                                     dto.setSongs(songMap);
+                                    entry.setEstimatedDurationSeconds(
+                                            introResult.durationSeconds() + jingleDuration(jingle1) + songDuration(generated) + jingleDuration(jingle2));
                                     return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                                             .call(() -> recordPlayHistory(adId, generated, agent));
                                 });
@@ -206,6 +208,8 @@ public class GeneratedContentEmitter {
 
                     SongQueueMessageDTO dto = buildDto(mixingType, scene, entry, deadline, priority);
                     dto.setSongs(songMap);
+                    entry.setEstimatedDurationSeconds(
+                            jingleDuration(jingle1) + songDuration(generated) + jingleDuration(jingle2));
                     return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                             .call(() -> recordPlayHistory(adId, generated, agent));
                 });
@@ -227,6 +231,7 @@ public class GeneratedContentEmitter {
                                 songMap.put(SongKey.SONG_1, new SongInfoDTO(generated.getId(), songDuration(generated)));
                                 SongQueueMessageDTO dto = buildDto(MixingType.SONG_ONLY, scene, entry, deadline, priority);
                                 dto.setSongs(songMap);
+                                entry.setEstimatedDurationSeconds(songDuration(generated));
                                 return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
                                         .call(() -> recordPlayHistory(r.adId(), generated, agent));
                             });

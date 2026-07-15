@@ -184,6 +184,20 @@ public class OtsStreamScheduler {
             return;
         }
 
+        long deadline = scenes.stream()
+                .mapToLong(scene -> scene.getEndTime().atZone(scene.getTimeZone()).toInstant().toEpochMilli())
+                .max()
+                .orElse(System.currentTimeMillis());
+        long delay = deadline - System.currentTimeMillis();
+
+        if (delay > 0) {
+            vertx.setTimer(delay, id -> finishOts(streamSlug, scenes.size()));
+        } else {
+            finishOts(streamSlug, scenes.size());
+        }
+    }
+
+    private void finishOts(String streamSlug, int sceneCount) {
         LOGGER.infof("[OtsScheduler] OTS finished: slugName=%s", streamSlug);
         UUID traceId = UUID.randomUUID();
         metricPublisher.publishMetric(
@@ -191,7 +205,7 @@ public class OtsStreamScheduler {
                 MetricEventType.INFORMATION,
                 ProcessType.FLOW,
                 "ots_finished",
-                Map.of("scenes", scenes.size()),
+                Map.of("scenes", sceneCount),
                 traceId
         );
         commandPublisher.publishCommand(
