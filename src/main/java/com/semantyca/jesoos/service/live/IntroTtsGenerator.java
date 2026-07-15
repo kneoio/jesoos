@@ -526,6 +526,6 @@ public class IntroTtsGenerator {
                 .filter(cp -> Character.getType(cp) != Character.OTHER_SYMBOL
                         && !(cp >= 0x1F000 && cp <= 0x1FFFF))
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString().replaceAll(" {2,}", " ").trim();
+                .toString().replace("*", "").replaceAll(" {2,}", " ").trim();
     }
 }
