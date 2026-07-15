@@ -39,23 +39,28 @@ public class TimelineBuilder {
                                              List<ScenePrompt> introPrompts,
                                              List<CustomAction> actions) {
         return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
-                MixingTypeShuffler::selectStrategy, true);
+                MixingTypeShuffler::selectStrategy, true, null);
     }
 
     /**
      * OTS: unlike radio, never overshoot-trims the last entry's intro. SONG_ONLY should only ever
      * come from a scene having no active intro content, not from a budget-overshoot downgrade.
+     * Also, unlike radio's daily-recurring time slots, {@code sceneStart} is the real chained
+     * date-time (this scene starts exactly when the previous one ended) — it is used verbatim
+     * instead of being reconstructed from {@code LocalDate.now()}, which would break scenes that
+     * cross midnight.
      */
     public List<TimelineEntry> buildOtsTimeline(LiveScene scene,
                                                 List<SongEntry> songs,
                                                 int sceneDurationSeconds,
                                                 double talkativity,
                                                 List<ScenePrompt> introPrompts,
-                                                List<CustomAction> actions) {
+                                                List<CustomAction> actions,
+                                                LocalDateTime sceneStart) {
         return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
                 (availableSongCount, allowIntros, ignoredTalkativity, lastType, consecutiveCount, consecutive2SongCount, consecutiveIntroCount) ->
                         MixingTypeShuffler.selectOtsStrategy(availableSongCount, consecutive2SongCount),
-                false);
+                false, sceneStart);
     }
 
     private List<TimelineEntry> buildTimeline(LiveScene scene,
@@ -65,7 +70,8 @@ public class TimelineBuilder {
                                               List<ScenePrompt> introPrompts,
                                               List<CustomAction> actions,
                                               StrategySelector strategySelector,
-                                              boolean allowOvershootTrim) {
+                                              boolean allowOvershootTrim,
+                                              LocalDateTime explicitSceneStart) {
 
         List<TimelineEntry> timeline = new ArrayList<>();
 
@@ -78,15 +84,20 @@ public class TimelineBuilder {
             return timeline;
         }
 
-        LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
-        LocalDateTime currentTime = sceneDate.atTime(scene.getOriginalStartTime());
-        // If the scene's start lands more than 12 h in the future the station started after midnight
-        // and this is the previous night's overnight scene — shift it back one day so past entries
-        // fire immediately instead of waiting ~24 h.
-        LocalDateTime nowDateTime = LocalDateTime.now(scene.getTimeZone());
-        if (currentTime.isAfter(nowDateTime.plusHours(12))) {
-            sceneDate = sceneDate.minusDays(1);
+        LocalDateTime currentTime;
+        if (explicitSceneStart != null) {
+            currentTime = explicitSceneStart;
+        } else {
+            LocalDate sceneDate = LocalDate.now(scene.getTimeZone());
             currentTime = sceneDate.atTime(scene.getOriginalStartTime());
+            // If the scene's start lands more than 12 h in the future the station started after midnight
+            // and this is the previous night's overnight scene — shift it back one day so past entries
+            // fire immediately instead of waiting ~24 h.
+            LocalDateTime nowDateTime = LocalDateTime.now(scene.getTimeZone());
+            if (currentTime.isAfter(nowDateTime.plusHours(12))) {
+                sceneDate = sceneDate.minusDays(1);
+                currentTime = sceneDate.atTime(scene.getOriginalStartTime());
+            }
         }
         boolean hasActivePrompts = introPrompts != null && !introPrompts.isEmpty()
                 && introPrompts.stream().anyMatch(ScenePrompt::isActive);

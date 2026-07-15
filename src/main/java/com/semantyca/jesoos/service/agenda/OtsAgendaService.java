@@ -104,7 +104,7 @@ public class OtsAgendaService extends AbstractAgendaService {
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharerMap(), durationSeconds);
                                 List<TimelineEntry> timeline = new TimelineBuilder().buildOtsTimeline(
-                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions());
+                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions(), sceneStart);
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
 
