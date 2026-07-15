@@ -232,6 +232,7 @@ public class DraftFactory {
         if (userVariables != null && !userVariables.isEmpty()) {
             data.putAll(userVariables);
         }
+        data.put("opt", new DraftLineHelper(userVariables, random));
 
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
