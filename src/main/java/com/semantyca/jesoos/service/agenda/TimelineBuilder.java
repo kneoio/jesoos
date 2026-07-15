@@ -125,7 +125,7 @@ public class TimelineBuilder {
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
             MixingStrategy strategy = scene.isOneTimeRun()
-                    ? MixingTypeShuffler.selectOneTimeRunStrategy(remainingSongs)
+                    ? MixingTypeShuffler.selectOneTimeRunStrategy()
                     : strategySelector.select(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
 
             List<SongEntry> songList;

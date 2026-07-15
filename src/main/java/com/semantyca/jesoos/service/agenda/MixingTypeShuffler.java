@@ -55,9 +55,7 @@ public class MixingTypeShuffler {
      * The one and only intro-bearing entry of a one-time-run scene (OTS, or a radio ONE_TIME slot).
      * Always has an intro — call this exactly once per scene, for the entry that greets.
      */
-    public static MixingStrategy selectOneTimeRunStrategy(int availableSongCount) {
-        return availableSongCount >= 2
-                ? new MixingStrategy(MixingType.SONG_INTRO_SONG, 2, true)
-                : new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+    public static MixingStrategy selectOneTimeRunStrategy() {
+        return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
     }
 }
