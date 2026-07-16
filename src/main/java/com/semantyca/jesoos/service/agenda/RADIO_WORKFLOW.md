@@ -62,13 +62,14 @@ scriptService.getById → sceneService.getAllWithPromptIds
 
 Key rules baked in here — **do not silently change**:
 - **Loop is the baseline; one-time preempts.** Gaps are always filled by the current loop scene, never left empty.
-- **De-duplication across scenes** via `usedIds` (STREAM sources are exempt). If the catalog can't fill a scene, the exclusion set is reset once rather than emitting silence.
-- **Song count heuristic:** `max(10, ceil(effectiveDuration / 150))`; generated scenes subtract `AVERAGE_GENERATED_CONTENT_DURATION_SECONDS` from the budget first.
+- **De-duplication across scenes** via `usedIds` (STREAM sources are exempt), honoured by `RANDOM` **and** `QUERY`. If the catalog can't fill a scene, the exclusion set is reset once rather than emitting silence.
+- **Non-repetition outranks matching the scene's criteria.** A song is never selected twice — not within a scene, not across a scene boundary. When a scene's filter matches fewer songs than the scene needs, the pool is *widened* with songs that do **not** match the filter (`widenToFill` → `ScheduleSongSupplier.getAnySongs`) rather than replaying a matched one. Matched songs stay at the head of the pool and are always consumed first. If even the widened catalog falls short, the scene ends **short** — a gap is preferable to a repeat.
+- **Song count heuristic:** `max(10, ceil(effectiveDuration / 150))`; generated scenes subtract `AVERAGE_GENERATED_CONTENT_DURATION_SECONDS` from the budget first. This is a target for *fetching*; `selectDistinctSongsToFillDuration` then consumes only as many as the budget needs, and un-consumed songs are never marked used, so they remain available to later scenes.
 - **Metrics are part of the contract:** `agenda_build_completed` always; `scene_content_gap` when `fitSeconds > 360`. Keep publishing them.
 
 ### 2a. Song sourcing (`ScheduleSongSupplier`)
 - `RANDOM`: parallel fetch of newest (~30%), oldest (~40%), random (rest) + shared fragments, merged (first-wins) and shuffled.
-- `QUERY`: filtered, then quantity-limited.
+- `QUERY`: filtered (honouring `excludeIds`), quantity-limited, then shuffled.
 - `STATIC_LIST`: id-based; an explicit curation, so every pinned fragment is returned in pinned order, with no quantity limit.
 - `GENERATED`: returns an empty pool — content is produced later by the emitter.
 
@@ -173,7 +174,7 @@ Chosen at build by `MixingTypeShuffler` (per entry), but **re-decided at emit ti
 ### 4b. Talkativity
 A `0.0–1.0` per-scene probability that governs **how often intros appear** — nothing about
 mixing quality. It is consumed at build time only:
-- `stripSongsToFitDurationWithTalkativity` uses it to estimate per-song overhead (intro vs jingle) when packing songs into the duration budget.
+- `selectDistinctSongsToFillDuration` uses it to estimate per-song overhead when deciding how many songs fill the duration budget — as the *expected* overhead (`talkativity·intro + (1−talkativity)·jingle`), deliberately not a per-song coin flip, so sizing stays deterministic and cannot disagree with the actual intro decisions made below.
 - `MixingTypeShuffler.selectStrategy`: `random < talkativity` picks the intro path vs the no-TTS path, with anti-repetition (≥2 consecutive intros + talkativity<1 suppresses the next). This sets each entry's `hasIntro` / `needsIntros`.
 
 So talkativity → how many entries are flagged `hasIntro` and get a `PromptEntry` assigned. The TTS itself still only fires at emit time **if the DJ is enabled** (see 4c).

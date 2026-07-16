@@ -101,13 +101,35 @@ public class ScheduleSongSupplier {
                 });
     }
 
-    public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity) {
+    public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity, Set<UUID> excludeIds) {
         SoundFragmentFilter filter = buildFilter(playlistRequest);
+        Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
         Uni<List<SoundFragment>> fragmentsUni = switch (scope) {
-            case SongSourceScope.BrandScope brandScope -> repository.findByFilter(brandScope.brandId(), filter, quantity);
-            case SongSourceScope.OwnerScope ownerScope -> repository.findByOwner(ownerScope.userId(), filter, quantity, Set.of());
+            case SongSourceScope.BrandScope brandScope -> repository.findByFilter(brandScope.brandId(), filter, quantity, effective);
+            case SongSourceScope.OwnerScope ownerScope -> repository.findByOwner(ownerScope.userId(), filter, quantity, effective);
         };
-        return fragmentsUni.map(fragments -> limitQuantity(fragments, quantity));
+        return fragmentsUni.map(fragments -> {
+            List<SoundFragment> result = limitQuantity(fragments, quantity);
+            Collections.shuffle(result);
+            return result;
+        });
+    }
+
+    /**
+     * Any song in scope, ignoring the scene's own criteria. Fills slots the scene's filter could not
+     * match, so a narrow filter yields unmatched songs rather than a repeated one.
+     */
+    public Uni<List<SoundFragment>> getAnySongs(SongSourceScope scope, int quantity, Set<UUID> excludeIds) {
+        if (quantity <= 0) {
+            return Uni.createFrom().item(List.of());
+        }
+        SoundFragmentFilter filter = new SoundFragmentFilter();
+        filter.setType(List.of(PlaylistItemType.SONG));
+        Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
+        return switch (scope) {
+            case SongSourceScope.BrandScope brandScope -> repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
+            case SongSourceScope.OwnerScope ownerScope -> repository.findByOwnerRandom(ownerScope.userId(), filter, quantity, effective);
+        };
     }
 
     /**

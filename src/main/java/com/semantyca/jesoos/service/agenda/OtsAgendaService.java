@@ -14,6 +14,7 @@ import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.ContentStatus;
 import com.semantyca.mixpla.model.cnst.SceneType;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -25,7 +26,7 @@ import java.util.*;
 @ApplicationScoped
 public class OtsAgendaService extends AbstractAgendaService {
 
-    private record BuildState(List<LiveScene> liveScenes, LocalDateTime currentTime) {}
+    private record BuildState(List<LiveScene> liveScenes, LocalDateTime currentTime, Set<UUID> usedIds) {}
 
     @Inject
     public OtsAgendaService(ScriptService scriptService,
@@ -74,7 +75,7 @@ public class OtsAgendaService extends AbstractAgendaService {
         // Scenes are built sequentially, not in parallel: a ONE_TIME scene's real content length
         // (not its nominal Scene.durationSeconds) determines when the next scene actually starts.
         Uni<List<LiveScene>> chain = agentUni.chain(agent -> {
-            Uni<BuildState> stateChain = Uni.createFrom().item(new BuildState(new ArrayList<>(), startTime));
+            Uni<BuildState> stateChain = Uni.createFrom().item(new BuildState(new ArrayList<>(), startTime, new LinkedHashSet<>()));
 
             for (Scene scene : scenes) {
                 stateChain = stateChain.chain(state -> {
@@ -82,8 +83,12 @@ public class OtsAgendaService extends AbstractAgendaService {
                     int durationSeconds = scene.getDurationSeconds();
                     LocalDateTime sceneStart = state.currentTime();
 
-                    return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, otsTalkativity, oneTimeRun)
+                    return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), otsTalkativity, oneTimeRun)
                             .map(pool -> {
+                                pool.songs().stream()
+                                        .filter(sf -> sf.getSource() != SourceType.STREAM)
+                                        .forEach(sf -> state.usedIds().add(sf.getId()));
+
                                 LiveScene liveScene = new LiveScene();
                                 liveScene.setSceneId(scene.getId());
                                 liveScene.setSceneTitle(scene.getTitle());
@@ -110,7 +115,7 @@ public class OtsAgendaService extends AbstractAgendaService {
 
                                 LocalDateTime nextStart = liveScene.getEndTime() != null ? liveScene.getEndTime() : sceneStart;
                                 state.liveScenes().add(liveScene);
-                                return new BuildState(state.liveScenes(), nextStart);
+                                return new BuildState(state.liveScenes(), nextStart, state.usedIds());
                             });
                 });
             }

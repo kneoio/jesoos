@@ -105,6 +105,9 @@ public abstract class AbstractAgendaService {
                 ? maxDurationSeconds - MergingTypeMeta.AVERAGE_GENERATED_CONTENT_DURATION_SECONDS
                 : maxDurationSeconds;
 
+        Set<java.util.UUID> effectiveExcludes = (excludeIds != null) ? excludeIds : Set.of();
+        int songCount = oneTimeRun ? 1 : targetSongCount(effectiveDuration);
+
         return switch (sourcing) {
             case GENERATED -> Uni.createFrom().item(new SongPool(List.of(), Map.of()));
             case QUERY -> {
@@ -115,49 +118,94 @@ public abstract class AbstractAgendaService {
                 req.setLabels(playlistRequest.getLabels());
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
-                int songCount = oneTimeRun ? 1 : Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
-                yield songSupplier.getSongsByQuery(scope, req, songCount)
-                        .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
+                yield songSupplier.getSongsByQuery(scope, req, songCount, effectiveExcludes)
+                        .chain(matched -> oneTimeRun
+                                ? Uni.createFrom().item(matched)
+                                : widenToFill(scope, songSupplier, scene, matched, songCount, effectiveExcludes))
+                        .map(songs -> new SongPool(oneTimeRun ? songs : selectDistinctSongsToFillDuration(songs, effectiveDuration, talkativity), Map.of()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments())
-                    .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
-            default -> {
-                int songCount = oneTimeRun ? 1 : Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
-                yield songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, excludeIds)
-                        .map(pool -> new SongPool(oneTimeRun ? pool.songs() : stripSongsToFitDurationWithTalkativity(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
-            }
+                    .chain(pinned -> oneTimeRun
+                            ? Uni.createFrom().item(pinned)
+                            : widenToFill(scope, songSupplier, scene, pinned, songCount, effectiveExcludes))
+                    .map(songs -> new SongPool(oneTimeRun ? songs : selectDistinctSongsToFillDuration(songs, effectiveDuration, talkativity), Map.of()));
+            default -> songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, effectiveExcludes)
+                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
         };
     }
 
-    protected List<SoundFragment> stripSongsToFitDurationWithTalkativity(List<SoundFragment> songsPool, int sceneDurationSeconds, double talkativity) {
+    private static int targetSongCount(int effectiveDuration) {
+        return Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
+    }
+
+    /**
+     * Ladder rung 2: when a scene's own criteria match fewer songs than the scene needs, top the pool
+     * up with any other song rather than let the scene fall back on repeating what it matched.
+     * Non-repetition outranks matching the scene's filter. Matched songs stay at the head of the pool,
+     * so they are always consumed first and the widening only ever fills what is left over.
+     */
+    private Uni<List<SoundFragment>> widenToFill(SongSourceScope scope,
+                                                 ScheduleSongSupplier songSupplier,
+                                                 Scene scene,
+                                                 List<SoundFragment> matched,
+                                                 int targetCount,
+                                                 Set<java.util.UUID> excludeIds) {
+        if (matched.size() >= targetCount) {
+            return Uni.createFrom().item(matched);
+        }
+        Set<java.util.UUID> alreadyHeld = new java.util.HashSet<>(excludeIds);
+        matched.forEach(sf -> alreadyHeld.add(sf.getId()));
+        return songSupplier.getAnySongs(scope, targetCount - matched.size(), alreadyHeld)
+                .map(extra -> {
+                    if (extra.isEmpty()) {
+                        return matched;
+                    }
+                    LOGGER.infof("Scene '%s': criteria matched %d of %d songs needed — widened with %d unmatched songs to avoid repeats",
+                            scene.getTitle(), matched.size(), targetCount, extra.size());
+                    List<SoundFragment> combined = new ArrayList<>(matched);
+                    combined.addAll(extra);
+                    return combined;
+                });
+    }
+
+    /**
+     * Walks the pool once in ladder order — criteria-matched songs first, widened songs after — taking
+     * each song at most once. A pool that cannot fill the budget yields a short scene rather than a
+     * repeat: non-repetition outranks filling the duration.
+     * <p>
+     * Sizing uses the <em>expected</em> per-song overhead rather than a per-song coin flip, so it stays
+     * deterministic and cannot disagree with the intro/jingle decisions {@link TimelineBuilder} makes.
+     */
+    protected List<SoundFragment> selectDistinctSongsToFillDuration(List<SoundFragment> songsPool, int sceneDurationSeconds, double talkativity) {
         if (songsPool.isEmpty()) {
             return songsPool;
         }
 
-        final int introSec = MergingTypeMeta.AVERAGE_INTRO_DURATION_SECONDS;
-        final int jingleSec = MergingTypeMeta.AVERAGE_JINGLE_DURATION_SECONDS;
+        final int expectedOverhead = (int) Math.round(
+                talkativity * MergingTypeMeta.AVERAGE_INTRO_DURATION_SECONDS
+                        + (1.0 - talkativity) * MergingTypeMeta.AVERAGE_JINGLE_DURATION_SECONDS);
 
         List<SoundFragment> selectedSongs = new ArrayList<>();
         int totalTimeUsed = 0;
-        int index = 0;
 
-        while (totalTimeUsed < sceneDurationSeconds) {
-            SoundFragment song = songsPool.get(index % songsPool.size());
+        for (SoundFragment song : songsPool) {
+            if (totalTimeUsed >= sceneDurationSeconds) {
+                break;
+            }
             int songDurationSeconds = song.getLength() != null
                     ? (int) song.getLength().toSeconds()
                     : 180;
-
-            boolean hasIntro = random.nextDouble() < talkativity;
-            int overhead = hasIntro ? introSec : jingleSec;
-            int timePerSong = songDurationSeconds + overhead;
-
             selectedSongs.add(song);
-            totalTimeUsed += timePerSong;
-            index++;
+            totalTimeUsed += songDurationSeconds + expectedOverhead;
+        }
+
+        if (totalTimeUsed < sceneDurationSeconds) {
+            LOGGER.warnf("Catalog exhausted at %d songs for a %ss scene — leaving a %ss gap rather than repeating",
+                    selectedSongs.size(), sceneDurationSeconds, sceneDurationSeconds - totalTimeUsed);
         }
 
         LOGGER.debugf(
-                "Scene duration: %ss, talkativity: %.2f, selected %d songs, total used: %ss",
+                "Scene duration: %ss, talkativity: %.2f, selected %d distinct songs, total used: %ss",
                 sceneDurationSeconds, talkativity, selectedSongs.size(), totalTimeUsed
         );
 
