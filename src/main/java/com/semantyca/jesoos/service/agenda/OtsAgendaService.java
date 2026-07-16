@@ -18,6 +18,7 @@ import com.semantyca.mixpla.model.cnst.SourceType;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -25,6 +26,7 @@ import java.util.*;
 
 @ApplicationScoped
 public class OtsAgendaService extends AbstractAgendaService {
+    private static final Logger LOGGER = Logger.getLogger(OtsAgendaService.class);
 
     private record BuildState(List<LiveScene> liveScenes, LocalDateTime currentTime, Set<UUID> usedIds) {}
 
@@ -44,6 +46,31 @@ public class OtsAgendaService extends AbstractAgendaService {
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AbstractAgendaService::orderedSceneSet)
                         .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes)));
+    }
+
+    /**
+     * The show must go on: once earlier scenes have used up the catalog, a later scene would otherwise
+     * come back with an empty pool and emit nothing. Drop the exclusion set and refetch — a scene that
+     * revisits an earlier scene's song still beats a silent one. Mirrors RadioAgendaService.
+     * <p>
+     * One-time scenes are exempt: they play a single song at its natural length, so a pool shorter than
+     * the nominal duration is expected, not a symptom of exhaustion.
+     */
+    private Uni<SongPool> resetExclusionIfCatalogExhausted(SongSourceScope scope, Scene scene, int durationSeconds,
+                                                           double talkativity, boolean oneTimeRun, BuildState state, SongPool pool) {
+        if (oneTimeRun || state.usedIds().isEmpty()) {
+            return Uni.createFrom().item(pool);
+        }
+        long estimatedSeconds = pool.songs().stream()
+                .mapToLong(sf -> sf.getLength() != null ? sf.getLength().toSeconds() : 180L)
+                .sum();
+        if (estimatedSeconds >= durationSeconds) {
+            return Uni.createFrom().item(pool);
+        }
+        LOGGER.infof("Catalog insufficient for scene '%s' (estimated=%ds required=%ds), resetting exclusion set",
+                scene.getTitle(), estimatedSeconds, durationSeconds);
+        state.usedIds().clear();
+        return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), talkativity, oneTimeRun);
     }
 
     private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes) {
@@ -84,6 +111,7 @@ public class OtsAgendaService extends AbstractAgendaService {
                     LocalDateTime sceneStart = state.currentTime();
 
                     return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), otsTalkativity, oneTimeRun)
+                            .chain(pool -> resetExclusionIfCatalogExhausted(scope, scene, durationSeconds, otsTalkativity, oneTimeRun, state, pool))
                             .map(pool -> {
                                 pool.songs().stream()
                                         .filter(sf -> sf.getSource() != SourceType.STREAM)
