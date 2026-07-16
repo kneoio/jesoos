@@ -99,6 +99,7 @@ public class MetricPublisher {
                                     v -> {},
                                     e -> LOGGER.errorf(e, "Failed to self-stop silent OTS '%s'", brand));
                         });
+            }
         });
     }
 
