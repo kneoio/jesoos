@@ -169,9 +169,16 @@ public abstract class AbstractAgendaService {
     }
 
     /**
-     * Walks the pool once in ladder order — criteria-matched songs first, widened songs after — taking
-     * each song at most once. A pool that cannot fill the budget yields a short scene rather than a
-     * repeat: non-repetition outranks filling the duration.
+     * Fills the scene's budget from the pool along the non-repetition ladder:
+     * <ol>
+     *   <li>criteria-matched songs, unused — at the head of the pool, so consumed first;</li>
+     *   <li>widened songs, unused — appended by {@link #widenToFill};</li>
+     *   <li>reuse, never adjacent — only once every song in the pool is spent;</li>
+     *   <li>adjacent — unreachable unless the pool holds a single song.</li>
+     * </ol>
+     * Rungs 1–2 are the whole pool taken at most once each. Rung 3 reuses in pool order, so the
+     * least-recently-played song comes back first, and skips any candidate that would land next to
+     * itself.
      * <p>
      * Sizing uses the <em>expected</em> per-song overhead rather than a per-song coin flip, so it stays
      * deterministic and cannot disagree with the intro/jingle decisions {@link TimelineBuilder} makes.
@@ -192,24 +199,41 @@ public abstract class AbstractAgendaService {
             if (totalTimeUsed >= sceneDurationSeconds) {
                 break;
             }
-            int songDurationSeconds = song.getLength() != null
-                    ? (int) song.getLength().toSeconds()
-                    : 180;
             selectedSongs.add(song);
-            totalTimeUsed += songDurationSeconds + expectedOverhead;
+            totalTimeUsed += songLengthSeconds(song) + expectedOverhead;
         }
 
-        if (totalTimeUsed < sceneDurationSeconds) {
-            LOGGER.warnf("Catalog exhausted at %d songs for a %ss scene — leaving a %ss gap rather than repeating",
-                    selectedSongs.size(), sceneDurationSeconds, sceneDurationSeconds - totalTimeUsed);
+        int distinctSongs = selectedSongs.size();
+
+        // Rung 3: every song in the pool is spent and the budget is still open. Reuse rather than leave
+        // a gap, but never place a song next to itself. A single-song pool is rung 4 — nothing else exists.
+        int reuseIndex = 0;
+        while (totalTimeUsed < sceneDurationSeconds) {
+            SoundFragment candidate = songsPool.get(reuseIndex % songsPool.size());
+            reuseIndex++;
+            if (songsPool.size() > 1 && candidate.getId().equals(selectedSongs.getLast().getId())) {
+                continue;
+            }
+            selectedSongs.add(candidate);
+            totalTimeUsed += songLengthSeconds(candidate) + expectedOverhead;
+        }
+
+        if (selectedSongs.size() > distinctSongs) {
+            LOGGER.warnf("Scene needs %ss but the pool holds only %d distinct songs — reused %d non-adjacently to fill it%s",
+                    sceneDurationSeconds, distinctSongs, selectedSongs.size() - distinctSongs,
+                    songsPool.size() == 1 ? " (single-song pool: adjacency unavoidable)" : "");
         }
 
         LOGGER.debugf(
-                "Scene duration: %ss, talkativity: %.2f, selected %d distinct songs, total used: %ss",
-                sceneDurationSeconds, talkativity, selectedSongs.size(), totalTimeUsed
+                "Scene duration: %ss, talkativity: %.2f, selected %d songs (%d distinct), total used: %ss",
+                sceneDurationSeconds, talkativity, selectedSongs.size(), distinctSongs, totalTimeUsed
         );
 
         return selectedSongs;
+    }
+
+    private static int songLengthSeconds(SoundFragment song) {
+        return song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
     }
 
     protected List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, Map<java.util.UUID, String> sharerMap, int sceneDurationSeconds) {
