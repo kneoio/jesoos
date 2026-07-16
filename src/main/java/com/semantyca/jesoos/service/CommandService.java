@@ -396,16 +396,20 @@ public class CommandService {
 
     public Uni<JsonObject> stopOts(String otsSlugName, UUID traceId) {
         metricPublisher.publishMetric(otsSlugName, MetricEventType.COMMAND, ProcessType.FLOW, "ots_stop_received", Map.of("otsSlugName", otsSlugName), traceId);
-        otsStreamScheduler.cancelOtsTimers(otsSlugName);
-        chatService.purgeOtsChat(otsSlugName);
-        return oneTimeStreamPool.stopAndRemove(otsSlugName)
+        return Uni.createFrom().voidItem()
+                .invoke(() -> {
+                    otsStreamScheduler.cancelOtsTimers(otsSlugName);
+                    chatService.purgeOtsChat(otsSlugName);
+                })
+                .chain(() -> oneTimeStreamPool.stopAndRemove(otsSlugName))
                 .map(stream -> {
                     metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);
                     return new JsonObject()
                             .put("success", true)
                             .put("otsSlugName", otsSlugName)
                             .put("message", "OTS stream stopped");
-                });
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(otsSlugName, MetricEventType.ERROR, ProcessType.FLOW, "ots_stop_failed", Map.of("otsSlugName", otsSlugName, "error", e.getMessage()), traceId));
     }
 
     private JsonObject toResponse(ILiveStream agendaHolder) {

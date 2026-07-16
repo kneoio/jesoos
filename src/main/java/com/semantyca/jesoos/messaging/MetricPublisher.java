@@ -3,6 +3,7 @@ package com.semantyca.jesoos.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.semantyca.jesoos.EnvConst;
+import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventDTO;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -32,6 +33,14 @@ public class MetricPublisher {
     @Inject
     @Channel("metrics")
     Emitter<byte[]> metricsEmitter;
+
+    @Inject
+    OneTimeStreamPool oneTimeStreamPool;
+
+    // Field-injected to avoid a wiring cycle (CommandService depends on MetricPublisher); used to
+    // self-stop an OTS whose JESOOS_STOP_OTS command silently failed to land.
+    @Inject
+    com.semantyca.jesoos.service.CommandService commandService;
 
     public void publishMetric(String brandName, MetricEventType eventType, ProcessType processType, String code, Map<String, Object> payload) {
         publishMetric(brandName, eventType, processType, code, payload, UUID.randomUUID());
@@ -79,7 +88,17 @@ public class MetricPublisher {
             if (secondsOverdue > 60) {
                 LOGGER.warnf("Silence risk for brand '%s': %ds overdue", brand, secondsOverdue);
                 publishMetric(brand, MetricEventType.WARNING, ProcessType.CRON, "silence_risk", Map.of("secondsOverdue", secondsOverdue));
-            }
+
+                oneTimeStreamPool.get(brand)
+                        .subscribe().with(stream -> {
+                            if (stream == null) return;
+                            LOGGER.warnf("OTS '%s' silent for %ds despite being in the pool — self-stopping (JESOOS_STOP_OTS likely failed)", brand, secondsOverdue);
+                            UUID traceId = UUID.randomUUID();
+                            publishMetric(brand, MetricEventType.WARNING, ProcessType.CRON, "ots_stopped_by_silence_risk", Map.of("secondsOverdue", secondsOverdue), traceId);
+                            commandService.stopOts(brand, traceId).subscribe().with(
+                                    v -> {},
+                                    e -> LOGGER.errorf(e, "Failed to self-stop silent OTS '%s'", brand));
+                        });
         });
     }
 
