@@ -111,7 +111,8 @@ public abstract class AbstractAgendaService {
         return switch (sourcing) {
             case GENERATED -> Uni.createFrom().item(new SongPool(List.of(), Map.of()));
             case QUERY -> {
-                // TODO: also include shared sound fragments in QUERY sourcing (currently RANDOM only)
+                // TODO: shared fragments still cannot be *criteria-matched* — SharedSoundFragmentRepository
+                // narrows by type only, not genre/label. They do reach a scene through widenToFill below.
                 PlaylistRequest req = new PlaylistRequest();
                 req.setSearchTerm(playlistRequest.getSearchTerm());
                 req.setGenres(playlistRequest.getGenres());
@@ -120,15 +121,15 @@ public abstract class AbstractAgendaService {
                 req.setSource(playlistRequest.getSource());
                 yield songSupplier.getSongsByQuery(scope, req, songCount, effectiveExcludes)
                         .chain(matched -> oneTimeRun
-                                ? Uni.createFrom().item(matched)
+                                ? Uni.createFrom().item(new SongPool(matched, Map.of()))
                                 : widenToFill(scope, songSupplier, scene, matched, songCount, effectiveExcludes))
-                        .map(songs -> new SongPool(oneTimeRun ? songs : selectDistinctSongsToFillDuration(songs, effectiveDuration, talkativity), Map.of()));
+                        .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments())
                     .chain(pinned -> oneTimeRun
-                            ? Uni.createFrom().item(pinned)
+                            ? Uni.createFrom().item(new SongPool(pinned, Map.of()))
                             : widenToFill(scope, songSupplier, scene, pinned, songCount, effectiveExcludes))
-                    .map(songs -> new SongPool(oneTimeRun ? songs : selectDistinctSongsToFillDuration(songs, effectiveDuration, talkativity), Map.of()));
+                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
             default -> songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, effectiveExcludes)
                     .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
         };
@@ -144,27 +145,27 @@ public abstract class AbstractAgendaService {
      * Non-repetition outranks matching the scene's filter. Matched songs stay at the head of the pool,
      * so they are always consumed first and the widening only ever fills what is left over.
      */
-    private Uni<List<SoundFragment>> widenToFill(SongSourceScope scope,
-                                                 ScheduleSongSupplier songSupplier,
-                                                 Scene scene,
-                                                 List<SoundFragment> matched,
-                                                 int targetCount,
-                                                 Set<java.util.UUID> excludeIds) {
+    private Uni<SongPool> widenToFill(SongSourceScope scope,
+                                      ScheduleSongSupplier songSupplier,
+                                      Scene scene,
+                                      List<SoundFragment> matched,
+                                      int targetCount,
+                                      Set<java.util.UUID> excludeIds) {
         if (matched.size() >= targetCount) {
-            return Uni.createFrom().item(matched);
+            return Uni.createFrom().item(new SongPool(matched, Map.of()));
         }
         Set<java.util.UUID> alreadyHeld = new java.util.HashSet<>(excludeIds);
         matched.forEach(sf -> alreadyHeld.add(sf.getId()));
         return songSupplier.getAnySongs(scope, targetCount - matched.size(), alreadyHeld)
-                .map(extra -> {
-                    if (extra.isEmpty()) {
-                        return matched;
+                .map(widened -> {
+                    if (widened.songs().isEmpty()) {
+                        return new SongPool(matched, Map.of());
                     }
                     LOGGER.infof("Scene '%s': criteria matched %d of %d songs needed — widened with %d unmatched songs to avoid repeats",
-                            scene.getTitle(), matched.size(), targetCount, extra.size());
+                            scene.getTitle(), matched.size(), targetCount, widened.songs().size());
                     List<SoundFragment> combined = new ArrayList<>(matched);
-                    combined.addAll(extra);
-                    return combined;
+                    combined.addAll(widened.songs());
+                    return new SongPool(combined, widened.sharerMap());
                 });
     }
 

@@ -88,9 +88,14 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
 **Shared sound fragments(SFF).** A brand's pool is not only its own catalog — other users/brands can
 *share* songs into it (`shared_sound_fragments` join, `SharedSoundFragmentService` /
 `SharedSoundFragmentRepository`). During build they are treated as follows:
-- **Currently only in the `RANDOM`/default sourcing path** (`getSongsRandomly`). `QUERY` and
-  `STATIC_LIST` scenes do not pull shared songs today. **Known gap / planned:** `QUERY` should
-  also consider shared fragments (not yet implemented).
+- **Criteria-matched (ladder rung 1): `RANDOM`/default only** (`getSongsRandomly`). `QUERY` and
+  `STATIC_LIST` cannot criteria-match a shared song, because `SharedSoundFragmentRepository`
+  narrows by **type only** — it has no genre/label conditions. **Known gap:** giving `buildQuery`
+  the same genre/label conditions as `SoundFragmentQueryBuilder` would close it.
+- **As widening (ladder rung 2): every sourcing path** (`getAnySongs`). Once a scene's own filter
+  is exhausted the criteria are dropped anyway, so the type-only shared query is sufficient — a
+  `QUERY` scene whose filter matches too few songs *will* be filled with received songs, and their
+  `sharerMap` is carried through `widenToFill` so credit survives.
 - **Eligibility:** `target_brand_id = brand`, `status = 505` (accepted), `archived = 0`, and
   Catalog Boost `> -1` (quarantined shares are excluded).
 - **Selection:** 40% newest / 60% weighted-random (same `ssf.boost` weighting as §2a Catalog Boost),

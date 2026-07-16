@@ -118,18 +118,50 @@ public class ScheduleSongSupplier {
     /**
      * Any song in scope, ignoring the scene's own criteria. Fills slots the scene's filter could not
      * match, so a narrow filter yields unmatched songs rather than a repeated one.
+     * <p>
+     * Includes songs shared to the brand ("received"), same as {@link #getSongsRandomly}. The shared
+     * catalog can only be narrowed by type, not by genre/label — but that costs nothing here, because
+     * widening drops the scene's criteria anyway. Owner-scoped streams have no shared catalog.
      */
-    public Uni<List<SoundFragment>> getAnySongs(SongSourceScope scope, int quantity, Set<UUID> excludeIds) {
+    public Uni<SongPool> getAnySongs(SongSourceScope scope, int quantity, Set<UUID> excludeIds) {
         if (quantity <= 0) {
-            return Uni.createFrom().item(List.of());
+            return Uni.createFrom().item(new SongPool(List.of(), Map.of()));
         }
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(PlaylistItemType.SONG));
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
-        return switch (scope) {
-            case SongSourceScope.BrandScope brandScope -> repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
-            case SongSourceScope.OwnerScope ownerScope -> repository.findByOwnerRandom(ownerScope.userId(), filter, quantity, effective);
-        };
+
+        Uni<List<SoundFragment>> ownUni;
+        Uni<List<SharedSongEntry>> sharedUni;
+        switch (scope) {
+            case SongSourceScope.BrandScope brandScope -> {
+                ownUni = repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
+                sharedUni = sharedSoundFragmentService.getForBrand(brandScope.brandId(), PlaylistItemType.SONG, quantity, effective);
+            }
+            case SongSourceScope.OwnerScope ownerScope -> {
+                ownUni = repository.findByOwnerRandom(ownerScope.userId(), filter, quantity, effective);
+                sharedUni = Uni.createFrom().item(List.of());
+            }
+        }
+
+        return Uni.combine().all().unis(ownUni, sharedUni).asTuple()
+                .map(tuple -> {
+                    Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
+                    tuple.getItem1().forEach(sf -> merged.putIfAbsent(sf.getId(), sf));
+
+                    Map<UUID, String> sharerMap = new HashMap<>();
+                    for (SharedSongEntry entry : tuple.getItem2()) {
+                        UUID id = entry.soundFragment().getId();
+                        merged.putIfAbsent(id, entry.soundFragment());
+                        sharerMap.put(id, entry.sharerName());
+                    }
+
+                    List<SoundFragment> result = new ArrayList<>(merged.values());
+                    Collections.shuffle(result);
+                    LOGGER.infof("[getAnySongs] widening pool: %d own + %d shared -> %d distinct",
+                            tuple.getItem1().size(), tuple.getItem2().size(), result.size());
+                    return new SongPool(result, sharerMap);
+                });
     }
 
     /**
