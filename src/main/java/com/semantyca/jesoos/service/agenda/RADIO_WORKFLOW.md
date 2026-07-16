@@ -68,7 +68,8 @@ Key rules baked in here — **do not silently change**:
 
 ### 2a. Song sourcing (`ScheduleSongSupplier`)
 - `RANDOM`: parallel fetch of newest (~30%), oldest (~40%), random (rest) + shared fragments, merged (first-wins) and shuffled.
-- `QUERY` / `STATIC_LIST`: filtered or id-based, then quantity-limited.
+- `QUERY`: filtered, then quantity-limited.
+- `STATIC_LIST`: id-based; an explicit curation, so every pinned fragment is returned in pinned order, with no quantity limit.
 - `GENERATED`: returns an empty pool — content is produced later by the emitter.
 
 **Catalog Boost (per-song, build-time).** Each brand↔fragment link carries a

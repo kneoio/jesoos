@@ -110,15 +110,17 @@ public class ScheduleSongSupplier {
         return fragmentsUni.map(fragments -> limitQuantity(fragments, quantity));
     }
 
-    public Uni<List<SoundFragment>> getSongsFromStaticList(SongSourceScope scope, List<UUID> soundFragmentIds, int quantity) {
+    /**
+     * A static list is an explicit curation: every pinned fragment is returned, in the pinned order.
+     */
+    public Uni<List<SoundFragment>> getSongsFromStaticList(SongSourceScope scope, List<UUID> soundFragmentIds) {
         if (soundFragmentIds == null || soundFragmentIds.isEmpty()) {
             return Uni.createFrom().item(List.of());
         }
-        Uni<List<SoundFragment>> fragmentsUni = switch (scope) {
+        return switch (scope) {
             case SongSourceScope.BrandScope brandScope -> repository.findByIdsForBrand(brandScope.brandId(), soundFragmentIds);
             case SongSourceScope.OwnerScope ownerScope -> repository.findByIdsForOwner(ownerScope.userId(), soundFragmentIds);
         };
-        return fragmentsUni.map(fragments -> limitQuantity(fragments, quantity));
     }
 
     private List<SoundFragment> limitQuantity(List<SoundFragment> fragments, int quantity) {

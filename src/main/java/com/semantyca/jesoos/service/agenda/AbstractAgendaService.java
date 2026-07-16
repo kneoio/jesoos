@@ -119,7 +119,7 @@ public abstract class AbstractAgendaService {
                 yield songSupplier.getSongsByQuery(scope, req, songCount)
                         .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             }
-            case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments(), maxDurationSeconds)
+            case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments())
                     .map(songs -> new SongPool(oneTimeRun ? songs : stripSongsToFitDurationWithTalkativity(songs, effectiveDuration, talkativity), Map.of()));
             default -> {
                 int songCount = oneTimeRun ? 1 : Math.max(10, (int) Math.ceil((double) effectiveDuration / 150));
