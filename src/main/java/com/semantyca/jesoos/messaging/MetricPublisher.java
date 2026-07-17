@@ -72,6 +72,12 @@ public class MetricPublisher {
         nextExpectedEmitAt.put(brandName, Instant.now().plusSeconds(entryDurationSeconds));
     }
 
+    /** Stop watching a brand/OTS slug for silence — call once its stream actually stops,
+     *  otherwise checkSilenceRisk keeps flagging it against a stale timestamp forever. */
+    public void clearTracking(String brandName) {
+        nextExpectedEmitAt.remove(brandName);
+    }
+
     /** Seconds elapsed past the moment the last emitted content was expected to finish.
      *  Returns Long.MIN_VALUE when the brand has no emission tracked yet. */
     public long secondsSinceExpectedEmit(String brandName) {

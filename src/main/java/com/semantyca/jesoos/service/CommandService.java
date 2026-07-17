@@ -403,6 +403,7 @@ public class CommandService {
                 })
                 .chain(() -> oneTimeStreamPool.stopAndRemove(otsSlugName))
                 .map(stream -> {
+                    metricPublisher.clearTracking(otsSlugName);
                     metricPublisher.publishMetric(otsSlugName, MetricEventType.INFORMATION, ProcessType.FLOW, "ots_stop_ok", Map.of("otsSlugName", otsSlugName), traceId);
                     return new JsonObject()
                             .put("success", true)

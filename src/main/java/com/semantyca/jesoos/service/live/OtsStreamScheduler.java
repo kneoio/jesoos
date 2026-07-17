@@ -217,7 +217,7 @@ public class OtsStreamScheduler {
         cancelOtsTimers(streamSlug);
         chatService.purgeOtsChat(streamSlug);
         pool.stopAndRemove(streamSlug).subscribe().with(
-                v -> {},
+                v -> metricPublisher.clearTracking(streamSlug),
                 err -> LOGGER.errorf(err, "Failed to stop/remove finished OTS '%s'", streamSlug)
         );
     }
