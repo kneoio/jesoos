@@ -30,6 +30,10 @@ public class SharedSoundFragmentService {
         return repository.shareContribution(soundFragmentId, targetBrandId, sourceUserId, sourceUserName, sourceUserEmail);
     }
 
+    public Uni<Void> clearPriorityLabel(UUID soundFragmentId) {
+        return repository.clearPriorityLabel(soundFragmentId);
+    }
+
     public Uni<List<SharedSongEntry>> getForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         int newest = Math.max(1, (int) Math.ceil(quantity * 0.4));
         int random = Math.max(1, quantity - newest);

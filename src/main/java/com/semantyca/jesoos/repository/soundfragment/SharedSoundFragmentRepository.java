@@ -28,6 +28,11 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
     private static final String SSF_RLS_TABLE = "mixpla__shared_sound_fragment_readers";
     private static final String BRANDS_TABLE = "mixpla__brands";
 
+    // Slug of the __labels row datanest attaches to a contribution to have jesoos float it to the
+    // front of the next agenda rebuild. Cleared by clearPriorityLabel once picked up, so a later
+    // rebuild (e.g. the nightly cron) doesn't re-float it.
+    private static final String PRIORITY_LABEL_SLUG = "new";
+
     // Mirrors datanest's ApprovalStatus.PENDING — datanest owns that enum, jesoos only ever
     // writes this one value (a fresh contribution share always starts PENDING). See
     // datanest's repository/soundfragment/SHARING_WORKFLOW.md.
@@ -101,6 +106,14 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                 .chain(() -> RlsActionUtil.ensureSuperUserAccess(tx, SSF_RLS_TABLE, entityId));
     }
 
+    // Removes the "new" priority label once jesoos has picked the fragment up into a rebuilt agenda,
+    // so a subsequent rebuild doesn't float it to the front again.
+    public Uni<Void> clearPriorityLabel(UUID soundFragmentId) {
+        String sql = "DELETE FROM mixpla__sound_fragment_labels WHERE id = $1 AND label_id = " +
+                "(SELECT id FROM __labels WHERE identifier = '" + PRIORITY_LABEL_SLUG + "')";
+        return client.preparedQuery(sql).execute(Tuple.of(soundFragmentId)).replaceWithVoid();
+    }
+
     public Uni<List<SharedSongEntry>> findByBrand(UUID brandId, PlaylistItemType type, int limit, Set<UUID> excludeIds) {
         String sql = buildQuery(brandId, type, excludeIds, "sf.reg_date DESC", limit);
         return execute(sql);
@@ -127,13 +140,18 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                     if (sharedBoost != null) {
                         sf.setBoost(sharedBoost);
                     }
-                    return new SharedSongEntry(sf, row.getString("source_user_name"));
+                    Boolean isPriority = row.getBoolean("is_priority");
+                    return new SharedSongEntry(sf, row.getString("source_user_name"),
+                            row.getString("source_user_email"), Boolean.TRUE.equals(isPriority));
                 });
     }
 
     private String buildQuery(UUID brandId, PlaylistItemType type, Set<UUID> excludeIds, String orderBy, int limit) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.boost AS shared_boost ")
+                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.boost AS shared_boost, ")
+                .append("EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl ")
+                .append("JOIN __labels l ON l.id = sfl.label_id ")
+                .append("WHERE sfl.id = sf.id AND l.identifier = '").append(PRIORITY_LABEL_SLUG).append("') AS is_priority ")
                 .append("FROM ").append(entityData.getTableName()).append(" sf ")
                 .append("JOIN ").append(SSF_TABLE).append(" ssf ON ssf.sound_fragment_id = sf.id ")
                 .append("WHERE ssf.target_brand_id = '").append(brandId).append("' ")

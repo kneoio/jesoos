@@ -75,7 +75,7 @@ public class ScheduleSongSupplier {
         return Uni.combine().all()
                 .unis(newestUni, oldestUni, randomUni, sharedUni)
                 .asTuple()
-                .map(tuple -> {
+                .chain(tuple -> {
                     List<SoundFragment> newestList = tuple.getItem1();
                     List<SoundFragment> oldestList = tuple.getItem2();
                     List<SoundFragment> randomList = tuple.getItem3();
@@ -88,17 +88,47 @@ public class ScheduleSongSupplier {
                     oldestList.forEach(s -> merged.putIfAbsent(s.getId(), s));
                     randomList.forEach(s -> merged.putIfAbsent(s.getId(), s));
 
-                    Map<UUID, String> sharerMap = new HashMap<>();
+                    Map<UUID, SongPool.SharedMeta> sharedInfo = new HashMap<>();
                     for (SharedSongEntry entry : shared) {
                         UUID id = entry.soundFragment().getId();
                         merged.putIfAbsent(id, entry.soundFragment());
-                        sharerMap.put(id, entry.sharerName());
+                        sharedInfo.put(id, new SongPool.SharedMeta(entry.sharerName(), entry.sourceUserEmail(), entry.priority()));
                     }
 
                     List<SoundFragment> result = new ArrayList<>(merged.values());
-                    Collections.shuffle(result);
-                    return new SongPool(result, sharerMap);
+                    return floatPriorityToFront(result, sharedInfo);
                 });
+    }
+
+    /**
+     * Pulls fragments labeled "new" to the front of the freshly assembled pool (ahead of the
+     * normal shuffle), so the next agenda rebuild plays a new contribution as soon as possible. The
+     * label is cleared right after selection so a later rebuild doesn't re-float the same fragment.
+     */
+    private Uni<SongPool> floatPriorityToFront(List<SoundFragment> pool, Map<UUID, SongPool.SharedMeta> sharedInfo) {
+        List<SoundFragment> priority = new ArrayList<>();
+        List<SoundFragment> rest = new ArrayList<>();
+        for (SoundFragment sf : pool) {
+            SongPool.SharedMeta meta = sharedInfo.get(sf.getId());
+            if (meta != null && meta.priority()) {
+                priority.add(sf);
+            } else {
+                rest.add(sf);
+            }
+        }
+        Collections.shuffle(rest);
+        List<SoundFragment> result = new ArrayList<>(priority.size() + rest.size());
+        result.addAll(priority);
+        result.addAll(rest);
+
+        if (priority.isEmpty()) {
+            return Uni.createFrom().item(new SongPool(result, sharedInfo));
+        }
+        List<Uni<Void>> clears = priority.stream()
+                .map(sf -> sharedSoundFragmentService.clearPriorityLabel(sf.getId()))
+                .toList();
+        return Uni.join().all(clears).andCollectFailures()
+                .replaceWith(new SongPool(result, sharedInfo));
     }
 
     public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity, Set<UUID> excludeIds) {
@@ -145,22 +175,20 @@ public class ScheduleSongSupplier {
         }
 
         return Uni.combine().all().unis(ownUni, sharedUni).asTuple()
-                .map(tuple -> {
+                .chain(tuple -> {
                     Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
                     tuple.getItem1().forEach(sf -> merged.putIfAbsent(sf.getId(), sf));
 
-                    Map<UUID, String> sharerMap = new HashMap<>();
+                    Map<UUID, SongPool.SharedMeta> sharedInfo = new HashMap<>();
                     for (SharedSongEntry entry : tuple.getItem2()) {
                         UUID id = entry.soundFragment().getId();
                         merged.putIfAbsent(id, entry.soundFragment());
-                        sharerMap.put(id, entry.sharerName());
+                        sharedInfo.put(id, new SongPool.SharedMeta(entry.sharerName(), entry.sourceUserEmail(), entry.priority()));
                     }
 
-                    List<SoundFragment> result = new ArrayList<>(merged.values());
-                    Collections.shuffle(result);
                     LOGGER.infof("[getAnySongs] widening pool: %d own + %d shared -> %d distinct",
-                            tuple.getItem1().size(), tuple.getItem2().size(), result.size());
-                    return new SongPool(result, sharerMap);
+                            tuple.getItem1().size(), tuple.getItem2().size(), merged.size());
+                    return floatPriorityToFront(new ArrayList<>(merged.values()), sharedInfo);
                 });
     }
 

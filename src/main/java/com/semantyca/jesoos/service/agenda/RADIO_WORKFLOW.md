@@ -20,7 +20,7 @@
 | **SceneType.ONE_TIME** | A scene that **preempts** the loop for a short fixed window at a declared start time, then never repeats that day. |
 | **Talkativity** | `0.0–1.0` probability knob controlling how often DJ intros (TTS) are inserted vs. pure song/jingle transitions. |
 | **PlaylistRequest / WayOfSourcing** | How a scene gets its songs: `GENERATED` (AI content, no catalog songs), `QUERY` (filter by genre/label/search), `STATIC_LIST` (explicit ids), or default `RANDOM` (newest/oldest/random mix + shared fragments). |
-| **SongPool** | The fetched `List<SoundFragment>` + a `sharerMap` (id → sharer name) for shared songs. |
+| **SongPool** | The fetched `List<SoundFragment>` + a `sharedInfo` map (id → `SharedMeta{sharerName, contributorEmail, priority}`) for shared songs. |
 | **SF (SoundFragment)** | The audio-item model (song / jingle / generated content / stream). "SF" is the platform-wide shorthand. |
 | **OTS (One-Time Stream)** | A temporary, **user-started** personal stream, separate from the brand's continuous radio. Always has its own slug/routing identity; a brand is *optional* (brand-scoped vs owner-scoped) and, when present, only supplies song-sourcing/defaults — see `../live/OTS_WORKFLOW.md`. |
 | **StreamAgenda** | The built product: an ordered set of `LiveScene`s for a brand, with a timezone and build timestamp. Held per-brand in `BrandPool`. |
@@ -95,16 +95,30 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
 - **As widening (ladder rung 2): every sourcing path** (`getAnySongs`). Once a scene's own filter
   is exhausted the criteria are dropped anyway, so the type-only shared query is sufficient — a
   `QUERY` scene whose filter matches too few songs *will* be filled with received songs, and their
-  `sharerMap` is carried through `widenToFill` so credit survives.
+  `sharedInfo` entry is carried through `widenToFill` so credit survives.
 - **Eligibility:** `target_brand_id = brand`, `status = 505` (accepted), `archived = 0`, and
   Catalog Boost `> -1` (quarantined shares are excluded).
 - **Selection:** 40% newest / 60% weighted-random (same `ssf.boost` weighting as §2a Catalog Boost),
   merged first-wins and shuffled, then folded into the brand pool with `putIfAbsent` — **the brand's
   own copy wins** on id collision.
 - **Sharer identity:** each shared song carries a `sharerName` (`source_user_name`) → `SharedSongEntry`
-  → `SongPool.sharerMap` → `SongEntry.sharerName`. This is the **only** sourcing path that populates
-  `sharerMap`; it is later fed to the DJ draft (`IntroTtsGenerator`) so an intro can credit/dedicate
-  to the sharer.
+  → `SongPool.sharedInfo` → `SongEntry.sharerName`. Shared songs are the **only** sourcing path that
+  populates `sharedInfo`; it is later fed to the DJ draft (`IntroTtsGenerator`) so an intro can
+  credit/dedicate to the sharer.
+- **Priority contributions (`"new"` label).** A shared fragment can carry a `"new"`
+  label (`__labels`, joined via `mixpla__sound_fragment_labels`) — datanest attaches it, then
+  publishes `REBUILD_AGENDA{brandId}` (the same command the nightly rebuild and Catalog Boost
+  changes use). On the next build, `ScheduleSongSupplier.floatPriorityToFront` pulls any such
+  fragment to the head of the pool (ahead of the normal shuffle) and clears the label immediately,
+  so a later rebuild doesn't re-float it. Whether that entry actually gets a DJ intro is still left
+  entirely to the normal cadence/talkativity strategy in `TimelineBuilder` — priority only affects
+  *pool order*, not `hasIntro`. If it does end up with an intro, `IntroTtsGenerator` emails the
+  contributor (`SongEntry.contributorEmail`, from `ssf.source_user_email`) via
+  `MailService.sendContributionPlayingSoonAsync` once the spoken text is finalized, quoting the
+  actual intro — this applies to **any** shared song that gets an intro, not just priority ones.
+  This is a **one-shot signal**, distinct from both Catalog Boost and Live Boost (§4e) — it doesn't
+  bias selection probability or force intros, it just guarantees one specific contribution plays
+  next.
 - **De-duplication:** shared songs are ordinary (non-`STREAM`) sources, so their ids join the
   cross-scene `usedIds` exclusion set like any other song.
 

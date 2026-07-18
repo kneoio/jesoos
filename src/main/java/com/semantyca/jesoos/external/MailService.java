@@ -260,6 +260,35 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send action debug email", failure));
     }
 
+    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String introText) {
+        LOG.info("Sending 'playing soon' email to: {} for song: {}", email, songTitle);
+
+        String htmlBody = """
+        <!DOCTYPE html>
+        <html>
+        <body style="margin: 0; padding: 24px; background: #f7f7fb; font-family: Inter, Arial, sans-serif; color: #1f2937;">
+            <div style="max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #ececf2; border-radius: 14px; padding: 28px;">
+                <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
+                <h2 style="font-size: 20px; margin: 0 0 12px;">Your song is playing soon!</h2>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is coming up next, with a DJ intro:</p>
+                <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; padding: 18px;">
+                    <p style="margin: 0; color: #312e81; font-style: italic; line-height: 1.5;">"%s"</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """.formatted(escapeHtml(songTitle), escapeHtml(introText));
+
+        String textBody = songTitle + " is coming up next, with a DJ intro:\n\n\"" + introText + "\"";
+
+        Mail mail = Mail.withHtml(email, "Your song is playing soon - " + songTitle, htmlBody)
+                .setText(textBody)
+                .setFrom("Mixpla <" + fromAddress + ">");
+
+        return reactiveMailer.send(mail)
+                .onFailure().invoke(failure -> LOG.error("Failed to send 'playing soon' email", failure));
+    }
+
     private static String escapeHtml(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");

@@ -123,15 +123,15 @@ public abstract class AbstractAgendaService {
                         .chain(matched -> oneTimeRun
                                 ? Uni.createFrom().item(new SongPool(matched, Map.of()))
                                 : widenToFill(scope, songSupplier, scene, matched, songCount, effectiveExcludes))
-                        .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
+                        .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments())
                     .chain(pinned -> oneTimeRun
                             ? Uni.createFrom().item(new SongPool(pinned, Map.of()))
                             : widenToFill(scope, songSupplier, scene, pinned, songCount, effectiveExcludes))
-                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
+                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
             default -> songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, effectiveExcludes)
-                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharerMap()));
+                    .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
         };
     }
 
@@ -165,7 +165,7 @@ public abstract class AbstractAgendaService {
                             scene.getTitle(), matched.size(), targetCount, widened.songs().size());
                     List<SoundFragment> combined = new ArrayList<>(matched);
                     combined.addAll(widened.songs());
-                    return new SongPool(combined, widened.sharerMap());
+                    return new SongPool(combined, widened.sharedInfo());
                 });
     }
 
@@ -237,15 +237,17 @@ public abstract class AbstractAgendaService {
         return song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
     }
 
-    protected List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, Map<java.util.UUID, String> sharerMap, int sceneDurationSeconds) {
+    protected List<SongEntry> convertToSongEntries(List<SoundFragment> soundFragments, Map<java.util.UUID, SongPool.SharedMeta> sharedInfo, int sceneDurationSeconds) {
         List<SongEntry> songEntries = new ArrayList<>();
         for (int i = 0; i < soundFragments.size(); i++) {
             SoundFragment sf = soundFragments.get(i);
-            String sharerName = sharerMap != null ? sharerMap.get(sf.getId()) : null;
+            SongPool.SharedMeta meta = sharedInfo != null ? sharedInfo.get(sf.getId()) : null;
+            String sharerName = meta != null ? meta.sharerName() : null;
+            String contributorEmail = meta != null ? meta.contributorEmail() : null;
             if (sf.getSource() == SourceType.STREAM) {
-                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, sceneDurationSeconds));
+                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail, sceneDurationSeconds));
             } else {
-                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName));
+                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail));
             }
         }
         return songEntries;

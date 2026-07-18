@@ -160,8 +160,23 @@ public class IntroTtsGenerator {
                             .map(draftContent -> new PromptAndDraft(resolved.prompt(), draftContent));
                 })
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, language, entryTraceId, stream.getSlugName(), entrySeq))
+                .chain(spokenText -> maybeSendContributorEmail(songEntry, spokenText).replaceWith(spokenText))
                 .chain(spokenText -> generateTtsAudio(spokenText, agent, language, liveScene.getSceneTitle(), entryTraceId, stream.getSlugName(), entrySeq))
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
+    }
+
+    /**
+     * Emails the contributor once their song's DJ intro text is final, so "when will my song play"
+     * comes with the actual intro rather than a generic placeholder. Best-effort: failures never break
+     * the intro/TTS pipeline for the listener-facing stream.
+     */
+    private Uni<Void> maybeSendContributorEmail(SongEntry songEntry, String spokenText) {
+        String email = songEntry.getContributorEmail();
+        if (email == null || email.isBlank() || spokenText == null) {
+            return Uni.createFrom().voidItem();
+        }
+        return mailService.sendContributionPlayingSoonAsync(email, songEntry.getSoundFragment().getTitle(), spokenText)
+                .onFailure().recoverWithItem((Void) null);
     }
 
     private Uni<IntroAudioResult> generateIntroFromAction(
