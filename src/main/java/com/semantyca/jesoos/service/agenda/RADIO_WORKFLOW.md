@@ -153,7 +153,7 @@ Invariants — **do not silently change**:
 - **One-time preempts loop at runtime too** (`findActiveOneTime` before `findLoopingScene`), bounded by the scene's own window so stale instances don't latch.
 - **Status is a state machine** (`TimelineEntryStatus`): SCHEDULED→PENDING→…→EMITTING→COMPLETED/FAILED/SKIPPED, transitioned with `compareAndSet` to stay idempotent under the 15s re-tick. Never reset status ad hoc.
 - **Lead time & deadline:** entries fire `aivoxDelaySeconds` early; entries past the scene `endTime` are SKIPPED, not emitted late.
-- **Backpressure** (`backpressure(brand)`) queues skip counts consumed at fire time; a failed entry triggers the next immediately (`triggerNextEntry`).
+- **Backpressure** (`backpressure(brand)`) queues skip counts consumed at fire time; a failed entry triggers the next immediately (`triggerNextEntry`). The skip counter is **radio-only** — OTS entries never pass through this scheduler, so the command short-circuits for an OTS slug (`../live/OTS_WORKFLOW.md` §4c).
 - **Timer hygiene:** `cancelBrandTimers` on scene change / removal / shutdown — always cancel when you deactivate.
 - **Every stage emits metrics** with the propagated `traceId` / `emissionTraceId`. Preserve trace propagation end-to-end.
 ---
@@ -316,6 +316,11 @@ mint a fresh `UUID.randomUUID()` mid-chain unless you are genuinely starting a n
 content should finish; a `@Scheduled 60s` `checkSilenceRisk` publishes a `silence_risk`
 WARNING when a brand is overdue past `SILENCE_GRACE_SECONDS` (120s). This is the primary
 "is the station actually on air?" signal — keep `trackEmission` calls in step with real emissions.
+It **only warns** and never stops a stream; note also that `trackEmission` sits on the emit
+*success* path only, so a failed entry leaves the expectation stale and the warning fires against
+an out-of-date timestamp. Call `clearTracking(brand)` when a stream genuinely stops, or the slug
+is flagged forever. (An earlier OTS auto-stop built on this signal was removed — see
+`../live/OTS_WORKFLOW.md` §4c for why cadence is the wrong basis for a teardown decision.)
 
 **Rule:** if you touch a stage, preserve its existing metric `code`s and severities, and keep
 publishing on the same failure/success branches. Renaming a `code` or dropping an event

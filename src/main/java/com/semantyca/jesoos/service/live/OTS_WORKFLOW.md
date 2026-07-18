@@ -118,6 +118,82 @@ OTS's `SongSourceScope` and route on the OTS slug; the chat is ephemeral and pur
 (`ChatService.purgeOtsChat`, called from `checkOtsFinished` here and `CommandService.stopOts`). Full
 detail in `../chat/CHAT_WORKFLOW.md` §9.
 
+## 4c. Scheduling & emission (`OtsStreamScheduler`)
+
+**Every scene is scheduled once, upfront.** `scheduleStream` walks all `LiveScene`s and arms a
+vertx timer for every `PENDING` entry in a single pass at stream start. There is no ticker and no
+per-scene replanning (§1): the plan is computed once and never revisited. Radio, by contrast,
+schedules scene-by-scene as each scene begins, so each replan sees current reality — a deliberate
+difference, not an oversight.
+
+**Lead time.** A timer fires `jesoos.aivox-delay-seconds` (default `60`) *before* the entry's
+`scheduledEmissionTime`, giving jesoos time to generate intro text, run TTS and get the message to
+aivox before the audio is due. Radio uses the same lead.
+
+**Timer keys must include the scene.** `otsTimers` is `slug → ("sceneId:sequenceNumber" → timerId)`.
+`sequenceNumber` restarts at `0` in every scene, and because OTS arms all scenes in one pass, a bare
+sequence number **collides across scenes**: the last scene written wins the key, and the first
+scene's fire-callback then cancels *that* timer through `removeTimer`. The symptom is brutal and
+silent — the final scene's entry sits at `SCHEDULED` forever while its timer is already dead, the
+DJ never says goodbye, and nothing is logged. Never key OTS timers by sequence number alone.
+
+**Two skip paths, both currently silent.**
+- at schedule time — an entry whose window has already fully passed → `SKIPPED`
+- at fire time — `now >= scene.getEndTime()` → `SKIPPED`
+
+Neither publishes a metric, so from the outside a legitimately skipped entry is indistinguishable
+from one whose timer was lost. If you add skip observability, carry a reason code — that ambiguity
+has cost real debugging time.
+
+**Drift is never corrected — the stream just gets longer.** A chat/DJ song request
+(`PlaySongForOtsToolHandler`) builds its own `SongQueueMessageDTO` and goes straight to aivox via
+`internalRestCall.addSongToQueue` with `GENTLE_INTERRUPT`/`HARD_INTERRUPT` priority. It never
+touches the agenda, the timeline or the timers. Consequences, all current behaviour:
+- nothing shifts — every entry still fires at its originally planned moment;
+- nothing is skipped — the displaced entry still generates its intro text and **still pays for
+  TTS**, even though the audio lands later than planned;
+- the extra duration is absorbed entirely by aivox's queue depth, so real playback slides later
+  while jesoos keeps emitting to the original plan.
+
+The estimate written at build time is never updated, so the fire-time deadline check compares the
+plan against itself and effectively never trips on insert-induced drift. **Known gap:** to actually
+save the TTS spend, the injected duration would have to be recorded against the stream and the
+affected entries' estimates pushed forward, so the existing deadline check starts firing on its own
+— before TTS generation. Not implemented.
+
+**The silence watchdog does not stop an OTS.** `MetricPublisher.checkSilenceRisk` publishes a
+`silence_risk` WARNING and nothing more. It once self-stopped a "lingering" OTS; that was removed
+because emission cadence is the wrong signal for an OTS:
+- on a correctly chained timeline the next emission lands *exactly* on `nextExpectedEmitAt`
+  (`emit + contentDuration`), so every entry runs with precisely `SILENCE_GRACE_SECONDS + 60` = 180s
+  of slack — never more, no matter how healthy the stream;
+- `trackEmission` is only reached on the emit **success** path (`QueueSupplier`), so a single failed
+  intro generation never advances the clock and the stream is condemned against a stale expectation.
+
+The result was healthy streams being torn down mid-run: `stopOts` cancels every remaining timer and
+removes the stream from the pool, so the agenda 404s while aivox happily plays its buffered backlog
+for another ten minutes. Do not reintroduce a cadence-based auto-stop here.
+
+**Teardown must wait for real audio, not the plan.** `TimelineBuilder` budgets a **flat 10s per
+intro**, but real TTS length varies widely (8s–36s observed). For any entry but the last the
+overrun simply pushes into the next slot and aivox's queue absorbs it; the **final** entry has
+nothing after it, so a teardown timed on `scene.getEndTime()` lands mid-song. This was observed
+live: Bye was planned at 190s (180s song + 10s budget) but its Google intro came out at 25s, so
+`finishOts` fired at the planned 18:32:36 while the audio ran to 18:32:51 — aivox obeyed
+`JESOOS_OTS_FINISHED` immediately (`ots_stop_command_sent`, reason `command_received_via_queue`)
+and the goodbye was cut off 15s early. `checkOtsFinished` therefore takes
+`max(plannedDeadline, trackedEnd + aivox-delay-seconds)`: `trackEmission` records the *actual*
+song + intro seconds at emit time, and emission runs one lead ahead of playback, so playout ends a
+lead after the tracked instant. Never finish earlier than planned — only later.
+
+**Backpressure is a no-op for an OTS.** `CommandService.backpressure` feeds
+`StaggeredSongScheduler.skipCounters`, which is only ever read inside radio's own fire-time check.
+OTS entries run through `OtsStreamScheduler` and never consult it, so the signal was silently
+swallowed while reporting `backpressure_ok`. It now short-circuits with a `backpressure_ignored_ots`
+WARNING instead of a misleading success. aivox does not distinguish OTS from radio stations — its
+`QueueBackpressureChecker` scans every online station — so an OTS *will* keep receiving this call;
+the honest answer just lives on the jesoos side.
+
 ## 5. Metrics
 
 OTS mirrors the radio contract (`../agenda/RADIO_WORKFLOW.md` §5) — same event types, same
@@ -135,6 +211,22 @@ a brand slug, at two layers:
   (INFORMATION, `elapsedMs`/`elapsedSec`/`scenes`) on success, `agenda_empty_or_failed` (ERROR)
   on build failure — same codes/thresholds as the radio build path, so metriq dashboards don't
   need OTS-specific queries.
+- **Scheduling layer** (`OtsStreamScheduler.scheduleSceneSongs`, `ProcessType.FLOW`):
+  `entries_scheduled` (INFORMATION) per scene, mirroring radio's payload (`scene`, `entries`,
+  `currentTime`). Because OTS arms every scene in one pass these land as a burst within ~1ms of
+  each other, one event per scene.
+- **Command layer, backpressure:** `backpressure_ignored_ots` (WARNING) instead of
+  `backpressure_ok` when the slug resolves to an OTS (§4c).
+- **Cron layer:** `silence_risk` (WARNING, `ProcessType.CRON`). Note the process type — these do
+  **not** appear in a FLOW trace view, which is exactly why an OTS teardown once looked causeless
+  for hours. When an OTS misbehaves, read the CRON stream too.
+
+**Absence of an event is not proof of absence.** Metric publishing is fire-and-forget:
+`publishMetric` swallows failures into a logged error, so a genuinely dropped event is invisible in
+metriq and visible only in jesoos's log. Just as important, *read* paths differ — `/metriq/snapshot`
+is a capped buffer and will silently omit older events that `/metriq/{slug}/traces` still returns.
+Before concluding "X never ran", query the per-slug endpoint and cross-check the agenda's
+`statusHistory`, which is authoritative state rather than telemetry.
 
 ## 6. Rules for agents working here
 
@@ -151,6 +243,17 @@ redesign. In particular:
    the station). A routing-identity or scope-semantics change on one side is a change to both.
 3. **RabbitMQ message shape is a cross-service contract** (`SongQueueMessageDTO`, `CommandDTO` in
    2next) — coordinate before changing field names or semantics, same rule as radio.
+4. **Never key per-entry state by `sequenceNumber` alone.** It restarts per scene and OTS holds all
+   scenes at once (§4c). Timer maps, dedup sets, caches — all need the scene id in the key.
+5. **Don't add a cadence-based auto-stop.** An OTS emits ahead of playback and legitimately goes
+   quiet between entries; only the agenda's own completion (`checkOtsFinished`) or an explicit
+   `JESOOS_STOP_OTS` may tear one down (§4c).
+6. **An OTS lives only in memory.** `OneTimeStreamPool` and the vertx timers have no persistence:
+   anything that rebuilds the CDI context destroys a running OTS with no metric and no command —
+   the agenda simply 404s while aivox plays out its buffer. In dev this includes **Quarkus hot
+   reload**, which is why `quarkus.live-reload.enabled=false` is set in `application.properties`;
+   recompiling while a stream is live would otherwise silently kill it and look like a product bug.
+   Restart jesoos deliberately, between runs, never during one.
 
 ## Key files
 
