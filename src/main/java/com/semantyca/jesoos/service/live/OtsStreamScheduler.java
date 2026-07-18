@@ -8,6 +8,7 @@ import com.semantyca.jesoos.model.stream.OneTimeStream;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntryStatus;
 import com.semantyca.jesoos.service.AiAgentService;
+import com.semantyca.jesoos.util.TimeFormatUtil;
 import com.semantyca.mixpla.dto.queue.command.CommandType;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -20,8 +21,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +48,10 @@ public class OtsStreamScheduler {
     @Inject
     com.semantyca.jesoos.service.chat.ChatService chatService;
 
-    private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> otsTimers = new ConcurrentHashMap<>();
+    // Inner key is "sceneId:sequenceNumber" — sequenceNumber alone is only unique within a scene,
+    // and OTS schedules every scene's entries up front in one pass, so scene A's entry #0 and
+    // scene B's entry #0 would otherwise collide and one could cancel the other's real timer.
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, Long>> otsTimers = new ConcurrentHashMap<>();
     private final Set<String> finishedStreams = ConcurrentHashMap.newKeySet();
 
     @Inject
@@ -83,6 +89,7 @@ public class OtsStreamScheduler {
 
     private void scheduleSceneSongs(String streamSlug, LiveScene scene, ZoneId zone, ILiveStream streamRef) {
         LocalDateTime now = LocalDateTime.now(zone);
+        List<String> scheduledTimes = new ArrayList<>();
 
         for (TimelineEntry entry : scene.getTimeline()) {
             if (entry.getStatus() != TimelineEntryStatus.PENDING) continue;
@@ -95,6 +102,22 @@ public class OtsStreamScheduler {
                 }
             }
             scheduleEntry(streamSlug, scene, entry, zone, streamRef);
+            scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime() + "[" + entry.getStatus() + "]");
+        }
+
+        if (!scheduledTimes.isEmpty()) {
+            metricPublisher.publishMetric(
+                    streamSlug,
+                    MetricEventType.INFORMATION,
+                    ProcessType.FLOW,
+                    "entries_scheduled",
+                    Map.of(
+                            "scene", scene.getSceneTitle(),
+                            "entries", scheduledTimes,
+                            "currentTime", TimeFormatUtil.formatTime(now)
+                    ),
+                    scene.getTraceId()
+            );
         }
     }
 
@@ -144,19 +167,25 @@ public class OtsStreamScheduler {
                     );
         };
 
+        String timerKey = timerKey(scene, entry);
+
         if (triggerTime <= now) {
-            removeTimer(streamSlug, entry.getSequenceNumber());
+            removeTimer(streamSlug, timerKey);
             task.run();
             return;
         }
 
         long delay = triggerTime - now;
         long timerId = vertx.setTimer(delay, id -> {
-            removeTimer(streamSlug, entry.getSequenceNumber());
+            removeTimer(streamSlug, timerKey);
             task.run();
         });
         otsTimers.computeIfAbsent(streamSlug, k -> new ConcurrentHashMap<>())
-                .put(entry.getSequenceNumber(), timerId);
+                .put(timerKey, timerId);
+    }
+
+    private static String timerKey(LiveScene scene, TimelineEntry entry) {
+        return scene.getSceneId() + ":" + entry.getSequenceNumber();
     }
 
     private Uni<Void> emitEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream stream, UUID emissionTraceId) {
@@ -184,10 +213,23 @@ public class OtsStreamScheduler {
             return;
         }
 
-        long deadline = scenes.stream()
+        long plannedDeadline = scenes.stream()
                 .mapToLong(scene -> scene.getEndTime().atZone(scene.getTimeZone()).toInstant().toEpochMilli())
                 .max()
                 .orElse(System.currentTimeMillis());
+
+        // The planned deadline budgets a flat allowance per intro, but real TTS length varies
+        // (8s..36s observed against a 10s budget), so tearing down on the plan cuts the final
+        // entry mid-song — the last scene has nothing after it to absorb the overrun.
+        // trackEmission recorded the *actual* song + intro seconds at emit time, and emission runs
+        // aivox-delay-seconds ahead of playback, so playout ends that much after the tracked
+        // instant. Never finish earlier than planned; extend when reality ran long.
+        Instant trackedEnd = metricPublisher.expectedContentEndAt(streamSlug);
+        long deadline = trackedEnd == null
+                ? plannedDeadline
+                : Math.max(plannedDeadline,
+                        trackedEnd.plusSeconds(config.getAivoxDelaySeconds()).toEpochMilli());
+
         long delay = deadline - System.currentTimeMillis();
 
         if (delay > 0) {
@@ -223,16 +265,16 @@ public class OtsStreamScheduler {
     }
 
     public void cancelOtsTimers(String otsSlugName) {
-        ConcurrentHashMap<Integer, Long> timers = otsTimers.remove(otsSlugName);
+        ConcurrentHashMap<String, Long> timers = otsTimers.remove(otsSlugName);
         if (timers != null) {
             timers.values().forEach(vertx::cancelTimer);
         }
     }
 
-    private void removeTimer(String otsSlugName, int sequenceNumber) {
-        ConcurrentHashMap<Integer, Long> timers = otsTimers.get(otsSlugName);
+    private void removeTimer(String otsSlugName, String timerKey) {
+        ConcurrentHashMap<String, Long> timers = otsTimers.get(otsSlugName);
         if (timers != null) {
-            Long old = timers.remove(sequenceNumber);
+            Long old = timers.remove(timerKey);
             if (old != null) vertx.cancelTimer(old);
         }
     }
