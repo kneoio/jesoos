@@ -265,14 +265,27 @@ public class CommandService {
             return Uni.createFrom().failure(new IllegalArgumentException("Missing brand parameter"));
         }
         metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "backpressure_received", Map.of("brand", brand), traceId);
-        return Uni.createFrom().item(() -> {
-            int pending = staggeredSongScheduler.backpressure(brand);
-            metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "backpressure_ok", Map.of("brand", brand, "pendingSkips", pending), traceId);
-            return new JsonObject()
-                    .put("success", true)
-                    .put("brand", brand)
-                    .put("pendingSkips", pending);
-        }).onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "backpressure_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
+        return oneTimeStreamPool.get(brand)
+                .chain(otsStream -> {
+                    if (otsStream != null) {
+                        // OtsStreamScheduler has no skip mechanism — it schedules every entry
+                        // up front from absolute wall-clock times, so a skip-counter increment
+                        // consumed by StaggeredSongScheduler (radio only) would be a silent no-op.
+                        metricPublisher.publishMetric(brand, MetricEventType.WARNING, ProcessType.FLOW, "backpressure_ignored_ots",
+                                Map.of("brand", brand, "reason", "OTS streams are not skip-aware"), traceId);
+                        return Uni.createFrom().item(new JsonObject()
+                                .put("success", false)
+                                .put("brand", brand)
+                                .put("message", "Backpressure ignored: OTS streams are not skip-aware"));
+                    }
+                    int pending = staggeredSongScheduler.backpressure(brand);
+                    metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "backpressure_ok", Map.of("brand", brand, "pendingSkips", pending), traceId);
+                    return Uni.createFrom().item(new JsonObject()
+                            .put("success", true)
+                            .put("brand", brand)
+                            .put("pendingSkips", pending));
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(brand, MetricEventType.ERROR, ProcessType.FLOW, "backpressure_failed", Map.of("brand", brand, "error", e.getMessage()), traceId));
     }
 
     public Uni<Boolean> getDjStatus(String brand) {
