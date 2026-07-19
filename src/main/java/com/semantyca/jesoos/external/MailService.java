@@ -260,7 +260,7 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send action debug email", failure));
     }
 
-    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String introText) {
+    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl) {
         LOG.info("Sending 'playing soon' email to: {} for song: {}", email, songTitle);
 
         String htmlBody = """
@@ -270,16 +270,18 @@ public class MailService {
             <div style="max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #ececf2; border-radius: 14px; padding: 28px;">
                 <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
                 <h2 style="font-size: 20px; margin: 0 0 12px;">Your song is playing soon!</h2>
-                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is coming up next, with a DJ intro:</p>
-                <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; padding: 18px;">
-                    <p style="margin: 0; color: #312e81; font-style: italic; line-height: 1.5;">"%s"</p>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — the DJ is about to play it. Tune in and you could hear your song on air any moment now!</p>
+                <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px;">
+                    <a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">Listen live now</a>
                 </div>
+                <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.45;">If this was not you, just ignore this email.</p>
             </div>
         </body>
         </html>
-        """.formatted(escapeHtml(songTitle), escapeHtml(introText));
+        """.formatted(escapeHtml(songTitle), stationUrl);
 
-        String textBody = songTitle + " is coming up next, with a DJ intro:\n\n\"" + introText + "\"";
+        String textBody = songTitle + " is now in the queue — the DJ is about to play it. " +
+                "Tune in and you could hear your song on air any moment now!\n\n" + stationUrl;
 
         Mail mail = Mail.withHtml(email, "Your song is playing soon - " + songTitle, htmlBody)
                 .setText(textBody)
