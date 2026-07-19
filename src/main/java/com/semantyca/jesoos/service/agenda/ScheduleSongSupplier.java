@@ -1,7 +1,5 @@
 package com.semantyca.jesoos.service.agenda;
 
-import com.semantyca.jesoos.config.JesoosConfig;
-import com.semantyca.jesoos.external.MailService;
 import com.semantyca.jesoos.model.stream.SharedSongEntry;
 import com.semantyca.jesoos.model.stream.SongPool;
 import com.semantyca.jesoos.model.stream.SongSourceScope;
@@ -32,16 +30,11 @@ public class ScheduleSongSupplier {
 
     private final SoundFragmentRepository repository;
     private final SharedSoundFragmentService sharedSoundFragmentService;
-    private final MailService mailService;
-    private final JesoosConfig config;
 
     @Inject
-    public ScheduleSongSupplier(SoundFragmentRepository repository, SharedSoundFragmentService sharedSoundFragmentService,
-                                 MailService mailService, JesoosConfig config) {
+    public ScheduleSongSupplier(SoundFragmentRepository repository, SharedSoundFragmentService sharedSoundFragmentService) {
         this.repository = repository;
         this.sharedSoundFragmentService = sharedSoundFragmentService;
-        this.mailService = mailService;
-        this.config = config;
     }
 
     public Uni<SongPool> getSongsRandomly(SongSourceScope scope, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
@@ -61,12 +54,10 @@ public class ScheduleSongSupplier {
         Uni<List<SoundFragment>> oldestUni;
         Uni<List<SoundFragment>> randomUni;
         Uni<List<SharedSongEntry>> sharedUni;
-        String brandSlug = null;
 
         switch (scope) {
             case SongSourceScope.BrandScope brandScope -> {
                 UUID brandId = brandScope.brandId();
-                brandSlug = brandScope.slugName();
                 newestUni = repository.findByFilter(brandId, filter, newest, effective);
                 oldestUni = repository.findByFilterOldest(brandId, filter, oldest, effective);
                 randomUni = repository.findByFilterRandom(brandId, filter, randomCount, effective);
@@ -80,7 +71,6 @@ public class ScheduleSongSupplier {
                 sharedUni = Uni.createFrom().item(List.of());
             }
         }
-        String finalBrandSlug = brandSlug;
 
         return Uni.combine().all()
                 .unis(newestUni, oldestUni, randomUni, sharedUni)
@@ -106,17 +96,18 @@ public class ScheduleSongSupplier {
                     }
 
                     List<SoundFragment> result = new ArrayList<>(merged.values());
-                    return floatPriorityToFront(result, sharedInfo, finalBrandSlug);
+                    return floatPriorityToFront(result, sharedInfo);
                 });
     }
 
     /**
      * Pulls fragments labeled "new" to the front of the freshly assembled pool (ahead of the
      * normal shuffle), so the next agenda rebuild plays a new contribution as soon as possible. The
-     * label is cleared right after selection so a later rebuild doesn't re-float the same fragment,
-     * and the contributor is emailed a link to the station (if we know the brand slug and their email).
+     * label is cleared right after selection so a later rebuild doesn't re-float the same fragment.
+     * The contributor is emailed separately, in {@code IntroTtsGenerator}, only if/when their song
+     * actually gets a spoken DJ intro — not here at build time.
      */
-    private Uni<SongPool> floatPriorityToFront(List<SoundFragment> pool, Map<UUID, SongPool.SharedMeta> sharedInfo, String brandSlug) {
+    private Uni<SongPool> floatPriorityToFront(List<SoundFragment> pool, Map<UUID, SongPool.SharedMeta> sharedInfo) {
         List<SoundFragment> priority = new ArrayList<>();
         List<SoundFragment> rest = new ArrayList<>();
         for (SoundFragment sf : pool) {
@@ -135,17 +126,10 @@ public class ScheduleSongSupplier {
         if (priority.isEmpty()) {
             return Uni.createFrom().item(new SongPool(result, sharedInfo));
         }
-        List<Uni<Void>> effects = new ArrayList<>();
-        for (SoundFragment sf : priority) {
-            effects.add(sharedSoundFragmentService.clearPriorityLabel(sf.getId()));
-            String contributorEmail = sharedInfo.get(sf.getId()).contributorEmail();
-            if (contributorEmail != null && !contributorEmail.isBlank() && brandSlug != null) {
-                String stationUrl = config.getStreamerHost() + "/" + brandSlug;
-                effects.add(mailService.sendContributionPlayingSoonAsync(contributorEmail, sf.getTitle(), stationUrl)
-                        .onFailure().recoverWithItem((Void) null));
-            }
-        }
-        return Uni.join().all(effects).andCollectFailures()
+        List<Uni<Void>> clears = priority.stream()
+                .map(sf -> sharedSoundFragmentService.clearPriorityLabel(sf.getId()))
+                .toList();
+        return Uni.join().all(clears).andCollectFailures()
                 .replaceWith(new SongPool(result, sharedInfo));
     }
 
@@ -181,10 +165,8 @@ public class ScheduleSongSupplier {
 
         Uni<List<SoundFragment>> ownUni;
         Uni<List<SharedSongEntry>> sharedUni;
-        String brandSlug = null;
         switch (scope) {
             case SongSourceScope.BrandScope brandScope -> {
-                brandSlug = brandScope.slugName();
                 ownUni = repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
                 sharedUni = sharedSoundFragmentService.getForBrand(brandScope.brandId(), PlaylistItemType.SONG, quantity, effective);
             }
@@ -193,7 +175,6 @@ public class ScheduleSongSupplier {
                 sharedUni = Uni.createFrom().item(List.of());
             }
         }
-        String finalBrandSlug = brandSlug;
 
         return Uni.combine().all().unis(ownUni, sharedUni).asTuple()
                 .chain(tuple -> {
@@ -209,7 +190,7 @@ public class ScheduleSongSupplier {
 
                     LOGGER.infof("[getAnySongs] widening pool: %d own + %d shared -> %d distinct",
                             tuple.getItem1().size(), tuple.getItem2().size(), merged.size());
-                    return floatPriorityToFront(new ArrayList<>(merged.values()), sharedInfo, finalBrandSlug);
+                    return floatPriorityToFront(new ArrayList<>(merged.values()), sharedInfo);
                 });
     }
 

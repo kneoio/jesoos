@@ -130,7 +130,7 @@ public class RadioAgendaService extends AbstractAgendaService {
                 chain = prev.chain(state -> {
                     long sceneT0 = System.currentTimeMillis();
                     LOGGER.infof("[buildAgenda] START scene='%s' duration=%ds excludeIds=%d", scene.getTitle(), durationSeconds, state.usedIds().size());
-                    SongSourceScope brandScope = new SongSourceScope.BrandScope(sourceBrand.getId(), sourceBrand.getSlugName());
+                    SongSourceScope brandScope = new SongSourceScope.BrandScope(sourceBrand.getId());
                     return fetchSongsForSceneWithDuration(brandScope, scene, durationSeconds, songSupplier, state.usedIds())
                             .chain(pool -> {
                                 long estimatedSeconds = pool.songs().stream()

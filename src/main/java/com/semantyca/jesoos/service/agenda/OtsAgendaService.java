@@ -77,7 +77,7 @@ public class OtsAgendaService extends AbstractAgendaService {
         ZoneId zone = brand.getTimeZone();
         UUID agentId = brand.getAiAgentId();
         SongSourceScope scope = brand.getId() != null
-                ? new SongSourceScope.BrandScope(brand.getId(), brand.getSlugName())
+                ? new SongSourceScope.BrandScope(brand.getId())
                 : new SongSourceScope.OwnerScope(brand.getOwner().getUserId());
 
         StreamAgenda schedule = new StreamAgenda(startTime);

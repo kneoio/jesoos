@@ -113,7 +113,8 @@ public class SongEmitter {
                         message.setSongs(songMap);
 
                         publishExpectedPlayOrder(streamSlug, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
-                        return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId);
+                        return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId)
+                                .chain(v -> notifyContributors(entry, intros, stream));
                     });
         } else {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
@@ -197,6 +198,25 @@ public class SongEmitter {
 
             return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId());
         });
+    }
+
+    /**
+     * Only after the queue send above has actually succeeded do we know the song is guaranteed to
+     * emit soon — intro generation succeeding is not enough on its own, since the send can still fail
+     * or be dropped afterward (e.g. backpressure). Only songs that actually got an intro (non-null in
+     * {@code intros}) are notified.
+     */
+    private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream) {
+        List<Uni<Void>> notifications = new ArrayList<>();
+        for (int i = 0; i < entry.getSongs().size(); i++) {
+            if (intros.get(i) != null) {
+                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream));
+            }
+        }
+        if (notifications.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        return Uni.join().all(notifications).andCollectFailures().replaceWithVoid();
     }
 
     private void publishExpectedPlayOrder(String streamSlug, TimelineEntry entry, MixingType mergingMethod, UUID parentTraceId, UUID emissionTraceId) {

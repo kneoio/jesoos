@@ -109,16 +109,21 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
   label (`__labels`, joined via `mixpla__sound_fragment_labels`) — datanest attaches it, then
   publishes `REBUILD_AGENDA{brandId}` (the same command the nightly rebuild and Catalog Boost
   changes use). On the next build, `ScheduleSongSupplier.floatPriorityToFront` pulls any such
-  fragment to the head of the pool (ahead of the normal shuffle), clears the label immediately (so
-  a later rebuild doesn't re-float it), and — in the same step, not waiting for emission — emails
-  the contributor (`ssf.source_user_email`, via `MailService.sendContributionPlayingSoonAsync`) a
-  link to the station (`{jesoos.streamer}/{brandSlug}`, from `SongSourceScope.BrandScope.slugName`).
-  Whether the entry actually gets a DJ intro is left entirely to the normal cadence/talkativity
-  strategy in `TimelineBuilder` — priority only affects *pool order*, not `hasIntro`; the email
-  doesn't quote or depend on the intro. This is a **one-shot signal**, distinct from both Catalog
-  Boost and Live Boost (§4e) — it doesn't bias selection probability or force intros, it just
-  guarantees one specific contribution plays
-  next.
+  fragment to the head of the pool (ahead of the normal shuffle) and clears the label immediately,
+  so a later rebuild doesn't re-float it. Whether the entry actually gets a DJ intro is left
+  entirely to the normal cadence/talkativity strategy in `TimelineBuilder` — priority only affects
+  *pool order*, not `hasIntro`. The contributor (`ssf.source_user_email`, threaded via
+  `SongEntry.contributorEmail`) is only emailed once the song is **guaranteed to emit imminently**:
+  `SongEmitter.send` generates the intro (`IntroTtsGenerator`) *and* successfully hands the entry off
+  to aivox's queue (`queueSupplier.sendSongsToQueue`) before calling
+  `IntroTtsGenerator.notifyContributorPlaying` — intro generation succeeding alone isn't enough,
+  since the queue send can still fail or be dropped afterward (e.g. backpressure), which would leave
+  the contributor waiting on an email for a song that never aired. The email links to the station
+  (`{jesoos.streamer}/{stream.slugName}`, `MailService.sendContributionPlayingSoonAsync`) —
+  deliberately without the intro text, so the payoff is clicking through and listening live rather
+  than reading it in the inbox. This is a **one-shot signal**, distinct from both Catalog Boost and
+  Live Boost (§4e) — it doesn't bias selection probability or force intros, it just guarantees one
+  specific contribution plays next.
 - **De-duplication:** shared songs are ordinary (non-`STREAM`) sources, so their ids join the
   cross-scene `usedIds` exclusion set like any other song.
 

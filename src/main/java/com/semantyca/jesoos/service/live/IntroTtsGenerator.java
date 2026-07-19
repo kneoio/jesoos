@@ -164,6 +164,24 @@ public class IntroTtsGenerator {
                 .chain(v -> calculateDuration(v, language, fallBacked.get(), agent.getTtsSetting().getDj().getGain(), agent.getTtsSetting().getDj().getEngineType()));
     }
 
+    /**
+     * Emails the contributor a link to the station. Called by {@code SongEmitter} only after the
+     * intro was generated AND the song was actually handed off to aivox's queue successfully — not
+     * from here, because intro generation succeeding is not the same as the song being guaranteed to
+     * emit (the subsequent queue send can still fail/be dropped, e.g. under backpressure). The email
+     * deliberately omits the intro text, so the payoff is clicking through and listening live rather
+     * than reading it in the inbox. Best-effort: failures never break the emission pipeline.
+     */
+    public Uni<Void> notifyContributorPlaying(SongEntry songEntry, ILiveStream stream) {
+        String email = songEntry.getContributorEmail();
+        if (email == null || email.isBlank()) {
+            return Uni.createFrom().voidItem();
+        }
+        String stationUrl = config.getStreamerHost() + "/" + stream.getSlugName();
+        return mailService.sendContributionPlayingSoonAsync(email, songEntry.getSoundFragment().getTitle(), stationUrl)
+                .onFailure().recoverWithItem((Void) null);
+    }
+
     private Uni<IntroAudioResult> generateIntroFromAction(
             LiveScene liveScene,
             SongEntry songEntry,
