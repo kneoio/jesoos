@@ -113,7 +113,10 @@ It shapes **which songs enter the agenda** at build time, entirely in SQL (`Soun
   so a later rebuild doesn't re-float it. Whether the entry actually gets a DJ intro is left
   entirely to the normal cadence/talkativity strategy in `TimelineBuilder` — priority only affects
   *pool order*, not `hasIntro`. The contributor (`ssf.source_user_email`, threaded via
-  `SongEntry.contributorEmail`) is only emailed once the song is **guaranteed to emit imminently**:
+  `SongEntry.contributorEmail`) is only ever populated when `ssf.notify_on_play = true` —
+  `SharedSoundFragmentRepository.fromRow` gates it there, so a contributor who didn't opt in never
+  gets an email regardless of what happens downstream. When populated, they're only emailed once the
+  song is **guaranteed to emit imminently**:
   `SongEmitter.send` generates the intro (`IntroTtsGenerator`) *and* successfully hands the entry off
   to aivox's queue (`queueSupplier.sendSongsToQueue`) before calling
   `IntroTtsGenerator.notifyContributorPlaying` — intro generation succeeding alone isn't enough,

@@ -141,14 +141,16 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                         sf.setBoost(sharedBoost);
                     }
                     Boolean isPriority = row.getBoolean("is_priority");
+                    boolean notifyOnPlay = Boolean.TRUE.equals(row.getBoolean("notify_on_play"));
+                    String contributorEmail = notifyOnPlay ? row.getString("source_user_email") : null;
                     return new SharedSongEntry(sf, row.getString("source_user_name"),
-                            row.getString("source_user_email"), Boolean.TRUE.equals(isPriority));
+                            contributorEmail, Boolean.TRUE.equals(isPriority));
                 });
     }
 
     private String buildQuery(UUID brandId, PlaylistItemType type, Set<UUID> excludeIds, String orderBy, int limit) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.boost AS shared_boost, ")
+                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.notify_on_play, ssf.boost AS shared_boost, ")
                 .append("EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl ")
                 .append("JOIN __labels l ON l.id = sfl.label_id ")
                 .append("WHERE sfl.id = sf.id AND l.identifier = '").append(PRIORITY_LABEL_SLUG).append("') AS is_priority ")
