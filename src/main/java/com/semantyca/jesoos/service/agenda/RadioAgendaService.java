@@ -261,11 +261,17 @@ public class RadioAgendaService extends AbstractAgendaService {
         }
     }
 
-    // Drops a priority-contributed song into the next not-yet-scheduled timeline slot of the
-    // brand's already-live agenda, replacing one already-selected song rather than adding to the
-    // scene's duration, so no downstream entry's scheduledEmissionTime shifts. Entries the
-    // StaggeredSongScheduler has already claimed (status != PENDING) are left untouched — returns
-    // false if no such slot exists so the caller can fall back to a full rebuild.
+    // Drops a priority-contributed song into the next upcoming timeline slot of the brand's
+    // already-live agenda, replacing one already-selected song rather than adding to the scene's
+    // duration, so no downstream entry's scheduledEmissionTime shifts.
+    //
+    // SceneTicker sweeps the *entire* active scene's timeline every 15s and flips every entry it
+    // reaches from PENDING to SCHEDULED immediately (registering a Vert.x timer however far out its
+    // emission time is) — so a running scene has essentially no PENDING entries left within seconds
+    // of starting. SCHEDULED only locks the entry's fire time, not its content: the timer's closure
+    // reads entry.getSongs() live when it fires, so a SCHEDULED entry is still safe to swap right up
+    // until it flips to EMITTING. Only EMITTING/terminal entries are left untouched. Returns false if
+    // no such slot exists so the caller can fall back to a full rebuild.
     public boolean replacePrioritySong(ILiveStream stream, SharedSongEntry prioritySong) {
         StreamAgenda agenda = stream.getAgenda();
         if (agenda == null) {
@@ -276,7 +282,8 @@ public class RadioAgendaService extends AbstractAgendaService {
                 continue;
             }
             for (TimelineEntry entry : scene.getTimeline()) {
-                if (entry.getStatus() != TimelineEntryStatus.PENDING) {
+                TimelineEntryStatus status = entry.getStatus();
+                if (status != TimelineEntryStatus.PENDING && status != TimelineEntryStatus.SCHEDULED) {
                     continue;
                 }
                 List<SongEntry> songs = entry.getSongs();
