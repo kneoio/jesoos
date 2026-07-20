@@ -45,12 +45,17 @@ public class SharedSoundFragmentService {
         return Uni.combine().all()
                 .unis(
                         repository.findByBrand(brandId, type, newest, excludeIds),
-                        repository.findByBrandRandom(brandId, type, random, excludeIds)
+                        repository.findByBrandRandom(brandId, type, random, excludeIds),
+                        repository.findPendingPriority(brandId, type, 5)
                 )
                 .asTuple()
                 .map(tuple -> {
                     Map<UUID, SharedSongEntry> merged = new LinkedHashMap<>();
-                    tuple.getItem1().forEach(e -> merged.put(e.soundFragment().getId(), e));
+                    // Priority-labeled fragments go in first and unconditionally: the newest/random
+                    // queries below rank by boost/date, not by the "new" label, so a priority song
+                    // can lose the draw and never reach the pool at all if the catalog is large.
+                    tuple.getItem3().forEach(e -> merged.put(e.soundFragment().getId(), e));
+                    tuple.getItem1().forEach(e -> merged.putIfAbsent(e.soundFragment().getId(), e));
                     tuple.getItem2().forEach(e -> merged.putIfAbsent(e.soundFragment().getId(), e));
                     List<SharedSongEntry> result = new ArrayList<>(merged.values());
                     Collections.shuffle(result);
