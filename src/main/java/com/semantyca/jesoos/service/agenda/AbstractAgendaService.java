@@ -70,7 +70,7 @@ public abstract class AbstractAgendaService {
     protected int calculateDurationUntilNext(java.time.LocalTime start, java.time.LocalTime next) {
         int startSeconds = start.toSecondOfDay();
         int nextSeconds = next.toSecondOfDay();
-        if (nextSeconds > startSeconds) {
+        if (nextSeconds >= startSeconds) {
             return nextSeconds - startSeconds;
         } else {
             return (24 * 60 * 60 - startSeconds) + nextSeconds;
