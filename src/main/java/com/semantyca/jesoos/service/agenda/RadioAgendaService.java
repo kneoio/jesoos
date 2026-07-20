@@ -179,6 +179,7 @@ public class RadioAgendaService extends AbstractAgendaService {
             }
 
             return chain.map(state -> {
+                repositionPastPrioritySongs(state.liveScenes(), brandZone);
                 for (LiveScene liveScene : state.liveScenes()) {
                     schedule.addScene(liveScene);
                     if (liveScene.getFitSeconds() > 360) {
@@ -210,6 +211,91 @@ public class RadioAgendaService extends AbstractAgendaService {
                 return schedule;
             });
         });
+    }
+
+    // A fresh build processes scenes in chronological day order, so floatPriorityToFront (per-scene
+    // pool ordering) hands a priority song to whichever scene is built first — often an early-morning
+    // one that's already in the past by build time, where it would just get SKIPPED. Bumps any such
+    // song into the first still-upcoming entry instead, swapping one song for one song so no
+    // scheduledEmissionTime shifts. Used by both the nightly cron and station-startup builds.
+    private void repositionPastPrioritySongs(List<LiveScene> liveScenes, ZoneId brandZone) {
+        LocalDateTime now = LocalDateTime.now(brandZone);
+        List<TimelineEntry> allEntries = liveScenes.stream()
+                .filter(s -> s.getTimeline() != null)
+                .flatMap(s -> s.getTimeline().stream())
+                .toList();
+
+        for (TimelineEntry entry : allEntries) {
+            if (entry.getScheduledEmissionTime() == null || !entry.getScheduledEmissionTime().isBefore(now)) {
+                continue;
+            }
+            List<SongEntry> songs = entry.getSongs();
+            if (songs == null) {
+                continue;
+            }
+            for (int i = 0; i < songs.size(); i++) {
+                SongEntry priority = songs.get(i);
+                if (!priority.isPriority()) {
+                    continue;
+                }
+                TimelineEntry target = allEntries.stream()
+                        .filter(e -> e.getScheduledEmissionTime() != null && !e.getScheduledEmissionTime().isBefore(now))
+                        .filter(e -> e.getSongs() != null && !e.getSongs().isEmpty())
+                        .findFirst()
+                        .orElse(null);
+                if (target == null) {
+                    continue;
+                }
+                List<SongEntry> targetSongs = new ArrayList<>(target.getSongs());
+                SongEntry bumped = targetSongs.get(0);
+                targetSongs.set(0, priority);
+                target.setSongs(targetSongs);
+
+                List<SongEntry> pastSongs = new ArrayList<>(songs);
+                pastSongs.set(i, bumped);
+                entry.setSongs(pastSongs);
+
+                LOGGER.infof("Repositioned priority song '%s' from past entry #%d to upcoming entry #%d",
+                        priority.getSoundFragment().getTitle(), entry.getSequenceNumber(), target.getSequenceNumber());
+            }
+        }
+    }
+
+    // Drops a priority-contributed song into the next not-yet-scheduled timeline slot of the
+    // brand's already-live agenda, replacing one already-selected song rather than adding to the
+    // scene's duration, so no downstream entry's scheduledEmissionTime shifts. Entries the
+    // StaggeredSongScheduler has already claimed (status != PENDING) are left untouched — returns
+    // false if no such slot exists so the caller can fall back to a full rebuild.
+    public boolean replacePrioritySong(ILiveStream stream, SharedSongEntry prioritySong) {
+        StreamAgenda agenda = stream.getAgenda();
+        if (agenda == null) {
+            return false;
+        }
+        for (LiveScene scene : agenda.getLiveScenes()) {
+            if (scene.getTimeline() == null) {
+                continue;
+            }
+            for (TimelineEntry entry : scene.getTimeline()) {
+                if (entry.getStatus() != TimelineEntryStatus.PENDING) {
+                    continue;
+                }
+                List<SongEntry> songs = entry.getSongs();
+                if (songs == null || songs.isEmpty()) {
+                    continue;
+                }
+                SongEntry original = songs.get(0);
+                SongEntry replacement = new SongEntry(prioritySong.soundFragment(), original.getPromptEntry(),
+                        original.getSequenceNumber(), prioritySong.sharerName(), prioritySong.sourceUserEmail(),
+                        original.getDurationSeconds(), true);
+                List<SongEntry> updated = new ArrayList<>(songs);
+                updated.set(0, replacement);
+                entry.setSongs(updated);
+                LOGGER.infof("Replaced song in scene '%s' entry #%d with priority contribution '%s'",
+                        scene.getSceneTitle(), entry.getSequenceNumber(), prioritySong.soundFragment().getTitle());
+                return true;
+            }
+        }
+        return false;
     }
 
     // weekday: ISO 1=Monday .. 7=Sunday; null/empty means active every day.

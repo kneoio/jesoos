@@ -14,6 +14,7 @@ public class SongEntry {
     private final int durationSeconds;
     private final String sharerName;
     private final String contributorEmail;
+    private final boolean priority;
 
     public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber) {
         this(soundFragment, promptEntry, sequenceNumber, null);
@@ -29,6 +30,16 @@ public class SongEntry {
 
     public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName,
                       String contributorEmail) {
+        this(soundFragment, promptEntry, sequenceNumber, sharerName, contributorEmail, false);
+    }
+
+    public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName,
+                      String contributorEmail, int durationSeconds) {
+        this(soundFragment, promptEntry, sequenceNumber, sharerName, contributorEmail, durationSeconds, false);
+    }
+
+    public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName,
+                      String contributorEmail, boolean priority) {
         this.promptEntry = promptEntry;
         this.id = UUID.randomUUID();
         this.soundFragment = soundFragment;
@@ -38,10 +49,11 @@ public class SongEntry {
                 : 180;
         this.sharerName = sharerName;
         this.contributorEmail = contributorEmail;
+        this.priority = priority;
     }
 
     public SongEntry(SoundFragment soundFragment, PromptEntry promptEntry, int sequenceNumber, String sharerName,
-                      String contributorEmail, int durationSeconds) {
+                      String contributorEmail, int durationSeconds, boolean priority) {
         this.promptEntry = promptEntry;
         this.id = UUID.randomUUID();
         this.soundFragment = soundFragment;
@@ -49,6 +61,7 @@ public class SongEntry {
         this.durationSeconds = durationSeconds;
         this.sharerName = sharerName;
         this.contributorEmail = contributorEmail;
+        this.priority = priority;
     }
 
     public boolean isShared() {

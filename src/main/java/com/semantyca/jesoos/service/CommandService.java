@@ -4,15 +4,19 @@ import com.semantyca.core.dto.queue.command.CommandDTO;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.SharedSongEntry;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.repository.SoundFragmentRatingLogRepository;
+import com.semantyca.jesoos.service.agenda.RadioAgendaService;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.live.*;
 import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
+import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.Boost;
+import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -37,6 +41,8 @@ public class CommandService {
     private final ChatAuthService chatAuthService;
     private final SoundFragmentRatingLogRepository ratingLogRepository;
     private final DailyAgendaRebuildService dailyAgendaRebuildService;
+    private final SharedSoundFragmentService sharedSoundFragmentService;
+    private final RadioAgendaService radioAgendaService;
 
     // Field-injected to avoid enlarging the constructor / a wiring cycle; used to purge ephemeral OTS chat on stop.
     @jakarta.inject.Inject
@@ -52,7 +58,9 @@ public class CommandService {
                           BrandService brandService,
                           ChatAuthService chatAuthService,
                           SoundFragmentRatingLogRepository ratingLogRepository,
-                          DailyAgendaRebuildService dailyAgendaRebuildService) {
+                          DailyAgendaRebuildService dailyAgendaRebuildService,
+                          SharedSoundFragmentService sharedSoundFragmentService,
+                          RadioAgendaService radioAgendaService) {
         this.djStateService = djStateService;
         this.brandPool = brandPool;
         this.staggeredSongScheduler = staggeredSongScheduler;
@@ -64,6 +72,8 @@ public class CommandService {
         this.chatAuthService = chatAuthService;
         this.ratingLogRepository = ratingLogRepository;
         this.dailyAgendaRebuildService = dailyAgendaRebuildService;
+        this.sharedSoundFragmentService = sharedSoundFragmentService;
+        this.radioAgendaService = radioAgendaService;
     }
 
     public Uni<Void> handleQueueCommand(CommandDTO dto) {
@@ -96,8 +106,20 @@ public class CommandService {
                                     LOGGER.infof("Brand %s not active, skipping agenda rebuild", brand.getSlugName());
                                     return Uni.createFrom().voidItem();
                                 }
-                                return dailyAgendaRebuildService.rebuildBrandAgenda(brand.getSlugName(), stream)
-                                        .replaceWithVoid();
+                                return sharedSoundFragmentService.getPendingPriority(brandId, PlaylistItemType.SONG)
+                                        .chain(pending -> {
+                                            if (pending.isEmpty()) {
+                                                return dailyAgendaRebuildService.rebuildBrandAgenda(brand.getSlugName(), stream)
+                                                        .replaceWithVoid();
+                                            }
+                                            SharedSongEntry priority = pending.getFirst();
+                                            if (radioAgendaService.replacePrioritySong(stream, priority)) {
+                                                return sharedSoundFragmentService.clearPriorityLabel(priority.soundFragment().getId());
+                                            }
+                                            LOGGER.infof("No open slot to replace for brand %s, falling back to full rebuild", brand.getSlugName());
+                                            return dailyAgendaRebuildService.rebuildBrandAgenda(brand.getSlugName(), stream)
+                                                    .replaceWithVoid();
+                                        });
                             });
                 });
     }

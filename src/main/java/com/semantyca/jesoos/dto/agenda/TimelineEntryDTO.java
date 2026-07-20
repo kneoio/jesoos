@@ -50,5 +50,6 @@ public class TimelineEntryDTO {
         private String promptTitle;
         private boolean shared;
         private String sharerName;
+        private boolean priority;
     }
 }

@@ -34,6 +34,10 @@ public class SharedSoundFragmentService {
         return repository.clearPriorityLabel(soundFragmentId);
     }
 
+    public Uni<List<SharedSongEntry>> getPendingPriority(UUID brandId, PlaylistItemType type) {
+        return repository.findPendingPriority(brandId, type, 5);
+    }
+
     public Uni<List<SharedSongEntry>> getForBrand(UUID brandId, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
         int newest = Math.max(1, (int) Math.ceil(quantity * 0.4));
         int random = Math.max(1, quantity - newest);

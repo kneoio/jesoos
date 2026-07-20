@@ -244,10 +244,11 @@ public abstract class AbstractAgendaService {
             SongPool.SharedMeta meta = sharedInfo != null ? sharedInfo.get(sf.getId()) : null;
             String sharerName = meta != null ? meta.sharerName() : null;
             String contributorEmail = meta != null ? meta.contributorEmail() : null;
+            boolean priority = meta != null && meta.priority();
             if (sf.getSource() == SourceType.STREAM) {
-                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail, sceneDurationSeconds));
+                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail, sceneDurationSeconds, priority));
             } else {
-                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail));
+                songEntries.add(new SongEntry(sf, new PromptEntry(), i, sharerName, contributorEmail, priority));
             }
         }
         return songEntries;

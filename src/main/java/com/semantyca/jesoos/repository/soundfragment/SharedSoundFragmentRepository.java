@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.semantyca.core.repository.rls.RLSRepository;
 import com.semantyca.core.repository.rls.RlsActionUtil;
 import com.semantyca.jesoos.model.stream.SharedSongEntry;
+import com.semantyca.mixpla.model.cnst.ApprovalStatus;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.soundfragment.SharedSoundFragment;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
@@ -32,11 +33,6 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
     // front of the next agenda rebuild. Cleared by clearPriorityLabel once picked up, so a later
     // rebuild (e.g. the nightly cron) doesn't re-float it.
     private static final String PRIORITY_LABEL_SLUG = "new";
-
-    // Mirrors datanest's ApprovalStatus.PENDING — datanest owns that enum, jesoos only ever
-    // writes this one value (a fresh contribution share always starts PENDING). See
-    // datanest's repository/soundfragment/SHARING_WORKFLOW.md.
-    private static final int PENDING_STATUS = 506;
 
     @Inject
     public SharedSoundFragmentRepository(Pool client, ObjectMapper mapper, RLSRepository rlsRepository) {
@@ -71,7 +67,7 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                 .addOffsetDateTime(null)
                 .addInteger(0)
                 .addInteger(100)
-                .addInteger(PENDING_STATUS)
+                .addInteger(ApprovalStatus.PENDING.value())
                 .addInteger(0)
                 .addValue(sourceUserName)
                 .addValue(sourceUserEmail)
@@ -124,6 +120,27 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
         return execute(sql);
     }
 
+    // Fragments still carrying the "new" priority label for this brand — used to replace a song in
+    // the next playable slot of the already-live agenda instead of waiting for a full rebuild.
+    public Uni<List<SharedSongEntry>> findPendingPriority(UUID brandId, PlaylistItemType type, int limit) {
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT sf.*, ssf.source_user_name, ssf.source_user_email, ssf.notify_on_play, ssf.boost AS shared_boost, ")
+                .append("true AS is_priority ")
+                .append("FROM ").append(entityData.getTableName()).append(" sf ")
+                .append("JOIN ").append(SSF_TABLE).append(" ssf ON ssf.sound_fragment_id = sf.id ")
+                .append("WHERE ssf.target_brand_id = '").append(brandId).append("' ")
+                .append("AND sf.archived = 0 ")
+                .append("AND ssf.status = ").append(ApprovalStatus.ACCEPTED.value()).append(" ")
+                .append("AND EXISTS (SELECT 1 FROM mixpla__sound_fragment_labels sfl ")
+                .append("JOIN __labels l ON l.id = sfl.label_id ")
+                .append("WHERE sfl.id = sf.id AND l.identifier = '").append(PRIORITY_LABEL_SLUG).append("') ");
+        if (type != null) {
+            sql.append("AND sf.type = '").append(type.name()).append("' ");
+        }
+        sql.append("ORDER BY sf.reg_date DESC LIMIT ").append(limit);
+        return execute(sql.toString());
+    }
+
     private Uni<List<SharedSongEntry>> execute(String sql) {
         return client.query(sql)
                 .execute()
@@ -158,7 +175,7 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                 .append("JOIN ").append(SSF_TABLE).append(" ssf ON ssf.sound_fragment_id = sf.id ")
                 .append("WHERE ssf.target_brand_id = '").append(brandId).append("' ")
                 .append("AND sf.archived = 0 ")
-                .append("AND ssf.status = 505 ")
+                .append("AND ssf.status = ").append(ApprovalStatus.ACCEPTED.value()).append(" ")
                 .append("AND COALESCE(ssf.boost, 0) > -1 ");
 
         if (type != null) {

@@ -160,6 +160,7 @@ public class AgendaViewService {
                     .promptTitle(promptTitle)
                     .shared(songEntry.isShared())
                     .sharerName(songEntry.getSharerName())
+                    .priority(songEntry.isPriority())
                     .build());
         }
 
