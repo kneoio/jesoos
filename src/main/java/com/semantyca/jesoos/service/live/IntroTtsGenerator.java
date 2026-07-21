@@ -5,6 +5,7 @@ import com.github.jknack.handlebars.Template;
 import com.semantyca.core.llm.AnthropicTextClient;
 import com.semantyca.core.llm.GroqTextClient;
 import com.semantyca.core.llm.LlmTextClient;
+import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.ResourceUtil;
@@ -174,13 +175,19 @@ public class IntroTtsGenerator {
      * deliberately omits the intro text, so the payoff is clicking through and listening live rather
      * than reading it in the inbox. Best-effort: failures never break the emission pipeline.
      */
-    public Uni<Void> notifyContributorPlaying(SongEntry songEntry, ILiveStream stream) {
+    public Uni<Void> notifyContributorPlaying(SongEntry songEntry, ILiveStream stream, AiAgent agent) {
         String email = songEntry.getContributorEmail();
         if (email == null || email.isBlank()) {
             return Uni.createFrom().voidItem();
         }
         String stationUrl = config.getStreamerHost() + "/" + stream.getSlugName();
-        return mailService.sendContributionPlayingSoonAsync(email, songEntry.getSoundFragment().getTitle(), stationUrl)
+        String djName = agent != null ? agent.getName() : null;
+        return brandService.getBySlugName(stream.getSlugName())
+                .chain(brand -> {
+                    String brandName = brand != null ? brand.getLocalizedName().get(LanguageCode.en) : null;
+                    return mailService.sendContributionPlayingSoonAsync(
+                            email, songEntry.getSoundFragment().getTitle(), stationUrl, brandName, djName);
+                })
                 .onFailure().recoverWithItem((Void) null);
     }
 

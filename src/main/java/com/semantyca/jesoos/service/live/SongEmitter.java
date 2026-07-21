@@ -111,7 +111,7 @@ public class SongEmitter {
 
                         publishExpectedPlayOrder(streamSlug, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
                         return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId)
-                                .chain(v -> notifyContributors(entry, intros, stream));
+                                .chain(v -> notifyContributors(entry, intros, stream, agent));
                     });
         } else {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
@@ -154,11 +154,11 @@ public class SongEmitter {
         return true;
     }
 
-    private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream) {
+    private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream, AiAgent agent) {
         List<Uni<Void>> notifications = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {
             if (intros.get(i) != null) {
-                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream));
+                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream, agent));
             }
         }
         if (notifications.isEmpty()) {

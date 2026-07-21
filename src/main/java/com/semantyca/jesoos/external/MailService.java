@@ -260,8 +260,18 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send action debug email", failure));
     }
 
-    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl) {
+    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl, String brandName, String djName) {
         LOG.info("Sending 'playing soon' email to: {} for song: {}", email, songTitle);
+
+        String listenLabel = brandName != null && !brandName.isBlank()
+                ? "Listen " + escapeHtml(brandName) + " now..."
+                : "Listen live now...";
+
+        boolean hasDjName = djName != null && !djName.isBlank();
+        String playingClauseHtml = hasDjName ? "I'm about to play it" : "the DJ is about to play it";
+        String playingClauseText = hasDjName ? "I'm about to play it" : "the DJ is about to play it";
+        String djLineHtml = hasDjName ? "— Your DJ, " + escapeHtml(djName) : "";
+        String djLineText = hasDjName ? "— Your DJ, " + djName : "";
 
         String htmlBody = """
         <!DOCTYPE html>
@@ -269,19 +279,23 @@ public class MailService {
         <body style="margin: 0; padding: 24px; background: #f7f7fb; font-family: Inter, Arial, sans-serif; color: #1f2937;">
             <div style="max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #ececf2; border-radius: 14px; padding: 28px;">
                 <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
+                <p style="margin: 0 0 12px; color: #4b5563;">Hi,</p>
                 <h2 style="font-size: 20px; margin: 0 0 12px;">Your song is playing soon!</h2>
-                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — the DJ is about to play it. Tune in and you could hear your song on air any moment now!</p>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — %s.</p>
                 <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px;">
-                    <a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">Listen live now</a>
+                    <a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">%s</a>
                 </div>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">Chat and ask for your next song to play</a></p>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;">%s</p>
                 <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.45;">If this was not you, just ignore this email.</p>
             </div>
         </body>
         </html>
-        """.formatted(escapeHtml(songTitle), stationUrl);
+        """.formatted(escapeHtml(songTitle), playingClauseHtml, stationUrl, listenLabel, stationUrl, djLineHtml);
 
-        String textBody = songTitle + " is now in the queue — the DJ is about to play it. " +
-                "Tune in and you could hear your song on air any moment now!\n\n" + stationUrl;
+        String textBody = "Hi,\n\n" + songTitle + " is now in the queue — " + playingClauseText + ".\n\n" + stationUrl
+                + "\n\nChat and ask for your next song to play."
+                + (djLineText.isEmpty() ? "" : "\n\n" + djLineText);
 
         Mail mail = Mail.withHtml(email, "Your song is playing soon - " + songTitle, htmlBody)
                 .setText(textBody)
