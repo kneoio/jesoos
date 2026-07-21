@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.live;
+package com.semantyca.jesoos.model;
 
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;

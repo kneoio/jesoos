@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.live;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
+import com.semantyca.jesoos.model.IntroAudioResult;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.util.AiHelperUtils;
@@ -58,16 +59,12 @@ public class SongEmitter {
                           UUID emissionTraceId) {
 
         MixingType mixingStrategy = entry.getMixingStrategy();
-        // DJ on/off is a per-brand toggle for radio (CommandService.enableDj/disableDj); OTS
-        // callers force this true always -- a personal one-time stream always talks, regardless
-        // of whether its (optional) master brand's live DJ happens to be toggled on.
-        boolean djIsOnline = djOn;
         long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
                 .atZone(brandZone)
                 .toInstant()
                 .toEpochMilli();
 
-        if (djIsOnline) {
+        if (djOn) {
             LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
             boolean shouldGenerateIntros = entry.isHasIntro();
             List<Uni<IntroAudioResult>> introUnis = new ArrayList<>();
@@ -151,61 +148,12 @@ public class SongEmitter {
     }
 
     private static boolean needsIntroAtIndex(MixingType type, int index) {
-        // SONG_INTRO_SONG: only the second song (index 1) gets an intro
         if (type == MixingType.SONG_INTRO_SONG) {
             return index == 1;
         }
         return true;
     }
 
-    public Uni<Void> sendWithCustomIntro(String streamSlug,
-                                          LiveScene liveScene,
-                                          TimelineEntry entry,
-                                          String customIntroText,
-                                          AiAgent agent,
-                                          ZoneId brandZone,
-                                          int priority) {
-
-        LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-        long sceneDeadlineForAivoxAwareness = liveScene.getEndTime()
-                .atZone(brandZone)
-                .toInstant()
-                .toEpochMilli();
-
-        return introTtsGenerator.generateCustomIntroAudioFile(
-                customIntroText,
-                agent,
-                lang,
-                liveScene.getSceneTitle(),
-                liveScene.getTraceId(),
-                streamSlug,
-                entry.getSequenceNumber()
-        ).chain(introResult -> {
-            SongQueueMessageDTO message = createBaseSongQueueMessage(liveScene, entry, MixingType.INTRO_SONG, sceneDeadlineForAivoxAwareness, priority);
-
-            Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
-            IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
-            introDto.setGain(introResult.gain());
-            introDto.setEngineType(introResult.engineType());
-            introMap.put(IntroKey.INTRO_1, introDto);
-
-            Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
-            var sfFirst = entry.getSongs().getFirst().getSoundFragment();
-            songMap.put(SongKey.SONG_1, buildSongInfo(sfFirst, entry.getSongs().getFirst().getDurationSeconds()));
-
-            message.setFilePaths(introMap);
-            message.setSongs(songMap);
-
-            return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId());
-        });
-    }
-
-    /**
-     * Only after the queue send above has actually succeeded do we know the song is guaranteed to
-     * emit soon — intro generation succeeding is not enough on its own, since the send can still fail
-     * or be dropped afterward (e.g. backpressure). Only songs that actually got an intro (non-null in
-     * {@code intros}) are notified.
-     */
     private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream) {
         List<Uni<Void>> notifications = new ArrayList<>();
         for (int i = 0; i < entry.getSongs().size(); i++) {

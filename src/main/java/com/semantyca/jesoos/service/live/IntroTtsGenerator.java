@@ -11,6 +11,8 @@ import com.semantyca.core.util.ResourceUtil;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.*;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.model.IntroAudioResult;
+import com.semantyca.jesoos.model.PromptAndDraft;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.service.BrandService;

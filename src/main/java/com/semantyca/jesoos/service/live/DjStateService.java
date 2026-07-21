@@ -1,5 +1,6 @@
 package com.semantyca.jesoos.service.live;
 
+import com.semantyca.jesoos.model.LiveBoostState;
 import com.semantyca.mixpla.model.cnst.Boost;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;

@@ -1,12 +1,9 @@
 package com.semantyca.jesoos.service.live;
 
-import com.google.common.math.StatsAccumulator;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.jesoos.dto.BrandSoundFragmentAiDTO;
 import com.semantyca.jesoos.dto.BrandSoundFragmentDTO;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
-import com.semantyca.jesoos.service.AiAgentService;
-import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.mixpla.model.filter.SoundFragmentFilter;
 import com.semantyca.officeframe.dto.GenreDTO;
@@ -21,26 +18,18 @@ import jakarta.inject.Inject;
 import lombok.Getter;
 import org.jboss.logging.Logger;
 
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperService {
     private static final Logger LOGGER = Logger.getLogger(AiHelperService.class);
-
-    public record DjRequestInfo(LocalDateTime requestTime, String djName) {
-    }
-
-    private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
-
     private final SoundFragmentService soundFragmentService;
-    private final BrandService brandService;
-    private final AiAgentService aiAgentService;
     private final GenreService genreService;
     private final LabelService labelService;
-    private final StatsAccumulator statsAccumulator = new StatsAccumulator();
 
     private volatile List<GenreDTO> cachedGenres = Collections.emptyList();
     private volatile List<LabelDTO> cachedLabels = Collections.emptyList();
@@ -50,14 +39,11 @@ public class AiHelperService {
 
     @Inject
     public AiHelperService(
-            SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
-            BrandService brandService,
+            SoundFragmentService soundFragmentService,
             GenreService genreService,
             LabelService labelService
     ) {
         this.soundFragmentService = soundFragmentService;
-        this.aiAgentService = aiAgentService;
-        this.brandService = brandService;
         this.genreService = genreService;
         this.labelService = labelService;
     }
@@ -126,8 +112,6 @@ public class AiHelperService {
                 });
     }
 
-    // Owner-scoped sibling of searchBrandSoundFragmentsForAi — used by OTS chat over an owner-scoped
-    // one-time stream. Same AiDTO shape so the chat search tool handler is scope-agnostic.
     public Uni<List<BrandSoundFragmentAiDTO>> searchOwnerSoundFragmentsForAi(
             long userId,
             String keyword,
@@ -232,8 +216,6 @@ public class AiHelperService {
                 });
     }
 
-    // Owner-scoped variant of mapToBrandSoundFragmentAiDTO: builds the same AiDTO from a plain
-    // SoundFragmentDTO (no brand association, so no brand play stats).
     private Uni<BrandSoundFragmentAiDTO> mapDtoToBrandSoundFragmentAiDTO(SoundFragmentDTO dto) {
         BrandSoundFragmentAiDTO aiDto = new BrandSoundFragmentAiDTO();
         aiDto.setId(dto.getId());
