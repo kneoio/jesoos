@@ -67,7 +67,6 @@ public class BrandDTO extends AbstractDTO {
     private UUID aiAgentId;
     private UUID profileId;
     private boolean aiOverridingEnabled;
-    private boolean profileOverridingEnabled;
     private AiOverridingDTO aiOverriding;
     private ProfileOverridingDTO profileOverriding;
     @NotNull

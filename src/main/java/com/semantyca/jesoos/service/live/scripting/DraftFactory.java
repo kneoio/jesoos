@@ -251,20 +251,21 @@ public class DraftFactory {
         }
         data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
-        if (overriddenProfile != null) {
-            if (!overriddenProfile.getName().isEmpty()) {
-                data.put("profileName", overriddenProfile.getName());
-            } else {
-                data.put("profileName", profile.getName());
-            }
-            if (!overriddenProfile.getDescription().trim().isEmpty()) {
-                data.put("profileDescription", overriddenProfile.getDescription());
-            } else {
-                data.put("profileDescription", profile.getDescription());
-            }
+        String profileName;
+        String profileDescription;
+        if (overriddenProfile != null && !overriddenProfile.getName().isEmpty()) {
+            profileName = overriddenProfile.getName();
         } else {
-            data.put("profileName", profile.getName());
-            data.put("profileDescription", profile.getDescription());
+            profileName = profile.getName();
+        }
+        if (overriddenProfile != null && !overriddenProfile.getDescription().trim().isEmpty()) {
+            profileDescription = overriddenProfile.getDescription();
+        } else {
+            profileDescription = profile.getDescription();
+        }
+        data.put("profileName", profileName);
+        if (profileDescription != null && !profileDescription.trim().isEmpty()) {
+            data.put("profileDescription", profileDescription);
         }
         data.put("stationBrand", brand);
         data.put("slugName", stream.getSlugName());
