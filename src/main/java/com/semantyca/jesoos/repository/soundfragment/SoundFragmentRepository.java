@@ -189,6 +189,16 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         }
     }
 
+    public Uni<List<SoundFragment>> findRotationCandidates(UUID brandId, SoundFragmentFilter filter, int quantity, Set<UUID> excludeIds) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findRotationCandidates(brandId, filter, quantity, excludeIds);
+    }
+
+    public Uni<Void> recordBrandPlay(UUID brandId, UUID fragmentId) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.recordBrandPlay(brandId, fragmentId);
+    }
+
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findByFilter(brandId, filter, limit);

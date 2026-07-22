@@ -131,15 +131,18 @@ public class RadioAgendaService extends AbstractAgendaService {
                     long sceneT0 = System.currentTimeMillis();
                     LOGGER.infof("[buildAgenda] START scene='%s' duration=%ds excludeIds=%d", scene.getTitle(), durationSeconds, state.usedIds().size());
                     SongSourceScope brandScope = new SongSourceScope.BrandScope(sourceBrand.getId());
-                    return fetchSongsForSceneWithDuration(brandScope, scene, durationSeconds, songSupplier, state.usedIds())
+                    return fetchSongsForRadioScene(brandScope, scene, durationSeconds, songSupplier, state.usedIds())
                             .chain(pool -> {
                                 long estimatedSeconds = pool.songs().stream()
                                         .mapToLong(sf -> sf.getLength() != null ? sf.getLength().toSeconds() : 180L)
                                         .sum();
+                                // Reuse rung: the brand's whole catalog is exhausted for this build. Dropping the
+                                // exclusion set and refetching returns the least-recently-played songs first
+                                // (recency ordering), so reuse is stalest-first, not arbitrary.
                                 if (estimatedSeconds < durationSeconds && !state.usedIds().isEmpty()) {
-                                    LOGGER.infof("Catalog insufficient for scene '%s' (estimated=%ds required=%ds), resetting exclusion set", scene.getTitle(), estimatedSeconds, durationSeconds);
+                                    LOGGER.infof("Catalog exhausted for scene '%s' (estimated=%ds required=%ds), reusing least-recently-played", scene.getTitle(), estimatedSeconds, durationSeconds);
                                     state.usedIds().clear();
-                                    return fetchSongsForSceneWithDuration(brandScope, scene, durationSeconds, songSupplier, state.usedIds());
+                                    return fetchSongsForRadioScene(brandScope, scene, durationSeconds, songSupplier, state.usedIds());
                                 }
                                 return Uni.createFrom().item(pool);
                             })
@@ -180,6 +183,7 @@ public class RadioAgendaService extends AbstractAgendaService {
 
             return chain.map(state -> {
                 repositionPastPrioritySongs(state.liveScenes(), brandZone);
+                enforceNoAdjacentRepeats(state.liveScenes());
                 for (LiveScene liveScene : state.liveScenes()) {
                     schedule.addScene(liveScene);
                     if (liveScene.getFitSeconds() > 360) {
@@ -258,6 +262,74 @@ public class RadioAgendaService extends AbstractAgendaService {
                 LOGGER.infof("Repositioned priority song '%s' from past entry #%d to upcoming entry #%d",
                         priority.getSoundFragment().getTitle(), entry.getSequenceNumber(), target.getSequenceNumber());
             }
+        }
+    }
+
+    // R0 — no song may air back-to-back with itself. Per-scene selection already avoids adjacency
+    // within a scene's own fill, but scene boundaries (last song of scene N == first of scene N+1),
+    // 2-song entries, and priority repositioning can still butt two copies together. This final pass
+    // flattens every scene's entries into one on-air song sequence and swaps any offending song with a
+    // later distinct one (identity swap, so each entry keeps its slot count). It runs last, after
+    // selection, widening, and priority placement, so nothing downstream can reintroduce an adjacency.
+    // A single-song catalog makes adjacency physically unavoidable — logged, never faked.
+    private void enforceNoAdjacentRepeats(List<LiveScene> liveScenes) {
+        List<SongEntry> flat = new ArrayList<>();
+        List<TimelineEntry> entryOf = new ArrayList<>();
+        List<Integer> posOf = new ArrayList<>();
+        for (LiveScene scene : liveScenes) {
+            if (scene.getTimeline() == null) continue;
+            for (TimelineEntry entry : scene.getTimeline()) {
+                List<SongEntry> songs = entry.getSongs();
+                if (songs == null) continue;
+                for (int i = 0; i < songs.size(); i++) {
+                    if (songs.get(i) == null || songs.get(i).getSoundFragment() == null) continue;
+                    flat.add(songs.get(i));
+                    entryOf.add(entry);
+                    posOf.add(i);
+                }
+            }
+        }
+        if (flat.size() < 2) return;
+
+        boolean changed = true;
+        for (int pass = 0; pass < 3 && changed; pass++) {
+            changed = false;
+            for (int i = 1; i < flat.size(); i++) {
+                UUID prev = flat.get(i - 1).getSoundFragment().getId();
+                UUID moving = flat.get(i).getSoundFragment().getId();
+                if (!moving.equals(prev)) continue;
+
+                UUID next = (i + 1 < flat.size()) ? flat.get(i + 1).getSoundFragment().getId() : null;
+                int donor = -1;
+                for (int j = i + 1; j < flat.size(); j++) {
+                    UUID cand = flat.get(j).getSoundFragment().getId();
+                    if (cand.equals(prev)) continue;
+                    if (next != null && cand.equals(next)) continue;
+                    UUID donorPrev = flat.get(j - 1).getSoundFragment().getId();
+                    UUID donorNext = (j + 1 < flat.size()) ? flat.get(j + 1).getSoundFragment().getId() : null;
+                    if (moving.equals(donorPrev) || moving.equals(donorNext)) continue;
+                    donor = j;
+                    break;
+                }
+                if (donor == -1) {
+                    LOGGER.warnf("adjacency_unavoidable: song '%s' repeats back-to-back and no distinct swap exists",
+                            flat.get(i).getSoundFragment().getTitle());
+                    continue;
+                }
+                SongEntry tmp = flat.get(i);
+                flat.set(i, flat.get(donor));
+                flat.set(donor, tmp);
+                changed = true;
+            }
+        }
+
+        Map<TimelineEntry, SongEntry[]> rebuilt = new java.util.IdentityHashMap<>();
+        for (int k = 0; k < flat.size(); k++) {
+            TimelineEntry e = entryOf.get(k);
+            rebuilt.computeIfAbsent(e, x -> e.getSongs().toArray(new SongEntry[0]))[posOf.get(k)] = flat.get(k);
+        }
+        for (Map.Entry<TimelineEntry, SongEntry[]> me : rebuilt.entrySet()) {
+            me.getKey().setSongs(new ArrayList<>(Arrays.asList(me.getValue())));
         }
     }
 

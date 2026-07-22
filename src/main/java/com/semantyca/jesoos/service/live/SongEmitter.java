@@ -5,7 +5,9 @@ import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.messaging.QueueSupplier;
 import com.semantyca.jesoos.model.IntroAudioResult;
 import com.semantyca.jesoos.model.stream.LiveScene;
+import com.semantyca.jesoos.model.stream.SongEntry;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
+import com.semantyca.jesoos.repository.soundfragment.SoundFragmentRepository;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.*;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
@@ -13,6 +15,7 @@ import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.aiagent.AiAgent;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import io.smallrye.mutiny.Uni;
@@ -38,14 +41,17 @@ public class SongEmitter {
     private final IntroTtsGenerator introTtsGenerator;
     private final QueueSupplier queueSupplier;
     private final MetricPublisher metricPublisher;
+    private final SoundFragmentRepository soundFragmentRepository;
 
     @Inject
     public SongEmitter(IntroTtsGenerator introTtsGenerator,
                        QueueSupplier queueSupplier,
-                       MetricPublisher metricPublisher) {
+                       MetricPublisher metricPublisher,
+                       SoundFragmentRepository soundFragmentRepository) {
         this.introTtsGenerator = introTtsGenerator;
         this.queueSupplier = queueSupplier;
         this.metricPublisher = metricPublisher;
+        this.soundFragmentRepository = soundFragmentRepository;
     }
 
     public Uni<Void> send(String streamSlug,
@@ -111,6 +117,7 @@ public class SongEmitter {
 
                         publishExpectedPlayOrder(streamSlug, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
                         return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId)
+                                .call(() -> recordPlays(stream, entry))
                                 .chain(v -> notifyContributors(entry, intros, stream, agent));
                     });
         } else {
@@ -131,8 +138,34 @@ public class SongEmitter {
             dto.setSongs(songMap);
 
             publishExpectedPlayOrder(streamSlug, entry, mixingStrategy, liveScene.getTraceId(), emissionTraceId);
-            return queueSupplier.sendSongsToQueue(streamSlug, dto, liveScene.getTraceId(), emissionTraceId);
+            return queueSupplier.sendSongsToQueue(streamSlug, dto, liveScene.getTraceId(), emissionTraceId)
+                    .call(() -> recordPlays(stream, entry));
         }
+    }
+
+    /**
+     * Persists one on-air play per non-STREAM song, feeding radio's recency rotation
+     * (`last_time_played_by_brand`). Brand-scoped only — owner-scoped OTS streams have no brand row to
+     * update and are skipped. Fire-and-forget: a failed write only makes a song look slightly staler,
+     * self-healing on the next play, and must never fail the emission.
+     */
+    private Uni<Void> recordPlays(ILiveStream stream, TimelineEntry entry) {
+        if (stream == null || stream.getBrandId() == null) {
+            return Uni.createFrom().voidItem();
+        }
+        UUID brandId = stream.getBrandId();
+        List<Uni<Void>> writes = new ArrayList<>();
+        for (SongEntry song : entry.getSongs()) {
+            SoundFragment sf = song.getSoundFragment();
+            if (sf == null || sf.getSource() == SourceType.STREAM) continue;
+            writes.add(soundFragmentRepository.recordBrandPlay(brandId, sf.getId())
+                    .onFailure().recoverWithItem((Void) null));
+        }
+        if (writes.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        return Uni.join().all(writes).andCollectFailures().replaceWithVoid()
+                .onFailure().recoverWithItem((Void) null);
     }
 
     private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline, int priority) {

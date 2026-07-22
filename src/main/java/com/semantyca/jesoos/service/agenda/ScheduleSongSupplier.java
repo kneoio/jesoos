@@ -38,6 +38,38 @@ public class ScheduleSongSupplier {
     }
 
     public Uni<SongPool> getSongsRandomly(SongSourceScope scope, PlaylistItemType type, int quantity, Set<UUID> excludeIds) {
+        return getSongsRandomly(scope, type, quantity, excludeIds, false);
+    }
+
+    /**
+     * Radio rotation ({@code recency=true}, brand scope): a single recency+boost query
+     * ({@link SoundFragmentRepository#findRotationCandidates}) replaces the newest/oldest/random
+     * bucket split. Shared fragments and the "new"-label float-to-front are unchanged.
+     * {@code recency=false} keeps the legacy bucket path used by OTS.
+     */
+    public Uni<SongPool> getSongsRandomly(SongSourceScope scope, PlaylistItemType type, int quantity, Set<UUID> excludeIds, boolean recency) {
+        Set<UUID> effectiveRecency = (excludeIds != null) ? excludeIds : Set.of();
+        if (recency && scope instanceof SongSourceScope.BrandScope brandScope) {
+            SoundFragmentFilter rotationFilter = new SoundFragmentFilter();
+            rotationFilter.setType(List.of(type));
+            UUID brandId = brandScope.brandId();
+            Uni<List<SoundFragment>> ownUni = repository.findRotationCandidates(brandId, rotationFilter, quantity, effectiveRecency);
+            Uni<List<SharedSongEntry>> sharedUni = sharedSoundFragmentService.getForBrand(brandId, type, quantity, effectiveRecency);
+            return Uni.combine().all().unis(ownUni, sharedUni).asTuple()
+                    .chain(tuple -> {
+                        Map<UUID, SoundFragment> merged = new LinkedHashMap<>();
+                        tuple.getItem1().forEach(sf -> merged.putIfAbsent(sf.getId(), sf));
+
+                        Map<UUID, SongPool.SharedMeta> sharedInfo = new HashMap<>();
+                        for (SharedSongEntry entry : tuple.getItem2()) {
+                            UUID id = entry.soundFragment().getId();
+                            merged.putIfAbsent(id, entry.soundFragment());
+                            sharedInfo.put(id, new SongPool.SharedMeta(entry.sharerName(), entry.sourceUserEmail(), entry.priority()));
+                        }
+                        return floatPriorityToFront(new ArrayList<>(merged.values()), sharedInfo);
+                    });
+        }
+
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setType(List.of(type));
 
@@ -134,8 +166,20 @@ public class ScheduleSongSupplier {
     }
 
     public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity, Set<UUID> excludeIds) {
+        return getSongsByQuery(scope, playlistRequest, quantity, excludeIds, false);
+    }
+
+    /**
+     * Radio ({@code recency=true}, brand scope) rotates the filter-matched set with the recency+boost
+     * query rather than a plain shuffle — matches still lead, but are ordered least-recently-played
+     * first. {@code recency=false} keeps the legacy shuffle used by OTS.
+     */
+    public Uni<List<SoundFragment>> getSongsByQuery(SongSourceScope scope, PlaylistRequest playlistRequest, int quantity, Set<UUID> excludeIds, boolean recency) {
         SoundFragmentFilter filter = buildFilter(playlistRequest);
         Set<UUID> effective = (excludeIds != null) ? excludeIds : Set.of();
+        if (recency && scope instanceof SongSourceScope.BrandScope brandScope) {
+            return repository.findRotationCandidates(brandScope.brandId(), filter, quantity, effective);
+        }
         Uni<List<SoundFragment>> fragmentsUni = switch (scope) {
             case SongSourceScope.BrandScope brandScope -> repository.findByFilter(brandScope.brandId(), filter, quantity, effective);
             case SongSourceScope.OwnerScope ownerScope -> repository.findByOwner(ownerScope.userId(), filter, quantity, effective);
@@ -156,6 +200,15 @@ public class ScheduleSongSupplier {
      * widening drops the scene's criteria anyway. Owner-scoped streams have no shared catalog.
      */
     public Uni<SongPool> getAnySongs(SongSourceScope scope, int quantity, Set<UUID> excludeIds) {
+        return getAnySongs(scope, quantity, excludeIds, false);
+    }
+
+    /**
+     * Widening pool (drop the scene's filter). Radio ({@code recency=true}, brand scope) orders it by
+     * recency+boost so the fill is least-recently-played first; {@code recency=false} keeps the legacy
+     * weighted-random path used by OTS.
+     */
+    public Uni<SongPool> getAnySongs(SongSourceScope scope, int quantity, Set<UUID> excludeIds, boolean recency) {
         if (quantity <= 0) {
             return Uni.createFrom().item(new SongPool(List.of(), Map.of()));
         }
@@ -167,7 +220,9 @@ public class ScheduleSongSupplier {
         Uni<List<SharedSongEntry>> sharedUni;
         switch (scope) {
             case SongSourceScope.BrandScope brandScope -> {
-                ownUni = repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
+                ownUni = recency
+                        ? repository.findRotationCandidates(brandScope.brandId(), filter, quantity, effective)
+                        : repository.findByFilterRandom(brandScope.brandId(), filter, quantity, effective);
                 sharedUni = sharedSoundFragmentService.getForBrand(brandScope.brandId(), PlaylistItemType.SONG, quantity, effective);
             }
             case SongSourceScope.OwnerScope ownerScope -> {

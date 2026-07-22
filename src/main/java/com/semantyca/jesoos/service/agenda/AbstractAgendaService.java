@@ -81,6 +81,14 @@ public abstract class AbstractAgendaService {
         return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, scene.getTalkativity());
     }
 
+    /**
+     * Radio entry point: same sourcing switch, but with recency+boost rotation enabled. OTS keeps
+     * calling the plain {@code fetchSongsForSceneWithDuration} overloads, which stay on the legacy path.
+     */
+    protected Uni<SongPool> fetchSongsForRadioScene(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, scene.getTalkativity(), false, true);
+    }
+
     protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, double talkativity) {
         return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, Set.of(), talkativity, false);
     }
@@ -93,11 +101,19 @@ public abstract class AbstractAgendaService {
         return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, talkativity, false);
     }
 
+    protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds, double talkativity, boolean oneTimeRun) {
+        return fetchSongsForSceneWithDuration(scope, scene, maxDurationSeconds, songSupplier, excludeIds, talkativity, oneTimeRun, false);
+    }
+
     /**
      * oneTimeRun scenes play the fetched content once at its natural length: no duration-fit
      * loop/repeat, no truncation to maxDurationSeconds.
+     * <p>
+     * {@code recency} enables radio's recency+boost rotation for RANDOM/QUERY and the widening fill;
+     * OTS callers leave it {@code false} (legacy bucket/shuffle path). STATIC_LIST and GENERATED are
+     * unaffected by it — a pinned curation never rotates.
      */
-    protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds, double talkativity, boolean oneTimeRun) {
+    protected Uni<SongPool> fetchSongsForSceneWithDuration(SongSourceScope scope, Scene scene, int maxDurationSeconds, ScheduleSongSupplier songSupplier, Set<java.util.UUID> excludeIds, double talkativity, boolean oneTimeRun, boolean recency) {
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
         WayOfSourcing sourcing = playlistRequest.getSourcing();
 
@@ -119,18 +135,18 @@ public abstract class AbstractAgendaService {
                 req.setLabels(playlistRequest.getLabels());
                 req.setType(playlistRequest.getType());
                 req.setSource(playlistRequest.getSource());
-                yield songSupplier.getSongsByQuery(scope, req, songCount, effectiveExcludes)
+                yield songSupplier.getSongsByQuery(scope, req, songCount, effectiveExcludes, recency)
                         .chain(matched -> oneTimeRun
                                 ? Uni.createFrom().item(new SongPool(matched, Map.of()))
-                                : widenToFill(scope, songSupplier, scene, matched, songCount, effectiveExcludes))
+                                : widenToFill(scope, songSupplier, scene, matched, songCount, effectiveExcludes, recency))
                         .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
             }
             case STATIC_LIST -> songSupplier.getSongsFromStaticList(scope, playlistRequest.getSoundFragments())
                     .chain(pinned -> oneTimeRun
                             ? Uni.createFrom().item(new SongPool(pinned, Map.of()))
-                            : widenToFill(scope, songSupplier, scene, pinned, songCount, effectiveExcludes))
+                            : widenToFill(scope, songSupplier, scene, pinned, songCount, effectiveExcludes, recency))
                     .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
-            default -> songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, effectiveExcludes)
+            default -> songSupplier.getSongsRandomly(scope, PlaylistItemType.SONG, songCount, effectiveExcludes, recency)
                     .map(pool -> new SongPool(oneTimeRun ? pool.songs() : selectDistinctSongsToFillDuration(pool.songs(), effectiveDuration, talkativity), pool.sharedInfo()));
         };
     }
@@ -150,13 +166,14 @@ public abstract class AbstractAgendaService {
                                       Scene scene,
                                       List<SoundFragment> matched,
                                       int targetCount,
-                                      Set<java.util.UUID> excludeIds) {
+                                      Set<java.util.UUID> excludeIds,
+                                      boolean recency) {
         if (matched.size() >= targetCount) {
             return Uni.createFrom().item(new SongPool(matched, Map.of()));
         }
         Set<java.util.UUID> alreadyHeld = new java.util.HashSet<>(excludeIds);
         matched.forEach(sf -> alreadyHeld.add(sf.getId()));
-        return songSupplier.getAnySongs(scope, targetCount - matched.size(), alreadyHeld)
+        return songSupplier.getAnySongs(scope, targetCount - matched.size(), alreadyHeld, recency)
                 .map(widened -> {
                     if (widened.songs().isEmpty()) {
                         return new SongPool(matched, Map.of());

@@ -170,6 +170,62 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return "AND t.id NOT IN (" + inList + ") ";
     }
 
+    /** Stale-window multiplier: candidate window = quantity * OVERSAMPLE. The single rotation lever. */
+    private static final int OVERSAMPLE = 3;
+
+    /**
+     * Radio rotation query: recency gate, then boost-weighted random pick.
+     * <ol>
+     *   <li>Inner: order by {@code last_time_played_by_brand ASC NULLS FIRST} (never-played and
+     *       stalest first), tie-broken by {@code reg_date DESC} (newest catalog additions lead the
+     *       never-played block); take a window of {@code quantity * OVERSAMPLE}.</li>
+     *   <li>Outer: boost-weighted random pick of {@code quantity} from that stale window
+     *       (SUPER_BOOST 4x, BOOST 2x, normal 1x). QUARANTINE (boost -1) is excluded outright.</li>
+     * </ol>
+     * Returns fewer than {@code quantity} only when the (post-exclude) catalog is smaller than asked.
+     */
+    public Uni<List<SoundFragment>> findRotationCandidates(UUID brandId, SoundFragmentFilter filter, int quantity, Set<UUID> excludeIds) {
+        int window = Math.max(quantity, quantity * OVERSAMPLE);
+
+        StringBuilder inner = new StringBuilder();
+        inner.append("SELECT t.*, COALESCE(bsf.boost, 0) AS sel_boost FROM ").append(entityData.getTableName()).append(" t ");
+        inner.append("JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
+        inner.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
+        inner.append("AND t.archived = 0 ");
+        inner.append(buildExcludeClause(excludeIds));
+        if (filter != null && filter.isActivated()) {
+            inner.append(buildFilterConditions(filter));
+        }
+        inner.append("AND COALESCE(bsf.boost, 0) > -1 ");
+        inner.append("ORDER BY bsf.last_time_played_by_brand ASC NULLS FIRST, t.reg_date DESC ");
+        inner.append("LIMIT ").append(window);
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT sub.* FROM (").append(inner).append(") sub ");
+        sql.append("ORDER BY RANDOM() * CASE sub.sel_boost WHEN 2 THEN 4.0 WHEN 1 THEN 2.0 ELSE 1.0 END DESC ");
+        if (quantity > 0) {
+            sql.append("LIMIT ").append(quantity);
+        }
+
+        LOGGER.debugf("findRotationCandidates SQL: %s", sql);
+
+        return client.query(sql.toString())
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(this::from)
+                .concatenate()
+                .collect().asList();
+    }
+
+    /** Records one on-air play of a fragment for a brand — feeds the rotation ordering above. */
+    public Uni<Void> recordBrandPlay(UUID brandId, UUID fragmentId) {
+        String sql = "UPDATE mixpla__brand_sound_fragments " +
+                "SET played_by_brand_count = COALESCE(played_by_brand_count, 0) + 1, " +
+                "last_time_played_by_brand = now() " +
+                "WHERE brand_id = $1 AND sound_fragment_id = $2";
+        return client.preparedQuery(sql).execute(Tuple.of(brandId, fragmentId)).replaceWithVoid();
+    }
+
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         return findByFilter(brandId, filter, limit, Set.of());
     }
