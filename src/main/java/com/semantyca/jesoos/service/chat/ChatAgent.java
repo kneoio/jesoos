@@ -73,6 +73,7 @@ public class ChatAgent {
     @Inject ListenerLabelCache listenerLabelCache;
     @Inject ChatService publicChatService;
     @Inject ChatAuthService chatAuthService;
+    @Inject SunoImportService sunoImportService;
     @Inject com.semantyca.jesoos.service.agenda.AgendaViewService agendaViewService;
     @Inject BrandLlmProviderResolver llmProviderResolver;
 
@@ -249,6 +250,7 @@ public class ChatAgent {
             case "start_auth"                 -> "Sending verification code...";
             case "verify_code"                -> "Verifying code...";
             case "upload_song"                -> "Uploading your track...";
+            case "import_from_suno"           -> "Fetching your track from Suno...";
             case "search_brand_sound_fragments" -> "Searching catalog...";
             case "get_brand_catalog_summary"  -> "Loading catalog...";
             case "create_ad"                  -> "Setting up your ad...";
@@ -343,6 +345,8 @@ public class ChatAgent {
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
                     soundFragmentService, sharedSoundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
                     listenerLabelCache, brandService, brandName, userId);
+            case "import_from_suno" -> SunoImportToolHandler.execute(input, sunoImportService,
+                    listenerService, userService, listenerLabelCache, userId);
             case "play_song_with_intro" -> state.isOts()
                     ? PlaySongForOtsToolHandler.execute(input, brandName, aiAgentService,
                         oneTimeStreamPool, introTtsGenerator, internalRestCall)
@@ -395,6 +399,7 @@ public class ChatAgent {
             tools.add(ListenerDataTool.toTool());
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(UploadSongTool.toTool());
+            tools.add(SunoImportTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool(djLanguages));
             if (adEnabled) {
                 tools.add(CreateAdTool.toTool());

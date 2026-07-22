@@ -82,6 +82,7 @@ authenticated; `logoff` signs out and clears history.
 | `get_brand_catalog_summary` | full catalog overview (artists, genres, counts) |
 | `play_song_with_intro` | queue a song with a spoken TTS intro |
 | `upload_song` | add an artist's track to the catalog |
+| `import_from_suno` | fetch an artist's track from a Suno link into the temp dir (returns `temp_filename`) |
 | `send_ui_command` | e.g. `show_upload_button` — reveals the upload UI |
 | `listener_data` | get/set listener memory; `add_label` (e.g. artist) |
 | `find_community_member` | warm recognition only (privacy-limited) |
@@ -120,6 +121,13 @@ Preconditions, in order:
 4. Client sends `I uploaded a file: <filename>`; use that exact basename as
    `temp_filename`. Once `temp_filename + title + artist + genre` are known, call
    `upload_song` immediately. Don't claim success until it returns `ok:true`.
+
+**Suno link path (alternative to steps 3–4):** if the artist shares a Suno link instead of a
+file, `import_from_suno` (authenticated + artist label) resolves the song id from the URL,
+downloads `https://cdn1.suno.ai/<id>.mp3` (`SunoImportService`) into the **same** temp dir the
+upload endpoint uses, and returns a `temp_filename`. No `show_upload_button` is needed — the
+server pulls the file directly. The flow then rejoins the normal path: collect title/artist/genre,
+call `upload_song`. Title/artist are **not** auto-extracted; they come from the conversation.
 
 ---
 
