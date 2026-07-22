@@ -37,8 +37,6 @@ public class QueueSupplier {
     }
 
     public Uni<Void> sendSongsToQueue(String streamSlug, SongQueueMessageDTO message, UUID parentTraceId, UUID emissionTraceId) {
-        // message.setBrandSlug is the 2next/aivox wire field name — it's really "which aivox
-        // station to route to" (brand or OTS), kept as-is here since it's a cross-service contract.
         message.setBrandSlug(streamSlug);
         message.setMessageId(UUID.randomUUID());
         message.setTraceId(emissionTraceId);
