@@ -328,6 +328,7 @@ public class CommandService {
                 .map(stoppedAgenda -> {
                     if (stoppedAgenda != null) {
                         LOGGER.infof("Stopped brand: %s, status: %s", brand, stoppedAgenda.getStatus());
+                        metricPublisher.clearTracking(brand);
                         metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "brand_stop_ok", Map.of("brand", brand, "status", stoppedAgenda.getStatus().name()), traceId);
                         return new JsonObject()
                                 .put("success", true)
