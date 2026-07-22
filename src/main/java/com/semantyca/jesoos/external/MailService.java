@@ -260,7 +260,11 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send action debug email", failure));
     }
 
-    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl, String brandName, String djName) {
+    private static final java.time.format.DateTimeFormatter PLAYING_SOON_TIME_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm zzz", java.util.Locale.ENGLISH);
+
+    public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl, String brandName, String djName,
+                                                        int etaSeconds, java.time.ZoneId brandZone) {
         LOG.info("Sending 'playing soon' email to: {} for song: {}", email, songTitle);
 
         String listenLabel = brandName != null && !brandName.isBlank()
@@ -273,6 +277,18 @@ public class MailService {
         String djLineHtml = hasDjName ? "— Your DJ, " + escapeHtml(djName) : "";
         String djLineText = hasDjName ? "— Your DJ, " + djName : "";
 
+        java.time.ZoneId zone = brandZone != null ? brandZone : java.time.ZoneId.systemDefault();
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
+        java.time.ZonedDateTime estimatedPlayTime = now.plusSeconds(Math.max(etaSeconds, 0));
+        String nowLabel = now.format(PLAYING_SOON_TIME_FORMAT);
+        String etaLabel = estimatedPlayTime.format(PLAYING_SOON_TIME_FORMAT);
+        String roughDuration = formatRoughDuration(etaSeconds);
+
+        String skipWarningHtml = hasDjName
+                ? "Heads up — that's just my best guess, so if I shuffle the lineup at the last second, don't hold it against me!"
+                : "Heads up — that's just a rough guess, and the DJ might still shuffle the lineup at the last second.";
+        String skipWarningText = skipWarningHtml;
+
         String htmlBody = """
         <!DOCTYPE html>
         <html>
@@ -281,20 +297,24 @@ public class MailService {
                 <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
                 <p style="margin: 0 0 12px; color: #4b5563;">Hi,</p>
                 <h2 style="font-size: 20px; margin: 0 0 12px;">Your song is playing soon!</h2>
-                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — %s.</p>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — %s, roughly in %s (around %s, current time %s).</p>
                 <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px;">
                     <a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">%s</a>
                 </div>
                 <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">Chat and ask for your next song to play</a></p>
+                <p style="margin: 0 0 18px; color: #6b7280; font-size: 14px; line-height: 1.45; font-style: italic;">%s</p>
                 <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;">%s</p>
                 <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.45;">If this was not you, just ignore this email.</p>
             </div>
         </body>
         </html>
-        """.formatted(escapeHtml(songTitle), playingClauseHtml, stationUrl, listenLabel, stationUrl, djLineHtml);
+        """.formatted(escapeHtml(songTitle), playingClauseHtml, roughDuration, etaLabel, nowLabel,
+                stationUrl, listenLabel, stationUrl, skipWarningHtml, djLineHtml);
 
-        String textBody = "Hi,\n\n" + songTitle + " is now in the queue — " + playingClauseText + ".\n\n" + stationUrl
+        String textBody = "Hi,\n\n" + songTitle + " is now in the queue — " + playingClauseText
+                + ", roughly in " + roughDuration + " (around " + etaLabel + ", current time " + nowLabel + ").\n\n" + stationUrl
                 + "\n\nChat and ask for your next song to play."
+                + "\n\n" + skipWarningText
                 + (djLineText.isEmpty() ? "" : "\n\n" + djLineText);
 
         Mail mail = Mail.withHtml(email, "Your song is playing soon - " + songTitle, htmlBody)
@@ -303,6 +323,14 @@ public class MailService {
 
         return reactiveMailer.send(mail)
                 .onFailure().invoke(failure -> LOG.error("Failed to send 'playing soon' email", failure));
+    }
+
+    private static String formatRoughDuration(int seconds) {
+        if (seconds < 60) {
+            return Math.max(seconds, 0) + " sec";
+        }
+        long minutes = Math.round(seconds / 60.0);
+        return minutes + " min";
     }
 
     private static String escapeHtml(String s) {

@@ -118,7 +118,7 @@ public class SongEmitter {
                         publishExpectedPlayOrder(streamSlug, entry, effectiveStrategy, liveScene.getTraceId(), emissionTraceId);
                         return queueSupplier.sendSongsToQueue(streamSlug, message, liveScene.getTraceId(), emissionTraceId)
                                 .call(() -> recordPlays(stream, entry))
-                                .chain(v -> notifyContributors(entry, intros, stream, agent));
+                                .chain(v -> notifyContributors(entry, intros, stream, agent, brandZone));
                     });
         } else {
             MixingType[] availableTypes = getNoIntroMergingTypes(entry);
@@ -187,12 +187,22 @@ public class SongEmitter {
         return true;
     }
 
-    private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream, AiAgent agent) {
+    /**
+     * ETA per song is a rough same-block offset only: the sum of intro/song durations ahead of it
+     * within this newly-queued entry, up to and including its own intro. It cannot account for
+     * whatever aivox is still emitting from a prior block, so it's an estimate, not a guarantee.
+     */
+    private Uni<Void> notifyContributors(TimelineEntry entry, List<IntroAudioResult> intros, ILiveStream stream, AiAgent agent, ZoneId brandZone) {
         List<Uni<Void>> notifications = new ArrayList<>();
+        int offsetSeconds = 0;
         for (int i = 0; i < entry.getSongs().size(); i++) {
-            if (intros.get(i) != null) {
-                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream, agent));
+            IntroAudioResult intro = intros.get(i);
+            int introDuration = intro != null ? intro.durationSeconds() : 0;
+            if (intro != null) {
+                int etaSeconds = offsetSeconds + introDuration;
+                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream, agent, etaSeconds, brandZone));
             }
+            offsetSeconds += introDuration + entry.getSongs().get(i).getDurationSeconds();
         }
         if (notifications.isEmpty()) {
             return Uni.createFrom().voidItem();

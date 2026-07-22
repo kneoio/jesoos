@@ -175,7 +175,7 @@ public class IntroTtsGenerator {
      * deliberately omits the intro text, so the payoff is clicking through and listening live rather
      * than reading it in the inbox. Best-effort: failures never break the emission pipeline.
      */
-    public Uni<Void> notifyContributorPlaying(SongEntry songEntry, ILiveStream stream, AiAgent agent) {
+    public Uni<Void> notifyContributorPlaying(SongEntry songEntry, ILiveStream stream, AiAgent agent, int etaSeconds, java.time.ZoneId brandZone) {
         String email = songEntry.getContributorEmail();
         if (email == null || email.isBlank()) {
             return Uni.createFrom().voidItem();
@@ -186,7 +186,7 @@ public class IntroTtsGenerator {
                 .chain(brand -> {
                     String brandName = brand != null ? brand.getLocalizedName().get(LanguageCode.en) : null;
                     return mailService.sendContributionPlayingSoonAsync(
-                            email, songEntry.getSoundFragment().getTitle(), stationUrl, brandName, djName);
+                            email, songEntry.getSoundFragment().getTitle(), stationUrl, brandName, djName, etaSeconds, brandZone);
                 })
                 .onFailure().recoverWithItem((Void) null);
     }
