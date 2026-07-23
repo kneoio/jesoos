@@ -106,6 +106,10 @@ public class DraftFactory {
                 ? resolveLabels(song, selectedLanguage.toLanguageCode())
                 : Uni.createFrom().item(List.of());
 
+        Uni<List<String>> previousGenresUni = previousSong != null
+                ? resolveGenreNames(previousSong, selectedLanguage.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName()),  //the drafts always un ENG
@@ -117,7 +121,10 @@ public class DraftFactory {
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
-                .chain(tuple -> labelsUni.emitOn(getDefaultWorkerPool()).map(labels -> {
+                .chain(tuple -> Uni.combine().all().unis(labelsUni, previousGenresUni).asTuple()
+                        .emitOn(getDefaultWorkerPool()).map(lp -> {
+                    List<String> labels = lp.getItem1();
+                    List<String> previousGenres = lp.getItem2();
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
                     List<String> genres = tuple.getItem3();
@@ -130,6 +137,7 @@ public class DraftFactory {
                                 template.getContent(),
                                 song,
                                 previousSong,
+                                previousGenres,
                                 agent,
                                 copilot,
                                 stream,
@@ -185,7 +193,7 @@ public class DraftFactory {
                     List<BrandListenerDTO> listeners = tuple.getItem4();
                     String chatSummary = tuple.getItem5();
                     return buildFromTemplate(
-                            templateCode, song, null, agent, copilot, stream, profile,
+                            templateCode, song, null, List.of(), agent, copilot, stream, profile,
                             genres, labels, listeners, selectedLanguage, null, chatSummary,
                             "debug-draft", sharerName
                     ).text();
@@ -216,6 +224,7 @@ public class DraftFactory {
             String template,
             SoundFragment song,
             SoundFragment previousSong,
+            List<String> previousGenres,
             AiAgent agent,
             AiAgent copilot,
             ILiveStream stream,
@@ -298,6 +307,7 @@ public class DraftFactory {
             data.put("previousSongTitle", "");
             data.put("previousSongArtist", "");
         }
+        data.put("previousSongGenres", previousGenres);
 
         String rendered = groovyEngine.render(template, data, draftSlug).trim();
         return new DraftResult(rendered, adsHelper.getLastSelectedId(), adsHelper.getLastSelectedTitle(), adsHelper.getLastSelectedSlugName());
