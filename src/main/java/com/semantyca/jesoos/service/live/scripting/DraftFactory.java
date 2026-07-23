@@ -264,9 +264,7 @@ public class DraftFactory {
             profileDescription = profile.getDescription();
         }
         data.put("profileName", profileName);
-        if (profileDescription != null && !profileDescription.trim().isEmpty()) {
-            data.put("profileDescription", profileDescription);
-        }
+        data.put("profileDescription", profileDescription != null ? profileDescription : "");
         data.put("stationBrand", brand);
         data.put("slugName", stream.getSlugName());
         data.put("country", stream.getCountry());
