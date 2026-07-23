@@ -200,7 +200,8 @@ public class SongEmitter {
             int introDuration = intro != null ? intro.durationSeconds() : 0;
             if (intro != null) {
                 int etaSeconds = offsetSeconds + introDuration;
-                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream, agent, etaSeconds, brandZone));
+                String previousSongTitle = i > 0 ? entry.getSongs().get(i - 1).getSoundFragment().getTitle() : null;
+                notifications.add(introTtsGenerator.notifyContributorPlaying(entry.getSongs().get(i), stream, agent, etaSeconds, brandZone, previousSongTitle));
             }
             offsetSeconds += introDuration + entry.getSongs().get(i).getDurationSeconds();
         }

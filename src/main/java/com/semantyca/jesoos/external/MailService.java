@@ -90,7 +90,7 @@ public class MailService {
             java.time.format.DateTimeFormatter.ofPattern("HH:mm zzz", java.util.Locale.ENGLISH);
 
     public Uni<Void> sendContributionPlayingSoonAsync(String email, String songTitle, String stationUrl, String brandName, String djName,
-                                                        int etaSeconds, java.time.ZoneId brandZone) {
+                                                        int etaSeconds, java.time.ZoneId brandZone, String previousSongTitle) {
         LOG.info("Sending 'playing soon' email to: {} for song: {}", email, songTitle);
 
         String listenLabel = brandName != null && !brandName.isBlank()
@@ -102,6 +102,10 @@ public class MailService {
         String playingClauseText = hasDjName ? "I'm about to play it" : "the DJ is about to play it";
         String djLineHtml = hasDjName ? "— Your DJ, " + escapeHtml(djName) : "";
         String djLineText = hasDjName ? "— Your DJ, " + djName : "";
+
+        boolean hasPreviousSong = previousSongTitle != null && !previousSongTitle.isBlank();
+        String afterClauseHtml = hasPreviousSong ? ", right after <strong>" + escapeHtml(previousSongTitle) + "</strong>" : "";
+        String afterClauseText = hasPreviousSong ? ", right after \"" + previousSongTitle + "\"" : "";
 
         java.time.ZoneId zone = brandZone != null ? brandZone : java.time.ZoneId.systemDefault();
         java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
@@ -122,7 +126,7 @@ public class MailService {
                 <div style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">Mixpla</div>
                 <p style="margin: 0 0 12px; color: #4b5563;">Hi,</p>
                 <h2 style="font-size: 20px; margin: 0 0 12px;">Your song is playing soon!</h2>
-                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — %s, roughly in %s (around %s, current time %s).</p>
+                <p style="margin: 0 0 18px; color: #4b5563; line-height: 1.45;"><strong>%s</strong> is now in the queue — %s%s, roughly in %s (around %s, current time %s).</p>
                 <div style="margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px;">
                     <a href="%s" style="color: #4f46e5; font-weight: 700; text-decoration: none;">%s</a>
                 </div>
@@ -133,10 +137,10 @@ public class MailService {
             </div>
         </body>
         </html>
-        """.formatted(escapeHtml(songTitle), playingClauseHtml, roughDuration, etaLabel, nowLabel,
+        """.formatted(escapeHtml(songTitle), playingClauseHtml, afterClauseHtml, roughDuration, etaLabel, nowLabel,
                 stationUrl, listenLabel, stationUrl, skipWarningHtml, djLineHtml);
 
-        String textBody = "Hi,\n\n" + songTitle + " is now in the queue — " + playingClauseText
+        String textBody = "Hi,\n\n" + songTitle + " is now in the queue — " + playingClauseText + afterClauseText
                 + ", roughly in " + roughDuration + " (around " + etaLabel + ", current time " + nowLabel + ").\n\n" + stationUrl
                 + "\n\nChat and ask for your next song to play."
                 + "\n\n" + skipWarningHtml
