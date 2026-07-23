@@ -85,6 +85,7 @@ public class DraftFactory {
 
     public Uni<DraftResult> createDraft(
             SoundFragment song,
+            SoundFragment previousSong,
             AiAgent agent,
             ILiveStream stream,
             UUID draftId,
@@ -128,6 +129,7 @@ public class DraftFactory {
                         return buildFromTemplate(
                                 template.getContent(),
                                 song,
+                                previousSong,
                                 agent,
                                 copilot,
                                 stream,
@@ -183,7 +185,7 @@ public class DraftFactory {
                     List<BrandListenerDTO> listeners = tuple.getItem4();
                     String chatSummary = tuple.getItem5();
                     return buildFromTemplate(
-                            templateCode, song, agent, copilot, stream, profile,
+                            templateCode, song, null, agent, copilot, stream, profile,
                             genres, labels, listeners, selectedLanguage, null, chatSummary,
                             "debug-draft", sharerName
                     ).text();
@@ -213,6 +215,7 @@ public class DraftFactory {
     private DraftResult buildFromTemplate(
             String template,
             SoundFragment song,
+            SoundFragment previousSong,
             AiAgent agent,
             AiAgent copilot,
             ILiveStream stream,
@@ -288,6 +291,13 @@ public class DraftFactory {
         }
         data.put("songGenres", genres);
         data.put("songSharerName", sharerName != null ? sharerName : "");
+        if (previousSong != null) {
+            data.put("previousSongTitle", previousSong.getTitle() != null ? previousSong.getTitle() : "");
+            data.put("previousSongArtist", previousSong.getArtist() != null ? previousSong.getArtist() : "");
+        } else {
+            data.put("previousSongTitle", "");
+            data.put("previousSongArtist", "");
+        }
 
         String rendered = groovyEngine.render(template, data, draftSlug).trim();
         return new DraftResult(rendered, adsHelper.getLastSelectedId(), adsHelper.getLastSelectedTitle(), adsHelper.getLastSelectedSlugName());

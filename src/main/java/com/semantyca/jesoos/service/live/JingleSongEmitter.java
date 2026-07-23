@@ -84,7 +84,7 @@ public class JingleSongEmitter {
 
                     if (djEnabled && entry.isHasIntro()) {
                         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
-                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
+                        return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), null, agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
                                 .chain(introResult -> {
                                     Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
                                     songMap.put(SongKey.JINGLE_1, new SongInfoDTO(jingle.getId(), jingleDuration));

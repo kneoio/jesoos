@@ -77,8 +77,9 @@ public class SongEmitter {
             for (int i = 0; i < entry.getSongs().size(); i++) {
                 boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
                 if (needsIntro) {
+                    SoundFragment previousSong = i > 0 ? entry.getSongs().get(i - 1).getSoundFragment() : null;
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
-                            liveScene, entry.getSongs().get(i), agent, stream, lang, entry.getSequenceNumber(), emissionTraceId));
+                            liveScene, entry.getSongs().get(i), previousSong, agent, stream, lang, entry.getSequenceNumber(), emissionTraceId));
                 } else {
                     introUnis.add(Uni.createFrom().nullItem());
                 }

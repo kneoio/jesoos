@@ -250,7 +250,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     }
 
     private Uni<DraftFactory.DraftResult> generateDraft(DjPrompt prompt, AiAgent agent, ILiveStream stream, LanguageTag airLanguage) {
-        return draftFactory.createDraft(null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
+        return draftFactory.createDraft(null, null, agent, stream, prompt.getDraftId(), new HashMap<>(), null)
                 .chain(draftResult -> Uni.createFrom().item(() -> {
                     String draftContent = draftResult.text();
                     if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {

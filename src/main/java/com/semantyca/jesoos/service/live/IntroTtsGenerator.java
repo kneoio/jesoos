@@ -143,6 +143,7 @@ public class IntroTtsGenerator {
     public Uni<IntroAudioResult> generateIntroAudioFile(
             LiveScene liveScene,
             SongEntry songEntry,
+            SoundFragment previousSong,
             AiAgent agent,
             ILiveStream stream,
             LanguageTag language,
@@ -159,7 +160,7 @@ public class IntroTtsGenerator {
         return promptService.resolveForLanguage(selectedPromptId, language)
                 .chain(resolved -> {
                     fallBacked.set(resolved.fallBacked());
-                    return generateDraftText(resolved.prompt(), songEntry.getSoundFragment(), songEntry.getSharerName(), agent, stream)
+                    return generateDraftText(resolved.prompt(), songEntry.getSoundFragment(), previousSong, songEntry.getSharerName(), agent, stream)
                             .map(draftContent -> new PromptAndDraft(resolved.prompt(), draftContent));
                 })
                 .chain(tuple -> generateSpokenText(tuple.prompt(), tuple.draftContent(), agent, language, entryTraceId, stream.getSlugName(), entrySeq))
@@ -303,9 +304,10 @@ public class IntroTtsGenerator {
                 });
     }
 
-    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, String sharerName, AiAgent agent, ILiveStream stream) {
+    private Uni<String> generateDraftText(DjPrompt prompt, SoundFragment song, SoundFragment previousSong, String sharerName, AiAgent agent, ILiveStream stream) {
         return draftFactory.createDraft(
                 song,
+                previousSong,
                 agent,
                 stream,
                 prompt.getDraftId(),
@@ -434,7 +436,7 @@ public class IntroTtsGenerator {
         String model = llmType == LlmType.GROQ ? config.getIntroTtsGroqModel() : config.getIntroTtsAnthropicModel();
         String debugApiKey = llmType == LlmType.GROQ ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         return promptService.getById(promptId, SuperUser.build())
-                .chain(prompt -> generateDraftText(prompt, song, sharerName, agent, stream)
+                .chain(prompt -> generateDraftText(prompt, song, null, sharerName, agent, stream)
                         .chain(draft -> {
                             String fullPrompt = String.format("%s\n\nDraft input:\n%s", prompt.getPrompt(), draft);
                             return llmTextClient.createTextMessage(debugApiKey, model, 2048L, getActionSystemPrompt(agent, resolvedLanguage), fullPrompt)
