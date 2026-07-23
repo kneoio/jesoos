@@ -102,6 +102,16 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
                 .chain(() -> RlsActionUtil.ensureSuperUserAccess(tx, SSF_RLS_TABLE, entityId));
     }
 
+    // Attaches the "new" priority label to a contribution so that, once the owner accepts the share,
+    // it is floated to the front of the agenda like any datanest-tagged contribution. Chat uploads
+    // create the share directly (bypassing datanest's mixdeck path), so jesoos sets the label here.
+    public Uni<Void> addPriorityLabel(UUID soundFragmentId) {
+        String sql = "INSERT INTO mixpla__sound_fragment_labels (id, label_id) " +
+                "SELECT $1, id FROM __labels WHERE identifier = '" + PRIORITY_LABEL_SLUG + "' " +
+                "ON CONFLICT DO NOTHING";
+        return client.preparedQuery(sql).execute(Tuple.of(soundFragmentId)).replaceWithVoid();
+    }
+
     // Removes the "new" priority label once jesoos has picked the fragment up into a rebuilt agenda,
     // so a subsequent rebuild doesn't float it to the front again.
     public Uni<Void> clearPriorityLabel(UUID soundFragmentId) {

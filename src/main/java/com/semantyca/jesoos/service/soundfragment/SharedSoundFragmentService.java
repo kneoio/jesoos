@@ -30,6 +30,10 @@ public class SharedSoundFragmentService {
         return repository.shareContribution(soundFragmentId, targetBrandId, sourceUserId, sourceUserName, sourceUserEmail);
     }
 
+    public Uni<Void> addPriorityLabel(UUID soundFragmentId) {
+        return repository.addPriorityLabel(soundFragmentId);
+    }
+
     public Uni<Void> clearPriorityLabel(UUID soundFragmentId) {
         return repository.clearPriorityLabel(soundFragmentId);
     }

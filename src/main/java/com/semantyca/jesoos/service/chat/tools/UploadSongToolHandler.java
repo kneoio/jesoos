@@ -85,6 +85,9 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                                     }
                                                                     return sharedSoundFragmentService.shareContribution(
                                                                                     saved.getId(), brandId, userId, artist, user.getEmail())
+                                                                            // Tag as "new" so it is floated to the front once the
+                                                                            // owner accepts the share (approval still required).
+                                                                            .chain(() -> sharedSoundFragmentService.addPriorityLabel(saved.getId()))
                                                                             .replaceWith(saved);
                                                                 }));
                                             })
