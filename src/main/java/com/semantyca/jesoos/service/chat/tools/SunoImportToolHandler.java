@@ -39,9 +39,23 @@ public class SunoImportToolHandler extends BaseToolHandler {
                         }
                         IUser user = userOpt.get();
                         return sunoImportService.downloadToTemp(sunoUrl, user)
-                                .map(tempFilename -> ToolNodeResult.ok(
-                                        new JsonObject().put("ok", true).put("temp_filename", tempFilename)
-                                                .put("note", "Track downloaded. Collect title/artist/genre_names if missing, then call upload_song with this temp_filename.").encode()));
+                                .map(meta -> {
+                                    JsonObject result = new JsonObject()
+                                            .put("ok", true)
+                                            .put("temp_filename", meta.tempFilename());
+                                    if (meta.title() != null) result.put("title", meta.title());
+                                    if (meta.artist() != null) result.put("artist", meta.artist());
+                                    if (meta.handle() != null) result.put("handle", meta.handle());
+                                    if (meta.genreTags() != null) result.put("genre_tags", meta.genreTags());
+                                    if (meta.imageUrl() != null) result.put("image_url", meta.imageUrl());
+                                    if (meta.durationSeconds() != null) result.put("duration_seconds", meta.durationSeconds());
+                                    result.put("note", "Track downloaded from Suno with metadata. Do NOT ask the artist for "
+                                            + "title/artist/genre from scratch when a value is present here. Map genre_tags onto the "
+                                            + "station's available genres, then show the artist the resolved title / artist / genre and "
+                                            + "ask them to confirm or correct it BEFORE calling upload_song. Only ask from scratch for "
+                                            + "fields that came back empty.");
+                                    return ToolNodeResult.ok(result.encode());
+                                });
                     });
                 })
                 .onFailure().recoverWithItem(err -> ToolNodeResult.ok(

@@ -126,8 +126,17 @@ Preconditions, in order:
 file, `import_from_suno` (authenticated + artist label) resolves the song id from the URL,
 downloads `https://cdn1.suno.ai/<id>.mp3` (`SunoImportService`) into the **same** temp dir the
 upload endpoint uses, and returns a `temp_filename`. No `show_upload_button` is needed — the
-server pulls the file directly. The flow then rejoins the normal path: collect title/artist/genre,
-call `upload_song`. Title/artist are **not** auto-extracted; they come from the conversation.
+server pulls the file directly. In the same call it also scrapes the public song page
+(`https://suno.com/song/<id>`, browser UA) and parses the embedded Next.js RSC payload for
+`title`, `artist` (`display_name`), `handle`, `genre_tags` (`display_tags`), `image_url` and
+`duration` — returned as `SunoTrackMetadata`. Scraping is **best-effort**: any failure degrades to
+empty fields and the download still succeeds (`SunoImportService.fetchMetadata` recovers to
+`SunoTrackMetadata.empty`). The flow then rejoins the normal path but as **confirm, not collect**:
+the DJ maps `genre_tags` onto the station's controlled genres (`{{musicMetadata}}` /
+`AiHelperService.resolveGenreNamesToIds` matches by name, dropping non-matches), shows the artist
+the resolved title/artist/genre, and asks them to confirm or correct **before** `upload_song`. Only
+fields that came back empty are asked for from scratch. Note `upload_song` still takes only
+`genre_names` (no labels field), so `display_tags` are a mapping hint, not a passthrough value.
 
 ---
 
