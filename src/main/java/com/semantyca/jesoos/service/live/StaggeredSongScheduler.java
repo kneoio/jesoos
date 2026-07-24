@@ -100,7 +100,7 @@ public class StaggeredSongScheduler {
                     entry.setHasIntro(true);
                     entry.setBoost(boostType);
                     MixingType strategy = entry.getMixingStrategy();
-                    if (boostType == Boost.SUPER_BOOST) {
+                    if (RANDOM.nextBoolean()) {
                         entry.setHasJingle(true);
                         if (strategy != MixingType.JINGLE_INTRO_SONG) {
                             entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);
@@ -210,7 +210,7 @@ public class StaggeredSongScheduler {
                     entry.setHasIntro(true);
                     entry.setBoost(boostType);
                     MixingType strategy = entry.getMixingStrategy();
-                    if (boostType == Boost.SUPER_BOOST) {
+                    if (RANDOM.nextBoolean()) {
                         entry.setHasJingle(true);
                         if (strategy != MixingType.JINGLE_INTRO_SONG) {
                             entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);

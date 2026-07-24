@@ -236,7 +236,7 @@ public class CommandService {
     public Uni<JsonObject> startBrand(String brand, UUID traceId) {
         metricPublisher.publishMetric(brand, MetricEventType.COMMAND, ProcessType.FLOW, "brand_start_received", Map.of("brand", brand), traceId);
         return brandPool.getRadioStream(brand)
-                .invoke(stream -> djStateService.activateLiveBoost(brand, 3, Boost.SUPER_BOOST))
+                .invoke(stream -> djStateService.activateLiveBoost(brand, 3, Boost.BOOST))
                 .map(this::toResponse)
                 .invoke(response -> {
                     LOGGER.infof("Start brand %s", brand);
