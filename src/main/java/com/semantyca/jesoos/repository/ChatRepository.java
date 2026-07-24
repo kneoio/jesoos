@@ -218,6 +218,18 @@ public class ChatRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger("cnt"));
     }
 
+    public Uni<OffsetDateTime> getOldestUnsummarizedMessageTime(String brandName) {
+        String sql = "SELECT MIN(timestamp) AS oldest FROM " + entityData.getTableName() +
+                " WHERE brand_name = $1 AND chat_type = 'PUBLIC' AND summarized_at IS NULL";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandName))
+                .onItem().transform(rows -> {
+                    java.time.LocalDateTime oldest = rows.iterator().next().getLocalDateTime("oldest");
+                    return oldest != null ? oldest.atOffset(ZoneOffset.UTC) : null;
+                });
+    }
+
     public Uni<Integer> countUnsummarizedUserMessages(long userId, String brandName, ChatType chatType) {
         String sql = "SELECT COUNT(*) as cnt FROM " + entityData.getTableName() +
                 " WHERE user_id = $1 AND brand_name = $2 AND chat_type = $3 AND summarized_at IS NULL";

@@ -238,11 +238,60 @@ opens the event URL/QR and chats with the event DJ. See `../live/OTS_WORKFLOW.md
   hard-deletes the rows (`ChatRepository.deleteOtsMessages`). Called from both
   `OtsStreamScheduler.checkOtsFinished` (natural completion) and `CommandService.stopOts` (explicit stop).
 
+---
+
+## 10. Chat summarization → on-air context (`ChatSummaryService`)
+
+Summarization is not archival — it is how the **air DJ learns what happened in chat**. Chat and air
+are one persona to the listener, so a summary must let the DJ sound like the same person who was
+just talking to them ("thanks Mira for reaching me in chat — so we have someone from Michigan
+tonight…"). Two summary types, both LLM-generated:
+
+- **BRAND** (`chat_type='PUBLIC'`, brand-wide) — consumed on air, see RADIO_WORKFLOW §4f.
+- **USER** (per listener/chatType) — consumed by chat itself for conversation continuity
+  (`ChatService` → `getLatestUserSummary`). Keeps the last 5 messages unsummarized.
+
+**Listener knowledge is part of the input.** `buildListenerProfiles` resolves the `Listener` behind
+every distinct speaker in the batch and passes a profile block alongside the messages: the whole
+`userData` map (free-form key/values the chat bot collected *during* the conversation — city,
+country, interests, profession, …), the preferred/localized name, and labels resolved via
+`ListenerLabelCache` (`artist`, `owner`). Without this the summary could only say *what* was said,
+never *who* said it — which is what made chat and air feel like two different people.
+
+Both prompts therefore **preserve names and identifying detail** and are told never to invent one.
+(The USER prompt previously forbade names outright and had to be inverted — anonymised summaries
+destroy the single-persona illusion.)
+
+**Triggers** (`@Scheduled(every="5m")`, per active brand):
+- `count >= BRAND_SUMMARY_THRESHOLD` (20), **or**
+- oldest unsummarized message ≥ `BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES` (10).
+
+The age trigger matters: on a count-only rule a quiet station never crosses 20 and the DJ stays
+blind indefinitely.
+
+**Freshness & single use** — both guard against the DJ voicing chat that is no longer real:
+- `getBrandChatContext` returns `BrandChatContext(summaryId, summary, fresh)`; `fresh` is false past
+  `BRAND_SUMMARY_MAX_AGE_MINUTES` (60), measured from `period_end`. A dead conversation must never be
+  voiced as if it were happening now.
+- `aired_at` (nullable, `mixpla__chat_summary`) — `getLatestBrandSummary` returns only **un-aired**
+  BRAND summaries, and `DraftFactory` calls `markBrandSummaryAired` when it hands one to the script.
+  So each chat moment is offered to air **at most once**; no repeated thank-yous.
+  *Caveat:* marking happens at draft **render**, not at emission — a Groovy script that receives a
+  summary and randomizes it away still consumes it. Do not add a probability gate around
+  `chatSummary` in draft templates; `aired_at` already provides the novelty, and a coin flip on top
+  silently discards summaries.
+
+Retention: `deleteOldSummarizedMessages` nightly at 03:00, `MESSAGE_RETENTION_DAYS`=7. OTS chat is
+never summarized (§9).
+
+---
+
 ## Key files
 
 | Area | File |
 |---|---|
 | Orchestration | `ChatService`, `ChatAgent`, `PublicChatIntentRouter` |
+| Summarization | `maintenance/ChatSummaryService`, `repository/ChatSummaryRepository`, `model/chat/ChatSummary` |
 | OTS chat | `otsPrompt.hbs`, `tools/SearchOtsSoundFragmentsToolHandler`, `tools/PlaySongForOtsToolHandler`, `ChatService.buildOtsStaticData`/`purgeOtsChat` |
 | Auth | `ChatAuthService`, `tools/auth/*` |
 | Provider / LLM | `llm/BrandLlmProviderResolver`, `llm/AnthropicChatLlmClient`, `llm/LlmRequest` |

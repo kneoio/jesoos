@@ -213,7 +213,7 @@ generated and mixing is downgraded to song/jingle only. Pipeline per intro:
 
 ```
 resolveForLanguage(promptId, lang)                 (or CustomAction path)
-  → DraftFactory builds draft (song facts, sharerName, optional chat summary)
+  → DraftFactory builds draft (song facts, sharerName, optional fresh un-aired chat summary)
   → LLM spoken text  (Anthropic or Groq per agent.llmType; system prompt from
                        `prompts/introSystemPrompt.hbs` (regular flow) or
                        `prompts/introActionSystemPrompt.hbs` (CustomAction flow) —
@@ -301,9 +301,20 @@ to deliver content in different languages across the broadcast — reflecting mu
 
 **3. Draft (deterministic) vs prompt (instruction)** — the spoken text is a two-part build:
 - **Draft** (`DraftFactory.createDraft`) assembles a *deterministic* context via Groovy templates —
-  song genres/labels, station profile, brand listeners, latest chat summary, sharer name, time
+  song genres/labels, station profile, brand listeners, chat summary, sharer name, time
   context, and (for generated content) weather/news from external APIs. Drafts are authored in
   **English** regardless of output language.
+- **Chat summary in the draft** — the `chatSummary` variable carries ready-made on-air context about
+  the listeners currently in chat (who they are, what they asked, their `artist`/`owner` labels), so
+  the DJ sounds like the same persona they were just talking to. It is deliberately the **only** chat
+  variable exposed: non-empty means *fresh, un-aired, worth voicing*; empty means *say nothing about
+  chat*. `DraftFactory` blanks it unless `BrandChatContext.usable()`, and marks it aired on render, so
+  draft scripts must **not** wrap it in their own probability gate — that discards summaries unheard.
+  Always guard on emptiness (`if (chatSummary)`), never emit a bare `Chat summary:` label with nothing
+  after it, or the LLM will invent listeners. Keep the literal label **`Chat summary`**:
+  `introSystemPrompt.hbs` matches on that section name to guard against treating a chat-mentioned song
+  as the upcoming track. Produced by `ChatSummaryService` — see `../chat/CHAT_WORKFLOW.md` §10 for
+  triggers, freshness and `aired_at`.
 - **Prompt** is the LLM instruction; the emitter sends `prompt.getPrompt()` + `"Draft input:\n" +
   draft` to Anthropic/Groq under the shared system prompt (`prompts/introSystemPrompt.hbs`,
   Handlebars-rendered with `langInstruction`/`manner`). The model turns the

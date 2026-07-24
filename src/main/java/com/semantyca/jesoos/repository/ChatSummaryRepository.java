@@ -65,10 +65,14 @@ public class ChatSummaryRepository extends AsyncRepository {
                 );
     }
 
+    /**
+     * Latest brand summary that has not been voiced on air yet. Once the DJ has used a summary it is
+     * marked aired and never handed out again, so the same chat moment is not thanked twice.
+     */
     public Uni<Optional<ChatSummary>> getLatestBrandSummary(String brandName) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE brand_name = $1 AND summary_type = 'BRAND' " +
-                "ORDER BY created_at DESC LIMIT 3";
+                " WHERE brand_name = $1 AND summary_type = 'BRAND' AND aired_at IS NULL " +
+                "ORDER BY created_at DESC LIMIT 1";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandName))
@@ -93,6 +97,18 @@ public class ChatSummaryRepository extends AsyncRepository {
                 .onItem().transform(Optional::ofNullable);
     }
 
+    public Uni<Void> markAsAired(UUID summaryId) {
+        String sql = "UPDATE " + entityData.getTableName() +
+                " SET aired_at = $1 WHERE id = $2 AND aired_at IS NULL";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(OffsetDateTime.now(ZoneOffset.UTC), summaryId))
+                .replaceWithVoid()
+                .onFailure().invoke(throwable ->
+                        LOGGER.error("Failed to mark chat summary {} as aired", summaryId, throwable)
+                );
+    }
+
     public Uni<ChatSummary> from(Row row) {
         ChatSummary entity = new ChatSummary();
         entity.setId(row.getUUID("id"));
@@ -109,6 +125,8 @@ public class ChatSummaryRepository extends AsyncRepository {
         entity.setPeriodStart(row.getLocalDateTime("period_start").atOffset(ZoneOffset.UTC));
         entity.setPeriodEnd(row.getLocalDateTime("period_end").atOffset(ZoneOffset.UTC));
         entity.setCreatedAt(row.getLocalDateTime("created_at").atOffset(ZoneOffset.UTC));
+        java.time.LocalDateTime airedAtRaw = row.getLocalDateTime("aired_at");
+        entity.setAiredAt(airedAtRaw != null ? airedAtRaw.atOffset(ZoneOffset.UTC) : null);
         return Uni.createFrom().item(entity);
     }
 }

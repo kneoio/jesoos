@@ -25,4 +25,5 @@ public class ChatSummary extends DataEntity<UUID> {
     private OffsetDateTime periodStart;
     private OffsetDateTime periodEnd;
     private OffsetDateTime createdAt;
+    private OffsetDateTime airedAt;
 }

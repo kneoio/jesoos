@@ -20,7 +20,7 @@ public class ListenerLabelCache {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ListenerLabelCache.class);
 
-    private static final String[] KNOWN_IDENTIFIERS = {"artist"};
+    private static final String[] KNOWN_IDENTIFIERS = {"artist", "owner"};
 
     private final Map<String, UUID> cache = new ConcurrentHashMap<>();
 

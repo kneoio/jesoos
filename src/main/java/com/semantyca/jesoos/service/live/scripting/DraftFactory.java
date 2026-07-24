@@ -117,7 +117,7 @@ public class DraftFactory {
                         genresUni,
                         copilotUni,
                         listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null),
-                        chatSummaryService.getLatestBrandSummary(stream.getSlugName())
+                        chatSummaryService.getBrandChatContext(stream.getSlugName())
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -130,10 +130,10 @@ public class DraftFactory {
                     List<String> genres = tuple.getItem3();
                     AiAgent copilot = tuple.getItem4();
                     List<BrandListenerDTO> listeners = tuple.getItem5();
-                    String chatSummary = tuple.getItem6();
+                    ChatSummaryService.BrandChatContext chatContext = tuple.getItem6();
 
                     if (template != null) {
-                        return buildFromTemplate(
+                        DraftResult result = buildFromTemplate(
                                 template.getContent(),
                                 song,
                                 previousSong,
@@ -147,10 +147,12 @@ public class DraftFactory {
                                 listeners,
                                 selectedLanguage,
                                 userVariables,
-                                chatSummary,
+                                chatContext,
                                 WebHelper.generateSlug(template.getTitle()),
                                 sharerName
                         );
+                        markChatSummaryAired(chatContext);
+                        return result;
                     } else {
                         String msg = "No draft template found. Fallbacks are disabled.";
                         LOGGER.error(msg);
@@ -182,7 +184,7 @@ public class DraftFactory {
                         genresUni,
                         copilotUni,
                         listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null),
-                        chatSummaryService.getLatestBrandSummary(stream.getSlugName())
+                        chatSummaryService.getBrandChatContext(stream.getSlugName())
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -191,13 +193,28 @@ public class DraftFactory {
                     List<String> genres = tuple.getItem2();
                     AiAgent copilot = tuple.getItem3();
                     List<BrandListenerDTO> listeners = tuple.getItem4();
-                    String chatSummary = tuple.getItem5();
+                    ChatSummaryService.BrandChatContext chatContext = tuple.getItem5();
                     return buildFromTemplate(
                             templateCode, song, null, List.of(), agent, copilot, stream, profile,
-                            genres, labels, listeners, selectedLanguage, null, chatSummary,
+                            genres, labels, listeners, selectedLanguage, null, chatContext,
                             "debug-draft", sharerName
                     ).text();
                 }));
+    }
+
+    // Burned once the summary is handed to the script: the next intro must not thank the same
+    // chat moment again. A script that chooses not to voice it still consumes it, which is
+    // acceptable since a new summary is produced within minutes.
+    private void markChatSummaryAired(ChatSummaryService.BrandChatContext chatContext) {
+        if (chatContext == null || !chatContext.usable()) {
+            return;
+        }
+        chatSummaryService.markBrandSummaryAired(chatContext.summaryId())
+                .subscribe().with(
+                        v -> LOGGER.debugf("Chat summary %s marked as aired", chatContext.summaryId()),
+                        err -> LOGGER.warnf("Failed to mark chat summary %s as aired: %s",
+                                chatContext.summaryId(), err.getMessage())
+                );
     }
 
     private Uni<Draft> getDraftTemplate(UUID id, String stationSlug) {
@@ -234,7 +251,7 @@ public class DraftFactory {
             List<BrandListenerDTO> listeners,
             LanguageTag selectedLanguage,
             Map<String, Object> userVariables,
-            String chatSummary,
+            ChatSummaryService.BrandChatContext chatContext,
             String draftSlug,
             String sharerName
     ) {
@@ -288,7 +305,12 @@ public class DraftFactory {
         UserAdHelper adsHelper = new UserAdHelper(dbClient, stream.getBrandId());
         data.put("ads", adsHelper);
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
-        data.put("chatSummary", chatSummary != null ? chatSummary : "");
+        // Stale chat is worse than no chat on air, so a dead conversation is not exposed as
+        // chatSummary at all. Age and freshness stay available for scripts that want to gate.
+        ChatSummaryService.BrandChatContext chat = chatContext != null
+                ? chatContext
+                : ChatSummaryService.BrandChatContext.empty();
+        data.put("chatSummary", chat.usable() ? chat.summary() : "");
         if (song != null) {
             data.put("songTitle", song.getTitle());
             data.put("songArtist", song.getArtist());
