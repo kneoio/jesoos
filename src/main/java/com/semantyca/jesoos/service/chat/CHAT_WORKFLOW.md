@@ -185,6 +185,15 @@ an ad fallback.
 - **Events:** `manage_events action=list` when asked what's coming up; `upsert` ONLY when
   the user explicitly says "remember/save this". Never proactively offer to save.
 
+**Owner awareness.** The `owner` label (`ListenerLabelCache`, alongside `artist`) is surfaced to
+the DJ through the injected listener context (`labels=[owner]`), so the model *knows* when the
+station owner is talking and can adjust its tone. This is prompt-level awareness only — there is
+**no code-level `isOwner` gate** and no owner-only tool set yet. When the owner needs privileged
+tools (e.g. adjusting script / agenda), the plan is to add an authoritative, server-resolved
+`isOwner` flag on `ChatState` and an owner branch in `ChatAgent.getToolsForUser` (mirroring the
+`isOts` / `isAuthenticated` gates) — never trusting the prompt for gating, since those tools mutate
+the brand. Not implemented; deferred until concrete owner tools are defined.
+
 ---
 
 ## 8. Topic scope & security (always on)
