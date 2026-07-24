@@ -100,7 +100,7 @@ public class GCPTTSClient implements TTSClient {
             case DE_DE                  -> "de-DE";
             case HI_IN                  -> "hi-IN";
             case TR_TR                  -> "tr-TR";
-            case AR_XA                  -> "ar-XA";
+            case AR_XA, AR_SA           -> "ar-XA";
             case CMN_CN, ZH_CN          -> "cmn-CN";
             case BG_BG                  -> "bg-BG";
             case LV_LV                  -> "lv-LV";

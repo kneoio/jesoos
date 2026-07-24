@@ -13,6 +13,7 @@ import com.semantyca.jesoos.service.PromptService;
 import com.semantyca.jesoos.service.live.generated.AbstractGeneratedContentService;
 import com.semantyca.jesoos.service.live.generated.GeneratedUserAdService;
 import com.semantyca.jesoos.service.live.generated.GeneratedNewsService;
+import com.semantyca.jesoos.service.live.generated.TwoSpeakersGeneratedContentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.util.AiHelperUtils;
 import com.semantyca.mixpla.dto.queue.livestream.IntroInfoDTO;
@@ -57,6 +58,7 @@ public class GeneratedContentEmitter {
 
     private final GeneratedNewsService generatedNewsService;
     private final GeneratedUserAdService generatedUserAdService;
+    private final TwoSpeakersGeneratedContentService twoSpeakersGeneratedContentService;
     private final PromptService promptService;
     private final SoundFragmentService soundFragmentService;
     private final QueueSupplier queueSupplier;
@@ -67,6 +69,7 @@ public class GeneratedContentEmitter {
     @Inject
     public GeneratedContentEmitter(GeneratedNewsService generatedNewsService,
                                    GeneratedUserAdService generatedUserAdService,
+                                   TwoSpeakersGeneratedContentService twoSpeakersGeneratedContentService,
                                    PromptService promptService,
                                    SoundFragmentService soundFragmentService,
                                    QueueSupplier queueSupplier,
@@ -75,6 +78,7 @@ public class GeneratedContentEmitter {
                                    UserAdRepository userAdRepository) {
         this.generatedNewsService = generatedNewsService;
         this.generatedUserAdService = generatedUserAdService;
+        this.twoSpeakersGeneratedContentService = twoSpeakersGeneratedContentService;
         this.promptService = promptService;
         this.soundFragmentService = soundFragmentService;
         this.queueSupplier = queueSupplier;
@@ -100,6 +104,60 @@ public class GeneratedContentEmitter {
         UUID promptId = contentPrompts.getFirst().getPromptId();
         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
 
+        return promptService.getById(promptId, SuperUser.build()).flatMap(contentPrompt -> {
+            if (contentPrompt.getPromptType() == PromptType.TWO_SPEAKERS_GENERATOR) {
+                return sendTwoSpeakers(streamSlug, scene, entry, agent, stream, lang, promptId, brandZone, priority, emissionTraceId);
+            }
+            return sendMixed(streamSlug, scene, entry, agent, stream, brandZone, priority, emissionTraceId, lang, promptId);
+        });
+    }
+
+    private Uni<Void> sendTwoSpeakers(String streamSlug, LiveScene scene, TimelineEntry entry, AiAgent agent,
+                                  ILiveStream stream, LanguageTag lang, UUID promptId, ZoneId brandZone,
+                                  int priority, UUID emissionTraceId) {
+        long deadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
+        List<ScenePrompt> activeIntroPrompts = scene.getIntroPrompts() == null ? List.of() :
+                scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).toList();
+        if (activeIntroPrompts.isEmpty()) {
+            LOGGER.warnf("No active intro prompts for two-speaker scene '%s', skipping", scene.getSceneTitle());
+            metricPublisher.publishMetric(streamSlug, MetricEventType.ERROR, ProcessType.FLOW,
+                    "no_intro_for_two_speakers",
+                    Map.of("scene", scene.getSceneTitle(), "sceneId", scene.getSceneId()),
+                    scene.getTraceId());
+            return Uni.createFrom().voidItem();
+        }
+        return twoSpeakersGeneratedContentService.generateAudio(promptId, agent, stream, lang, scene)
+                .flatMap(r -> {
+                    SoundFragment generated = r.fragment();
+                    Map<SongKey, SongInfoDTO> songMap = new HashMap<>();
+                    songMap.put(SongKey.SONG_1, new SongInfoDTO(generated.getId(), songDuration(generated)));
+
+                    ScenePrompt selectedIntroPrompt = activeIntroPrompts.get(
+                            ThreadLocalRandom.current().nextInt(activeIntroPrompts.size()));
+                    PromptEntry promptEntry = new PromptEntry();
+                    promptEntry.setPromptId(selectedIntroPrompt.getPromptId());
+                    SongEntry introSongEntry = new SongEntry(generated, promptEntry, entry.getSequenceNumber());
+
+                    return introTtsGenerator.generateIntroAudioFile(scene, introSongEntry, null, agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
+                            .chain(introResult -> {
+                                SongQueueMessageDTO dto = buildDto(MixingType.INTRO_SONG, scene, entry, deadline, priority);
+                                Map<IntroKey, IntroInfoDTO> introMap = new HashMap<>();
+                                IntroInfoDTO introDto = new IntroInfoDTO(introResult.filePath(), introResult.durationSeconds());
+                                introDto.setGain(introResult.gain());
+                                introDto.setEngineType(introResult.engineType());
+                                introMap.put(IntroKey.INTRO_1, introDto);
+                                dto.setFilePaths(introMap);
+                                dto.setSongs(songMap);
+                                entry.setEstimatedDurationSeconds(introResult.durationSeconds() + songDuration(generated));
+                                return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId())
+                                        .call(() -> recordPlayHistory(r.adId(), generated, agent));
+                            });
+                });
+    }
+
+    private Uni<Void> sendMixed(String streamSlug, LiveScene scene, TimelineEntry entry, AiAgent agent,
+                                ILiveStream stream, ZoneId brandZone, int priority, UUID emissionTraceId,
+                                LanguageTag lang, UUID promptId) {
         if (scene.getMixingType() == null) {
             return sendGeneratedOnly(streamSlug, scene, entry, agent, stream, lang, promptId, brandZone, priority);
         }

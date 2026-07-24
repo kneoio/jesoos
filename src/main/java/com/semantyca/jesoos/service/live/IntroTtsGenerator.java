@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -301,6 +302,41 @@ public class IntroTtsGenerator {
                     LOGGER.errorf("%s: voice=%s engine=%s %s", sceneTitle, voiceId, engineType, e.getMessage(), e);
                     metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "intro_tts_audio_generation_failed",
                             Map.of("error", e.getMessage(), "sceneTitle", sceneTitle, "engineType", engineType.toString(), "voiceId", voiceId), traceId);
+                });
+    }
+
+    public Uni<String> generateDialogueAudio(List<ElevenLabsClient.DialogueSegment> segments, String sceneTitle, UUID traceId, String brandName) {
+        String modelId = config.getElevenLabsModelId();
+        return elevenLabsClient.textToDialogue(segments, modelId)
+                .map(audioBytes -> {
+                    try {
+                        Path uploadsDir = Path.of(config.getPathUploads()).toAbsolutePath().resolve("intro-tts").resolve("temp");
+                        Files.createDirectories(uploadsDir);
+
+                        String fileName = "podcast_" + UUID.randomUUID() + ".mp3";
+                        Path audioFilePath = uploadsDir.resolve(fileName);
+                        Files.write(audioFilePath, audioBytes);
+
+                        LOGGER.infof("Podcast dialogue audio saved: %s (%s bytes)", audioFilePath, audioBytes.length);
+                        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.FLOW, "podcast_dialogue_audio_generated",
+                                Map.of(
+                                        "sceneTitle", sceneTitle,
+                                        "audioSize", audioBytes.length,
+                                        "segments", segments.size()),
+                                traceId);
+
+                        return audioFilePath.toString();
+                    } catch (IOException e) {
+                        LOGGER.error("Failed to save podcast dialogue audio for scene '{}'", sceneTitle, e);
+                        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "podcast_dialogue_audio_save_failed",
+                                Map.of("error", e.getMessage(), "sceneTitle", sceneTitle), traceId);
+                        throw new RuntimeException("Failed to save podcast dialogue audio", e);
+                    }
+                })
+                .onFailure().invoke(e -> {
+                    LOGGER.errorf("Podcast dialogue TTS failed for scene '%s': %s", sceneTitle, e.getMessage(), e);
+                    metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.FLOW, "podcast_dialogue_audio_generation_failed",
+                            Map.of("error", e.getMessage(), "sceneTitle", sceneTitle), traceId);
                 });
     }
 

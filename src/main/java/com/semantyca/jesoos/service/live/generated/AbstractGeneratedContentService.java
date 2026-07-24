@@ -114,6 +114,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
     public abstract Voice getVoice(AiAgent agent);
 
+    protected Uni<String> generateContentAudio(String text, AiAgent agent, LanguageTag airLanguage, String sceneTitle, UUID traceId, String slug) {
+        return introTtsGenerator.generateTtsAudio(text, getVoice(agent), airLanguage, sceneTitle, traceId, slug, 0);
+    }
+
     public record GenerationResult(SoundFragment fragment, UUID adId) {}
 
     public Uni<GenerationResult> generateAudio(
@@ -154,7 +158,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                             return Uni.createFrom().failure(
                                                     new RuntimeException("Text generation failed for scene: " + sceneTitle));
                                         } else {
-                                            fragmentUni = introTtsGenerator.generateTtsAudio(draftResult.text(), getVoice(agent), airLanguage, sceneTitle, traceId, stream.getSlugName(), 0)
+                                            fragmentUni = generateContentAudio(draftResult.text(), agent, airLanguage, sceneTitle, traceId, stream.getSlugName())
                                                     .chain(filePath -> saveSoundFragment(filePath, resolved.prompt(), brandId, artistKey));
                                         }
                                         return fragmentUni.map(fragment -> new GenerationResult(fragment, draftResult.selectedAdId()));

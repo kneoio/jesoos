@@ -12,4 +12,6 @@ public class TTSSettingDTO {
     private VoiceDTO copilot;
     private VoiceDTO newsReporter;
     private VoiceDTO weatherReporter;
+    private VoiceDTO podcastSpeaker1;
+    private VoiceDTO podcastSpeaker2;
 }
