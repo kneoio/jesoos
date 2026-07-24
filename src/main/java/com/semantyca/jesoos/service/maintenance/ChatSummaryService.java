@@ -11,9 +11,13 @@ import com.semantyca.jesoos.model.chat.ChatSummary;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.repository.ChatSummaryRepository;
+import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
+import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
+import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.core.model.UserData;
+import com.semantyca.core.model.cnst.MessageType;
 import com.semantyca.mixpla.model.Listener;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Multi;
@@ -25,7 +29,9 @@ import org.jboss.logging.Logger;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,6 +56,7 @@ public class ChatSummaryService {
     private final ChatSummaryRepository chatSummaryRepository;
     private final ListenerService listenerService;
     private final ListenerLabelCache listenerLabelCache;
+    private final MetricPublisher metricPublisher;
 
     @Inject
     public ChatSummaryService(JesoosConfig config,
@@ -58,7 +65,8 @@ public class ChatSummaryService {
                               ChatRepository chatRepository,
                               ChatSummaryRepository chatSummaryRepository,
                               ListenerService listenerService,
-                              ListenerLabelCache listenerLabelCache) {
+                              ListenerLabelCache listenerLabelCache,
+                              MetricPublisher metricPublisher) {
         this.config = config;
         this.anthropicTextClient = anthropicTextClient;
         this.groqTextClient = groqTextClient;
@@ -66,6 +74,7 @@ public class ChatSummaryService {
         this.chatSummaryRepository = chatSummaryRepository;
         this.listenerService = listenerService;
         this.listenerLabelCache = listenerLabelCache;
+        this.metricPublisher = metricPublisher;
     }
 
     public record BrandChatContext(UUID summaryId, String summary, boolean fresh) {
@@ -78,11 +87,17 @@ public class ChatSummaryService {
         }
     }
 
+    // Brands are summarized one after another, never fanned out: every brand needing a summary in
+    // the same tick would otherwise fire a simultaneous LLM call and the provider rate-limits the
+    // burst, which surfaces as whole batches failing to summarize at the same instant.
     @Scheduled(every = "5m")
     public void scheduledBrandSummary() {
         chatRepository.getActiveBrands()
+                .onItem().transformToMulti(brands -> Multi.createFrom().iterable(brands))
+                .onItem().transformToUniAndConcatenate(this::checkAndSummarizeBrand)
+                .collect().asList()
                 .subscribe().with(
-                        brands -> brands.forEach(this::checkAndSummarizeBrand),
+                        v -> {},
                         error -> LOGGER.error("Failed to get active brands for summarization", error)
                 );
     }
@@ -90,8 +105,11 @@ public class ChatSummaryService {
     @Scheduled(every = "15m")
     public void scheduledUserSummary() {
         chatRepository.getActiveUsers()
+                .onItem().transformToMulti(users -> Multi.createFrom().iterable(users))
+                .onItem().transformToUniAndConcatenate(this::checkAndSummarizeUser)
+                .collect().asList()
                 .subscribe().with(
-                        users -> users.forEach(this::checkAndSummarizeUser),
+                        v -> {},
                         error -> LOGGER.error("Failed to get active users for summarization", error)
                 );
     }
@@ -105,48 +123,49 @@ public class ChatSummaryService {
                 );
     }
 
-    private void checkAndSummarizeBrand(String brandName) {
-        Uni.combine().all().unis(
+    private Uni<Void> checkAndSummarizeBrand(String brandName) {
+        return Uni.combine().all().unis(
                         chatRepository.countUnsummarizedMessages(brandName),
                         chatRepository.getOldestUnsummarizedMessageTime(brandName)
                 )
                 .asTuple()
-                .subscribe().with(
-                        tuple -> {
-                            int count = tuple.getItem1();
-                            OffsetDateTime oldest = tuple.getItem2();
-                            if (count == 0) {
-                                return;
-                            }
-                            boolean tailIsAging = oldest != null && Duration.between(
-                                    oldest, OffsetDateTime.now(ZoneOffset.UTC)
-                            ).toMinutes() >= BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES;
-                            if (count >= BRAND_SUMMARY_THRESHOLD || tailIsAging) {
-                                summarizeBrandMessages(brandName)
-                                        .subscribe().with(
-                                                v -> LOGGER.infof("Summarized %s messages for brand %s (tailAging=%s)", count, brandName, tailIsAging),
-                                                error -> LOGGER.error("Failed to summarize brand %s", brandName, error)
-                                        );
-                            }
-                        },
-                        error -> LOGGER.error("Failed to inspect unsummarized messages for brand %s", brandName, error)
-                );
+                .flatMap(tuple -> {
+                    int count = tuple.getItem1();
+                    OffsetDateTime oldest = tuple.getItem2();
+                    if (count == 0) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    boolean tailIsAging = oldest != null && Duration.between(
+                            oldest, OffsetDateTime.now(ZoneOffset.UTC)
+                    ).toMinutes() >= BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES;
+                    if (count < BRAND_SUMMARY_THRESHOLD && !tailIsAging) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    return summarizeBrandMessages(brandName)
+                            .invoke(() -> LOGGER.infof("Summarized %s messages for brand %s (tailAging=%s)", count, brandName, tailIsAging));
+                })
+                // Never let one brand abort the sequence; the batch stays unsummarized and is retried.
+                .onFailure().recoverWithItem(error -> {
+                    LOGGER.error("Failed to summarize brand " + brandName, error);
+                    return null;
+                });
     }
 
-    private void checkAndSummarizeUser(ChatRepository.ActiveUserSession session) {
-        chatRepository.countUnsummarizedUserMessages(session.userId(), session.brandName(), session.chatType())
-                .subscribe().with(
-                        count -> {
-                            if (count >= USER_SUMMARY_THRESHOLD) {
-                                summarizeUserMessages(session.userId(), session.brandName(), session.chatType())
-                                        .subscribe().with(
-                                                v -> LOGGER.infof("Summarized %s messages for user %s on brand %s", count, session.userId(), session.brandName()),
-                                                error -> LOGGER.errorf("Failed to summarize user %s on brand %s", session.userId(), session.brandName(), error)
-                                        );
-                            }
-                        },
-                        error -> LOGGER.errorf("Failed to count messages for user %s on brand %s", session.userId(), session.brandName(), error)
-                );
+    private Uni<Void> checkAndSummarizeUser(ChatRepository.ActiveUserSession session) {
+        return chatRepository.countUnsummarizedUserMessages(session.userId(), session.brandName(), session.chatType())
+                .flatMap(count -> {
+                    if (count < USER_SUMMARY_THRESHOLD) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    return summarizeUserMessages(session.userId(), session.brandName(), session.chatType())
+                            .invoke(() -> LOGGER.infof("Summarized %s messages for user %s on brand %s",
+                                    count, session.userId(), session.brandName()));
+                })
+                .onFailure().recoverWithItem(error -> {
+                    LOGGER.errorf("Failed to summarize user %s on brand %s: %s",
+                            session.userId(), session.brandName(), error.getMessage());
+                    return null;
+                });
     }
 
     public Uni<Void> summarizeBrandMessages(String brandName) {
@@ -159,6 +178,8 @@ public class ChatSummaryService {
                     String messagesText = formatMessagesForSummary(messages);
                     return buildListenerProfiles(messages)
                             .flatMap(profiles -> generateBrandSummary(messagesText, profiles))
+                            .onFailure().invoke(error ->
+                                    publishSummaryFailure(brandName, SummaryType.BRAND, messages, error))
                             .flatMap(summaryText -> {
                                 ChatSummary summary = new ChatSummary();
                                 summary.setBrandName(brandName);
@@ -174,7 +195,9 @@ public class ChatSummaryService {
                                                     .map(ChatMessage::getId)
                                                     .collect(Collectors.toList());
                                             return chatRepository.markMessagesAsSummarized(messageIds, summaryId);
-                                        });
+                                        })
+                                        .invoke(() -> publishSummaryCreated(brandName, SummaryType.BRAND,
+                                                messages, summaryText));
                             });
                 });
     }
@@ -192,6 +215,8 @@ public class ChatSummaryService {
                     String messagesText = formatMessagesForSummary(toSummarize);
                     return buildListenerProfiles(toSummarize)
                             .flatMap(profiles -> generateUserSummary(messagesText, profiles))
+                            .onFailure().invoke(error ->
+                                    publishSummaryFailure(brandName, SummaryType.USER, toSummarize, error))
                             .flatMap(summaryText -> {
                                 ChatSummary summary = new ChatSummary();
                                 summary.setBrandName(brandName);
@@ -209,9 +234,44 @@ public class ChatSummaryService {
                                                     .map(ChatMessage::getId)
                                                     .collect(Collectors.toList());
                                             return chatRepository.markMessagesAsSummarized(messageIds, summaryId);
-                                        });
+                                        })
+                                        .invoke(() -> publishSummaryCreated(brandName, SummaryType.USER,
+                                                toSummarize, summaryText));
                             });
                 });
+    }
+
+    /**
+     * Summarization failures are invisible in the flow otherwise: nothing is persisted and the DJ
+     * simply stays silent about chat. metriq needs the provider/model/batch detail to tell a rate
+     * limit apart from a bad batch.
+     */
+    private void publishSummaryFailure(String brandName, SummaryType summaryType,
+                                       List<ChatMessage> messages, Throwable error) {
+        String provider = config.getSummaryLlmProvider();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("summaryType", summaryType.name());
+        payload.put("messageCount", messages.size());
+        payload.put("periodStart", String.valueOf(messages.getFirst().getTimestamp()));
+        payload.put("periodEnd", String.valueOf(messages.getLast().getTimestamp()));
+        payload.put("provider", provider);
+        payload.put("model", resolveSummaryModel(provider));
+        payload.put("errorType", error.getClass().getSimpleName());
+        payload.put("error", error.getMessage() != null ? error.getMessage() : "");
+        metricPublisher.publishMetric(brandName, MetricEventType.ERROR, ProcessType.CRON,
+                "chat_summary_failed", payload);
+    }
+
+    private void publishSummaryCreated(String brandName, SummaryType summaryType,
+                                       List<ChatMessage> messages, String summaryText) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("summaryType", summaryType.name());
+        payload.put("messageCount", messages.size());
+        payload.put("summaryLength", summaryText.length());
+        payload.put("periodStart", String.valueOf(messages.getFirst().getTimestamp()));
+        payload.put("periodEnd", String.valueOf(messages.getLast().getTimestamp()));
+        metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.CRON,
+                "chat_summary_created", payload);
     }
 
     public Uni<String> getLatestBrandSummary(String brandName) {
@@ -255,6 +315,7 @@ public class ChatSummaryService {
      */
     private Uni<String> buildListenerProfiles(List<ChatMessage> messages) {
         List<Long> userIds = messages.stream()
+                .filter(msg -> msg.getMessageType() == MessageType.USER)
                 .map(ChatMessage::getUserId)
                 .filter(id -> id != null && id != 0L)
                 .distinct()
@@ -311,11 +372,20 @@ public class ChatSummaryService {
                 .map(opt -> opt.map(ChatSummary::getSummary).orElse(null));
     }
 
+    /**
+     * Roles are labelled explicitly. The bot posts under the DJ persona name, so an unlabelled
+     * transcript makes the host look like just another listener — and the summary then tells the
+     * air DJ to greet itself.
+     */
     private String formatMessagesForSummary(List<ChatMessage> messages) {
         StringBuilder sb = new StringBuilder();
         for (ChatMessage msg : messages) {
+            if (msg.getMessageType() != MessageType.USER && msg.getMessageType() != MessageType.BOT) {
+                continue;
+            }
+            String role = msg.getMessageType() == MessageType.BOT ? "HOST (you)" : "LISTENER";
             sb.append("[").append(msg.getTimestamp()).append("] ");
-            sb.append(msg.getUsername()).append(": ");
+            sb.append(role).append(" ").append(msg.getUsername()).append(": ");
             sb.append(msg.getContent()).append("\n");
         }
         return sb.toString();
@@ -341,11 +411,21 @@ public class ChatSummaryService {
                 Then add a short line on the overall mood of the room.
 
                 Rules:
-                - Keep real names and identifying details. The DJ needs them to address people.
+                - Keep first names and the human details the DJ needs to address someone warmly.
+                - NEVER include contact or private data, even when a listener posted it in chat:
+                  no phone numbers, emails, street addresses, full names, prices, or payment details.
+                  This text is spoken on a public broadcast. If a listener placed an ad, say that an
+                  ad was arranged — never read back its contents.
+                - Lines labelled "HOST (you)" are the DJ's own earlier messages. Use them only to know
+                  what was already answered or promised. Never describe the host as a listener and
+                  never list the host as someone to greet.
+                - Skip anonymous listeners and anyone whose only name is a handle or has digits in it
+                  (for example "user438"): they cannot be addressed naturally on air.
                 - Only state what the messages and profiles support. Never invent a detail.
                 - Prefer concrete, speakable facts over abstract themes. "Mira, an artist from
                   Michigan, asked for something upbeat" is useful; "listeners discussed music" is not.
-                - Drop small talk that gives the DJ nothing to say.
+                - Drop small talk, and drop technical support exchanges about the site or uploads —
+                  they give the DJ nothing to say on air.
                 - Be concise. Format as bullet points.
 
                 Listener profiles (collected by the chat bot during these conversations):
@@ -366,6 +446,7 @@ public class ChatSummaryService {
                 along with the key topics discussed and anything that was promised or agreed.
 
                 Keep names and identifying details; they are what makes the persona recognisable.
+                Lines labelled "HOST (you)" are your own earlier replies, not the listener's words.
                 Only state what the messages and profile support. Never invent a detail.
                 Be concise but preserve the details that matter for the next conversation.
 
@@ -379,16 +460,26 @@ public class ChatSummaryService {
 
     private Uni<String> callSummaryLlm(String prompt) {
         String provider = config.getSummaryLlmProvider();
-        String model = "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
+        String model = resolveSummaryModel(provider);
         String apiKey = "groq".equals(provider) ? config.getGroqApiKey().orElse("") : config.getAnthropicApiKey();
         LlmTextClient llmTextClient = selectLlmClient(provider);
+        // Deliberately fail-loud: a failed generation must NOT be persisted. Saving a placeholder
+        // would mark the messages summarized — losing them for good — and hand the DJ an error
+        // string as on-air chat context. Failing leaves the batch unsummarized for the next tick.
         return llmTextClient.createTextMessage(apiKey, model, 700L,
                         "You prepare accurate, speakable context from chat history. You never invent facts.", prompt)
                 .map(LlmTextResult::text)
-                .onFailure().recoverWithItem(error -> {
-                    LOGGER.error("Failed to generate summary", error);
-                    return "Summary generation failed";
-                });
+                .onItem().transform(text -> {
+                    if (text == null || text.isBlank()) {
+                        throw new IllegalStateException("Summary LLM returned empty text");
+                    }
+                    return text;
+                })
+                .onFailure().invoke(error -> LOGGER.error("Failed to generate summary", error));
+    }
+
+    private String resolveSummaryModel(String provider) {
+        return "groq".equals(provider) ? config.getSummaryGroqModel() : config.getSummaryAnthropicModel();
     }
 
     private LlmTextClient selectLlmClient(String provider) {

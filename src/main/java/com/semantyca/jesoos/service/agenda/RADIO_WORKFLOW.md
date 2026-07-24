@@ -338,7 +338,8 @@ Every event carries: **app id** (jesoos), **brandName**, **eventType**, **proces
 
 - **`MetricEventType`** (severity): `FATAL_ERROR`, `ERROR`, `COMMAND`, `INFORMATION`, `IMPORTANT_INFORMATION`, `SECURITY`, `WARNING`, `DEBUG`.
 - **`ProcessType`** (origin): `FLOW` (live emission path), `CRON` (scheduled tickers/jobs), `INDEPENDENT` (build / one-off).
-- **`code`** is the stable event name you group by in metriq (e.g. `agenda_build_completed`, `scene_started`, `entries_scheduled`, `entry_emitting_started`, `entry_emitted`, `entry_failed`, `cascade_entry_failed`, `dj_boost_applied`, `intro_tts_audio_generated`, `scene_content_gap`, `silence_risk`).
+- **`code`** is the stable event name you group by in metriq (e.g. `agenda_build_completed`, `scene_started`, `entries_scheduled`, `entry_emitting_started`, `entry_emitted`, `entry_failed`, `cascade_entry_failed`, `dj_boost_applied`, `intro_tts_audio_generated`, `scene_content_gap`, `silence_risk`,
+  `chat_summary_created`, `chat_summary_failed`).
 
 **Trace propagation is mandatory.** A single build/emission threads one `traceId`
 (`buildTraceId` per agenda, `emissionTraceId` per entry) through all its events so metriq can

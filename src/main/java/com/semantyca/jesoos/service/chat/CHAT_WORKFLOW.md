@@ -262,12 +262,42 @@ Both prompts therefore **preserve names and identifying detail** and are told ne
 (The USER prompt previously forbade names outright and had to be inverted — anonymised summaries
 destroy the single-persona illusion.)
 
+**Roles are labelled in the transcript.** `formatMessagesForSummary` prefixes each line with
+`HOST (you)` (`MessageType.BOT`) or `LISTENER` (`MessageType.USER`); other types are skipped, and
+listener profiles resolve from `USER` messages only. The bot posts under the DJ persona name, so an
+unlabelled transcript made the host read as a listener — summaries then described the DJ as
+"a knowledgeable user" and would have had the DJ greet itself on air.
+
+**Never put private data into a summary.** This text is spoken on a public broadcast. The BRAND
+prompt forbids phone numbers, emails, addresses, full names, prices and payment details even when a
+listener typed them in chat (an arranged ad is mentioned as an arranged ad, never read back).
+Handle-style names with digits and anonymous users are skipped — they cannot be addressed naturally
+on air.
+
 **Triggers** (`@Scheduled(every="5m")`, per active brand):
 - `count >= BRAND_SUMMARY_THRESHOLD` (20), **or**
 - oldest unsummarized message ≥ `BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES` (10).
 
 The age trigger matters: on a count-only rule a quiet station never crosses 20 and the DJ stays
 blind indefinitely.
+
+**Brands are summarized sequentially, never fanned out** (`transformToUniAndConcatenate`). Fanning
+out means every brand due in the same tick fires a simultaneous LLM call; the provider rate-limits
+the burst and whole batches fail at the same instant. One brand's failure is recovered so it cannot
+abort the rest of the sequence.
+
+**Failure is loud and never persisted** (RADIO_WORKFLOW §6 rule 5). A failed or blank generation
+must not be saved: a placeholder row would mark its messages summarized — losing them permanently —
+and hand the DJ an error string as on-air context. The batch stays unsummarized and is retried next
+tick. Metrics for metriq:
+
+| code | severity | payload |
+|---|---|---|
+| `chat_summary_failed` | `ERROR` | summaryType, messageCount, periodStart/End, provider, model, errorType, error |
+| `chat_summary_created` | `INFORMATION` | summaryType, messageCount, summaryLength, periodStart/End |
+
+`provider`/`model` are in the payload deliberately — without them a rate limit is indistinguishable
+from a bad batch in metriq.
 
 **Freshness & single use** — both guard against the DJ voicing chat that is no longer real:
 - `getBrandChatContext` returns `BrandChatContext(summaryId, summary, fresh)`; `fresh` is false past
