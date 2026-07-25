@@ -14,6 +14,9 @@ public interface JesoosConfig {
     @WithName("aivox.url")
     String getAivoxUrl();
 
+    @WithName("spectra.url")
+    String getSpectraUrl();
+
     @WithName("autostart.enabled")
     @WithDefault("true")
     boolean autostartEnabled();

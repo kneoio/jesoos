@@ -2,7 +2,9 @@ package com.semantyca.jesoos.service.chat.tools;
 
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
+import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
+import com.semantyca.jesoos.outbound.SpectraApiClient;
 import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
@@ -30,6 +32,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
             AiHelperService aiHelperService,
             BrandPool brandPool, SongEmitter songEmitter, AiAgentService aiAgentService,
             ListenerLabelCache labelCache, BrandService brandService,
+            SpectraApiClient spectraClient, JesoosConfig config,
             String brandName, long userId) {
         UploadSongToolHandler h = new UploadSongToolHandler();
         String tempFilename = (String) inputMap.getOrDefault("temp_filename", "");
@@ -57,7 +60,15 @@ public class UploadSongToolHandler extends BaseToolHandler {
                         if (userOpt.isEmpty()) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
                                 new JsonObject().put("ok", false).put("error", "User not found").encode()));
                         IUser user = userOpt.get();
-                        return aiHelperService.resolveGenreNamesToIds(genreNames)
+                        java.nio.file.Path uploaded = AssessTrackToolHandler.resolveTempFile(config, user.getLogin(), tempFilename);
+                        if (!java.nio.file.Files.isRegularFile(uploaded)) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                new JsonObject().put("ok", false).put("error", "Uploaded file not found: " + tempFilename).encode()));
+                        // Hard gate: never persist a non-music file (speech / spoken word). spectra returns is_music.
+                        return spectraClient.assess(uploaded).chain(analysis -> {
+                            if (!Boolean.TRUE.equals(analysis.getBoolean("is_music"))) return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                                    new JsonObject().put("ok", false).put("rejected", "not_music")
+                                            .put("error", "This file is not music (speech / spoken word); only songs can be added to the catalog.").encode()));
+                            return aiHelperService.resolveGenreNamesToIds(genreNames)
                                 .chain(genreIds -> {
                                     SoundFragmentDTO dto = new SoundFragmentDTO();
                                     dto.setTitle(title); dto.setArtist(artist); dto.setDescription(description.isBlank() ? null : description);
@@ -95,6 +106,7 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                                     new JsonObject().put("ok", true).put("song_id", saved.getId().toString())
                                                             .put("title", title).put("queued", false).encode()));
                                 });
+                        });
                     });
                 })
                 .onFailure().recoverWithItem(err -> com.semantyca.jesoos.service.chat.ToolNodeResult.ok(

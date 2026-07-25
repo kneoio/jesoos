@@ -67,6 +67,7 @@ public class ChatAgent {
     @Inject SharedSoundFragmentService sharedSoundFragmentService;
     @Inject IntroTtsGenerator introTtsGenerator;
     @Inject InternalRestCall internalRestCall;
+    @Inject com.semantyca.jesoos.outbound.SpectraApiClient spectraClient;
     @Inject AdSessionManager adSessionManager;
     @Inject AdGraph adGraph;
     @Inject EventService eventService;
@@ -250,6 +251,7 @@ public class ChatAgent {
             case "start_auth"                 -> "Sending verification code...";
             case "verify_code"                -> "Verifying code...";
             case "upload_song"                -> "Uploading your track...";
+            case "assess_track"               -> "Listening to your track...";
             case "import_from_suno"           -> "Fetching your track from Suno...";
             case "search_brand_sound_fragments" -> "Searching catalog...";
             case "get_brand_catalog_summary"  -> "Loading catalog...";
@@ -344,7 +346,8 @@ public class ChatAgent {
                     reactiveMailer, config.getFromAddress(), userId, brandName);
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
                     soundFragmentService, sharedSoundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
-                    listenerLabelCache, brandService, brandName, userId);
+                    listenerLabelCache, brandService, spectraClient, config, brandName, userId);
+            case "assess_track" -> AssessTrackToolHandler.execute(input, spectraClient, userService, config, userId);
             case "import_from_suno" -> SunoImportToolHandler.execute(input, sunoImportService,
                     listenerService, userService, listenerLabelCache, userId);
             case "play_song_with_intro" -> state.isOts()
@@ -399,6 +402,7 @@ public class ChatAgent {
             tools.add(ListenerDataTool.toTool());
             tools.add(FindCommunityMemberTool.toTool());
             tools.add(UploadSongTool.toTool());
+            tools.add(AssessTrackTool.toTool());
             tools.add(SunoImportTool.toTool());
             tools.add(PlaySongWithIntroTool.toTool(djLanguages));
             if (adEnabled) {
