@@ -315,10 +315,13 @@ public class DraftFactory {
             data.put("songTitle", song.getTitle());
             data.put("songArtist", song.getArtist());
             data.put("songDescription", song.getDescription());
+            // Optional: only spectra-analysed tracks carry addInfo; absent -> "" (no vibe line).
+            data.put("songVibe", AddInfoInterpreter.interpret(song.getAddInfo()));
         } else {
             data.put("songTitle", "");
             data.put("songArtist", "");
             data.put("songDescription", "");
+            data.put("songVibe", "");
         }
         data.put("songGenres", genres);
         data.put("songSharerName", sharerName != null ? sharerName : "");
