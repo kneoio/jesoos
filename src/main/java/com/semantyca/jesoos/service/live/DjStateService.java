@@ -13,6 +13,7 @@ public class DjStateService {
 
     private final ConcurrentHashMap<String, Boolean> djEnabledMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LiveBoostState> liveBoostMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> consecutiveIntroMap = new ConcurrentHashMap<>();
 
     public void enableDj(String brandName) {
         djEnabledMap.put(brandName, true);
@@ -45,9 +46,26 @@ public class DjStateService {
         return state.type();
     }
 
+    /** Running count of consecutive intro-bearing entries emitted on-air (native or boosted). */
+    public int getConsecutiveIntroCount(String brandName) {
+        AtomicInteger count = consecutiveIntroMap.get(brandName);
+        return count == null ? 0 : count.get();
+    }
+
+    /** Record an emitted entry: increment the consecutive-intro run if it has an intro, otherwise reset. */
+    public void recordIntroEmission(String brandName, boolean hasIntro) {
+        AtomicInteger count = consecutiveIntroMap.computeIfAbsent(brandName, k -> new AtomicInteger(0));
+        if (hasIntro) {
+            count.incrementAndGet();
+        } else {
+            count.set(0);
+        }
+    }
+
     public void remove(String brandName) {
         djEnabledMap.remove(brandName);
         liveBoostMap.remove(brandName);
+        consecutiveIntroMap.remove(brandName);
         LOGGER.infof("DJ state removed for brand: %s", brandName);
     }
 }

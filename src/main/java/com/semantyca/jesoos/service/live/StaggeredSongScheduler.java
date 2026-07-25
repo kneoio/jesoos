@@ -72,7 +72,6 @@ public class StaggeredSongScheduler {
     public void scheduleSceneSongs(String brandName, LiveScene scene) {
         LocalDateTime now = LocalDateTime.now(scene.getTimeZone());
         List<String> scheduledTimes = new ArrayList<>();
-        int consecutiveBoostIntroCount = 0;
 
         for (TimelineEntry entry : scene.getTimeline()) {
             if (entry.getStatus() == TimelineEntryStatus.SCHEDULED) {
@@ -92,47 +91,6 @@ public class StaggeredSongScheduler {
                     continue;
                 }
             }
-            boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
-                    && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
-            if (!entry.isHasIntro() && consecutiveBoostIntroCount < 2 && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
-                Boost boostType = djStateService.consumeLiveBoostEntry(brandName);
-                if (boostType != null) {
-                    entry.setHasIntro(true);
-                    entry.setBoost(boostType);
-                    MixingType strategy = entry.getMixingStrategy();
-                    if (RANDOM.nextBoolean()) {
-                        entry.setHasJingle(true);
-                        if (strategy != MixingType.JINGLE_INTRO_SONG) {
-                            entry.setMixingStrategy(MixingType.JINGLE_INTRO_SONG);
-                        }
-                    } else {
-                        if (strategy == MixingType.SONG_ONLY
-                                || strategy == MixingType.SONG_CROSSFADE_SONG
-                                || strategy == MixingType.SONG_CROSSFADE_SONG_VAR_1
-                                || strategy == MixingType.FILLER_JINGLE) {
-                            entry.setMixingStrategy(entry.getSongs().size() >= 2
-                                    ? MixingType.SONG_INTRO_SONG
-                                    : MixingType.INTRO_SONG);
-                        }
-                    }
-                    assignBoostPrompt(entry, scene);
-                    LOGGER.infof("DJ boost (%s): forced intro on entry #%d for brand '%s' (strategy: %s)",
-                            boostType, entry.getSequenceNumber(), brandName, entry.getMixingStrategy());
-                    metricPublisher.publishMetric(
-                            brandName,
-                            MetricEventType.WARNING,
-                            ProcessType.FLOW,
-                            "dj_boost_applied",
-                            Map.of(
-                                    "boostType", boostType.name(),
-                                    "entry", entry.getSequenceNumber(),
-                                    "strategy", entry.getMixingStrategy().name()
-                            ),
-                            scene.getTraceId()
-                    );
-                }
-            }
-            consecutiveBoostIntroCount = entry.isHasIntro() ? consecutiveBoostIntroCount + 1 : 0;
             if (scheduleTimelineEntry(brandName, scene, entry, scene.getTimeZone())) {
                 scheduledTimes.add("#" + entry.getSequenceNumber() + "@" + entry.getScheduledEmissionTime().toLocalTime() + "[" + entry.getStatus() + "]");
             }
@@ -204,7 +162,8 @@ public class StaggeredSongScheduler {
 
             boolean hasActiveIntroPrompts = scene.getIntroPrompts() != null
                     && scene.getIntroPrompts().stream().anyMatch(ScenePrompt::isActive);
-            if (!entry.isHasIntro() && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
+            if (!entry.isHasIntro() && djStateService.getConsecutiveIntroCount(brandName) < 2
+                    && hasActiveIntroPrompts && djStateService.isDjEnabled(brandName)) {
                 Boost boostType = djStateService.consumeLiveBoostEntry(brandName);
                 if (boostType != null) {
                     entry.setHasIntro(true);
@@ -235,6 +194,7 @@ public class StaggeredSongScheduler {
                     );
                 }
             }
+            djStateService.recordIntroEmission(brandName, entry.isHasIntro());
 
             emitTimelineEntry(brandName, scene, entry, brandZone, emissionTraceId)
                     .subscribe().with(

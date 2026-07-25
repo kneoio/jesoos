@@ -265,8 +265,13 @@ Two independent per-brand runtime flags, held in memory (not in the agenda):
 - **DJ enabled** (`isDjEnabled`) — the master gate for TTS. Default **off** (cost saving). When off, emitters send songs/jingles only, no intros. Toggled by `enableDj` / `disableDj` commands (`CommandService` ← `CommandResource` REST / RabbitMQ). Cleared when the brand leaves the pool (`BrandPool.onRemoved` → `remove`).
 - **Live Boost** — a short, decrementing counter that **forces intros onto otherwise-silent entries**, independent of talkativity. `activateLiveBoost(brand, entries, type)` sets a `LiveBoostState(remaining, type)`.
 
-How Live Boost affects emission (`StaggeredSongScheduler`, at both schedule and fire time):
-- Only applies when `!entry.hasIntro`, active intro prompts exist, DJ is enabled, and `<2` consecutive boosted intros so far.
+How Live Boost affects emission (`StaggeredSongScheduler`, **at fire time only** — the moment an
+entry goes on air, so the "consecutive intros so far" count reflects the real play order):
+- Only applies when `!entry.hasIntro`, active intro prompts exist, DJ is enabled, and `<2` consecutive
+  intros so far. That count is a **single persistent per-brand tally** in `DjStateService`
+  (`getConsecutiveIntroCount` / `recordIntroEmission`): every emitted entry increments it when it
+  carries an intro (native or boosted) and resets it to 0 otherwise. There is no separate
+  schedule-time counter — boost is decided in one place.
 - `consumeLiveBoostEntry` decrements; each call spends one entry, auto-removing the state at 0 / below 0.
 - `Boost.BOOST` → forces a plain intro type (`INTRO_SONG` / `SONG_INTRO_SONG`). `Boost.SUPER_BOOST` → also sets a jingle (`JINGLE_INTRO_SONG`). Then `assignBoostPrompt` picks a random active intro prompt.
 - Emits a `dj_boost_applied` **WARNING** metric per boosted entry.
