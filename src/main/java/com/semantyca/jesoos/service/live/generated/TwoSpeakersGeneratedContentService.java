@@ -21,19 +21,20 @@ import com.semantyca.mixpla.model.aiagent.Voice;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.TTSEngineType;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class TwoSpeakersGeneratedContentService extends AbstractGeneratedContentService {
 
-    private static final Pattern SPEAKER_LINE = Pattern.compile("(?im)^\\s*speaker\\s*([12])\\s*:\\s*(.+)$");
+    private static final String SPEAKER_1_REF = "__SPEAKER_1__";
+    private static final String SPEAKER_2_REF = "__SPEAKER_2__";
 
     @Inject
     public TwoSpeakersGeneratedContentService(
@@ -77,9 +78,12 @@ public class TwoSpeakersGeneratedContentService extends AbstractGeneratedContent
 
     @Override
     protected String getSystemPrompt() {
-        return "You are producing a two-host spoken dialogue. Output ONLY spoken dialogue lines, "
-                + "each line prefixed with 'Speaker 1:' or 'Speaker 2:', alternating naturally between the two hosts. "
-                + "Do not include any narration, stage directions, headings, or text outside the dialogue lines.";
+        return "You are producing a two-host spoken dialogue. Return ONLY a single JSON object of the form "
+                + "{\"inputs\":[{\"voice_id\":\"" + SPEAKER_1_REF + "\",\"text\":\"...\"},"
+                + "{\"voice_id\":\"" + SPEAKER_2_REF + "\",\"text\":\"...\"}]}. "
+                + "Use exactly the tokens " + SPEAKER_1_REF + " and " + SPEAKER_2_REF + " for the two hosts, one per turn, "
+                + "alternating and starting with " + SPEAKER_1_REF + ". The 'text' field is the spoken line only. "
+                + "Output nothing but the JSON object: no prose, no markdown, no code fences.";
     }
 
     @Override
@@ -105,21 +109,44 @@ public class TwoSpeakersGeneratedContentService extends AbstractGeneratedContent
                     "Podcast dialogue is only supported by the ELEVENLABS TTS engine; both podcast speakers must use ELEVENLABS"));
         }
 
-        List<ElevenLabsClient.DialogueSegment> segments = parseDialogue(text, speaker1.getId(), speaker2.getId());
+        List<ElevenLabsClient.DialogueSegment> segments;
+        try {
+            segments = parseDialogueJson(text, speaker1.getId(), speaker2.getId());
+        } catch (RuntimeException e) {
+            return Uni.createFrom().failure(new IllegalStateException(
+                    "Failed to parse two-speaker dialogue JSON for scene '" + sceneTitle + "': " + e.getMessage(), e));
+        }
         if (segments.isEmpty()) {
             return Uni.createFrom().failure(new IllegalStateException(
-                    "Podcast dialogue text produced no 'Speaker 1:'/'Speaker 2:' lines for scene: " + sceneTitle));
+                    "Two-speaker dialogue produced no turns for scene: " + sceneTitle));
         }
 
         return introTtsGenerator.generateDialogueAudio(segments, sceneTitle, traceId, slug);
     }
 
-    private List<ElevenLabsClient.DialogueSegment> parseDialogue(String text, String speaker1VoiceId, String speaker2VoiceId) {
+    private List<ElevenLabsClient.DialogueSegment> parseDialogueJson(String text, String speaker1VoiceId, String speaker2VoiceId) {
+        int start = text.indexOf('{');
+        int end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            throw new IllegalStateException("no JSON object found in model output");
+        }
+        JsonObject root = new JsonObject(text.substring(start, end + 1));
+        JsonArray inputs = root.getJsonArray("inputs");
+        if (inputs == null) {
+            throw new IllegalStateException("JSON output missing 'inputs' array");
+        }
+
         List<ElevenLabsClient.DialogueSegment> segments = new ArrayList<>();
-        Matcher matcher = SPEAKER_LINE.matcher(text);
-        while (matcher.find()) {
-            String voiceId = "1".equals(matcher.group(1)) ? speaker1VoiceId : speaker2VoiceId;
-            segments.add(new ElevenLabsClient.DialogueSegment(voiceId, matcher.group(2).trim()));
+        for (int i = 0; i < inputs.size(); i++) {
+            JsonObject turn = inputs.getJsonObject(i);
+            String ref = turn.getString("voice_id");
+            String line = turn.getString("text");
+            String voiceId = switch (ref == null ? "" : ref) {
+                case SPEAKER_1_REF -> speaker1VoiceId;
+                case SPEAKER_2_REF -> speaker2VoiceId;
+                default -> throw new IllegalStateException("unknown voice placeholder: " + ref);
+            };
+            segments.add(new ElevenLabsClient.DialogueSegment(voiceId, line));
         }
         return segments;
     }
