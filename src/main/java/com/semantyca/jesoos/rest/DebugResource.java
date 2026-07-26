@@ -194,12 +194,16 @@ public class DebugResource extends AbstractResource {
         String songDescription = body.getString("songDescription");
         String sharerName = body.getString("sharerName");
 
+        JsonObject addInfo = body.getJsonObject("addInfo");
         SoundFragment song = null;
-        if (songTitle != null || songArtist != null || songDescription != null) {
+        if (songTitle != null || songArtist != null || songDescription != null || addInfo != null) {
             song = new SoundFragment();
             song.setTitle(songTitle != null ? songTitle : "");
             song.setArtist(songArtist != null ? songArtist : "");
             song.setDescription(songDescription != null ? songDescription : "");
+            if (addInfo != null) {
+                song.setAddInfo(addInfo.getMap());
+            }
         }
         SoundFragment finalSong = song;
 

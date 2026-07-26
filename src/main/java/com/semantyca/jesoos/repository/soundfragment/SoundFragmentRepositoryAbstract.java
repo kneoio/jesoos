@@ -69,6 +69,11 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         java.time.LocalDateTime expiresAtRaw = row.getLocalDateTime("expires_at");
         doc.setExpiresAt(expiresAtRaw != null ? expiresAtRaw.atOffset(ZoneOffset.UTC) : null);
 
+        JsonObject addInfoJson = row.getJsonObject("add_info");
+        if (addInfoJson != null) {
+            doc.setAddInfo(addInfoJson.getMap());
+        }
+
         JsonObject schedulerJson = row.getJsonObject("scheduler");
         if (schedulerJson != null) {
             try {
