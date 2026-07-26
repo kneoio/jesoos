@@ -6,6 +6,8 @@ import com.semantyca.jesoos.service.AiAgentService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.scripting.DraftFactory;
+import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
+import io.smallrye.mutiny.Uni;
 import com.semantyca.mixpla.model.cnst.LlmType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
 import io.vertx.core.http.HttpMethod;
@@ -36,6 +38,9 @@ public class DebugResource extends AbstractResource {
 
     @Inject
     DraftFactory draftFactory;
+
+    @Inject
+    SoundFragmentService soundFragmentService;
 
     public void setupRoutes(Router router) {
         String path = "/jesoos/debug";
@@ -205,14 +210,21 @@ public class DebugResource extends AbstractResource {
                 song.setAddInfo(addInfo.getMap());
             }
         }
-        SoundFragment finalSong = song;
+        SoundFragment fakeSong = song;
 
-        brandService.getBySlugName(brand)
+        // songId (optional): load the REAL fragment through the repository mapper so its DB add_info
+        // (and thus songVibe) is exercised end-to-end; otherwise fall back to the inline fake song.
+        String songId = body.getString("songId");
+        Uni<SoundFragment> songUni = songId != null && !songId.isBlank()
+                ? soundFragmentService.getById(UUID.fromString(songId))
+                : Uni.createFrom().item(fakeSong);
+
+        songUni.flatMap(finalSong -> brandService.getBySlugName(brand)
                 .flatMap(b -> aiAgentService.getById(b.getAiAgentId())
                         .flatMap(agent -> {
                             RadioStream stream = new RadioStream(b);
                             return draftFactory.renderCode(code, finalSong, agent, stream, sharerName);
-                        }))
+                        })))
                 .subscribe().with(
                         draft -> rc.response()
                                 .setStatusCode(200)
