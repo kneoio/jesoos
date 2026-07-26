@@ -6,7 +6,6 @@ import com.semantyca.core.llm.LlmTextClient;
 import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
-import com.semantyca.core.util.WebHelper;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.dto.RlsActionDTO;
 import com.semantyca.jesoos.dto.SoundFragmentDTO;
@@ -211,7 +210,6 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         }
                         dto.setRepresentedInBrands(List.of(brandId));
                         dto.setNewlyUploaded(List.of(fileName));
-                        dto.setSlugName(WebHelper.generateSlug(dto.getArtist(), dto.getTitle()));
 
                         if (brand != null && brand.getOwner() != null && brand.getOwner().getUserId() != null) {
                             RlsActionDTO ownerGrant = new RlsActionDTO();
