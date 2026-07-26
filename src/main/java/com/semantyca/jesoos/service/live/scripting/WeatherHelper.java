@@ -5,8 +5,10 @@ import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public final class WeatherHelper {
     private final WeatherApiClient client;
@@ -62,9 +64,28 @@ public final class WeatherHelper {
         return buildSummary(w);
     }
 
+    /**
+     * Weather for several cities at once (e.g. an audience city list), joined with "; ".
+     * Each city is fetched via the cached {@link #summary(String)}; cities that fail to resolve
+     * are skipped. Note: this makes one API call per uncached city — call it sparingly.
+     */
+    public String summary(List<String> cities) {
+        if (cities == null || cities.isEmpty()) {
+            return "";
+        }
+        return cities.stream()
+                .map(this::summary)
+                .filter(s -> s != null && !s.isEmpty())
+                .collect(Collectors.joining("; "));
+    }
+
     private String buildSummary(Map<String, Object> w) {
+        // A failed/empty lookup yields a map with null city/temp; never emit "null: null°C, null".
+        if (w == null || w.get("city") == null || w.get("temp") == null) {
+            return "";
+        }
         StringBuilder result = new StringBuilder();
-        
+
         result.append(w.get("city")).append(": ");
         result.append(w.get("temp")).append("°C");
         
