@@ -32,7 +32,9 @@ public final class AddInfoInterpreter {
 
         Double bpm = toDouble(addInfo.get("bpm"));
         if (bpm != null) {
-            parts.add(tempoBand(bpm) + " (" + Math.round(bpm) + " BPM)");
+            // Tempo WORD only, no BPM number - a bare number (e.g. "130") gets voiced as a
+            // clock time ("one-thirty") by the intro LLM.
+            parts.add(tempoBand(bpm));
         }
 
         if (addInfo.get("scale") instanceof String scale && !scale.isBlank()) {
