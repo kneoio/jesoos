@@ -253,7 +253,7 @@ public class CommandService {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand is not on-line"));
                     } else {
                         djStateService.enableDj(brand);
-                        djStateService.activateLiveBoost(brand, 3, Boost.BOOST);
+                        djStateService.activateLiveBoost(brand, 2, Boost.BOOST);
                         LOGGER.infof("DJ enabled for brand: %s (stream already running)", brand);
                         metricPublisher.publishMetric(brand, MetricEventType.INFORMATION, ProcessType.FLOW, "enable_dj_ok", Map.of("brand", brand), traceId);
                         return Uni.createFrom().item(new JsonObject()
