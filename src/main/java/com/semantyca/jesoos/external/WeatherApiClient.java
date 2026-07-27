@@ -63,7 +63,7 @@ public class WeatherApiClient {
         WeatherHelper weatherHelper = new WeatherHelper(apiClient);
         
         try {
-            String weather = weatherHelper.summary(CountryCode.PT,"Leiria");
+            String weather = weatherHelper.summary(CountryCode.GB,"London");
             System.out.println(weather);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
