@@ -9,6 +9,7 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 ## Documentation Map
 
 - `service/chat/CHAT_WORKFLOW.md` — public chat / LLM agent flow (auth, tools, OTS, ads).
+- `service/ask/ASK_WORKFLOW.md` — internal Mixpla Ask chat (platform knowledge; isolated from listener chat).
 - `service/agenda/RADIO_WORKFLOW.md` — continuous brand radio: agenda build → live emission,
   scenes, timeline, mixing, talkativity, TTS, generated content, Catalog vs Live Boost, shared
   fragments, commands, metrics.

@@ -9,6 +9,9 @@ have to reverse-engineer them.
 > Behaviour rules are split between the
 > **prompt** (what the LLM is told to do) and **code** (what is actually enforced).
 > Tool gating and auth state are enforced in code — never trust the prompt alone.
+>
+> Internal Mixpla Ask chat is a **separate** package (`service/ask`) — see `ASK_WORKFLOW.md`.
+> Do not add Ask branches here.
 
 ---
 
