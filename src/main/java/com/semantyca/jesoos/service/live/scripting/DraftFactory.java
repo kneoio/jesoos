@@ -280,17 +280,22 @@ public class DraftFactory {
         }
         data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
+        String profileType = profile != null ? profile.getName() : "";
         String profileName;
         String profileDescription;
-        if (overriddenProfile != null && !overriddenProfile.getName().isEmpty()) {
-            profileName = overriddenProfile.getName();
+        // Override is the place/venue name; profile type stays as context (e.g. "City: Almaty").
+        if (overriddenProfile != null && overriddenProfile.getName() != null && !overriddenProfile.getName().isEmpty()) {
+            profileName = (profileType != null && !profileType.isEmpty())
+                    ? profileType + ": " + overriddenProfile.getName()
+                    : overriddenProfile.getName();
         } else {
-            profileName = profile.getName();
+            profileName = profileType != null ? profileType : "";
         }
-        if (overriddenProfile != null && !overriddenProfile.getDescription().trim().isEmpty()) {
+        if (overriddenProfile != null && overriddenProfile.getDescription() != null
+                && !overriddenProfile.getDescription().trim().isEmpty()) {
             profileDescription = overriddenProfile.getDescription();
         } else {
-            profileDescription = profile.getDescription();
+            profileDescription = profile != null ? profile.getDescription() : "";
         }
         data.put("profileName", profileName);
         data.put("profileDescription", profileDescription != null ? profileDescription : "");
