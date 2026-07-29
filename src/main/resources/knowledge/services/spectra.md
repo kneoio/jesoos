@@ -62,8 +62,9 @@ uv run uvicorn service:app --host 0.0.0.0 --port 38795
 fetched at startup by `ensure_models()` when they are not already in the image.
 
 The image is `python:3.14-slim` plus ffmpeg, published manually to `ghcr.io/kneoio/spectra:latest` by
-the `Build and Push` workflow (`workflow_dispatch`), then deployed with `docker compose pull spectra`
-and `docker compose up -d spectra` from `~/compose`.
+the `Build and Push` workflow (`.github/workflows/deploy.yml`, `workflow_dispatch`), then deployed with
+`docker compose pull spectra` and `docker compose up -d spectra` from `~/compose`. The service is
+defined in `~/compose/docker-compose.yml` on the host network at port 38795.
 
 Configuration covers the moon database (`SPECTRA_DB_HOST` and `SPECTRA_DB_PORT`, defaulting to
 `127.0.0.1:8572`, plus `SPECTRA_DB_NAME` `moon`, `SPECTRA_DB_USER` `regolith` and
@@ -71,8 +72,14 @@ Configuration covers the moon database (`SPECTRA_DB_HOST` and `SPECTRA_DB_PORT`,
 `https://hel1.your-objectstorage.com`, `HETZNER_STORAGE_BUCKET` `soundfragments`, and the access and
 secret keys). On the server these live in `~/compose/env/spectra.env`.
 
-Because the port has no public route, reaching it means tunnelling:
-`ssh -L 38795:127.0.0.1:38795 kneo@65.108.49.217`, then plain HTTP against `127.0.0.1:38795`.
+Because the port has no public route, reaching it means tunnelling with
+`ssh -L 38795:127.0.0.1:38795 kneo@65.108.49.217` and then calling plain HTTP without TLS:
+
+```bash
+curl http://127.0.0.1:38795/analyze -XPOST \
+  -H 'Content-Type: application/json' \
+  -d '{"soundFragmentId":"<uuid>"}'
+```
 
 # Note
 
