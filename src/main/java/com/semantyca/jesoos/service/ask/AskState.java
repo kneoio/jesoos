@@ -35,7 +35,7 @@ public class AskState extends AgentState {
 
     public String connectionId() { return (String) data().getOrDefault(CONNECTION_ID, ""); }
     public String systemPrompt() { return (String) data().getOrDefault(SYSTEM_PROMPT, ""); }
-    public String assistantName() { return (String) data().getOrDefault(ASSISTANT_NAME, "Mixpla Ask"); }
+    public String assistantName() { return (String) data().getOrDefault(ASSISTANT_NAME, "Mixplaclone"); }
     public LlmToolCall toolCall() { return (LlmToolCall) data().get(TOOL_CALL); }
     public String botResponse() { return (String) data().get(BOT_RESPONSE); }
     public boolean responseStreamed() {

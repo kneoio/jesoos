@@ -36,7 +36,7 @@ public class AskChatService {
 
     /** Fixed scope key stored in brand_name column; not a brand. */
     public static final String SCOPE_KEY = "mixpla";
-    public static final String ASSISTANT_NAME = "Mixpla Ask";
+    public static final String ASSISTANT_NAME = "Mixplaclone";
     public static final String ASSISTANT_LANGUAGES = "en";
 
     private final String askPrompt;

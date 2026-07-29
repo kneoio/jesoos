@@ -51,13 +51,15 @@ DB rows still use `brand_name='mixpla'` as the scope column (existing schema); t
 Same email-OTP + session-token mechanism as public chat (`PublicChatSessionManager`,
 `KeycloakAuthService`), but **no** station listener upsert.
 
-- `userId == 0` ⇒ anonymous. Prompt truncated at `!! AUTHENTICATED ONLY`; tools gated in code.
-- Anonymous tools: `start_auth`, `verify_code`.
+- `userId == 0` ⇒ anonymous. Prompt truncated at `!! AUTHENTICATED ONLY` (no topic/tools section);
+  anonymous must be driven through email OTP before any platform answers.
+- Anonymous tools: `start_auth`, `verify_code` only.
 - Authenticated tools: `search_platform_knowledge`, `logoff`.
 - `AskVerifyCodeToolHandler` stores session token only (no `ChatAuthService.registerListener`).
 - `AskLogoffToolHandler` clears ask history keys and downgrades the Ask WS session.
 
 Connect: `?token=` optional; invalid/missing → anonymous (same recovery pattern as public chat).
+Anonymous chat is workstation-scoped via FE `anonId` (localStorage) → WS `connectionId`.
 
 ---
 

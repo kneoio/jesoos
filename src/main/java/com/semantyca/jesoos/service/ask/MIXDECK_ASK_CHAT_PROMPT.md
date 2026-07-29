@@ -17,7 +17,7 @@ Vue SFC(s), fit Mixdeck patterns (composition API, existing router/store/i18n if
 - Empty state: short welcome line + optional suggested prompts
 - Composer: textarea, Enter to send, Shift+Enter newline, disabled while a reply is in flight
 - History: load on open via `getHistory`
-- Auth UX: anonymous can chat for sign-in tools; after login, handle `session_token`; support logoff if backend sends it
+- Auth UX: anonymous must sign in first (email OTP); no platform Q&A until authenticated. Handle `session_token`; support logoff.
 - Errors: show `ERROR` messages inline, Mixdeck toast if that’s the app pattern
 - Responsive: usable on desktop; mobile ok
 
