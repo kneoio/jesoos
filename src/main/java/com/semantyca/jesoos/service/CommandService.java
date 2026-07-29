@@ -2,6 +2,7 @@ package com.semantyca.jesoos.service;
 
 import com.semantyca.core.dto.queue.command.CommandDTO;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.model.stream.AbstractStream;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.SharedSongEntry;
@@ -15,6 +16,7 @@ import com.semantyca.jesoos.service.maintenance.DailyAgendaRebuildService;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.Boost;
 import com.semantyca.mixpla.model.cnst.PlaylistItemType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
@@ -221,16 +223,41 @@ public class CommandService {
         return brandPool.get(slug)
                 .chain(stream -> {
                     if (stream == null) {
-                        LOGGER.infof("Brand %s not active, skipping agenda rebuild", slug);
+                        LOGGER.infof("Brand %s not active, skipping live DJ refresh", slug);
                         return Uni.createFrom().voidItem();
                     }
                     return brandService.getBySlugName(slug)
                             .invoke(brand -> {
-                                stream.setAiAgentId(brand.getAiAgentId());
-                                LOGGER.infof("Updated DJ agent for brand %s to %s", slug, brand.getAiAgentId());
+                                if (brand == null) {
+                                    return;
+                                }
+                                UUID previous = stream.getAiAgentId();
+                                applyBrandAgentToStream(stream, brand);
+                                LOGGER.infof("Updated DJ agent for brand %s to %s (was %s)", slug, brand.getAiAgentId(), previous);
                             })
                             .replaceWithVoid();
                 });
+    }
+
+    private static void applyBrandAgentToStream(ILiveStream stream, Brand brand) {
+        if (!(stream instanceof AbstractStream abstractStream)) {
+            return;
+        }
+        abstractStream.setAiAgentId(brand.getAiAgentId());
+        abstractStream.setAiOverriding(brand.getAiOverriding());
+        abstractStream.setProfileOverriding(brand.getProfileOverriding());
+        if (abstractStream.getBrand() != null) {
+            Brand nested = abstractStream.getBrand();
+            nested.setAiAgentId(brand.getAiAgentId());
+            nested.setAiOverriding(brand.getAiOverriding());
+            nested.setProfileOverriding(brand.getProfileOverriding());
+        }
+        StreamAgenda agenda = stream.getAgenda();
+        if (agenda != null && brand.getAiAgentId() != null) {
+            for (LiveScene scene : agenda.getLiveScenes()) {
+                scene.setAgentId(brand.getAiAgentId());
+            }
+        }
     }
 
     public Uni<JsonObject> startBrand(String brand, UUID traceId) {
