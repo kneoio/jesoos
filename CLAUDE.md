@@ -10,6 +10,7 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 
 - `service/chat/CHAT_WORKFLOW.md` — public chat / LLM agent flow (auth, tools, OTS, ads).
 - `service/ask/ASK_WORKFLOW.md` — internal Mixpla Ask chat (platform knowledge; isolated from listener chat).
+- `service/ask/MIXDECK_ASK_CHAT_PROMPT.md` — prompt for Mixdeck Vue Ask chat UI (WS client + welcome CTA).
 - `service/agenda/RADIO_WORKFLOW.md` — continuous brand radio: agenda build → live emission,
   scenes, timeline, mixing, talkativity, TTS, generated content, Catalog vs Live Boost, shared
   fragments, commands, metrics.
