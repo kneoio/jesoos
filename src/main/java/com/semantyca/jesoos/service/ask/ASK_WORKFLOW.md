@@ -21,6 +21,11 @@ AskChatController (WS /jesoos/ws/ask)
 `AskAgent` mirrors `ChatAgent`: max 8 tool iterations. No brand queue / listener profile injection.
 `loadContext` is a no-op placeholder (keeps the graph shape extractable).
 
+**Streaming (WS SSE-imitation):** `AskAgent` llm node uses `ChatLlmClient.streamMessage` (Anthropic
+provider SSE). Each text delta is pushed as a WS `CHUNK`. Tool rounds still emit `PROCESSING` status;
+no text `CHUNK`s while the model is choosing a tool. After the turn, `AskChatService` sends
+`PROCESSING` done + final `BOT` (does not re-send the full text as one `CHUNK` if already streamed).
+
 **Models:** same Anthropic stack via `BrandLlmProviderResolver` with a fixed synthetic slug
 `mixpla` (provider is platform-wide; brand param is vestigial).
 

@@ -32,8 +32,12 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
     }
 
     @Override
-    public CompletionStage<String> streamText(LlmRequest request, Consumer<String> chunkConsumer) {
+    public CompletionStage<LlmResponse> streamMessage(LlmRequest request, Consumer<String> chunkConsumer) {
         StringBuilder fullResponse = new StringBuilder();
+        StringBuilder toolInputJson = new StringBuilder();
+        String[] toolId = {null};
+        String[] toolName = {null};
+        boolean[] toolUse = {false};
         boolean[] inThinking = {false};
 
         return client.async().messages().createStreaming(toMessageCreateParams(request))
@@ -41,9 +45,21 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
                     @Override
                     public void onNext(RawMessageStreamEvent chunk) {
                         try {
+                            if (chunk.contentBlockStart().isPresent()) {
+                                var block = chunk.contentBlockStart().get().contentBlock();
+                                if (block.toolUse().isPresent()) {
+                                    toolUse[0] = true;
+                                    ToolUseBlock tu = block.toolUse().get();
+                                    toolId[0] = tu.id();
+                                    toolName[0] = tu.name();
+                                }
+                            }
                             if (chunk.contentBlockDelta().isPresent()) {
                                 RawContentBlockDelta delta = chunk.contentBlockDelta().get().delta();
-                                if (delta.text().isPresent()) {
+                                if (delta.inputJson().isPresent()) {
+                                    toolInputJson.append(delta.inputJson().get().partialJson());
+                                }
+                                if (delta.text().isPresent() && !toolUse[0]) {
                                     String text = delta.text().get().text();
                                     fullResponse.append(text);
                                     if (text.contains("<thinking>")) inThinking[0] = true;
@@ -60,7 +76,40 @@ public class AnthropicChatLlmClient implements ChatLlmClient {
                     public void onComplete(@NotNull Optional<Throwable> error) {}
                 })
                 .onCompleteFuture()
-                .thenApply(ignored -> fullResponse.toString());
+                .thenApply(ignored -> {
+                    LlmToolCall toolCall = null;
+                    if (toolUse[0] && toolId[0] != null && toolName[0] != null) {
+                        toolCall = new LlmToolCall(toolId[0], toolName[0], parseToolInput(toolInputJson.toString()));
+                    }
+                    return new LlmResponse(fullResponse.toString(), toolCall);
+                });
+    }
+
+    @Override
+    public CompletionStage<String> streamText(LlmRequest request, Consumer<String> chunkConsumer) {
+        return streamMessage(request, chunkConsumer).thenApply(LlmResponse::text);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseToolInput(String partialJson) {
+        if (partialJson == null || partialJson.isBlank()) {
+            return Collections.emptyMap();
+        }
+        try {
+            Object converted = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(partialJson, Map.class);
+            if (converted instanceof Map<?, ?> map) {
+                return map.entrySet().stream()
+                        .filter(e -> e.getKey() instanceof String)
+                        .collect(Collectors.toMap(
+                                e -> (String) e.getKey(),
+                                Map.Entry::getValue
+                        ));
+            }
+        } catch (Exception e) {
+            LOGGER.warnf("[anthropic] failed to parse streamed tool input: %s", e.getMessage());
+        }
+        return Collections.emptyMap();
     }
 
     // ── Conversion helpers ────────────────────────────────────────────────────

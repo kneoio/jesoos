@@ -41,8 +41,9 @@ Vue SFC(s), fit Mixdeck patterns (composition API, existing router/store/i18n if
 |--------|---------|
 | `{ "type": "session_token", "token", "userName" }` | Auth session established |
 | `{ "type": "message", "data": { "type": "USER"\|"BOT", "id", "username", "content", "timestamp", "connectionId" } }` | Full message (user echo / final bot) |
-| `{ "type": "CHUNK", "content", "username", "connectionId" }` | Stream fragment — append to current assistant bubble |
-| `{ "type": "PROCESSING", "content", ... }` | Non-empty = thinking; empty `content` = done |
+| `{ "type": "CHUNK", "content", "username", "connectionId" }` | Stream fragment — **append** to current assistant bubble (many per reply; real LLM deltas) |
+| `{ "type": "PROCESSING", "content", ... }` | Non-empty = thinking/tool status; empty `content` = done |
+| `{ "type": "message", "data": { "type": "BOT", ... } }` | Final assistant message — finalize bubble; **do not re-append** content already shown via `CHUNK` |
 | `{ "type": "ERROR", "message", ... }` | Error |
 | `{ "type": "COMMAND", "content", "payload", ... }` | Optional side effects (e.g. auth) — wire if Mixdeck already handles similar for public chat |
 

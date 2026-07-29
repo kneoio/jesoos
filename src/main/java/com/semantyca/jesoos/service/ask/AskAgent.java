@@ -105,7 +105,15 @@ public class AskAgent {
                 .tools(tools)
                 .build();
 
-        return Uni.createFrom().completionStage(() -> llmProviderResolver.clientFor(LLM_SLUG).createMessage(request))
+        String connectionId = state.connectionId();
+        String assistantName = state.assistantName();
+
+        return Uni.createFrom().completionStage(() ->
+                        llmProviderResolver.clientFor(LLM_SLUG).streamMessage(request, delta -> {
+                            if (delta == null || delta.isEmpty()) return;
+                            controller.sendToConnection(connectionId,
+                                    ChatMessageDTO.chunk(delta, assistantName, connectionId).build().toJson());
+                        }))
                 .map(response -> {
                     Map<String, Object> updates = new HashMap<>();
                     if (response.toolCall().isPresent()) {
@@ -113,16 +121,19 @@ public class AskAgent {
                                 response.toolCall().get().name(), state.userId(), state.iteration());
                         updates.put(AskState.TOOL_CALL, response.toolCall().get());
                         updates.put(AskState.BOT_RESPONSE, null);
+                        updates.put(AskState.RESPONSE_STREAMED, false);
                     } else {
-                        LOGGER.infof("[AskAgent] llm→text userId=%d iter=%d", state.userId(), state.iteration());
+                        LOGGER.infof("[AskAgent] llm→text(streamed) userId=%d iter=%d", state.userId(), state.iteration());
                         updates.put(AskState.TOOL_CALL, null);
                         updates.put(AskState.BOT_RESPONSE, response.text());
+                        updates.put(AskState.RESPONSE_STREAMED, true);
                     }
                     return updates;
                 })
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.errorf(err, "[AskAgent] llmNode failed");
-                    return Map.of(AskState.TOOL_CALL, (Object) null, AskState.BOT_RESPONSE, "");
+                    return Map.of(AskState.TOOL_CALL, (Object) null, AskState.BOT_RESPONSE, "",
+                            AskState.RESPONSE_STREAMED, false);
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();

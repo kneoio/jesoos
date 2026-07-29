@@ -140,7 +140,7 @@ public class AskChatService {
             if (botText == null || botText.isBlank()) {
                 if (finalUserId != 0 && user.getId() == 0) {
                     return emitResponse("You're signed in. What would you like to know about Mixpla?",
-                            chunkHandler, completionHandler, connectionId, finalUserId)
+                            chunkHandler, completionHandler, connectionId, finalUserId, false)
                             .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
                 }
                 chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
@@ -159,7 +159,8 @@ public class AskChatService {
                     askConnectionKey(connectionId),
                     finalState.history());
 
-            return emitResponse(responseText, chunkHandler, completionHandler, connectionId, finalUserId)
+            return emitResponse(responseText, chunkHandler, completionHandler, connectionId, finalUserId,
+                    finalState.responseStreamed())
                     .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
         }).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
@@ -175,9 +176,12 @@ public class AskChatService {
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
-            long userId) {
+            long userId,
+            boolean alreadyStreamed) {
         return Uni.createFrom().item(() -> {
-            chunkHandler.accept(ChatMessageDTO.chunk(text, ASSISTANT_NAME, connectionId).build().toJson());
+            if (!alreadyStreamed) {
+                chunkHandler.accept(ChatMessageDTO.chunk(text, ASSISTANT_NAME, connectionId).build().toJson());
+            }
             chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
 
             chatRepository.appendToConversation(

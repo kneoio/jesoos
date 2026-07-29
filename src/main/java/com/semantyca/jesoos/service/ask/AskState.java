@@ -17,6 +17,7 @@ public class AskState extends AgentState {
     public static final String ASSISTANT_NAME = "assistantName";
     public static final String TOOL_CALL = "toolCall";
     public static final String BOT_RESPONSE = "botResponse";
+    public static final String RESPONSE_STREAMED = "responseStreamed";
     public static final String ITERATION = "iteration";
     public static final String SESSION_TOKEN = "sessionToken";
     public static final String SESSION_USER_NAME = "sessionUserName";
@@ -37,6 +38,10 @@ public class AskState extends AgentState {
     public String assistantName() { return (String) data().getOrDefault(ASSISTANT_NAME, "Mixpla Ask"); }
     public LlmToolCall toolCall() { return (LlmToolCall) data().get(TOOL_CALL); }
     public String botResponse() { return (String) data().get(BOT_RESPONSE); }
+    public boolean responseStreamed() {
+        Object v = data().get(RESPONSE_STREAMED);
+        return v instanceof Boolean b && b;
+    }
     public String sessionToken() { return (String) data().get(SESSION_TOKEN); }
     public String sessionUserName() { return (String) data().get(SESSION_USER_NAME); }
 
