@@ -18,8 +18,8 @@ AskChatController (WS /jesoos/ws/ask)
       → AskAgent.run(state)   // loadContext → llm ⇄ tool
 ```
 
-`AskAgent` mirrors `ChatAgent`: max 8 tool iterations. No brand queue / listener profile injection.
-`loadContext` is a no-op placeholder (keeps the graph shape extractable).
+`AskAgent` mirrors `ChatAgent`: max 8 tool iterations. No brand queue injection.
+`loadContext` loads the authenticated user's Listener profile into volatile context (when present).
 
 **Streaming (WS SSE-imitation):** `AskAgent` llm node uses `ChatLlmClient.streamMessage` (Anthropic
 provider SSE). Each text delta is pushed as a WS `CHUNK`. Tool rounds still emit `PROCESSING` status;
@@ -54,7 +54,10 @@ Same email-OTP + session-token mechanism as public chat (`PublicChatSessionManag
 - `userId == 0` ⇒ anonymous. Prompt truncated at `!! AUTHENTICATED ONLY` (no topic/tools section);
   anonymous must be driven through email OTP before any platform answers.
 - Anonymous tools: `start_auth`, `verify_code` only.
-- Authenticated tools: `search_platform_knowledge`, `logoff`.
+- Authenticated tools: `search_platform_knowledge`, `listener_data`, `logoff`.
+- `loadContext` injects listener profile (by `userId`) into volatile LLM context when a Listener
+  row exists — so Mixplaclone knows whom it is speaking to. `listener_data` can get/set that profile
+  (shared `ListenerDataTool` / handler; no brand registration on Ask login).
 - `AskVerifyCodeToolHandler` stores session token only (no `ChatAuthService.registerListener`).
 - `AskLogoffToolHandler` clears ask history keys and downgrades the Ask WS session.
 
@@ -69,6 +72,7 @@ Anonymous chat is workstation-scoped via FE `anonId` (localStorage) → WS `conn
 |---|---|
 | `start_auth` / `verify_code` / `logoff` | sign-in / sign-out (Ask handlers for verify/logoff) |
 | `search_platform_knowledge` | keyword search over `platform-knowledge.md` |
+| `listener_data` | get/set listener profile (who the bot is speaking to) |
 
 No catalog, play, upload, ad, or community tools.
 

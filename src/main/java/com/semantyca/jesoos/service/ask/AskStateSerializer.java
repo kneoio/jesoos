@@ -40,6 +40,7 @@ public class AskStateSerializer extends StateSerializer<AskState> {
         writeString(out, (String) data.get(AskState.BOT_RESPONSE));
         writeString(out, (String) data.get(AskState.SESSION_TOKEN));
         writeString(out, (String) data.get(AskState.SESSION_USER_NAME));
+        writeString(out, (String) data.get(AskState.LISTENER_CONTEXT));
         out.writeInt(toInt(data.get(AskState.ITERATION)));
         out.writeBoolean(data.get(AskState.RESPONSE_STREAMED) instanceof Boolean b && b);
 
@@ -61,6 +62,7 @@ public class AskStateSerializer extends StateSerializer<AskState> {
         data.put(AskState.BOT_RESPONSE, readString(in));
         data.put(AskState.SESSION_TOKEN, readString(in));
         data.put(AskState.SESSION_USER_NAME, readString(in));
+        data.put(AskState.LISTENER_CONTEXT, readString(in));
         data.put(AskState.ITERATION, in.readInt());
         data.put(AskState.RESPONSE_STREAMED, in.readBoolean());
 

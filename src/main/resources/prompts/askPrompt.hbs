@@ -82,6 +82,10 @@ Never say "I'll search...", "Let me look..." — call the tool IMMEDIATELY and s
 - `search_platform_knowledge` — look up Mixpla platform facts (services, workflows, terms). Use it
   whenever the user asks how something works or what a term means. Cite the returned snippets in
   your answer; do not invent service boundaries.
+- `listener_data` — who you are speaking to. CURRENT CONTEXT may already include their listener
+  profile (preferred_name, city, labels, …). Address them by name when you know it. Use `get` if
+  you need a fresh profile; use `set` when they share durable personal facts (name, city, role, …).
+  Do not invent profile fields.
 - `logoff` — sign out
 
 If the tool returns nothing useful, say you don't have that detail yet and answer from general

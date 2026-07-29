@@ -5,6 +5,7 @@ import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.ChatRepository;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.ask.tools.SearchPlatformKnowledgeTool;
 import com.semantyca.jesoos.service.ask.tools.SearchPlatformKnowledgeToolHandler;
 import com.semantyca.jesoos.service.ask.tools.auth.AskLogoffToolHandler;
@@ -12,6 +13,9 @@ import com.semantyca.jesoos.service.ask.tools.auth.AskVerifyCodeToolHandler;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import com.semantyca.jesoos.service.chat.llm.*;
+import com.semantyca.jesoos.service.chat.tools.ListenerDataTool;
+import com.semantyca.jesoos.service.chat.tools.ListenerDataToolHandler;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.service.chat.tools.auth.LogoffTool;
 import com.semantyca.jesoos.service.chat.tools.auth.StartAuthTool;
 import com.semantyca.jesoos.service.chat.tools.auth.StartAuthToolHandler;
@@ -51,6 +55,8 @@ public class AskAgent {
     @Inject MetricPublisher metricPublisher;
     @Inject AskChatController controller;
     @Inject AskChatService askChatService;
+    @Inject ListenerService listenerService;
+    @Inject ListenerLabelCache listenerLabelCache;
 
     private CompiledGraph<AskState> compiledGraph;
 
@@ -76,8 +82,41 @@ public class AskAgent {
     }
 
     private CompletableFuture<Map<String, Object>> loadContextNode(AskState state) {
-        // No brand queue / listener profile — keep node for graph shape / future volatile context.
-        return CompletableFuture.completedFuture(Map.of());
+        long userId = state.userId();
+        if (userId == 0) {
+            return CompletableFuture.completedFuture(Map.of(AskState.LISTENER_CONTEXT, ""));
+        }
+        return listenerService.getByUserId(userId)
+                .map(listener -> {
+                    if (listener == null) {
+                        return Map.<String, Object>of(AskState.LISTENER_CONTEXT, "");
+                    }
+                    StringBuilder sb = new StringBuilder("[Listener profile:");
+                    com.semantyca.core.model.UserData ud = listener.getUserData();
+                    if (ud != null && ud.getData() != null) {
+                        ud.getData().forEach((k, v) -> sb.append(" ").append(k).append("=").append(v).append(";"));
+                    }
+                    if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
+                        listener.getLocalizedName().forEach((lang, name) ->
+                                sb.append(" localized_name(").append(lang).append(")=").append(name).append(";"));
+                    }
+                    if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
+                        listener.getNickName().forEach((lang, name) ->
+                                sb.append(" nick_name(").append(lang).append(")=").append(name).append(";"));
+                    }
+                    List<String> resolvedLabels = listenerLabelCache.resolveToIdentifiers(listener.getLabels());
+                    if (!resolvedLabels.isEmpty()) {
+                        sb.append(" labels=").append(resolvedLabels).append(";");
+                    }
+                    sb.append("]");
+                    return Map.<String, Object>of(AskState.LISTENER_CONTEXT, sb.toString());
+                })
+                .onFailure().recoverWithItem(err -> {
+                    LOGGER.warnf("[AskAgent] loadContext listener fetch failed userId=%d: %s", userId, err.getMessage());
+                    return Map.of(AskState.LISTENER_CONTEXT, "");
+                })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .subscribeAsCompletionStage();
     }
 
     private CompletableFuture<Map<String, Object>> llmNode(AskState state) {
@@ -98,7 +137,7 @@ public class AskAgent {
         LlmRequest request = LlmRequest.builder()
                 .maxTokens(1024L)
                 .systemStable(base)
-                .systemVolatile("")
+                .systemVolatile(buildVolatileContext(state.listenerContext()))
                 .cacheSystem(true)
                 .messages(state.history())
                 .model(model)
@@ -137,6 +176,14 @@ public class AskAgent {
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
+    }
+
+    private static String buildVolatileContext(String listenerContext) {
+        if (listenerContext == null || listenerContext.isBlank()) return "";
+        return "----------------------------------------\n"
+                + "CURRENT CONTEXT (live, this request)\n"
+                + "----------------------------------------\n"
+                + listenerContext.trim();
     }
 
     private CompletableFuture<Map<String, Object>> toolNode(AskState state) {
@@ -206,6 +253,7 @@ public class AskAgent {
             case "logoff" -> AskLogoffToolHandler.execute(sessionManager, userService, controller,
                     askChatService, metricPublisher, state.userId(), state.connectionId());
             case "search_platform_knowledge" -> SearchPlatformKnowledgeToolHandler.execute(input);
+            case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, state.userId());
             default -> {
                 LOGGER.warnf("[AskAgent] unknown tool: %s", toolCall.name());
                 yield Uni.createFrom().item(ToolNodeResult.ok(
@@ -230,6 +278,7 @@ public class AskAgent {
             case "start_auth" -> "Sending verification code...";
             case "verify_code" -> "Verifying code...";
             case "search_platform_knowledge" -> "Looking up Mixpla knowledge...";
+            case "listener_data" -> "Remembering...";
             case "logoff" -> "Signing out...";
             default -> null;
         };
@@ -239,6 +288,7 @@ public class AskAgent {
         List<LlmTool> tools = new ArrayList<>();
         if (isAuthenticated) {
             tools.add(SearchPlatformKnowledgeTool.toTool());
+            tools.add(ListenerDataTool.toTool());
             tools.add(LogoffTool.toTool());
         } else {
             tools.add(StartAuthTool.toTool());

@@ -21,6 +21,7 @@ public class AskState extends AgentState {
     public static final String ITERATION = "iteration";
     public static final String SESSION_TOKEN = "sessionToken";
     public static final String SESSION_USER_NAME = "sessionUserName";
+    public static final String LISTENER_CONTEXT = "listenerContext";
 
     public AskState(Map<String, Object> initData) {
         super(initData);
@@ -44,6 +45,7 @@ public class AskState extends AgentState {
     }
     public String sessionToken() { return (String) data().get(SESSION_TOKEN); }
     public String sessionUserName() { return (String) data().get(SESSION_USER_NAME); }
+    public String listenerContext() { return (String) data().getOrDefault(LISTENER_CONTEXT, ""); }
 
     public int iteration() {
         Object v = data().getOrDefault(ITERATION, 0);
