@@ -5,7 +5,8 @@ Internal Mixpla platform-knowledge chat. **Isolated** from public brand / OTS li
 controller, service, agent, prompt, tools, and history keys so this package can be extracted later.
 
 > Prompt: `src/main/resources/prompts/askPrompt.hbs`
-> Knowledge corpus: `src/main/resources/ask/platform-knowledge.md`
+> Knowledge: OKF bundle in `src/main/resources/knowledge/` via `service/knowledge` — see
+> `KNOWLEDGE_WORKFLOW.md`. Platform-wide, not Ask-owned.
 > Do **not** route Ask turns through `ChatService` / `ChatAgent` / `PublicChatController`.
 
 ---
@@ -58,6 +59,11 @@ Same email-OTP + session-token mechanism as public chat (`PublicChatSessionManag
 - `loadContext` injects listener profile (by `userId`) into volatile LLM context when a Listener
   row exists — so Mixplaclone knows whom it is speaking to. `listener_data` can get/set that profile
   (shared `ListenerDataTool` / handler; no brand registration on Ask login).
+- `loadContext` also resolves the caller's **audience** from Listener labels (`Audience.fromLabels`)
+  into `AskState.AUDIENCES`. It drives two things: `{{audience}}` in the prompt (tone / answer depth)
+  and the audience filter passed to `search_platform_knowledge`. No Listener row ⇒ `user`.
+  Labels are read-only from chat: `owner` / `developer` are datanest-assigned and the handler refuses
+  them. See `KNOWLEDGE_WORKFLOW.md` §5.
 - `AskVerifyCodeToolHandler` stores session token only (no `ChatAuthService.registerListener`).
 - `AskLogoffToolHandler` clears ask history keys and downgrades the Ask WS session.
 
@@ -71,7 +77,7 @@ Anonymous chat is workstation-scoped via FE `anonId` (localStorage) → WS `conn
 | Tool | Purpose |
 |---|---|
 | `start_auth` / `verify_code` / `logoff` | sign-in / sign-out (Ask handlers for verify/logoff) |
-| `search_platform_knowledge` | keyword search over `platform-knowledge.md` |
+| `search_platform_knowledge` | weighted search over the shared OKF knowledge bundle, scoped to the caller's audience (`service/knowledge`) |
 | `listener_data` | get/set listener profile (who the bot is speaking to) |
 
 No catalog, play, upload, ad, or community tools.
@@ -82,12 +88,14 @@ No catalog, play, upload, ad, or community tools.
 
 Package root: `com.semantyca.jesoos.service.ask` + `ws.AskChatController`.
 
-Shared as libraries only: `service.chat.llm.*`, `BaseToolHandler`, `ToolNodeResult`,
-`StartAuthTool` / `StartAuthToolHandler.execute`, tool schema classes, `PublicChatSessionManager`,
+Shared as libraries only: `service.chat.llm.*`, `service.knowledge.*` (OKF bundle + search tool),
+`BaseToolHandler`, `ToolNodeResult`, `StartAuthTool` / `StartAuthToolHandler.execute`,
+`ListenerDataTool(Handler)`, tool schema classes, `PublicChatSessionManager`,
 `ChatRepository` (persistence), `ChatMessageDTO`.
 
-When extracting to a new service: lift `service.ask` + `AskChatController` + ask prompt/knowledge
-resources; keep LLM/session deps.
+When extracting to a new service: lift `service.ask` + `AskChatController` + the ask prompt, and
+take `service.knowledge` + `resources/knowledge/**` along (or point at wherever the bundle is
+served from); keep LLM/session deps.
 
 ---
 
@@ -98,5 +106,5 @@ resources; keep LLM/session deps.
 | WS | `ws/AskChatController` |
 | Orchestration | `AskChatService`, `AskAgent` |
 | Auth handlers | `tools/auth/AskVerifyCodeToolHandler`, `AskLogoffToolHandler` |
-| Knowledge | `tools/SearchPlatformKnowledgeTool(Handler)`, `resources/ask/platform-knowledge.md` |
+| Knowledge | `service/knowledge/*` (shared), `resources/knowledge/**` |
 | Prompt | `resources/prompts/askPrompt.hbs` |

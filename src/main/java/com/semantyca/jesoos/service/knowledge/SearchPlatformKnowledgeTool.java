@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.ask.tools;
+package com.semantyca.jesoos.service.knowledge;
 
 import com.semantyca.jesoos.service.chat.llm.LlmTool;
 
@@ -13,6 +13,7 @@ public final class SearchPlatformKnowledgeTool {
         return LlmTool.of(
                 "search_platform_knowledge",
                 "Search Mixpla platform knowledge (services, workflows, terminology). " +
+                        "Each hit carries the concept title, type, tags and the matching section. " +
                         "Use for how Mixpla works — not for live station actions.",
                 Map.of(
                         "query", Map.of(

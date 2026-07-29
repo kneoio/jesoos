@@ -6,8 +6,10 @@ import com.semantyca.jesoos.external.KeycloakAuthService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.ListenerService;
-import com.semantyca.jesoos.service.ask.tools.SearchPlatformKnowledgeTool;
-import com.semantyca.jesoos.service.ask.tools.SearchPlatformKnowledgeToolHandler;
+import com.semantyca.jesoos.service.knowledge.Audience;
+import com.semantyca.jesoos.service.knowledge.KnowledgeBase;
+import com.semantyca.jesoos.service.knowledge.SearchPlatformKnowledgeTool;
+import com.semantyca.jesoos.service.knowledge.SearchPlatformKnowledgeToolHandler;
 import com.semantyca.jesoos.service.ask.tools.auth.AskLogoffToolHandler;
 import com.semantyca.jesoos.service.ask.tools.auth.AskVerifyCodeToolHandler;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.bsc.langgraph4j.StateGraph.END;
@@ -57,6 +60,7 @@ public class AskAgent {
     @Inject AskChatService askChatService;
     @Inject ListenerService listenerService;
     @Inject ListenerLabelCache listenerLabelCache;
+    @Inject KnowledgeBase knowledgeBase;
 
     private CompiledGraph<AskState> compiledGraph;
 
@@ -84,12 +88,14 @@ public class AskAgent {
     private CompletableFuture<Map<String, Object>> loadContextNode(AskState state) {
         long userId = state.userId();
         if (userId == 0) {
-            return CompletableFuture.completedFuture(Map.of(AskState.LISTENER_CONTEXT, ""));
+            return CompletableFuture.completedFuture(Map.of(
+                    AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier()));
         }
         return listenerService.getByUserId(userId)
                 .map(listener -> {
                     if (listener == null) {
-                        return Map.<String, Object>of(AskState.LISTENER_CONTEXT, "");
+                        return Map.<String, Object>of(
+                                AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier());
                     }
                     StringBuilder sb = new StringBuilder("[Listener profile:");
                     com.semantyca.core.model.UserData ud = listener.getUserData();
@@ -108,12 +114,16 @@ public class AskAgent {
                     if (!resolvedLabels.isEmpty()) {
                         sb.append(" labels=").append(resolvedLabels).append(";");
                     }
+                    Set<Audience> audiences = Audience.fromLabels(resolvedLabels);
+                    sb.append(" audience=").append(Audience.primary(audiences).identifier()).append(";");
                     sb.append("]");
-                    return Map.<String, Object>of(AskState.LISTENER_CONTEXT, sb.toString());
+                    return Map.<String, Object>of(
+                            AskState.LISTENER_CONTEXT, sb.toString(),
+                            AskState.AUDIENCES, Audience.join(audiences));
                 })
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.warnf("[AskAgent] loadContext listener fetch failed userId=%d: %s", userId, err.getMessage());
-                    return Map.of(AskState.LISTENER_CONTEXT, "");
+                    return Map.of(AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier());
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
@@ -121,14 +131,16 @@ public class AskAgent {
 
     private CompletableFuture<Map<String, Object>> llmNode(AskState state) {
         boolean isAuthenticated = state.userId() != 0;
-        List<LlmTool> tools = getToolsForUser(isAuthenticated);
+        Set<Audience> audiences = state.audiences();
+        List<LlmTool> tools = getToolsFor(isAuthenticated);
 
         String model = state.iteration() == 0
                 ? llmProviderResolver.modelFor(LLM_SLUG, LlmUseCase.MAIN_CHAT)
                 : llmProviderResolver.modelFor(LLM_SLUG, LlmUseCase.FOLLOW_UP);
 
         String base = state.systemPrompt()
-                .replace("{{isAuthenticated}}", Boolean.toString(isAuthenticated));
+                .replace("{{isAuthenticated}}", Boolean.toString(isAuthenticated))
+                .replace("{{audience}}", Audience.primary(audiences).identifier());
         if (!isAuthenticated) {
             int gateIdx = base.indexOf("!! AUTHENTICATED ONLY");
             if (gateIdx >= 0) base = base.substring(0, gateIdx).trim();
@@ -252,7 +264,7 @@ public class AskAgent {
                     state.connectionId(), metricPublisher);
             case "logoff" -> AskLogoffToolHandler.execute(sessionManager, userService, controller,
                     askChatService, metricPublisher, state.userId(), state.connectionId());
-            case "search_platform_knowledge" -> SearchPlatformKnowledgeToolHandler.execute(input);
+            case "search_platform_knowledge" -> SearchPlatformKnowledgeToolHandler.execute(input, knowledgeBase, state.audiences());
             case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, state.userId());
             default -> {
                 LOGGER.warnf("[AskAgent] unknown tool: %s", toolCall.name());
@@ -284,7 +296,7 @@ public class AskAgent {
         };
     }
 
-    private List<LlmTool> getToolsForUser(boolean isAuthenticated) {
+    private List<LlmTool> getToolsFor(boolean isAuthenticated) {
         List<LlmTool> tools = new ArrayList<>();
         if (isAuthenticated) {
             tools.add(SearchPlatformKnowledgeTool.toTool());

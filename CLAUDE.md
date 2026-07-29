@@ -9,6 +9,8 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 ## Documentation Map
 
 - `service/chat/CHAT_WORKFLOW.md` — public chat / LLM agent flow (auth, tools, OTS, ads).
+- `service/knowledge/KNOWLEDGE_WORKFLOW.md` — platform-wide Mixpla knowledge base: OKF v0.2 bundle
+ (`resources/knowledge/`), loader, weighted search, shared `search_platform_knowledge` tool.
 - `service/ask/ASK_WORKFLOW.md` — internal Mixpla Ask chat (platform knowledge; isolated from listener chat).
 - `service/ask/MIXDECK_ASK_CHAT_PROMPT.md` — prompt for Mixdeck Vue Ask chat UI (WS client + welcome CTA).
 - `service/agenda/RADIO_WORKFLOW.md` — continuous brand radio: agenda build → live emission,
@@ -20,6 +22,8 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 ## jesoos Notes
 
 - Prompt definitions are currently hardcoded and stored in `src/main/resources/prompts`.
+- Platform knowledge is an OKF v0.2 bundle in `src/main/resources/knowledge`; new concepts must be
+ linked from their directory's `index.md` or they are not loaded.
 
 
 ## Behavior Rules

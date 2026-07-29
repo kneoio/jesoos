@@ -21,6 +21,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
     private static final Logger LOGGER = Logger.getLogger(ListenerDataToolHandler.class);
 
+    /** The only labels a chat agent may attach or detach. Everything else is admin-assigned. */
+    private static final java.util.Set<String> ASSIGNABLE_LABELS = java.util.Set.of("artist");
+
     public static Uni<Void> handle(
             LlmToolCall toolCall,
             Map<String, Object> inputMap,
@@ -226,6 +229,15 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         String fieldName = (String) inputMap.getOrDefault("field_name", "");
         String fieldValue = (String) inputMap.getOrDefault("field_value", "");
         String labelIdentifier = (String) inputMap.getOrDefault("label_identifier", "");
+
+        // Owner and developer labels decide what an agent may reveal, so they stay out of reach of
+        // chat: only datanest/admin assigns them, whatever the model was talked into asking for.
+        if (("add_label".equals(action) || "remove_label".equals(action)) && !ASSIGNABLE_LABELS.contains(labelIdentifier)) {
+            LOGGER.warnf("[ListenerData/execute] refused %s of privileged label '%s' userId=%d", action, labelIdentifier, userId);
+            return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
+                    new JsonObject().put("ok", false)
+                            .put("error", "Label '" + labelIdentifier + "' cannot be changed from chat").encode()));
+        }
 
         return listenerService.getByUserId(userId)
                 .chain(listener -> {
