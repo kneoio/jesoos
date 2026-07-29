@@ -22,7 +22,8 @@ FFmpeg startup is expensive, so both services reuse a shared or pooled executor 
 call.
 
 Keeping libraries current is encouraged. Database schema changes are allowed in principle but only after
-explicit approval — propose the DDL and wait.
+explicit approval — propose the DDL and wait. No service owns DDL: migrations live in the `mxpldb` repo
+and are run separately from the service that needs them.
 
 # Messaging over REST
 

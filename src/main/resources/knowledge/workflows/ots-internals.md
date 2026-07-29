@@ -209,7 +209,20 @@ receiving this call; the honest answer just lives on the jesoos side.
 
 Two paths reach `OtsService.teardown`, and aivox is the sole writer of `OtsRunStatus`: jesoos sends
 `CommandType.JESOOS_OTS_FINISHED` when the agenda is exhausted, and `OtsWarden.complete()` or
-`failStart()` fires when the queue drains or never fills.
+`failStart()` fires when the queue drains or never fills — in both aivox cases only with no listeners
+for the completion grace period. jesoos-driven completion arrives at `CommandConsumer` and delegates
+entirely to `OtsService.completeOts(slug)`, which looks up the type and calls the same `teardown`.
+
+The aivox-side detection is an **idle-timeout heuristic**: after at least one real song, a queue that
+stays drained for the grace period (180 seconds) marks the run done. It is a guard, intended to be
+replaced by the explicit jesoos end-signal rather than to be the primary mechanism.
+
+aivox does not persist staleness. The `OtsDefinition` row is marked stale or deleted elsewhere, by a
+datanest or metriq cron, and once the row is gone the slug simply reads as `NOT_OTS`.
+
+For a `REPEATABLE` definition the waiting melody is only the cold-start placeholder — no jesoos entries
+yet, so melody, then entries arrive and the real stream begins — which is why the next listener hit on
+the URL is a legitimate fresh run rather than a resumption.
 
 | Type | Teardown |
 |---|---|

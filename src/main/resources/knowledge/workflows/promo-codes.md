@@ -13,6 +13,10 @@ request when the code is invalid, expired, exhausted or already redeemed by that
 conflict when the user already has an active subscription — a code cannot top up or extend what is
 already running.
 
+Validation and the redemption record happen under an advisory lock keyed on the code itself
+(`PromoCodeService.redeem` → `PromoCodeRepository.redeem`), so a code with a single redemption left
+cannot be claimed twice concurrently.
+
 A successful redemption writes an active subscription row whose type comes from the code's plan, whose
 period ends at `now() + duration_days`, whose entitlements are copied from that plan's defaults, and
 whose Stripe ids are null. The null Stripe subscription id is what marks the row as promotional.
@@ -31,7 +35,9 @@ identifier, duration in days, quantity, maximum redemptions and an expiry, and s
 with `DELETE /nivaro/promo-codes/:id`.
 
 Codes are formatted `XXXX-XXXX` and avoid the ambiguous characters 0, O, 1 and I. At most 500 can be
-generated per request. Deactivating a code does **not** revoke subscriptions already granted with it.
+generated per request, and one request mints that many distinct codes sharing the same plan, duration and
+expiry. Maximum redemptions is **per code**, defaulting to 1 for single-use, rather than a shared
+allowance split across the batch. Deactivating a code does **not** revoke subscriptions already granted with it.
 
 The tables `mixpla__promo_codes` and `mixpla__promo_code_redemptions` are nivaro-local and are not part
 of the shared 2next model.

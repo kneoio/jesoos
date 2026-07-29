@@ -62,9 +62,35 @@ the word `infinitely` becomes `0`, matching the frontend convention that zero me
 are applied on the checkout-completion webhook and on a direct plan swap.
 
 Free cannot be expressed as a product row because `stripe_price_id` is `NOT NULL UNIQUE`. A placeholder
-row is created before Checkout, which is why the subscription type and Stripe id columns are nullable.
-A partial unique index enforces one `active = true` row per user, and `pg_advisory_xact_lock(user_id)`
-stops a double-clicked upgrade from creating two Stripe customers. `findStripeCustomerId` must filter
-out null customer ids and take the most recent row. `changePlan` throws for a Free user, so the
-controller decides between Checkout and a swap. Checkout completion resolves the plan from the Stripe
-price id rather than activating something generic.
+row is created before Checkout — Stripe customer exists, subscription does not yet — which is why the
+subscription type and Stripe id columns had to be made nullable; while they were `NOT NULL`, every
+first-time Free-to-Pro checkout failed at the database layer. nivaro does not own DDL: those migrations
+live in the `mxpldb` repo and are run separately.
+
+A partial unique index enforces one `active = true` row per user:
+
+```sql
+CREATE UNIQUE INDEX uq_user_subscriptions_one_active_per_user
+ON mixpla__user_subscriptions (user_id) WHERE active = true;
+```
+
+It guards against double activation, such as a webhook processed twice, and not against the
+customer-id bug below, which produced distinct rows no constraint would catch.
+
+`findOrCreateStripeCustomerId` runs the whole find-or-create in one transaction under
+`pg_advisory_xact_lock(user_id)`, so a double-clicked Subscribe blocks and then sees the row the first
+call inserted instead of creating a second Stripe customer and a second pending row. Duplicate pending
+rows created before that fix are not cleaned up automatically.
+
+`findStripeCustomerId` must filter out null customer ids and order by last modification. Without that it
+could return an old seed row with a blank customer id, conclude there was no Stripe customer and mint a
+new one on every Subscribe click.
+
+`changePlan` throws for a Free user, so the controller — not `StripeService` — decides between Checkout
+and a swap. Checkout completion resolves the plan by reading the created subscription's price id and
+looking up the matching product identifier, rather than activating something generic and leaving the
+subscription type null.
+
+Entitlements are only written going forward, on the next checkout or plan change. Rows written before
+that behaviour existed keep whatever they had and need a one-off backfill, which is why a Pro row can
+still be found carrying Free limits.

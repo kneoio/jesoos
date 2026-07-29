@@ -82,6 +82,15 @@ the same command the nightly rebuild and catalog-boost changes use. On the next 
 `ScheduleSongSupplier.floatPriorityToFront` pulls the fragment to the head of the pool ahead of the
 normal shuffle and clears the label immediately, so a later rebuild does not re-float it.
 
+`REBUILD_AGENDA` does not always rebuild. `CommandService.handleRebuildAgenda` skips silently when the
+brand is unknown or its station is not active, then asks
+`SharedSoundFragmentService.getPendingPriority(brandId, SONG)` for accepted shares still carrying the
+label. With none, it falls through to a full rebuild through `DailyAgendaRebuildService`. With one, it
+tries `RadioAgendaService.replacePrioritySong` to drop that track into the next playable slot of the
+**already-live** agenda and clears the label on success — so a fresh contribution can air within
+minutes instead of waiting for a rebuild. Only if there is no open slot to replace does it fall back to
+the full rebuild.
+
 Whether that entry gets a spoken intro is left entirely to the normal cadence and talkativity strategy
 in `TimelineBuilder`: priority affects **pool order only**, never `hasIntro`.
 

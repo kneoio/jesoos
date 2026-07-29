@@ -48,3 +48,17 @@ these. An atomic group must never be split, and a group-to-front pair must never
 
 When a song ends aivox publishes a `song_played` metric, and any pending listener rating is sent back
 as a `SONG_RATED` command through `CommandPublisher`.
+
+# Terms
+
+A **sliding window** is the bounded set of segments currently advertised in the playlist, capped at
+`maxVisibleSegments`, with older segments sliding out. An **atomic group** is a multi-fragment unit such
+as song-intro-song whose end boundary must not be split by an interrupt, marked by `isAtomicGroupEnd`.
+The **prioritized** tier is DJ- and jesoos-driven and front-insertable; the **regular** tier is the
+filler and self-managed baseline. `superInterruptQueue` is the hard path — clear what is pending and
+play now — and `gentleInterruptQueue` the soft one, playing after the current song ends.
+
+# Key files
+
+`service/playlist/PlaylistManager`, `PlaylistState`, `streaming/RadioStreamer`, `OpusStreamer`,
+`IcyStreamer`, `streaming/HlsSegment`, `SegmentFeederTimer`, `SliderTimer`, `rest/StreamingResource`.

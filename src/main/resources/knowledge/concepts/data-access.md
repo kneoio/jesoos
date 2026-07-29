@@ -1,60 +1,68 @@
 ---
 type: Concept
 title: Data access and row-level security
-description: How datanest scopes every query to the calling user through ACL tables, and why jesoos and aivox deliberately skip it.
-tags: [rls, acl, security, superuser, datanest, permissions]
+description: How datanest scopes every row to the user allowed to see it, and why jesoos and aivox deliberately skip that machinery.
+tags: [rls, security, datanest, acl, readers, superuser, scoping]
 audience: [developer]
 ---
 
-# Row-level security
+# Where RLS applies
 
-Row-level security scopes every datanest read and write to the rows the caller has been granted, which
-is what makes Mixdeck and 42next show a user only their own data. It is a **datanest concern only**:
-jesoos and aivox run as the trusted `SuperUser`, skip the ACL join for performance, and must not have
-this ported into them.
+Row-level security is how **datanest** scopes every row to the user allowed to see it. datanest is the
+CRUD backend for Mixdeck and 42next, so every query is user-scoped: a user only ever sees or edits rows
+they have been granted.
 
-# The mechanism
+`jesoos` and `aivox` do **not** use RLS. They run as a trusted system user (`SuperUser`) and skip the
+ACL join for performance. This is a datanest-only concern and must never be ported into the backend
+services.
 
-Every entity table `X` has a companion ACL table, named by `entityData.getRlsName()` — conventionally
-`X_readers`:
+# Mechanism
+
+Every entity table `X` has a companion ACL table (`entityData.getRlsName()`, typically `X_readers`):
 
 | Column | Meaning |
 |---|---|
-| `reader` | the user id allowed access |
+| `reader` | the user id allowed to access the row |
 | `entity_id` | foreign key to `X.id` |
-| `can_edit` | may update |
-| `can_delete` | may delete |
+| `can_edit` | may update the row |
+| `can_delete` | may delete the row |
 | `reading_time` | last-read bookkeeping |
 
-The implementation lives in 2next core: `AsyncRepository`, `RLSRepository` and `RlsActionUtil`.
-datanest repositories extend `AsyncRepository` and pass an `IUser` on every call.
+It is implemented in the shared 2next core — `com.semantyca.core.repository.AsyncRepository`,
+`repository.rls.RLSRepository` and `repository.rls.RlsActionUtil`. datanest repositories extend
+`AsyncRepository` and pass the `IUser` into every call.
 
-# Reads
+# Read, create, write
 
-Every read is a join, and there is no unscoped read path — `count`, `getById` and every list are
-scoped alike:
+Every select joins the entity to its ACL table on the caller:
 
 ```sql
 SELECT t.* FROM X t JOIN X_readers rls ON t.id = rls.entity_id
 WHERE rls.reader = <user.id>
 ```
 
-No ACL row means the row does not exist as far as that caller is concerned.
+No matching ACL row means the record is invisible to that user. Counts, single fetches and paged lists
+are scoped identically — **there is no unscoped read path**.
 
-# Writes
+On insert the repository, in one transaction, writes the entity, then grants the creator a reader row
+with `can_edit` and `can_delete` through `insertRLSPermissions`, then applies any additional shares via
+`applyRlsActions`.
 
-Creation is one transaction: insert the entity, then `insertRLSPermissions` grants the creator a reader
-row with edit and delete, then `applyRlsActions` applies any additional shares. Updates require
-`can_edit` and deletes require `can_delete` on the caller's row, otherwise they are rejected.
+Update and delete are gated on the caller's ACL row carrying `can_edit` or `can_delete`; without the
+flag the write is rejected.
 
 # SuperUser
 
-`SuperUser` (id `1`) always has access. The `RlsActionUtil` helpers call `ensureSuperUserAccess`, which
-grants a reader row to every user flagged `i_su = true`. Public endpoints with no real caller should
-pass `SuperUser.build()` as the `IUser`.
+Every reader-granting helper in `RlsActionUtil` also calls `ensureSuperUserAccess`, which grants each
+`i_su = true` user — including `SuperUser`, id 1 — a reader row on the same entity. When something needs
+guaranteed read access with no real caller identity, such as a public-facing endpoint, call the
+repository with `SuperUser.build()` as the `IUser`; the existing scoped queries already find its row, so
+no query changes are needed.
 
 # Rules
 
-Always pass a real `IUser` and never bypass the ACL. A new CRUD entity needs its ACL table, scoped
-queries and grant-on-insert — follow `AiAgentRepository` or `SceneRepository`. Repositories are private
-to their service and are never called across features.
+Always pass the real `IUser` into datanest repositories and never bypass the ACL join or read unscoped.
+A new CRUD entity gets RLS wired from day one — ACL table, scoped queries and grant-on-insert — exactly
+like the existing repositories. Repositories are reached only through their service, so scoped access
+stays behind the service boundary. And none of this is copied into jesoos or aivox, which are
+intentionally RLS-free for speed.
