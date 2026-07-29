@@ -15,6 +15,10 @@ programme once and ends.
 Someone has to start it: the station does not come up because a listener arrived. That is the opposite
 of a one-time stream, which cold-starts on the first listener.
 
+Starting it is the whole action. The owner never assembles the agenda by hand — pressing start triggers
+the build, and it is rebuilt nightly. Listeners reach the station through its public link and need no
+account.
+
 # How it works, in order
 
 The station's script is turned into an agenda: an ordered plan of scenes covering the day, each filled

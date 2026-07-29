@@ -2,7 +2,7 @@
 type: Workflow
 title: Getting started — anyone can run a station
 description: Mixpla is self-service: a normal user signs up in Mixdeck, creates their own brand, fills it with music and puts it on air. No approval and no team involvement.
-tags: [signup, register, onboarding, create-brand, create-station, self-service, mixdeck, free, pro]
+tags: [signup, register, onboarding, create-brand, create-station, self-service, mixdeck, free, pro, agenda, schedule, start, link]
 ---
 
 # Anyone can create a station
@@ -24,10 +24,24 @@ things that limit what someone can do are their subscription plan and their own 
 4. **Say how the station should behave.** A script holds scenes, and a scene says how to source songs
    for a stretch of the day, how talkative the DJ is, and what it should talk about. A station with one
    24-hour scene is perfectly valid.
-5. **Start it and listen.** The station builds its agenda and starts streaming on its own link, with
-   the DJ speaking between tracks.
-6. **Optionally run a one-time stream.** A one-off event stream on its own link — a party, a
+5. **Press start.** That is all. Mixpla builds the day's plan itself and begins streaming on the
+   station's own link, with the DJ speaking between tracks.
+6. **Share the link.** Listeners open the station's public address — the player host plus the station
+   slug — and can chat with the DJ there. Nobody needs an account to listen.
+7. **Optionally run a one-time stream.** A one-off event stream on its own link — a party, a
    presentation, a ceremony — that plays once and ends, with its own guest chat.
+
+# You never build the agenda
+
+The **agenda** is the day's actual running order: which songs, in which order, at which minute, and
+where the DJ speaks. Mixpla builds it, not the user.
+
+It is built automatically when the station is started, and rebuilt every night so programming changes
+are picked up. For a one-time stream there is no start button at all — the first person to open the link
+triggers the build and the stream together.
+
+What a user authors is the **script and its scenes**: the intent, not the running order. Never tell
+someone they have to build or maintain an agenda or a schedule by hand.
 
 # What the plan controls
 
