@@ -24,14 +24,14 @@ public final class SearchPlatformKnowledgeToolHandler {
         String loaded;
         try {
             loaded = ResourceUtil.loadResourceAsString("ask/platform-knowledge.md");
-            if (loaded == null || loaded.isBlank()) {
+            if (loaded.isBlank()) {
                 loaded = ResourceUtil.loadResourceAsString("/ask/platform-knowledge.md");
             }
         } catch (Exception e) {
             LOG.warnf("Failed to load platform-knowledge.md: %s", e.getMessage());
             loaded = "";
         }
-        CORPUS = loaded != null ? loaded : "";
+        CORPUS = loaded;
     }
 
     private SearchPlatformKnowledgeToolHandler() {}
@@ -51,7 +51,7 @@ public final class SearchPlatformKnowledgeToolHandler {
                 .map(t -> t.replaceAll("[^a-z0-9_-]", ""))
                 .filter(t -> t.length() >= 2)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
 
         String[] sections = CORPUS.split("(?m)^## ");
         List<JsonObject> hits = new ArrayList<>();
