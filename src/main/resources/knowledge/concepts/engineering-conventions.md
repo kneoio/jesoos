@@ -85,6 +85,9 @@ never let one's logic leak into the other.
 
 # Documentation
 
-Each project's `CLAUDE.md` is an index, not a manual. Each complex subsystem gets an authoritative
-`<AREA>_WORKFLOW.md` next to its code, read before editing that area and updated when behaviour changes.
-Cross-service domain terms are defined once in the shared glossary and never redefined per service.
+Each project's `CLAUDE.md` is an index, not a manual — it points at this bundle and carries only the
+agent's own operating rules. Platform behaviour is documented **once**, as a concept in this bundle,
+which every service shares; the per-service `<AREA>_WORKFLOW.md` files that used to sit next to the code
+were folded in and deleted, and no service keeps a second copy. Read the relevant concept before editing
+an area and update it when behaviour changes. Cross-service domain terms are defined once and never
+redefined per service.

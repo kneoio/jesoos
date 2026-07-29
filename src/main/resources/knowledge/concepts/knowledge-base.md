@@ -100,10 +100,12 @@ Labels are read-only from chat: `owner` and `developer` are assigned in datanest
 **Proposals are labelled, never implied.** The song selection redesign concept is `[developer]` and says
 in its own body that nothing is implemented, because it contradicts shipped selection behaviour.
 
-**Where sources disagreed, the newer or majority source won and the conflict is stated.** The OTS
+**Where sources disagreed, the newer source or the code won, and the conflict is stated.** The OTS
 RabbitMQ binding follows aivox's OTS scope document over its streaming workflow; share acceptance follows
-datanest's sharing workflow over brand team visibility; and `ApprovalStatus.ACCEPTED` is 500, verified
-against the 2next enum rather than the 505 in older jesoos prose.
+datanest's sharing workflow over brand team visibility; `ApprovalStatus.ACCEPTED` is 500, verified against
+the 2next enum rather than the 505 in older jesoos prose; and airplay of a received song follows jesoos's
+own query, which needs only an accepted share, over datanest's claim that a brand association is required
+for playback.
 
 # The tool
 

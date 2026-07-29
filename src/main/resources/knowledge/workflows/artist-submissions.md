@@ -26,7 +26,11 @@ to the catalog.
 
 # After submission
 
-A chat submission creates the share directly, bypassing Mixdeck's path. jesoos attaches the `new`
-priority label so the track is floated to the front of the next agenda rebuild once the owner
-accepts the share; the label is cleared after it is picked up, so a later rebuild does not float it
-again.
+A chat submission creates the share directly, bypassing Mixdeck's path, and it starts as a pending offer
+the station owner has to accept — nothing airs before that.
+
+jesoos attaches the `new` priority label to the track, which gives it precedence once the offer is
+accepted: it either gets swapped into the next open slot of the already-running agenda or floated to the
+front of the next rebuild. The label is cleared as soon as it is picked up, so a later rebuild does not
+promote it twice. Priority affects position only; whether the DJ speaks over it is decided by the
+station's normal talkativity.

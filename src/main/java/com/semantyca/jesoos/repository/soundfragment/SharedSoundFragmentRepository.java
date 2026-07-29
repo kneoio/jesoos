@@ -40,8 +40,8 @@ public class SharedSoundFragmentRepository extends SoundFragmentRepositoryAbstra
     }
 
     // Creates a PENDING share from a chat contribution's submitter to the target station — the
-    // only way a chat-uploaded song becomes visible to a station owner (see SHARING_WORKFLOW.md
-    // in datanest, which this mirrors). The underlying SoundFragment gets no brand association
+    // only way a chat-uploaded song becomes visible to a station owner (see the knowledge bundle
+    // workflows/sharing-and-approvals.md, whose datanest side this mirrors). The underlying SoundFragment gets no brand association
     // and no station RLS at creation; visibility comes entirely from this share row until the
     // station owner accepts it (accept/reject handled in datanest/mixdeck, not here).
     public Uni<Void> shareContribution(UUID soundFragmentId, UUID targetBrandId, long sourceUserId,

@@ -76,7 +76,8 @@ public class UploadSongToolHandler extends BaseToolHandler {
                                     dto.setSource(SourceType.CONTRIBUTION);
                                     // No LifecycleStatus/ApprovalStatus meaning left on the fragment itself - visibility and
                                     // approval now live entirely on the SharedSoundFragment PENDING share created below.
-                                    // Placeholder value matches datanest's createFromBulkUpload (see SHARING_WORKFLOW.md).
+                                    // Placeholder value matches datanest's createFromBulkUpload (see the
+                                    // knowledge bundle workflows/song-submission.md).
                                     dto.setStatus(1);
                                     dto.setNewlyUploaded(List.of(tempFilename));
                                     dto.setType(PlaylistItemType.SONG);

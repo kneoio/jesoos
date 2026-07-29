@@ -78,7 +78,10 @@ populates `sharedInfo`, and it is fed to the DJ draft so an intro can credit or 
 
 A shared fragment can carry a `new` label in `__labels`, joined through
 `mixpla__sound_fragment_labels`. datanest attaches it and then publishes `REBUILD_AGENDA{brandId}` —
-the same command the nightly rebuild and catalog-boost changes use. On the next build,
+the same command the nightly rebuild and catalog-boost changes use. On the chat-upload path there is no
+command, because jesoos creates the share itself and attaches the label directly
+(`SharedSoundFragmentRepository.addPriorityLabel`), so it is simply picked up on the next build. On the
+next build,
 `ScheduleSongSupplier.floatPriorityToFront` pulls the fragment to the head of the pool ahead of the
 normal shuffle and clears the label immediately, so a later rebuild does not re-float it.
 

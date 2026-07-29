@@ -83,5 +83,6 @@ curl http://127.0.0.1:38795/analyze -XPOST \
 
 # Note
 
-spectra is a real part of the platform but is absent from the service roster in the other services'
-documentation, so it is easy to miss when reasoning about what happens to a track after it is saved.
+spectra is easy to forget when reasoning about what happens to a track after it is saved: it has no
+Quarkus stack, no queue binding and no frontend, and it was missing from every service roster until this
+bundle listed it. Track analysis is not magic in datanest — it is this service.
