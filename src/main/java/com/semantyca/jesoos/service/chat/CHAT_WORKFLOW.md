@@ -58,8 +58,8 @@ block; per-request `liveContext` + `listenerContext` go into a trailing volatile
 - Anonymous: `inform_owner`, `start_auth`, `verify_code`.
 - Authenticated: all of the above-minus-auth plus `search_brand_sound_fragments`,
   `get_brand_catalog_summary`, `listener_data`, `find_community_member`, `upload_song`,
-  `play_song_with_intro`, `create_ad`, `manage_events`,
-  `send_ui_command`, `logoff`.
+  `assess_track`, `import_from_suno`, `play_song_with_intro`, `create_ad` (only when
+  `adEnabled`), `manage_events`, `send_ui_command`, `logoff`.
 
 **Sign-in flow** (anonymous asks for any gated feature):
 1. Ask for email (one line, nothing else).
@@ -86,6 +86,7 @@ authenticated; `logoff` signs out and clears history.
 | `play_song_with_intro` | queue a song with a spoken TTS intro |
 | `upload_song` | add an artist's track to the catalog |
 | `import_from_suno` | fetch an artist's track from a Suno link into the temp dir (returns `temp_filename`) |
+| `assess_track` | run spectra analysis on the temp file **before** `upload_song`: bpm, key/scale, moods, top_genres, danceability, loudness, duration, an `is_music` verdict and a weak AI-generation check. `is_music == false` ⇒ do not save |
 | `send_ui_command` | e.g. `show_upload_button` — reveals the upload UI |
 | `listener_data` | get/set listener memory; `add_label` (e.g. artist) |
 | `find_community_member` | warm recognition only (privacy-limited) |

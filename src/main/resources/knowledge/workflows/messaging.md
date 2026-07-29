@@ -17,7 +17,7 @@ touched.
 
 | Channel | Direction | Message |
 |---|---|---|
-| Streaming / entities | jesoos to aivox | One `SongQueueMessageDTO` per timeline entry, routing key is the brand slug |
+| Streaming / entities | jesoos to aivox | One `SongQueueMessageDTO` per timeline entry, routing key is the stream slug — the brand slug for radio, the OTS slug for a one-time stream |
 | Metrics | every service to metriq | `MetricEventDTO` |
 | Commands | between services | `CommandDTO` |
 

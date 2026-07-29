@@ -16,6 +16,6 @@ aivox is the first and primary candidate for running at many pods.
 
 # Parts
 
-* Services: jesoos, aivox, metriq, datanest, nivaro.
+* Services: jesoos, aivox, metriq, datanest, nivaro, spectra.
 * Shared library: 2next, holding cross-service contracts.
 * Frontends: Mixdeck (owner/user) and 42next (admin).

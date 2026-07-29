@@ -1,0 +1,80 @@
+---
+type: Service
+title: spectra
+description: Python audio-analysis service that extracts musical features and a weak AI-generation check from a sound fragment and stores them on the row.
+tags: [service, spectra, analysis, essentia, bpm, key, moods, genres, fastapi]
+audience: [developer]
+---
+
+# spectra
+
+spectra is the audio-analysis service. Given a sound fragment it extracts musical features and a weak
+check for AI-generated audio, then persists them — the results are not returned in the HTTP response.
+
+It is a FastAPI service written in Python 3.14, using Essentia together with the Discogs-EffNet
+TensorFlow models, and it runs on host network port 38795 with no public route.
+
+# What it extracts
+
+Everything lands in the `add_info` jsonb column of `mixpla__sound_fragments` in the **moon** database:
+BPM, key and scale, loudness, mood scores from 0 to 1 (happy, sad, party, relaxed, aggressive),
+danceability, top genres scored against the Discogs taxonomy, and an `ai_generated_metadata_check`
+holding `suspected_ai_generated` plus supporting evidence.
+
+```json
+{
+  "bpm": 101.79, "key": "Ab", "scale": "minor", "loudness": 3205.87,
+  "moods": {"happy": 0.304, "sad": 0.121, "party": 0.514, "relaxed": 0.659, "aggressive": 0.283},
+  "danceability": 0.71,
+  "top_genres": [{"genre": "Electronic---Berlin-School", "score": 0.227}],
+  "ai_generated_metadata_check": {"suspected_ai_generated": false, "evidence": []}
+}
+```
+
+# Flow
+
+```
+datanest, on save ──POST /analyze {soundFragmentId, path?}──▶ spectra
+  → resolve the file: the local path if it is on disk, otherwise the original file_key from _files
+    by parent_id (file_type <> 102 excludes opus, preferring 101 over legacy 0)
+  → download from Hetzner object storage if needed
+  → Essentia and TensorFlow analysis
+  → UPDATE mixpla__sound_fragments.add_info (moon DB)
+```
+
+`POST /analyze` takes a required `soundFragmentId` and an optional `path`, answers 202 with
+`{"status": "accepted", …}` and works in the background; `GET /health` is the liveness probe. The
+optional `path` is a fast path that skips the download and is used only if the file exists on disk.
+Temporary downloads are deleted immediately after analysis, while a shared local original is never
+deleted.
+
+# Operations
+
+Dependencies are managed with uv, and the TensorFlow models (~23 MB) are downloaded once:
+
+```bash
+uv sync
+uv run python models_setup.py
+uv run uvicorn service:app --host 0.0.0.0 --port 38795
+```
+
+`main.py` runs a one-off analysis of a single file for quick checks. In a container the models are
+fetched at startup by `ensure_models()` when they are not already in the image.
+
+The image is `python:3.14-slim` plus ffmpeg, published manually to `ghcr.io/kneoio/spectra:latest` by
+the `Build and Push` workflow (`workflow_dispatch`), then deployed with `docker compose pull spectra`
+and `docker compose up -d spectra` from `~/compose`.
+
+Configuration covers the moon database (`SPECTRA_DB_HOST` and `SPECTRA_DB_PORT`, defaulting to
+`127.0.0.1:8572`, plus `SPECTRA_DB_NAME` `moon`, `SPECTRA_DB_USER` `regolith` and
+`SPECTRA_DB_PASSWORD`) and object storage (`HETZNER_STORAGE_ENDPOINT`
+`https://hel1.your-objectstorage.com`, `HETZNER_STORAGE_BUCKET` `soundfragments`, and the access and
+secret keys). On the server these live in `~/compose/env/spectra.env`.
+
+Because the port has no public route, reaching it means tunnelling:
+`ssh -L 38795:127.0.0.1:38795 kneo@65.108.49.217`, then plain HTTP against `127.0.0.1:38795`.
+
+# Note
+
+spectra is a real part of the platform but is absent from the service roster in the other services'
+documentation, so it is easy to miss when reasoning about what happens to a track after it is saved.

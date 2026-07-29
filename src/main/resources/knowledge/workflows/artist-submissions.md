@@ -17,6 +17,13 @@ label on the listener: without it the upload and import tools refuse.
 * Suno import — the track is fetched from Suno and lands in the same temporary-file step as a chat
   upload.
 
+# The DJ listens first
+
+Before anything is saved, the track is analysed: tempo, key, moods, genres, danceability and loudness,
+plus a verdict on whether the file is music at all. The DJ reacts to what it heard before confirming
+the save, and if the file turns out to be speech or spoken word rather than a song it is **not** added
+to the catalog.
+
 # After submission
 
 A chat submission creates the share directly, bypassing Mixdeck's path. jesoos attaches the `new`

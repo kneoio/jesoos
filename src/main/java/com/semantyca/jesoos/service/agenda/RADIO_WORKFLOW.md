@@ -406,5 +406,3 @@ These exist so improvements stay safe. **The workflow above is settled; your job
 | Publish to aivox | `messaging/QueueSupplier`, `messaging/CommandPublisher` |
 | Daily rebuild | `maintenance/DailyAgendaRebuildService` |
 | Models | `model/stream/StreamAgenda`, `LiveScene`, `TimelineEntry`, `SongEntry`, `PromptEntry` |
-</content>
-</invoke>

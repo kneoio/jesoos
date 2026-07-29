@@ -15,11 +15,17 @@ agent in jesoos can inject `KnowledgeBase`.
 resources/knowledge/
   index.md              # root listing, carries okf_version
   platform.md           # what Mixpla is
-  concepts/             # audiences
-  services/             # jesoos, aivox, metriq, datanest, nivaro, 2next
-  workflows/            # messaging, brand radio, OTS, public chat, Ask, artist submissions
+  concepts/             # audiences, boost, data access, metrics, engineering conventions
+  services/             # jesoos, aivox, metriq, datanest, nivaro, spectra, 2next
+  workflows/            # radio (scenes, agenda, selection, timeline, TTS, emission),
+                        # streaming (pipeline, playout), OTS, chat (public, internals, ads,
+                        # summaries, requests), submissions, sharing, billing, Ask
   frontends/            # Mixdeck, 42next
 ```
+
+41 concepts as of the platform-doc consolidation. The bundle is the **developer source of truth** for
+platform behaviour; the code-adjacent `<AREA>_WORKFLOW.md` files remain in place per the documentation
+convention and must not drift from it.
 
 One concept per file; the file path is the concept's identity. `index.md` and `log.md` are reserved
 filenames, never concepts.
@@ -73,8 +79,21 @@ lives in the corpus instead of in prompts. `Audience` is `user`, `artist`, `owne
 row (`Audience.fromLabels`). `Audience.primary` picks the most specific one for tone.
 
 A concept **without** an `audience` key is visible to everyone. With one, it is returned only when it
-intersects the caller's audiences. Current split: services and messaging are `[developer]`, brand
-radio / OTS / Mixdeck are `[owner, developer]`, everything else is open.
+intersects the caller's audiences. Current visibility: 6 concepts to `user`, 8 to `artist`, 19 to
+`owner`, all 41 to `developer`. Internals (agenda build, selection, emission, streaming pipeline,
+playout, OTS internals, chat internals, RLS, metrics, service concepts) are `[developer]`; operational
+behaviour (scenes, boost, DJ/TTS, generated content, sharing, team visibility, subscriptions, promo
+codes, OTS, brand radio) is `[owner, developer]`; listener- and artist-facing concepts are open or
+`[artist, …]`.
+
+Two content rules matter for correctness:
+
+- **Proposals are labelled, never implied.** `song-selection-redesign.md` is `[developer]` and says in
+  its own body that nothing is implemented, because it contradicts shipped selection behaviour.
+- **Where source docs disagree, the newer/majority doc wins and the conflict is stated.** OTS RabbitMQ
+  binding follows aivox `OTS_SCOPE.md` over `STREAMING_WORKFLOW.md`; share acceptance follows datanest
+  `SHARING_WORKFLOW.md` over `BRAND_TEAM_VISIBILITY.md`; `ApprovalStatus.ACCEPTED` is 500, verified
+  against the 2next enum, not the 505 in older jesoos prose.
 
 Labels are read-only from chat — `owner` and `developer` are assigned in datanest, and
 `ListenerDataToolHandler` refuses any label but `artist` even if a model asks for it.
