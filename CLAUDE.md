@@ -8,16 +8,20 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 
 ## Documentation Map
 
-- `service/chat/CHAT_WORKFLOW.md` — public chat / LLM agent flow (auth, tools, OTS, ads).
-- `service/knowledge/KNOWLEDGE_WORKFLOW.md` — platform-wide Mixpla knowledge base: OKF v0.2 bundle
- (`resources/knowledge/`), loader, weighted search, shared `search_platform_knowledge` tool.
-- `service/ask/ASK_WORKFLOW.md` — internal Mixpla Ask chat (platform knowledge; isolated from listener chat).
-- `service/ask/MIXDECK_ASK_CHAT_PROMPT.md` — prompt for Mixdeck Vue Ask chat UI (WS client + welcome CTA).
-- `service/agenda/RADIO_WORKFLOW.md` — continuous brand radio: agenda build → live emission,
-  scenes, timeline, mixing, talkativity, TTS, generated content, Catalog vs Live Boost, shared
-  fragments, commands, metrics.
-- `service/live/OTS_WORKFLOW.md` — one-time-stream (OTS) lifecycle: brand-scoped vs owner-scoped,
-  routing identity, DJ-toggle handling. Coherent with aivox's `OTS_SCOPE.md`/`RADIO_SCOPE.md`.
+All platform behaviour is documented in the **OKF knowledge bundle**, `src/main/resources/knowledge/`.
+The former `*_WORKFLOW.md` files were folded into it and deleted — there is no second copy.
+
+- `concepts/knowledge-base.md` — the bundle itself: layout, frontmatter, loader, weighted search,
+ audience scoping, and how to add a concept.
+- `workflows/` — radio (`scenes-and-scripts`, `agenda-build`, `song-selection`,
+ `timeline-and-mixing`, `dj-intros-and-tts`, `generated-content`, `emission`), streaming
+ (`streaming-pipeline`, `playout-and-interrupts`), OTS (`one-time-stream`, `ots-internals`), chat
+ (`public-chat`, `chat-internals`, `chat-ads`, `chat-summaries`, `song-requests`), submissions,
+ sharing, billing, and `ask-chat`.
+- `concepts/` — `audiences`, `boost`, `data-access`, `metrics`, `engineering-conventions`.
+- `services/`, `frontends/` — one concept per service and per SPA.
+- `service/ask/MIXDECK_ASK_CHAT_PROMPT.md` — prompt for Mixdeck Vue Ask chat UI (WS client + welcome
+ CTA). A frontend deliverable, not knowledge, so it stays next to the code.
 
 ## jesoos Notes
 
@@ -48,9 +52,10 @@ You may modify **jesoos**; do not modify `aivox`, `metriq`, `datanest`, `nivaro`
 ## Documentation Convention (all Mixpla services)
 
 - Each project's `CLAUDE.md` is an **index**, not a manual — keep detail out of it.
-- Each complex subsystem gets an authoritative `<AREA>_WORKFLOW.md` **next to its code**; read it
-  before editing that area and update it when behaviour changes. New docs get a line in the
-  project's Documentation Map (in the project-specific header above).
+- In **jesoos**, behaviour is documented **only** in the OKF knowledge bundle
+  (`src/main/resources/knowledge/`) — one concept per subsystem, no `<AREA>_WORKFLOW.md` beside the
+  code. Read the relevant concept before editing that area and update it in the same change when
+  behaviour changes. Other services still keep their own code-adjacent workflow docs.
 - Cross-service domain terms are defined **once** in the shared `2next/mixpla` glossary, never
   redefined per service.
 

@@ -1,55 +1,126 @@
 ---
 type: Workflow
 title: DJ intros and TTS
-description: The DJ toggle, how a spoken intro is generated from prompt to audio, language selection, and the fallback path when generation fails.
-tags: [dj, tts, intro, prompt, draft, elevenlabs, llm, language]
+description: The DJ toggle and live boost, how a spoken intro's text and audio are produced at emission, prompt and language resolution, and the draft contract.
+tags: [dj, tts, intro, prompt, draft, language, boost, elevenlabs, chat-summary]
 audience: [owner, developer]
 ---
 
-# DJ intros and TTS
+# The split that matters
 
-Whether a station speaks at all is a single in-memory switch per brand held by `DjStateService`, and
-it defaults to **off**. It is the master gate on TTS: with the DJ off, entries that were built with
-intros are downgraded to silent transitions. The switch is flipped by the `enableDj` and `disableDj`
-commands. Talkativity, by contrast, only decides how often intros appear while the DJ is on.
+**What** to say and **whether** to say it is decided at build time and baked into the timeline. The
+actual **text and audio** are produced at emission. Talkativity governs how many entries are flagged
+`hasIntro`; the DJ toggle governs whether any of them are ever voiced.
+
+# DJ state and live boost
+
+Two independent per-brand runtime flags live in memory in `DjStateService`, not in the agenda.
+
+**DJ enabled** (`isDjEnabled`) is the master gate on TTS and defaults to **off** for cost. With it off
+the emitters send songs and jingles only. It is toggled by the `enableDj` and `disableDj` commands
+(`CommandService`, reached from `CommandResource` REST or RabbitMQ) and cleared when the brand leaves the
+pool (`BrandPool.onRemoved` → `remove`).
+
+**Live boost** is a short decrementing counter that forces intros onto otherwise-silent entries,
+independent of talkativity. `activateLiveBoost(brand, entries, type)` sets a
+`LiveBoostState(remaining, type)`.
+
+It is evaluated in `StaggeredSongScheduler` at **fire time only**, so the consecutive-intro count
+reflects the real play order. It applies only when the entry has no intro, active intro prompts exist,
+the DJ is enabled, and fewer than two intros have run consecutively. That count is a single persistent
+per-brand tally (`getConsecutiveIntroCount` / `recordIntroEmission`): every emitted entry increments it
+when it carries an intro, native or boosted, and resets it to zero otherwise. There is no separate
+schedule-time counter — boost is decided in one place.
+
+`consumeLiveBoostEntry` decrements and auto-removes the state at zero or below. `Boost.BOOST` forces a
+plain intro type (`INTRO_SONG` or `SONG_INTRO_SONG`); `Boost.SUPER_BOOST` also sets a jingle
+(`JINGLE_INTRO_SONG`). `assignBoostPrompt` then picks a random active intro prompt, and each boosted
+entry publishes a `dj_boost_applied` **warning** metric.
+
+Activation points in `CommandService`: `startBrand` grants three `SUPER_BOOST` entries so a fresh
+station opens lively, and `enableDj` grants three `BOOST` entries as warm-up right after the DJ is
+switched on.
+
+DJ-enabled decides whether TTS can happen at all; boost only guarantees a few intros fire where the
+shuffler would have stayed silent.
 
 # Generation chain
 
-Generation happens at emission time, and only when the DJ is enabled and the entry is flagged
-`hasIntro`:
+TTS runs inside the emitters, only when `djStateService.isDjEnabled(brand)` and the entry has an intro:
 
 ```
-PromptService.resolveForLanguage
-→ DraftFactory.createDraft            (Groovy templates, English facts)
-→ LLM  (Anthropic or Groq, per agent.llmType)
-→ TTS  (ElevenLabs | Modelslab | GCP | Fish Audio, per Voice.engineType)
+resolveForLanguage(promptId, lang)            (or the CustomAction path)
+→ DraftFactory builds the draft               (song facts, sharerName, optional fresh chat summary)
+→ LLM spoken text                             (Anthropic or Groq per agent.llmType)
+→ TTS engine per agent Voice.engineType       (ElevenLabs | Modelslab | GCP | Fish Audio)
 → mp3 in {uploads}/intro-tts/temp
-→ IntroAudioResult → DTO filePaths keyed by IntroKey.*
+→ ffprobe → IntroAudioResult(filePath, durationSeconds, gain, engineType)
 ```
 
-The system prompts are `introSystemPrompt.hbs` and `introActionSystemPrompt.hbs`. When generation
-fails, per-language canned lines from `tts-fallbacks.json` are used, so a failure costs personality
-rather than silence.
+The system prompt is `prompts/introSystemPrompt.hbs` for the regular flow and
+`prompts/introActionSystemPrompt.hbs` for a `CustomAction`, Handlebars-rendered with `langInstruction`
+and `manner`. The language is BCP-47 locked in the system prompt; non-Latin song and artist names are
+transliterated rather than refused; emoji are stripped; and obvious error or "technical difficulty"
+output is discarded in favour of the language fallback.
+
+Action intros render `CustomAction.instruction` through Handlebars with context variables before the LLM
+call, and may email a debug copy to the owner.
+
+On any LLM or text failure, a per-language canned line from `tts-fallbacks.json` is used. Failing soft
+here is intentional — silence on air is worse.
+
+The resulting path and duration go into the DTO `filePaths` map keyed by `IntroKey.*`, and aivox overlays
+the intro onto the song according to `mergingMethod`. jesoos never mixes audio.
+
+# Language selection
+
+`AiHelperUtils.selectLanguageByWeight(agent)` does a **weighted-random** pick over the agent's
+`preferredLang` list, where each `LanguagePreference` carries a weight. One preference means that
+language; none means `EN_US`.
+
+The pick is weighted rather than fixed on purpose: a DJ can speak two or more languages and is meant to
+deliver content in different languages across the broadcast, reflecting multilingual audiences. The
+weights let a station bias the mix — say 70% local and 30% English — while still varying per intro.
+
+# Prompt resolution
+
+A `DjPrompt` is a **master** prompt (`masterId`) that may have per-language variant children
+(`PromptService.resolveForLanguage`). If the master's own `languageTag` equals the chosen language it is
+used with `fallBacked = false`. Otherwise `findByMasterAndLanguage(masterId, language)` is tried; if that
+finds nothing, the master is used with `fallBacked = true`, and the flag propagates to
+`IntroAudioResult`.
 
 # Draft versus prompt
 
-A draft is the *facts* the DJ has to work with; the prompt is the *instruction* on how to say it.
-`DraftFactory.createDraft` builds the draft from Groovy templates and includes a chat summary from
-`ChatSummaryService` when `BrandChatContext.usable()` — that is how listener conversation reaches the
-air. The draft is marked as aired when it is rendered, not when it is emitted.
+The draft is *facts*, deterministic; the prompt is the *instruction*. `DraftFactory.createDraft`
+assembles the context through Groovy templates — song genres and labels, station profile, brand
+listeners, chat summary, sharer name, time context, and for generated content weather or news from
+external APIs. Drafts are authored in **English** regardless of output language.
 
-# Language
+The emitter sends `prompt.getPrompt()` plus `"Draft input:\n" + draft` to the LLM under the shared system
+prompt.
 
-`AiHelperUtils.selectLanguageByWeight(agent)` draws from the agent's preferred languages, defaulting
-to `EN_US`. `PromptService.resolveForLanguage` resolves the master `DjPrompt` plus its per-language
-variant. The chosen language is locked in the system prompt rather than requested in the user text.
+So: draft is facts, prompt is voice, language is weighted per emission. The scheduler does none of this —
+it only decides when an entry fires.
 
-# Custom actions
+# The chat summary contract
 
-A `CustomAction` is rendered with Handlebars against the same context and can optionally email a
-debug copy of the result to the station owner.
+The `chatSummary` variable carries ready-made on-air context about the listeners currently in chat — who
+they are, what they asked, their `artist` and `owner` labels — so the DJ sounds like the same persona
+they were just talking to. It is deliberately the **only** chat variable exposed: non-empty means fresh,
+un-aired and worth voicing; empty means say nothing about chat.
 
-# Metrics
+`DraftFactory` blanks it unless `BrandChatContext.usable()` and marks it aired on render. Draft scripts
+must therefore **not** wrap it in their own probability gate — that discards summaries unheard. Always
+guard on emptiness (`if (chatSummary)`) and never emit a bare `Chat summary:` label with nothing after
+it, or the LLM will invent listeners. Keep the literal label **`Chat summary`**: `introSystemPrompt.hbs`
+matches on that section name to avoid mistaking a chat-mentioned song for the upcoming track.
 
-Successful audio generation publishes `intro_tts_audio_generated`; forced intros publish
-`dj_boost_applied` at warning level.
+# Key files
+
+| Area | File |
+|---|---|
+| TTS | `live/IntroTtsGenerator`, `live/scripting/DraftFactory` |
+| Prompt and language | `service/PromptService`, `util/AiHelperUtils` |
+| DJ and live boost state | `live/DjStateService`, `live/LiveBoostState` |
+| Commands | `service/CommandService`, `rest/CommandResource`, `messaging/CommandConsumer` |

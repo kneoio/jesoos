@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 /**
  * Downloads a track from a Suno share link into the same temp upload directory that
  * {@code /jesoos/chat/upload-temp} writes to, so the returned filename can be fed straight
- * into {@code upload_song} (see CHAT_WORKFLOW §5). Suno serves the rendered track from its
+ * into {@code upload_song} (see knowledge bundle {@code workflows/chat-internals.md}). Suno serves the rendered track from its
  * CDN as {@code https://cdn1.suno.ai/<songId>.mp3}; we resolve the song id from the link and
  * pull that cached file.
  *

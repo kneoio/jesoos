@@ -1,41 +1,84 @@
 ---
 type: Workflow
 title: Emission
-description: How a built agenda becomes live messages — the two tickers, staggered scheduling, entry state machine, lead time and backpressure.
-tags: [emission, ticker, scheduler, timelineentrystatus, backpressure, queuesupplier]
+description: How a built agenda reaches aivox — scene selection, staggered entry scheduling, the entry state machine, lead time, backpressure and the silence watchdog.
+tags: [emission, ticker, scheduler, timelineentrystatus, backpressure, queuesupplier, silence]
 audience: [developer]
 ---
 
 # Emission
 
 ```
-BrandPool.getRadioStream → RadioStream{agenda}
-AgendaTicker  @60s → pick the active scene (ONE_TIME window first, else LOOP)
-SceneTicker   @15s → StaggeredSongScheduler.scheduleSceneSongs
-StaggeredSongScheduler → Vert.x timer at (emissionTime − aivoxDelaySeconds)
-  → EMITTING → SongEmitter / JingleSongEmitter / GeneratedContentEmitter
-  → QueueSupplier → RabbitMQ "streaming", routingKey = brandSlug
+BrandPool.getRadioStream(brand)        // build + store; forceIntroOnFirstEntry (warm-up)
+  → the pool holds RadioStream{agenda}
+
+AgendaTicker  @Scheduled 60s           // WHICH scene is live now
+  • findActiveOneTime — window [start, start+dur), latest wins, finished scenes skipped
+  • else findLoopingScene — absolute [start, end) window, latest started, cross-midnight aware
+  → ScenePool.setActiveScene(brand, scene)   (+ scene_started metric, TriggerContext)
+
+SceneTicker   @Scheduled 15s           // arm the entries of the active scene
+  → StaggeredSongScheduler.scheduleSceneSongs(brand, scene)
+
+StaggeredSongScheduler                 // WHEN each entry fires
+  • per PENDING entry: skip if fully in the past; apply the DJ boost intro if enabled
+  • schedule a Vert.x timer at (emissionTime − aivoxDelaySeconds lead)
+  • at fire: deadline and backpressure checks → EMITTING → emitTimelineEntry
+        generated → GeneratedContentEmitter
+        jingle    → JingleSongEmitter
+        else      → SongEmitter
+  → QueueSupplier.sendSongsToQueue → RabbitMQ "streaming" (routingKey = brandSlug) → aivox
 ```
+
+`TriggerContext` is how the ticker classifies an activation relative to its start: `ON_TIME` or `LATE`.
 
 # Invariants
 
-The two tickers are two different jobs at two different cadences and must never be merged: one picks
-the scene, the other schedules the entries inside it.
+**Two tickers, two jobs.** `AgendaTicker` at 60 seconds only selects the active scene; `SceneTicker` at
+15 seconds plus `StaggeredSongScheduler` only schedule and emit its entries. They are never merged or
+crossed.
 
-`TimelineEntryStatus` moves `SCHEDULED → PENDING → … → EMITTING → COMPLETED | FAILED | SKIPPED`, and
-every transition goes through `compareAndSet` — an entry is claimed once.
+One-time scenes preempt the loop at runtime too — `findActiveOneTime` runs before `findLoopingScene`,
+bounded by the scene's own window so stale instances cannot latch.
 
-Entries fire **early** by the configured lead time so aivox has time to mix; an entry whose scene
-`endTime` has already passed is marked `SKIPPED` rather than emitted late.
+**Status is a state machine.** `TimelineEntryStatus` moves `SCHEDULED → PENDING → … → EMITTING →
+COMPLETED | FAILED | SKIPPED`, transitioned with `compareAndSet` so it stays idempotent under the
+15-second re-tick. Status is never reset ad hoc.
 
-Backpressure (`backpressure(brand)`) applies to radio only — the OTS path short-circuits it and
-publishes `backpressure_ignored_ots` at warning level.
+Entries fire `aivoxDelaySeconds` early so aivox has time to mix; entries past the scene `endTime` are
+`SKIPPED`, not emitted late.
 
-`cancelBrandTimers` runs on scene change, stream removal and shutdown, so timers never outlive the
-agenda that created them.
+Backpressure (`backpressure(brand)`) queues skip counts consumed at fire time, and a failed entry
+triggers the next immediately (`triggerNextEntry`). The skip counter is **radio-only**: OTS entries never
+pass through this scheduler, so the command short-circuits for an OTS slug.
 
-# Metrics
+`cancelBrandTimers` runs on scene change, removal and shutdown — always cancel when deactivating.
+
+Every stage emits metrics carrying the propagated `traceId` / `emissionTraceId`, and trace propagation
+must be preserved end to end.
+
+# Metrics and the silence watchdog
 
 `scene_started`, `entries_scheduled`, `entry_emitting_started`, `entry_emitted`, `entry_failed` and
-`cascade_entry_failed` trace the path. A `@Scheduled` 60-second `checkSilenceRisk` watchdog publishes
-`silence_risk` after `SILENCE_GRACE_SECONDS` (120) — it warns only and never stops the stream.
+`cascade_entry_failed` trace the path.
+
+`trackEmission(brand, durationSeconds)` records when the last emitted content should finish, and a
+`@Scheduled` 60-second `checkSilenceRisk` publishes a `silence_risk` warning when a brand is overdue past
+`SILENCE_GRACE_SECONDS` (120). This is the primary "is the station actually on air?" signal, so
+`trackEmission` calls must stay in step with real emissions.
+
+It only warns and never stops a stream. Note that `trackEmission` sits on the emit **success** path only,
+so a failed entry leaves the expectation stale and the warning then fires against an out-of-date
+timestamp. Call `clearTracking(brand)` when a stream genuinely stops, or the slug stays flagged forever.
+An earlier OTS auto-stop built on this signal was removed, because cadence is the wrong basis for a
+teardown decision.
+
+# Key files
+
+| Area | File |
+|---|---|
+| Scene selection (live) | `live/AgendaTicker`, `live/ScenePool`, `live/BrandPool` |
+| Entry scheduling | `live/SceneTicker`, `live/StaggeredSongScheduler` |
+| Emitters | `live/SongEmitter`, `live/JingleSongEmitter`, `live/GeneratedContentEmitter` |
+| Publish to aivox | `messaging/QueueSupplier`, `messaging/CommandPublisher` |
+| Metrics | `messaging/MetricPublisher` |

@@ -16,7 +16,8 @@ import java.util.UUID;
 /**
  * OTS-scoped counterpart of {@link PlaySongWithIntroToolHandler}. Resolves the live stream from
  * {@link OneTimeStreamPool} (an OTS is never in the brand pool) and routes the injected song on the
- * OTS's own slug — both {@code brandSlug} (the routing key, per OTS_WORKFLOW §3) and {@code otsSlugName}
+ * OTS's own slug — both {@code brandSlug} (the routing key, per knowledge bundle
+ * {@code workflows/ots-internals.md}) and {@code otsSlugName}
  * (the tag emissions carry). DJ is always on for an OTS, so no DJ-toggle check.
  */
 public class PlaySongForOtsToolHandler extends BaseToolHandler {

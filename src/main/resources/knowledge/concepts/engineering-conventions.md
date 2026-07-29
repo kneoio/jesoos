@@ -53,6 +53,35 @@ livestream keys.
 A change to 2next is a change to every service's contract at once, so it requires explicit approval,
 a version bump in both `pom.xml` and `EnvConst`, and every dependent service then upgrading.
 
+# Changing the radio pipeline
+
+The build and emission workflow is settled, so work there is refinement rather than redesign. Tuning a
+heuristic, clarifying a name, fixing an off-by-one or adding a metric is fine. Changing the
+scene-selection model, the entry status state machine, the ticker split, the loop versus one-time
+contract, or the RabbitMQ message shape means stopping and asking first. The same applies to altering
+what the duration and overhead constants mean, the 15-second and 60-second cadences, the lead-time model,
+or the de-duplication policy — if a change feels radical, it is.
+
+Service boundaries hold inside the pipeline too: jesoos builds and schedules, aivox mixes and streams.
+Mixing logic is never encoded in jesoos and jesoos never reaches into aivox. Cross-service message shapes
+(`SongQueueMessageDTO`, `CommandDTO`) are contracts and need coordination before changing.
+
+Timing stays deterministic and code-owned — no logic where the LLM decides when or in what order things
+happen, and randomness stays confined to the existing shuffle points. Failures are loud: an empty agenda
+or missing scenes throw or publish an error metric rather than being papered over with defaults.
+
+If you touch a stage, keep its metric codes and severities and keep publishing on the same success and
+failure branches; renaming a code or dropping an event silently breaks metriq dashboards. Keep
+`traceId` propagation intact rather than minting a fresh id mid-chain.
+
+Match the surrounding style: reactive `Uni` chains, sequential exclusion-set threading, and
+`LocalTime`/`ZoneId` brand-timezone arithmetic, with no blocking calls or new scheduling primitives.
+
+Finally, keep the two boosts distinct — they share only the `Boost` enum. Catalog boost is a per-song
+database value applied in SQL; live boost is a runtime per-brand counter in `DjStateService`. Name them
+explicitly (`liveBoost…` versus the SQL `boost` column), never introduce a bare `boost` identifier, and
+never let one's logic leak into the other.
+
 # Documentation
 
 Each project's `CLAUDE.md` is an index, not a manual. Each complex subsystem gets an authoritative

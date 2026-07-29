@@ -1,40 +1,103 @@
 ---
 type: Workflow
 title: Chat summaries
-description: How listener conversations are condensed — one summary for on-air use and one for chat continuity — with the privacy rules and freshness limits.
-tags: [summary, chat, on-air, privacy, continuity, scheduled]
+description: How listener conversations are condensed — one summary for on-air use and one for chat continuity — with the listener profiles, privacy rules, triggers, freshness limits and metrics.
+tags: [summary, chat, on-air, privacy, continuity, scheduled, aired-at, metrics]
 audience: [owner, developer]
 ---
 
-# Two kinds of summary
+# Not archival
 
-`ChatSummaryService` produces two different things from the same conversations.
+Summarization is how the **air DJ learns what happened in chat**. Chat and air are one persona to the
+listener, so a summary has to let the DJ sound like the same person who was just talking to them —
+"thanks Mira for reaching me in chat, so we have someone from Michigan tonight…".
 
-A **brand** summary is what lets the DJ mention on air what listeners have been talking about. It is
-picked up by `DraftFactory` when a draft is built for a spoken intro.
+`ChatSummaryService` produces two LLM-generated types from the same conversations:
 
-A **user** summary gives continuity within one listener's own conversation, covering their last five
-unsummarized messages.
+* **BRAND** (`chat_type = 'PUBLIC'`, brand-wide) — consumed on air by `DraftFactory` when a draft is
+  built for a spoken intro.
+* **USER** (per listener and chat type) — consumed by chat itself for conversation continuity via
+  `ChatService` → `getLatestUserSummary`. It keeps the last five messages unsummarized.
 
-The input includes listener profiles and their labels, and the transcript distinguishes `HOST (you)`
-from `LISTENER`.
+# Listener knowledge is part of the input
 
-# Privacy
+`buildListenerProfiles` resolves the `Listener` behind every distinct speaker in the batch and passes a
+profile block alongside the messages: the whole `userData` map — the free-form key/values the chat bot
+collected during the conversation, such as city, country, interests and profession — the preferred or
+localized name, and the labels resolved through `ListenerLabelCache` (`artist`, `owner`).
 
-A brand summary is going to be spoken on a public stream, so it must not carry personal detail — no
-phone numbers, no email addresses, nothing that identifies a listener beyond what they would happily
-hear announced.
+Without this the summary could only say *what* was said and never *who* said it, which is what made chat
+and air feel like two different people.
 
-# When it runs
+Both prompts therefore **preserve names and identifying detail** and are told never to invent one. The
+USER prompt previously forbade names outright and had to be inverted — anonymised summaries destroy the
+single-persona illusion.
 
-A scheduled job every 5 minutes summarizes a brand once it has at least 20 unsummarized messages, or
-when the oldest is at least 10 minutes old. Brands are processed sequentially rather than fanned out.
+# Roles are labelled in the transcript
 
-Failure is loud: nothing is persisted on failure, and `chat_summary_failed` is published alongside
-`chat_summary_created` for successes.
+`formatMessagesForSummary` prefixes each line with `HOST (you)` for `MessageType.BOT` or `LISTENER` for
+`MessageType.USER`; other types are skipped, and listener profiles resolve from `USER` messages only.
 
-# Freshness and retention
+The bot posts under the DJ persona name, so an unlabelled transcript made the host read as a listener —
+summaries then described the DJ as "a knowledgeable user" and would have had the DJ greet itself on air.
 
-A brand summary older than 60 minutes is not used on air, and `aired_at` makes it single-use — marked
-when the draft is rendered rather than when the audio is emitted. Summaries are purged nightly after 7
-days. Event stream conversations are never summarized.
+# Never put private data in a summary
+
+This text is spoken on a public broadcast. The BRAND prompt forbids phone numbers, email addresses,
+addresses, full names, prices and payment details even when a listener typed them in chat: an arranged ad
+is mentioned as an arranged ad, never read back. Handle-style names containing digits, and anonymous
+users, are skipped — they cannot be addressed naturally on air.
+
+# Triggers
+
+A `@Scheduled(every="5m")` job runs per active brand and summarizes when either
+`count >= BRAND_SUMMARY_THRESHOLD` (20) or the oldest unsummarized message is at least
+`BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES` (10) old.
+
+The age trigger matters: on a count-only rule a quiet station never crosses twenty and the DJ stays blind
+indefinitely.
+
+Brands are summarized **sequentially, never fanned out** (`transformToUniAndConcatenate`). Fanning out
+means every brand due in the same tick fires a simultaneous LLM call, the provider rate-limits the burst,
+and whole batches fail at the same instant. One brand's failure is recovered so it cannot abort the rest
+of the sequence.
+
+# Failure is loud and never persisted
+
+A failed or blank generation must not be saved. A placeholder row would mark its messages summarized,
+losing them permanently, and would hand the DJ an error string as on-air context. The batch stays
+unsummarized and is retried on the next tick.
+
+| code | severity | payload |
+|---|---|---|
+| `chat_summary_failed` | `ERROR` | summaryType, messageCount, periodStart/End, provider, model, errorType, error |
+| `chat_summary_created` | `INFORMATION` | summaryType, messageCount, summaryLength, periodStart/End |
+
+`provider` and `model` are in the payload deliberately: without them a rate limit is indistinguishable
+from a bad batch in metriq.
+
+# Freshness and single use
+
+Both guard against the DJ voicing chat that is no longer real.
+
+`getBrandChatContext` returns `BrandChatContext(summaryId, summary, fresh)`, where `fresh` is false past
+`BRAND_SUMMARY_MAX_AGE_MINUTES` (60), measured from `period_end`. A dead conversation must never be voiced
+as if it were happening now.
+
+`aired_at` (nullable, on `mixpla__chat_summary`) makes it single-use: `getLatestBrandSummary` returns only
+**un-aired** BRAND summaries, and `DraftFactory` calls `markBrandSummaryAired` when it hands one to the
+script. Each chat moment is therefore offered to air at most once, with no repeated thank-yous.
+
+The caveat is that marking happens at draft **render**, not at emission, so a Groovy script that receives
+a summary and randomizes it away still consumes it. Do not add a probability gate around `chatSummary` in
+a draft template: `aired_at` already provides the novelty, and a coin flip on top silently discards
+summaries.
+
+# Retention
+
+`deleteOldSummarizedMessages` runs nightly at 03:00 with `MESSAGE_RETENTION_DAYS = 7`. OTS chat is never
+summarized.
+
+# Key files
+
+`maintenance/ChatSummaryService`, `repository/ChatSummaryRepository`, `model/chat/ChatSummary`.
