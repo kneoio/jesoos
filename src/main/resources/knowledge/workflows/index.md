@@ -1,5 +1,6 @@
 # Workflows
 
+* [Getting started](getting-started.md) - Signing up and creating your own station; it is self-service.
 * [Messaging](messaging.md) - How services talk to each other over RabbitMQ.
 * [Brand radio](brand-radio.md) - Continuous brand radio, from agenda to live emission.
 * [Scripts and scenes](scenes-and-scripts.md) - How a station's programming is authored.
@@ -16,6 +17,7 @@
 * [One-time stream internals](ots-internals.md) - OTS routing, cold start, teardown and reconciliation.
 * [Public brand chat](public-chat.md) - Listener-facing WebSocket DJ chat per brand.
 * [Requesting a song](song-requests.md) - What happens when a listener asks for a track.
+* [Liking and disliking songs](song-ratings.md) - Confirmed listener ratings per station.
 * [Listener chat internals](chat-internals.md) - The chat agent, tools and auth gating.
 * [Ads in chat](chat-ads.md) - Listener-created advertisements and per-station flags.
 * [Chat summaries](chat-summaries.md) - Condensing conversations for on-air use and continuity.
