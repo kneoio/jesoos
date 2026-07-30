@@ -118,6 +118,9 @@ external APIs. Drafts are authored in **English** regardless of output language.
 The emitter sends `prompt.getPrompt()` plus `"Draft input:\n" + draft` to the LLM under the shared system
 prompt.
 
+The debug draft endpoint reports an unknown Groovy variable as HTTP 400 JSON with its property name and
+script line, so the editor can point directly to the invalid template reference.
+
 So: draft is facts, prompt is voice, language is weighted per emission. The scheduler does none of this —
 it only decides when an entry fires.
 

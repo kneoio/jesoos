@@ -10,6 +10,7 @@ import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
 import com.semantyca.mixpla.model.cnst.LlmType;
 import com.semantyca.mixpla.model.soundfragment.SoundFragment;
+import groovy.lang.MissingPropertyException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -230,7 +231,49 @@ public class DebugResource extends AbstractResource {
                                 .setStatusCode(200)
                                 .putHeader("Content-Type", "application/json")
                                 .end(new JsonObject().put("draft", draft).encode()),
-                        failure -> handleCommandFailure(rc, brand, "debug draft", failure)
+                        failure -> handleDebugDraftFailure(rc, brand, failure)
                 );
+    }
+
+    private void handleDebugDraftFailure(RoutingContext rc, String brand, Throwable failure) {
+        MissingPropertyException templateError = findCause(failure, MissingPropertyException.class);
+        if (templateError == null) {
+            handleCommandFailure(rc, brand, "debug draft", failure);
+            return;
+        }
+
+        int line = -1;
+        for (StackTraceElement frame : templateError.getStackTrace()) {
+            if (frame.getClassName().startsWith("Script") && frame.getLineNumber() > 0) {
+                line = frame.getLineNumber();
+                break;
+            }
+        }
+
+        String message = "Unknown variable '" + templateError.getProperty() + "'"
+                + (line > 0 ? " at line " + line : "");
+        JsonObject response = new JsonObject()
+                .put("error", message)
+                .put("type", "template")
+                .put("property", templateError.getProperty());
+        if (line > 0) {
+            response.put("line", line);
+        }
+
+        rc.response()
+                .setStatusCode(400)
+                .putHeader("Content-Type", "application/json")
+                .end(response.encode());
+    }
+
+    private <T extends Throwable> T findCause(Throwable failure, Class<T> type) {
+        Throwable current = failure;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return type.cast(current);
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 }
