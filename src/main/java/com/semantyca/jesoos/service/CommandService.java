@@ -216,27 +216,46 @@ public class CommandService {
     private Uni<Void> handleBrandSaved(CommandDTO dto) {
         Object rawSlug = dto.payload() != null ? dto.payload().get("slug") : null;
         if (rawSlug == null) {
-            LOGGER.warn("brand_saved command missing slug in payload");
+            String payloadKeys = dto.payload() == null ? "<no payload>" : String.join(",", dto.payload().keySet());
+            LOGGER.warnf("brand_saved command missing slug in payload (keys: %s)", payloadKeys);
+            metricPublisher.publishMetric("unknown", MetricEventType.WARNING, ProcessType.FLOW, "flow_restart_missing_slug",
+                    Map.of("payloadKeys", payloadKeys), dto.traceId());
             return Uni.createFrom().voidItem();
         }
         String slug = rawSlug.toString();
+        metricPublisher.publishMetric(slug, MetricEventType.COMMAND, ProcessType.FLOW, "flow_restart_received",
+                Map.of("brand", slug), dto.traceId());
         return brandPool.get(slug)
                 .chain(stream -> {
                     if (stream == null) {
                         LOGGER.infof("Brand %s not active, skipping live DJ refresh", slug);
+                        metricPublisher.publishMetric(slug, MetricEventType.INFORMATION, ProcessType.FLOW, "flow_restart_skipped",
+                                Map.of("brand", slug, "reason", "brand not in pool"), dto.traceId());
                         return Uni.createFrom().voidItem();
                     }
                     return brandService.getBySlugName(slug)
                             .invoke(brand -> {
                                 if (brand == null) {
+                                    LOGGER.warnf("Brand %s not found in database, skipping live DJ refresh", slug);
+                                    metricPublisher.publishMetric(slug, MetricEventType.WARNING, ProcessType.FLOW, "flow_restart_skipped",
+                                            Map.of("brand", slug, "reason", "brand not found in database"), dto.traceId());
                                     return;
                                 }
                                 UUID previous = stream.getAiAgentId();
                                 applyBrandAgentToStream(stream, brand);
                                 LOGGER.infof("Updated DJ agent for brand %s to %s (was %s)", slug, brand.getAiAgentId(), previous);
+                                metricPublisher.publishMetric(slug, MetricEventType.INFORMATION, ProcessType.FLOW, "flow_restart_ok",
+                                        Map.of("brand", slug,
+                                                "previousAgentId", String.valueOf(previous),
+                                                "newAgentId", String.valueOf(brand.getAiAgentId()),
+                                                "agentChanged", !java.util.Objects.equals(previous, brand.getAiAgentId()),
+                                                "scenesUpdated", stream.getAgenda() == null ? 0 : stream.getAgenda().getLiveScenes().size()),
+                                        dto.traceId());
                             })
                             .replaceWithVoid();
-                });
+                })
+                .onFailure().invoke(e -> metricPublisher.publishMetric(slug, MetricEventType.ERROR, ProcessType.FLOW, "flow_restart_failed",
+                        Map.of("brand", slug, "error", String.valueOf(e.getMessage())), dto.traceId()));
     }
 
     private static void applyBrandAgentToStream(ILiveStream stream, Brand brand) {
