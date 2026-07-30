@@ -223,10 +223,10 @@ public class SongEmitter {
             item.put("artist", sf.getArtist());
             songs.add(item);
         }
-        metricPublisher.publishMetric(streamSlug, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
+        /*metricPublisher.publishMetric(streamSlug, MetricEventType.DEBUG, ProcessType.FLOW, "expected_play_order",
                 Map.of("seq", entry.getSequenceNumber(), "mergingMethod", mergingMethod.name(),
                         "parentTraceId", parentTraceId == null ? "" : parentTraceId.toString(), "songs", songs),
-                emissionTraceId);
+                emissionTraceId);*/
     }
 
     private static MixingType @NotNull [] getNoIntroMergingTypes(TimelineEntry entry) {
