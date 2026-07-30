@@ -1,12 +1,13 @@
 package com.semantyca.jesoos.service.chat.tools;
 
-import com.semantyca.jesoos.model.stream.OneTimeStream;
 import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.service.AiAgentService;
+import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.mixpla.dto.queue.livestream.*;
 import com.semantyca.mixpla.model.cnst.MixingType;
+import com.semantyca.mixpla.model.cnst.StreamPriority;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 
@@ -22,17 +23,17 @@ import java.util.UUID;
  */
 public class PlaySongForOtsToolHandler extends BaseToolHandler {
 
-    public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
+    public static Uni<ToolNodeResult> execute(
             Map<String, Object> inputMap,
             String otsSlug,
             AiAgentService aiAgentService, OneTimeStreamPool oneTimeStreamPool,
             IntroTtsGenerator introTtsGenerator, InternalRestCall internalRestCall) {
         String songIdStr = (String) inputMap.getOrDefault("songId", "");
         String textToTTSIntro = (String) inputMap.getOrDefault("textToTTSIntro", "");
-        int priority = com.semantyca.mixpla.model.cnst.StreamPriority.GENTLE_INTERRUPT.getValue();
+        int priority = StreamPriority.GENTLE_INTERRUPT.getValue();
         try { if (inputMap.containsKey("priority")) { int p = ((Number) inputMap.get("priority")).intValue();
-            priority = (p == com.semantyca.mixpla.model.cnst.StreamPriority.HARD_INTERRUPT.getValue())
-                    ? com.semantyca.mixpla.model.cnst.StreamPriority.HARD_INTERRUPT.getValue() : priority; }
+            priority = (p == StreamPriority.HARD_INTERRUPT.getValue())
+                    ? StreamPriority.HARD_INTERRUPT.getValue() : priority; }
         } catch (Exception ignored) {}
         if (otsSlug == null || otsSlug.isEmpty() || songIdStr.isEmpty() || textToTTSIntro.isEmpty()) {
             return Uni.createFrom().item(com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
