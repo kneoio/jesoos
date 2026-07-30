@@ -74,6 +74,11 @@ depth, and the audience filter passed to `search_platform_knowledge`. No Listene
 Labels are read-only from chat — `owner` and `developer` are datanest-assigned and the handler refuses
 them.
 
+On successful OTP (`AskVerifyCodeToolHandler`), Listener labels are loaded once into AskState
+(`LISTENER_CONTEXT`, `AUDIENCES`, `LABELS`) so the same graph turn already has the correct audience.
+The deferred WS `session_token` includes those labels alongside `token` and `userName` for the UI.
+Reconnect with `?token=` resolves labels the same way on the connect `session_token`.
+
 `AskVerifyCodeToolHandler` stores the session token only, without
 `ChatAuthService.registerListener`, and `AskLogoffToolHandler` clears the Ask history keys and downgrades
 the Ask WebSocket session.

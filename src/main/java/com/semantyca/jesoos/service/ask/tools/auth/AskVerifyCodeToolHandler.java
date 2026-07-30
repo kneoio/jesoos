@@ -2,13 +2,17 @@ package com.semantyca.jesoos.service.ask.tools.auth;
 
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.ask.AskChatService;
+import com.semantyca.jesoos.service.ask.AskListenerContext;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.util.EmailUtil;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
 
@@ -17,6 +21,7 @@ import java.util.UUID;
 
 /**
  * Ask-scoped verify: stores session token only — no brand listener registration.
+ * Loads Listener labels once into AskState context and the tool/UI payload.
  */
 public final class AskVerifyCodeToolHandler {
 
@@ -29,6 +34,8 @@ public final class AskVerifyCodeToolHandler {
             Map<String, Object> inputMap,
             PublicChatSessionManager sessionManager,
             UserService userService,
+            ListenerService listenerService,
+            ListenerLabelCache listenerLabelCache,
             String connectionId,
             MetricPublisher metricPublisher) {
         String email = EmailUtil.normalize((String) inputMap.getOrDefault("email", ""));
@@ -57,16 +64,25 @@ public final class AskVerifyCodeToolHandler {
                     }
                     String userToken = UUID.randomUUID().toString();
                     return sessionManager.storeUserToken(userToken, email)
-                            .map(v -> {
-                                metricPublisher.publishMetric(METRIC_SCOPE, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
-                                        "ask_login_success", Map.of("email", email, "userId", user.getId(), "connectionId", connectionId));
-                                String payload = new JsonObject()
-                                        .put("ok", true).put("email", email)
-                                        .put("userId", user.getId())
-                                        .put("message", "Authentication successful.")
-                                        .encode();
-                                return ToolNodeResult.withAuth(payload, user.getId(), user, userToken, user.getLogin());
-                            })
+                            .chain(v -> listenerService.getByUserId(user.getId())
+                                    .onFailure().recoverWithItem(err -> {
+                                        LOG.warnf(err, "[AskVerifyCode] listener fetch failed for userId=%d", user.getId());
+                                        return null;
+                                    })
+                                    .map(listener -> {
+                                        AskListenerContext.Snapshot ctx =
+                                                AskListenerContext.from(listener, listenerLabelCache);
+                                        metricPublisher.publishMetric(METRIC_SCOPE, MetricEventType.IMPORTANT_INFORMATION, ProcessType.INDEPENDENT,
+                                                "ask_login_success", Map.of("email", email, "userId", user.getId(), "connectionId", connectionId));
+                                        String payload = new JsonObject()
+                                                .put("ok", true).put("email", email)
+                                                .put("userId", user.getId())
+                                                .put("labels", new JsonArray(ctx.labels()))
+                                                .put("message", "Authentication successful.")
+                                                .encode();
+                                        return ToolNodeResult.withAuth(payload, user.getId(), user, userToken, user.getLogin(),
+                                                ctx.labels(), ctx.listenerContext(), ctx.audiences());
+                                    }))
                             .onFailure().invoke(err -> LOG.errorf(err, "[AskVerifyCode] token store failed for %s", email))
                             .onFailure().recoverWithItem(err -> ToolNodeResult.ok(
                                     new JsonObject().put("ok", false).put("error", err.getMessage()).encode()));

@@ -25,6 +25,7 @@ public class AskState extends AgentState {
     public static final String SESSION_USER_NAME = "sessionUserName";
     public static final String LISTENER_CONTEXT = "listenerContext";
     public static final String AUDIENCES = "audiences";
+    public static final String LABELS = "labels";
 
     public AskState(Map<String, Object> initData) {
         super(initData);
@@ -52,6 +53,13 @@ public class AskState extends AgentState {
 
     public Set<Audience> audiences() {
         return Audience.parse((String) data().get(AUDIENCES));
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> labels() {
+        Object v = data().get(LABELS);
+        if (v instanceof List<?> list) return (List<String>) list;
+        return List.of();
     }
 
     public int iteration() {

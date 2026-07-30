@@ -8,6 +8,7 @@ import com.semantyca.jesoos.dto.ChatMessageDTO;
 import com.semantyca.jesoos.service.ask.AskChatService;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import io.vertx.core.http.ServerWebSocket;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -96,11 +97,24 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         if (!isAnonymous(user)) {
             assert askChatService != null;
             askChatService.bootstrapConnectionHistory(connectionId, user.getId());
-            webSocket.writeTextMessage(new JsonObject()
-                    .put("type", "session_token")
-                    .put("token", token)
-                    .put("userName", user.getLogin() != null ? user.getLogin() : "")
-                    .encode());
+            String userName = user.getLogin() != null ? user.getLogin() : "";
+            askChatService.resolveLabelsForUser(user.getId())
+                    .subscribe().with(
+                            labels -> webSocket.writeTextMessage(new JsonObject()
+                                    .put("type", "session_token")
+                                    .put("token", token)
+                                    .put("userName", userName)
+                                    .put("labels", new JsonArray(labels))
+                                    .encode()),
+                            err -> {
+                                LOG.warnf(err, "[ask-ws-auth] labels resolve failed userId=%d", user.getId());
+                                webSocket.writeTextMessage(new JsonObject()
+                                        .put("type", "session_token")
+                                        .put("token", token)
+                                        .put("userName", userName)
+                                        .put("labels", new JsonArray())
+                                        .encode());
+                            });
         }
 
         LOG.infof("Ask chat WebSocket connected: %s user=%s", connectionId, user.getUserName());

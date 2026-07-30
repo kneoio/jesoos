@@ -8,7 +8,9 @@ import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
+import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.ws.AskChatController;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
@@ -44,6 +46,8 @@ public class AskChatService {
     @Inject ChatRepository chatRepository;
     @Inject AskAgent askAgent;
     @Inject MetricPublisher metricPublisher;
+    @Inject ListenerService listenerService;
+    @Inject ListenerLabelCache listenerLabelCache;
 
     @Setter
     private AskChatController controller;
@@ -210,11 +214,26 @@ public class AskChatService {
                 .put("type", "session_token")
                 .put("token", token)
                 .put("userName", userName)
+                .put("labels", new JsonArray(finalState.labels()))
                 .encode());
         if (userId > 0) {
             // Session already upgraded in tool node; token notify is for the client.
-            LOGGER.infof("[AskChat] deferred session_token userId=%d connectionId=%s", userId, connectionId);
+            LOGGER.infof("[AskChat] deferred session_token userId=%d connectionId=%s labels=%s",
+                    userId, connectionId, finalState.labels());
         }
+    }
+
+    /** Resolve Listener label identifiers for an authenticated reconnect. */
+    public Uni<List<String>> resolveLabelsForUser(long userId) {
+        if (userId == 0) {
+            return Uni.createFrom().item(List.of());
+        }
+        return listenerService.getByUserId(userId)
+                .map(listener -> AskListenerContext.from(listener, listenerLabelCache).labels())
+                .onFailure().recoverWithItem(err -> {
+                    LOGGER.warnf(err, "[AskChat] resolveLabelsForUser failed userId=%d", userId);
+                    return List.of();
+                });
     }
 
     private void publishMetrics(UUID traceId, long userId, List<LlmMessage> agentHistory,

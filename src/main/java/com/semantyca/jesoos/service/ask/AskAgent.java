@@ -88,42 +88,14 @@ public class AskAgent {
     private CompletableFuture<Map<String, Object>> loadContextNode(AskState state) {
         long userId = state.userId();
         if (userId == 0) {
-            return CompletableFuture.completedFuture(Map.of(
-                    AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier()));
+            return CompletableFuture.completedFuture(AskListenerContext.toStateUpdates(AskListenerContext.empty()));
         }
         return listenerService.getByUserId(userId)
-                .map(listener -> {
-                    if (listener == null) {
-                        return Map.<String, Object>of(
-                                AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier());
-                    }
-                    StringBuilder sb = new StringBuilder("[Listener profile:");
-                    com.semantyca.core.model.UserData ud = listener.getUserData();
-                    if (ud != null && ud.getData() != null) {
-                        ud.getData().forEach((k, v) -> sb.append(" ").append(k).append("=").append(v).append(";"));
-                    }
-                    if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
-                        listener.getLocalizedName().forEach((lang, name) ->
-                                sb.append(" localized_name(").append(lang).append(")=").append(name).append(";"));
-                    }
-                    if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
-                        listener.getNickName().forEach((lang, name) ->
-                                sb.append(" nick_name(").append(lang).append(")=").append(name).append(";"));
-                    }
-                    List<String> resolvedLabels = listenerLabelCache.resolveToIdentifiers(listener.getLabels());
-                    if (!resolvedLabels.isEmpty()) {
-                        sb.append(" labels=").append(resolvedLabels).append(";");
-                    }
-                    Set<Audience> audiences = Audience.fromLabels(resolvedLabels);
-                    sb.append(" audience=").append(Audience.primary(audiences).identifier()).append(";");
-                    sb.append("]");
-                    return Map.<String, Object>of(
-                            AskState.LISTENER_CONTEXT, sb.toString(),
-                            AskState.AUDIENCES, Audience.join(audiences));
-                })
+                .map(listener -> AskListenerContext.toStateUpdates(
+                        AskListenerContext.from(listener, listenerLabelCache)))
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.warnf("[AskAgent] loadContext listener fetch failed userId=%d: %s", userId, err.getMessage());
-                    return Map.of(AskState.LISTENER_CONTEXT, "", AskState.AUDIENCES, Audience.USER.identifier());
+                    return AskListenerContext.toStateUpdates(AskListenerContext.empty());
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribeAsCompletionStage();
@@ -221,6 +193,7 @@ public class AskAgent {
 
                     if (result.clearHistory()) {
                         updates.put(AskState.USER_ID, 0L);
+                        updates.putAll(AskListenerContext.toStateUpdates(AskListenerContext.empty()));
                     }
 
                     if (result.wsMessage() != null) {
@@ -233,8 +206,18 @@ public class AskAgent {
                             updates.put(AskState.SESSION_TOKEN, result.sessionToken());
                             updates.put(AskState.SESSION_USER_NAME, result.sessionUserName());
                         }
+                        if (result.listenerContext() != null) {
+                            updates.put(AskState.LISTENER_CONTEXT, result.listenerContext());
+                        }
+                        if (result.audiences() != null) {
+                            updates.put(AskState.AUDIENCES, result.audiences());
+                        }
+                        if (result.labels() != null) {
+                            updates.put(AskState.LABELS, result.labels());
+                        }
                         askChatService.persistConnectionHistory(connectionId, result.newUserId());
-                        LOGGER.infof("[AskAgent] auth upgraded userId=%d connectionId=%s", result.newUserId(), connectionId);
+                        LOGGER.infof("[AskAgent] auth upgraded userId=%d connectionId=%s labels=%s",
+                                result.newUserId(), connectionId, result.labels());
                         return chatRepository.migrateAnonymousDbRecords(connectionId, result.newUserId())
                                 .onFailure().invoke(err -> LOGGER.warnf(err, "[AskAgent] migration failed conn=%s", connectionId))
                                 .onFailure().recoverWithNull()
@@ -261,7 +244,7 @@ public class AskAgent {
         return switch (toolCall.name()) {
             case "start_auth" -> StartAuthToolHandler.execute(input, keycloakAuthService);
             case "verify_code" -> AskVerifyCodeToolHandler.execute(input, sessionManager, userService,
-                    state.connectionId(), metricPublisher);
+                    listenerService, listenerLabelCache, state.connectionId(), metricPublisher);
             case "logoff" -> AskLogoffToolHandler.execute(sessionManager, userService, controller,
                     askChatService, metricPublisher, state.userId(), state.connectionId());
             case "search_platform_knowledge" -> SearchPlatformKnowledgeToolHandler.execute(input, knowledgeBase, state.audiences());

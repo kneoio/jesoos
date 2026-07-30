@@ -42,6 +42,9 @@ public class AskStateSerializer extends StateSerializer<AskState> {
         writeString(out, (String) data.get(AskState.SESSION_USER_NAME));
         writeString(out, (String) data.get(AskState.LISTENER_CONTEXT));
         writeString(out, (String) data.get(AskState.AUDIENCES));
+        @SuppressWarnings("unchecked")
+        List<String> labels = (List<String>) data.get(AskState.LABELS);
+        writeString(out, mapper.writeValueAsString(labels != null ? labels : List.of()));
         out.writeInt(toInt(data.get(AskState.ITERATION)));
         out.writeBoolean(data.get(AskState.RESPONSE_STREAMED) instanceof Boolean b && b);
 
@@ -65,6 +68,9 @@ public class AskStateSerializer extends StateSerializer<AskState> {
         data.put(AskState.SESSION_USER_NAME, readString(in));
         data.put(AskState.LISTENER_CONTEXT, readString(in));
         data.put(AskState.AUDIENCES, readString(in));
+        String labelsJson = readString(in);
+        CollectionType labelsType = mapper.getTypeFactory().constructCollectionType(List.class, String.class);
+        data.put(AskState.LABELS, mapper.readValue(labelsJson != null ? labelsJson : "[]", labelsType));
         data.put(AskState.ITERATION, in.readInt());
         data.put(AskState.RESPONSE_STREAMED, in.readBoolean());
 
