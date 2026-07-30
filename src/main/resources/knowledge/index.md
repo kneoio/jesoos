@@ -4,7 +4,7 @@ okf_version: 0.2
 
 # Platform
 
-* [Mixpla](platform.md) - One system for AI-powered radio and event streams, split into microservices.
+* [Mixpla](platform.md) - One system for AI-powered streams (radio and OTS), split into microservices.
 
 # Services
 

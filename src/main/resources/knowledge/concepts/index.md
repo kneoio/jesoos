@@ -1,5 +1,6 @@
 # Concepts
 
+* [Streams](streams.md) - Mixpla is about streams; brand radio and OTS are the two kinds today.
 * [What Mixpla is for](positioning.md) - The product story: the problem, the differentiators, the business model.
 * [Market context](market.md) - Why intelligent distribution is the open problem.
 * [Audiences](audiences.md) - Who a Mixpla agent is talking to: user, artist, owner, developer.

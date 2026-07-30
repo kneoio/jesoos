@@ -2,7 +2,7 @@
 
 * [Getting started](getting-started.md) - Signing up and creating your own station; it is self-service.
 * [Messaging](messaging.md) - How services talk to each other over RabbitMQ.
-* [Brand radio](brand-radio.md) - Continuous brand radio, from agenda to live emission.
+* [Brand radio](brand-radio.md) - Continuous brand radio (one kind of stream), from agenda to live emission.
 * [Scripts and scenes](scenes-and-scripts.md) - How a station's programming is authored.
 * [Agenda build](agenda-build.md) - The jesoos pipeline that turns a script into a StreamAgenda.
 * [Song selection](song-selection.md) - Filling a scene's pool, boost weighting and the fill ladder.
@@ -13,7 +13,7 @@
 * [Emission](emission.md) - Tickers, scheduling, entry state machine and backpressure.
 * [Streaming pipeline](streaming-pipeline.md) - The aivox side: mixing and segmenting audio.
 * [Playout and interrupts](playout-and-interrupts.md) - Queue tiers, HLS serving and interrupts.
-* [One-time stream](one-time-stream.md) - A single ephemeral stream on its own link.
+* [One-time stream](one-time-stream.md) - A single ephemeral stream on its own link (the other kind of stream).
 * [One-time stream internals](ots-internals.md) - OTS routing, cold start, teardown and reconciliation.
 * [Public brand chat](public-chat.md) - Listener-facing WebSocket DJ chat per brand.
 * [Requesting a song](song-requests.md) - What happens when a listener asks for a track.

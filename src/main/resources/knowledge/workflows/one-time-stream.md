@@ -8,9 +8,10 @@ audience: [owner, developer]
 
 # One-time stream
 
-A one-time stream (OTS) plays one script once, sequentially from the moment it starts, and is then
-torn down. It lives on its own slug — something like `birthday-party-aidazi` — and it is not the
-continuous brand radio: there is no 24-hour loop baseline behind it.
+A one-time stream (OTS) is one kind of Mixpla stream: it plays one script once, sequentially from the
+moment it starts, and is then torn down. It lives on its own slug — something like
+`birthday-party-aidazi` — and it is not the continuous brand radio: there is no 24-hour loop baseline
+behind it. See the streams concept for the umbrella.
 
 Two things always differ from radio. The DJ is **always on** for an OTS, regardless of the master
 brand's DJ toggle. And the stream is not started by anyone in advance: it comes up when the first

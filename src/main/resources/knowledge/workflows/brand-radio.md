@@ -8,9 +8,9 @@ audience: [owner, developer]
 
 # Brand radio
 
-A brand radio is a station that runs continuously. It always belongs to a brand — there is no
-ownerless radio — and it runs indefinitely once started, unlike a one-time stream which plays a
-programme once and ends.
+Brand radio is one kind of Mixpla stream: a station that runs continuously. It always belongs to a
+brand — there is no ownerless radio — and it runs indefinitely once started, unlike a one-time stream
+which plays a programme once and ends. See the streams concept for the umbrella.
 
 Someone has to start it: the station does not come up because a listener arrived. That is the opposite
 of a one-time stream, which cold-starts on the first listener.
