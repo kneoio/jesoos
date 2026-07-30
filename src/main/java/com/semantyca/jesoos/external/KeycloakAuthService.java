@@ -114,6 +114,35 @@ public class KeycloakAuthService {
                 });
     }
 
+    /**
+     * Resolve email from a Keycloak OIDC access token via the userinfo endpoint.
+     * Returns null when the token is invalid or has no email claim.
+     */
+    public Uni<String> resolveEmailFromAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return Uni.createFrom().nullItem();
+        }
+        String url = config.keycloak().getUrl() + "/realms/" + config.keycloak().getRealm()
+                + "/protocol/openid-connect/userinfo";
+        return webClient.getAbs(url)
+                .putHeader("Authorization", "Bearer " + accessToken)
+                .send()
+                .map(resp -> {
+                    if (resp.statusCode() != 200) {
+                        LOG.debug("Keycloak userinfo failed: HTTP {}", resp.statusCode());
+                        return null;
+                    }
+                    JsonObject body = resp.bodyAsJsonObject();
+                    String email = body.getString("email");
+                    if (email == null || email.isBlank()) {
+                        email = body.getString("preferred_username");
+                    }
+                    return EmailUtil.normalize(email);
+                })
+                .onFailure().invoke(err -> LOG.debug("Keycloak userinfo error: {}", err.getMessage()))
+                .onFailure().recoverWithItem(err -> null);
+    }
+
     public Uni<KeycloakAuthResult> verifyAuth(String email, String code) {
         String normalizedEmail = EmailUtil.normalize(email);
         return Uni.createFrom().item(() -> {

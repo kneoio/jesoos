@@ -56,8 +56,14 @@ type `ASK`.
 
 # Authentication
 
-The same email-OTP and session-token mechanism as public chat (`PublicChatSessionManager`,
-`KeycloakAuthService`), but with no station listener upsert.
+Ask supports two sign-in paths that resolve to the same local user by email (no station listener upsert):
+
+1. **Email OTP** (in-chat) — `PublicChatSessionManager` + `KeycloakAuthService`, same as public chat OTP.
+2. **Keycloak OIDC** — a client already logged in via OIDC passes the access token as `?token=` on the Ask
+   WebSocket. `AskAuthService` tries the OTP session store first; if that misses and the token looks like
+   a JWT, it calls Keycloak `userinfo`, resolves email → local `IUser`, mints a normal Ask session token,
+   and upgrades the connection. History keys are `ask_user_{userId}`, so the same email after OTP or OIDC
+   continues the same conversation. Public chat / `ChatAgent` are unchanged.
 
 A caller with `userId == 0` is anonymous, their prompt is truncated at the `!! AUTHENTICATED ONLY`
 marker so there is no topic or tools section, and they are driven through email OTP before any platform
@@ -77,15 +83,18 @@ them.
 On successful OTP (`AskVerifyCodeToolHandler`), Listener labels are loaded once into AskState
 (`LISTENER_CONTEXT`, `AUDIENCES`, `LABELS`) so the same graph turn already has the correct audience.
 The deferred WS `session_token` includes those labels alongside `token` and `userName` for the UI.
-Reconnect with `?token=` resolves labels the same way on the connect `session_token`.
+Reconnect with `?token=` (Ask session UUID or OIDC access token) resolves labels the same way on the
+connect `session_token`. After an OIDC connect the server returns a minted Ask session UUID in
+`session_token` — the UI should store that for reconnects.
 
 `AskVerifyCodeToolHandler` stores the session token only, without
 `ChatAuthService.registerListener`, and `AskLogoffToolHandler` clears the Ask history keys and downgrades
 the Ask WebSocket session.
 
 On connect, `?token=` is optional and an invalid or missing token falls back to anonymous, the same
-recovery pattern as public chat. An anonymous session is workstation-scoped: the frontend keeps a stable
-`anonId` in local storage and passes it as the WebSocket `connectionId`.
+recovery pattern as public chat. OIDC with no matching local user stays anonymous. An anonymous session
+is workstation-scoped: the frontend keeps a stable `anonId` in local storage and passes it as the
+WebSocket `connectionId`.
 
 # Tools
 
@@ -114,6 +123,7 @@ served from — while keeping the LLM and session dependencies.
 |---|---|
 | WebSocket | `ws/AskChatController` |
 | Orchestration | `AskChatService`, `AskAgent` |
+| Connect auth | `AskAuthService` (OTP session + OIDC userinfo) |
 | Auth handlers | `tools/auth/AskVerifyCodeToolHandler`, `AskLogoffToolHandler` |
 | Knowledge | `service/knowledge/*` (shared), `resources/knowledge/**` |
 | Prompt | `resources/prompts/askPrompt.hbs` |

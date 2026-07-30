@@ -5,8 +5,8 @@ import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
+import com.semantyca.jesoos.service.ask.AskAuthService;
 import com.semantyca.jesoos.service.ask.AskChatService;
-import com.semantyca.jesoos.service.chat.ChatAuthService;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -31,21 +31,21 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
     private static final SecureRandom CONNECTION_ID_RANDOM = new SecureRandom();
 
     private final AskChatService askChatService;
-    private final ChatAuthService chatAuthService;
+    private final AskAuthService askAuthService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
     private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
 
     public AskChatController() {
         super(null);
         this.askChatService = null;
-        this.chatAuthService = null;
+        this.askAuthService = null;
     }
 
     @Inject
-    public AskChatController(UserService userService, AskChatService askChatService, ChatAuthService chatAuthService) {
+    public AskChatController(UserService userService, AskChatService askChatService, AskAuthService askAuthService) {
         super(userService);
         this.askChatService = askChatService;
-        this.chatAuthService = chatAuthService;
+        this.askAuthService = askAuthService;
         if (askChatService != null) {
             askChatService.setController(this);
         }
@@ -56,9 +56,10 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
                 String token = rc.request().getParam("token");
                 String anonId = rc.request().getParam("anonId");
-                assert chatAuthService != null;
-                chatAuthService.authenticateUserFromToken(token)
-                        .onItem().invoke(user -> {
+                assert askAuthService != null;
+                askAuthService.authenticate(token)
+                        .onItem().invoke(auth -> {
+                            IUser user = auth.user();
                             if (user instanceof AnonymousUser || user.getId() == 0) {
                                 LOG.warnf("[ask-ws-auth] token resolved to anonymous");
                             } else {
@@ -67,11 +68,11 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                         })
                         .onFailure().recoverWithItem(err -> {
                             LOG.warnf("[ask-ws-auth] token validation failed — %s", err.getMessage());
-                            return AnonymousUser.build();
+                            return AskAuthService.Result.anonymous();
                         })
                         .subscribe().with(
-                                user -> rc.request().toWebSocket()
-                                        .onSuccess(ws -> handleAskWebSocket(ws, user, anonId, token))
+                                auth -> rc.request().toWebSocket()
+                                        .onSuccess(ws -> handleAskWebSocket(ws, auth.user(), anonId, auth.sessionToken()))
                                         .onFailure(err -> {
                                             LOG.error("Ask WebSocket connection failed", err);
                                             rc.fail(500, err);
@@ -84,7 +85,7 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         });
     }
 
-    private void handleAskWebSocket(ServerWebSocket webSocket, IUser user, String anonId, String token) {
+    private void handleAskWebSocket(ServerWebSocket webSocket, IUser user, String anonId, String sessionToken) {
         webSocket.accept();
 
         String connectionId = (isAnonymous(user) && isValidAnonId(anonId))
@@ -102,7 +103,7 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                     .subscribe().with(
                             labels -> webSocket.writeTextMessage(new JsonObject()
                                     .put("type", "session_token")
-                                    .put("token", token)
+                                    .put("token", sessionToken)
                                     .put("userName", userName)
                                     .put("labels", new JsonArray(labels))
                                     .encode()),
@@ -110,7 +111,7 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                                 LOG.warnf(err, "[ask-ws-auth] labels resolve failed userId=%d", user.getId());
                                 webSocket.writeTextMessage(new JsonObject()
                                         .put("type", "session_token")
-                                        .put("token", token)
+                                        .put("token", sessionToken)
                                         .put("userName", userName)
                                         .put("labels", new JsonArray())
                                         .encode());
