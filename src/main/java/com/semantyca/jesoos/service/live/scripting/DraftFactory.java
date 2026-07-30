@@ -151,7 +151,7 @@ public class DraftFactory {
                                 WebHelper.generateSlug(template.getTitle()),
                                 sharerName
                         );
-                        markChatSummaryAired(chatContext);
+                        markChatSummaryAiredIfUsed(chatContext, result.text());
                         return result;
                     } else {
                         String msg = "No draft template found. Fallbacks are disabled.";
@@ -202,11 +202,13 @@ public class DraftFactory {
                 }));
     }
 
-    // Burned once the summary is handed to the script: the next intro must not thank the same
-    // chat moment again. A script that chooses not to voice it still consumes it, which is
-    // acceptable since a new summary is produced within minutes.
-    private void markChatSummaryAired(ChatSummaryService.BrandChatContext chatContext) {
+    // Burned only when the rendered draft actually includes the Chat summary section — so a
+    // script that probability-gates or omits it leaves the summary un-aired for a later intro.
+    private void markChatSummaryAiredIfUsed(ChatSummaryService.BrandChatContext chatContext, String draftText) {
         if (chatContext == null || !chatContext.usable()) {
+            return;
+        }
+        if (draftText == null || !draftText.contains("Chat summary")) {
             return;
         }
         chatSummaryService.markBrandSummaryAired(chatContext.summaryId())

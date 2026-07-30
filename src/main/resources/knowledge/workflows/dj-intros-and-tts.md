@@ -129,13 +129,16 @@ it only decides when an entry fires.
 The `chatSummary` variable carries ready-made on-air context about the listeners currently in chat — who
 they are, what they asked, their `artist` and `owner` labels — so the DJ sounds like the same persona
 they were just talking to. It is deliberately the **only** chat variable exposed: non-empty means fresh,
-un-aired and worth voicing; empty means say nothing about chat.
+un-aired and worth voicing; empty means say nothing about chat. Busy chat is already ranked and capped
+in the BRAND summary (priority tiers, then best-effort interestingness, at most three listeners) — see
+`workflows/chat-summaries.md` — so the draft should not try to thin it further.
 
-`DraftFactory` blanks it unless `BrandChatContext.usable()` and marks it aired on render. Draft scripts
-must therefore **not** wrap it in their own probability gate — that discards summaries unheard. Always
-guard on emptiness (`if (chatSummary)`) and never emit a bare `Chat summary:` label with nothing after
-it, or the LLM will invent listeners. Keep the literal label **`Chat summary`**: `introSystemPrompt.hbs`
-matches on that section name to avoid mistaking a chat-mentioned song for the upcoming track.
+`DraftFactory` blanks it unless `BrandChatContext.usable()`, and marks it aired only when the rendered
+draft contains the literal **`Chat summary`** section. Omitting or probability-gating that section
+leaves the summary for a later intro; prefer an emptiness guard (`if (chatSummary)`) so usable chat is
+not delayed by chance. Never emit a bare `Chat summary:` label with nothing after it, or the LLM will
+invent listeners. Keep that exact label: `introSystemPrompt.hbs` matches on it to avoid mistaking a
+chat-mentioned song for the upcoming track.
 
 # Key files
 

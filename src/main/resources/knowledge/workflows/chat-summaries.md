@@ -19,6 +19,17 @@ listener, so a summary has to let the DJ sound like the same person who was just
 * **USER** (per listener and chat type) — consumed by chat itself for conversation continuity via
   `ChatService` → `getLatestUserSummary`. It keeps the last five messages unsummarized.
 
+# Busy chat is ranked, not a roll call
+
+Many listeners may speak in the same unsummarized batch. There is **no per-listener queue** — BRAND
+still produces **one** summary for the next intro. It must **rank and cap**: song requests /
+dedications / on-air asks first, then labelled listeners (`artist`, `owner`) or clear identity, then
+vivid personal detail — and drop the rest. Within a tier the LLM makes a **best-effort** pick of the
+most interesting / on-air-worthy posts (specific, warm, surprising); that is not human editorial
+judgment and not perfect fairness. At most **three** listeners, one short bullet each, plus an
+optional room-mood line. Never fill the quota with weak material; if nothing is speakable, output
+nothing useful rather than inventing a full room.
+
 # Listener knowledge is part of the input
 
 `buildListenerProfiles` resolves the `Listener` behind every distinct speaker in the batch and passes a
@@ -85,13 +96,13 @@ Both guard against the DJ voicing chat that is no longer real.
 as if it were happening now.
 
 `aired_at` (nullable, on `mixpla__chat_summary`) makes it single-use: `getLatestBrandSummary` returns only
-**un-aired** BRAND summaries, and `DraftFactory` calls `markBrandSummaryAired` when it hands one to the
-script. Each chat moment is therefore offered to air at most once, with no repeated thank-yous.
+**un-aired** BRAND summaries. `DraftFactory` marks a summary aired only when the **rendered draft
+includes** the `Chat summary` section — handing `chatSummary` to the script alone is not enough. A
+script that omits or probability-gates the section leaves the row un-aired for a later intro.
 
-The caveat is that marking happens at draft **render**, not at emission, so a Groovy script that receives
-a summary and randomizes it away still consumes it. Do not add a probability gate around `chatSummary` in
-a draft template: `aired_at` already provides the novelty, and a coin flip on top silently discards
-summaries.
+Drafts should still prefer an emptiness guard (`if (chatSummary)`) over a coin flip, so a usable
+summary is not delayed forever by chance. Never emit a bare `Chat summary:` label with nothing after
+it, or the LLM will invent listeners.
 
 # Retention
 

@@ -399,16 +399,31 @@ public class ChatSummaryService {
                 Chat and air are one person to the listener, so the DJ must sound like someone who
                 remembers the conversation personally and knows who these people are.
 
-                Write the context so the DJ can voice it naturally between songs. For each listener
-                worth mentioning, keep together:
-                - the name to address them by
-                - who they are: anything the profile says about them (where they are from, their
-                  interests, their role) and their labels — an artist or an owner is worth naming
-                  as such on air
-                - what they actually said or asked for, and any song request
-                - anything already promised or answered in chat, so the DJ does not repeat it
+                Busy chat is common: many listeners may have spoken in the same batch. Do NOT roll-call
+                everyone. Rank candidates and keep only the best for one short on-air breath.
 
-                Then add a short line on the overall mood of the room.
+                Priority (high to low) — pick from the top of this list first:
+                1. Song requests, dedications, or anything a listener asked to have said on air
+                2. Listeners with labels (artist, owner) or a clear identity worth naming on air
+                3. One vivid personal detail (city, occasion) that makes a warm hello natural
+                4. Drop the rest
+
+                Within a tier (and when candidates are otherwise equal), prefer posts that would sound
+                good on air — specific, warm, surprising, or emotionally clear — over flat hellos,
+                small talk, or support. Prefer concrete asks over vague chatter. This is best-effort
+                judgment, not perfect fairness: do not invent interest; if unsure, prefer actionable
+                on-air material (requests) over what merely "sounds fun".
+
+                Hard shape:
+                - At most 3 listeners in the whole summary
+                - One short bullet per chosen listener: name to address them by, who they are
+                  (profile / labels when useful), what they said or asked for, and anything already
+                  promised or answered in chat so the DJ does not repeat it
+                - Prefer people with actionable on-air material over "everyone present"
+                - Never fill the quota with weak material
+                - Then optionally one short line on the overall mood of the room
+                - If nothing is speakable, output nothing (or a single empty-feeling line the DJ
+                  can ignore) — never invent listeners to fill the quota
 
                 Rules:
                 - Keep first names and the human details the DJ needs to address someone warmly.
