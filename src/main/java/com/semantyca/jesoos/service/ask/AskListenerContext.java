@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.Set;
 
 /** Builds AskState listener/audience/label fields from a Listener row. */
-final class AskListenerContext {
+public final class AskListenerContext {
 
-    record Snapshot(String listenerContext, String audiences, List<String> labels) {}
+    public record Snapshot(String listenerContext, String audiences, List<String> labels) {}
 
     private AskListenerContext() {}
 
@@ -21,7 +21,7 @@ final class AskListenerContext {
         return new Snapshot("", Audience.USER.identifier(), List.of());
     }
 
-    static Snapshot from(Listener listener, ListenerLabelCache labelCache) {
+    public static Snapshot from(Listener listener, ListenerLabelCache labelCache) {
         if (listener == null) {
             return empty();
         }
