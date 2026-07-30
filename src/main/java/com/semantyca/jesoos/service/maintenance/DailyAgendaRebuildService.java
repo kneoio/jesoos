@@ -88,6 +88,7 @@ public class DailyAgendaRebuildService {
                     return agendaService.getStreamAgenda(brand, SuperUser.build())
                             .invoke(newAgenda -> {
                                 existingStream.setAgenda(newAgenda);
+                                brandPool.applyBrandAgent(existingStream, brand);
                                 LOGGER.infof("Rebuilt agenda for brand %s with %d scenes", brandSlug, newAgenda.getTotalScenes());
                                 metricPublisher.publishMetric(brandSlug, MetricEventType.INFORMATION,
                                         ProcessType.CRON, "agenda_rebuilt",

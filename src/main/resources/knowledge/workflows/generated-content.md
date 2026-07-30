@@ -39,6 +39,11 @@ Generated content is always persisted as a `SoundFragment` with an `expires_at`.
 **reused** when the fragment already exists, skipping the LLM and TTS cost when the same item plays
 again within its lifetime — a morning news bulletin replayed through the day, for instance.
 
+The reuse key is the synthetic `artist` value from `buildArtistKey`, and it **includes the voice id** of
+the reader for that content type (`getVoice(agent)`). Without the voice in the key, changing the DJ mid-day
+would keep replaying the cached fragment in the previous voice until midnight; with it, the block is
+re-rendered once for the new voice and reused from then on.
+
 jesoos only sets `expires_at`. The pruning cron runs in **metriq**: `ArchivedCleanupService` →
 `SoundFragmentRepository.findExpiredFragments` (`expires_at < NOW()`) deletes the storage files and then
 the database records. That is out of jesoos's scope.

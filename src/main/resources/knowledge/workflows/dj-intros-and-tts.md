@@ -44,6 +44,24 @@ switched on.
 DJ-enabled decides whether TTS can happen at all; boost only guarantees a few intros fire where the
 shuffler would have stayed silent.
 
+# Which agent speaks
+
+The agenda stores only the agent **id** — `LiveScene.agentId`, snapshotted from the brand at build. The
+`AiAgent` behind it, and with it the voice, TTS engine, gain, LLM and manner, is loaded fresh from the
+database on **every** emission, so no voice data is ever baked into the agenda.
+
+Both schedulers resolve the id from the scene (`StaggeredSongScheduler` falls back to the stream's
+`aiAgentId` only when the scene has none). The scene is the authority because it is re-snapshotted from
+the brand on every agenda rebuild, whereas the stream field is refreshed only by `BrandPool.applyBrandAgent`
+— called from `FLOW_RESTART` and from `DailyAgendaRebuildService`. A stale stream field used to keep the
+previous DJ's voice on air after the agenda had already moved to the new one.
+
+Because the agent is resolved this late, **replacing the DJ needs no agenda rebuild**: `FLOW_RESTART`
+patches the live stream and its scenes in place and the next entry speaks in the new voice. Two things
+still carry the old voice regardless — the entries already handed to aivox (emission runs
+`aivox-delay-seconds` ahead of playback, on top of aivox's own queue) and any generated block cached
+before the change, which the voice-aware reuse key now re-renders.
+
 # Generation chain
 
 TTS runs inside the emitters, only when `djStateService.isDjEnabled(brand)` and the entry has an intro:

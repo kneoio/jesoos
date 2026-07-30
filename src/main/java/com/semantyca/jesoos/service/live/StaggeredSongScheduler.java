@@ -300,7 +300,10 @@ public class StaggeredSongScheduler {
                 entry.isGenerated(), entry.isHasJingle());
         return brandPool.get(brandName)
                 .chain(stream -> {
-                    return aiAgentService.getById(stream.getAiAgentId())
+                    // The scene is re-snapshotted from the brand on every agenda rebuild, so it is never
+                    // staler than the stream field; OTS resolves the agent the same way.
+                    UUID agentId = liveScene.getAgentId() != null ? liveScene.getAgentId() : stream.getAiAgentId();
+                    return aiAgentService.getById(agentId)
                             .chain(agent -> {
                                 if (entry.isGenerated()) {
                                     return generatedContentEmitter.send(brandName, liveScene, entry, agent, stream, brandZone, StreamPriority.PRIORITIZED_FRONT.getValue(), emissionTraceId)

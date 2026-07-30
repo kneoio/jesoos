@@ -2,12 +2,14 @@ package com.semantyca.jesoos.service.live;
 
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.jesoos.messaging.MetricPublisher;
+import com.semantyca.jesoos.model.stream.AbstractStream;
 import com.semantyca.jesoos.model.stream.ILiveStream;
 import com.semantyca.jesoos.model.stream.LiveScene;
 import com.semantyca.jesoos.model.stream.RadioStream;
 import com.semantyca.jesoos.model.stream.StreamAgenda;
 import com.semantyca.jesoos.model.stream.TimelineEntry;
 import com.semantyca.jesoos.service.BrandService;
+import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.cnst.MixingType;
 import com.semantyca.jesoos.service.agenda.RadioAgendaService;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
@@ -80,6 +82,32 @@ public class BrandPool extends AbstractStreamPool<ILiveStream> {
                 })
                 .onItem().invoke(stream -> metricPublisher.publishMetric(brandName, MetricEventType.INFORMATION, ProcessType.INDEPENDENT, "agenda_created", Map.of("status", stream.getStatus().name())))
                 .onFailure().invoke(failure -> LOGGER.errorf("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
+    }
+
+    /**
+     * Re-applies the brand's DJ fields to a live stream. Must be called by every path that reloads the
+     * brand (FLOW_RESTART, agenda rebuild), because radio emission resolves the agent from the stream
+     * and the scenes, and a stale stream field keeps the previous DJ's voice on air.
+     */
+    public void applyBrandAgent(ILiveStream stream, Brand brand) {
+        if (!(stream instanceof AbstractStream abstractStream)) {
+            return;
+        }
+        abstractStream.setAiAgentId(brand.getAiAgentId());
+        abstractStream.setAiOverriding(brand.getAiOverriding());
+        abstractStream.setProfileOverriding(brand.getProfileOverriding());
+        Brand nested = abstractStream.getBrand();
+        if (nested != null) {
+            nested.setAiAgentId(brand.getAiAgentId());
+            nested.setAiOverriding(brand.getAiOverriding());
+            nested.setProfileOverriding(brand.getProfileOverriding());
+        }
+        StreamAgenda agenda = stream.getAgenda();
+        if (agenda != null && brand.getAiAgentId() != null) {
+            for (LiveScene scene : agenda.getLiveScenes()) {
+                scene.setAgentId(brand.getAiAgentId());
+            }
+        }
     }
 
     private void forceIntroOnFirstEntry(StreamAgenda schedule, String brandName) {

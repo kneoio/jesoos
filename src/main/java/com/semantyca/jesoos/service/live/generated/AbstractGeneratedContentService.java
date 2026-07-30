@@ -145,7 +145,11 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         return promptService.resolveForLanguage(promptId, airLanguage)
                 .chain(resolved -> generateDraft(resolved.prompt(), agent, stream, airLanguage)
                         .chain(draftResult -> {
-                            String artistKey = buildArtistKey(stream.getSlugName(), promptId, draftResult);
+                            // The voice belongs in the reuse key: without it a DJ change replays the
+                            // previous voice from the cached fragment until it expires at midnight.
+                            Voice voice = getVoice(agent);
+                            String voiceKey = voice != null && voice.getId() != null ? "_" + voice.getId() : "";
+                            String artistKey = buildArtistKey(stream.getSlugName(), promptId, draftResult) + voiceKey;
 
                             return soundFragmentRepository.findByArtistAndDate(artistKey, startOfDay, endOfDay)
                                     .chain(existing -> {
