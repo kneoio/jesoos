@@ -15,6 +15,7 @@ import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.chat.ad.AdContinuationHandler;
 import com.semantyca.jesoos.service.chat.ad.AdSessionManager;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.service.chat.llm.ChatLlmClient;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmProviderAdapter;
@@ -73,6 +74,8 @@ public class ChatService {
     protected ChatSummaryService chatSummaryService;
     @Inject
     ListenerService listenerService;
+    @Inject
+    ListenerLabelCache listenerLabelCache;
     @Inject
     UserService userService;
     @Inject
@@ -504,12 +507,14 @@ public class ChatService {
         if (token != null) {
             long userId = finalState.userId();
             LOGGER.infof("[ChatAgent] sending deferred session_token userId=%d connectionId=%s", userId, connectionId);
-            listenerService.resolveDisplayName(userId, finalState.sessionUserName()).subscribe().with(
-                    displayName -> {
+            listenerService.resolveSessionProfile(userId, finalState.sessionUserName()).subscribe().with(
+                    profile -> {
+                        List<String> labels = listenerLabelCache.resolveToIdentifiers(profile.labelIds());
                         controller.sendToConnection(connectionId, new io.vertx.core.json.JsonObject()
                                 .put("type", "session_token")
                                 .put("token", token)
-                                .put("userName", displayName)
+                                .put("userName", profile.displayName())
+                                .put("labels", new JsonArray(labels))
                                 .encode());
                         if (userId > 0) {
                             userService.findById(userId).subscribe().with(
@@ -518,7 +523,7 @@ public class ChatService {
                             );
                         }
                     },
-                    err -> LOGGER.warnf("[sendDeferredSessionToken] failed to resolve display name for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
+                    err -> LOGGER.warnf("[sendDeferredSessionToken] failed to resolve session profile for userId=%d conn=%s: %s", userId, connectionId, err.getMessage())
             );
         }
     }

@@ -140,41 +140,60 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         }
     }
 
+    /** Display name plus raw listener label UUIDs (resolved to identifiers by the caller). */
+    public record SessionProfile(String displayName, List<UUID> labelIds) {}
+
     public Uni<String> resolveDisplayName(long userId, String fallback) {
         CachedName cached = displayNameCache.get(userId);
         if (cached != null && System.currentTimeMillis() < cached.expiresAt()) {
             return Uni.createFrom().item(cached.value());
         }
+        return resolveSessionProfile(userId, fallback).map(SessionProfile::displayName);
+    }
+
+    /**
+     * Loads listener once for chat session bootstrap: preferred display name + label UUIDs.
+     * Label UUIDs are left unresolved so callers can map via {@code ListenerLabelCache}.
+     */
+    public Uni<SessionProfile> resolveSessionProfile(long userId, String fallback) {
         return getByUserId(userId)
                 .map(listener -> {
                     if (listener == null) {
-                        LOG.warnf("[resolveDisplayName] no listener found for userId=%d, returning fallback", userId);
-                        return fallback;
+                        LOG.warnf("[resolveSessionProfile] no listener found for userId=%d, returning fallback", userId);
+                        return new SessionProfile(fallback, List.of());
                     }
-                    if (listener.getUserData() != null && listener.getUserData().getData() != null) {
-                        String name = listener.getUserData().getData().get("preferred_name");
-                        if (name != null && !name.isBlank()) {
-                            LOG.debugf("[resolveDisplayName] userId=%d → preferred_name=%s", userId, name);
-                            return name;
-                        }
+                    String name = extractDisplayName(listener);
+                    if (name == null) {
+                        LOG.warnf("[resolveSessionProfile] userId=%d — listener found but name fields empty", userId);
+                        name = fallback;
+                    } else {
+                        LOG.debugf("[resolveSessionProfile] userId=%d → displayName=%s", userId, name);
                     }
-                    if (listener.getLocalizedName() != null) {
-                        String name = listener.getLocalizedName().values().stream()
-                                .filter(v -> v != null && !v.isBlank())
-                                .findFirst().orElse(null);
-                        if (name != null) {
-                            LOG.debugf("[resolveDisplayName] userId=%d → localizedName=%s", userId, name);
-                            return name;
-                        }
-                    }
-                    LOG.warnf("[resolveDisplayName] userId=%d — listener found but name fields empty", userId);
-                    return fallback;
+                    List<UUID> labels = listener.getLabels() != null ? List.copyOf(listener.getLabels()) : List.of();
+                    return new SessionProfile(name, labels);
                 })
-                .invoke(name -> {
-                    if (name != null && !name.equals(fallback)) displayNameCache.put(userId,
-                            new CachedName(name, System.currentTimeMillis() + DISPLAY_NAME_TTL_MS));
+                .invoke(profile -> {
+                    String name = profile.displayName();
+                    if (name != null && !name.equals(fallback)) {
+                        displayNameCache.put(userId,
+                                new CachedName(name, System.currentTimeMillis() + DISPLAY_NAME_TTL_MS));
+                    }
                 })
-                .onFailure().recoverWithItem(fallback);
+                .onFailure().recoverWithItem(new SessionProfile(fallback, List.of()));
+    }
+
+    private static String extractDisplayName(Listener listener) {
+        if (listener.getUserData() != null && listener.getUserData().getData() != null) {
+            String name = listener.getUserData().getData().get("preferred_name");
+            if (name != null && !name.isBlank()) return name;
+        }
+        if (listener.getLocalizedName() != null) {
+            return listener.getLocalizedName().values().stream()
+                    .filter(v -> v != null && !v.isBlank())
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
     }
 
     public void invalidateDisplayNameCache(long userId) {

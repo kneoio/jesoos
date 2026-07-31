@@ -10,9 +10,11 @@ import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.repository.OtsDefinitionRepository;
 import com.semantyca.jesoos.service.chat.ChatAuthService;
 import com.semantyca.jesoos.service.chat.ChatService;
+import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.mixpla.model.cnst.SubmissionPolicy;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,6 +24,7 @@ import org.jboss.logging.Logger;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +36,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private final ChatService chatService;
     private final ChatAuthService chatAuthService;
     private final ListenerService listenerService;
+    private final ListenerLabelCache listenerLabelCache;
     private final BrandService brandService;
     private final OtsDefinitionRepository otsDefinitionRepository;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
@@ -44,16 +48,18 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         this.chatService = null;
         this.chatAuthService = null;
         this.listenerService = null;
+        this.listenerLabelCache = null;
         this.brandService = null;
         this.otsDefinitionRepository = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService, BrandService brandService, OtsDefinitionRepository otsDefinitionRepository) {
+    public PublicChatController(UserService userService, ChatService chatService, ChatAuthService chatAuthService, ListenerService listenerService, ListenerLabelCache listenerLabelCache, BrandService brandService, OtsDefinitionRepository otsDefinitionRepository) {
         super(userService);
         this.chatService = chatService;
         this.chatAuthService = chatAuthService;
         this.listenerService = listenerService;
+        this.listenerLabelCache = listenerLabelCache;
         this.brandService = brandService;
         this.otsDefinitionRepository = otsDefinitionRepository;
         if (chatService != null) {
@@ -112,14 +118,18 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         if (!isAnonymous(user)) {
             assert chatService != null;
             chatService.bootstrapConnectionHistory(connectionId, user.getId());
-            listenerService.resolveDisplayName(user.getId(), user.getEmail())
+            listenerService.resolveSessionProfile(user.getId(), user.getEmail())
                     .subscribe().with(
-                            displayName -> webSocket.writeTextMessage(new io.vertx.core.json.JsonObject()
-                                    .put("type", "session_token")
-                                    .put("token", token)
-                                    .put("userName", displayName)
-                                    .encode()),
-                            err -> LOG.warnf("Failed to resolve display name on connect for %s: %s", connectionId, err.getMessage())
+                            profile -> {
+                                List<String> labels = listenerLabelCache.resolveToIdentifiers(profile.labelIds());
+                                webSocket.writeTextMessage(new io.vertx.core.json.JsonObject()
+                                        .put("type", "session_token")
+                                        .put("token", token)
+                                        .put("userName", profile.displayName())
+                                        .put("labels", new JsonArray(labels))
+                                        .encode());
+                            },
+                            err -> LOG.warnf("Failed to resolve session profile on connect for %s: %s", connectionId, err.getMessage())
                     );
         }
         LOG.infof("Public chat WebSocket connected: %s for user: %s", connectionId, user.getUserName());
