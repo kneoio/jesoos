@@ -40,6 +40,11 @@ datanest, on save ──POST /analyze {soundFragmentId, path?}──▶ spectra
   → download from Hetzner object storage if needed
   → Essentia and TensorFlow analysis
   → UPDATE mixpla__sound_fragments.add_info (moon DB)
+
+jesoos chat (assess_track / upload_song)
+  ──POST /assess multipart file──▶ spectra
+  → analyze in-process, return JSON (bpm, key, moods, genres, danceability, is_music, …)
+  → writes nothing to the DB (no SoundFragment yet)
 ```
 
 `POST /analyze` takes a required `soundFragmentId` and an optional `path`, answers 202 with
@@ -47,6 +52,10 @@ datanest, on save ──POST /analyze {soundFragmentId, path?}──▶ spectra
 optional `path` is a fast path that skips the download and is used only if the file exists on disk.
 Temporary downloads are deleted immediately after analysis, while a shared local original is never
 deleted.
+
+`POST /assess` accepts a multipart `file` field and returns the analysis synchronously in the body,
+including `is_music` (false when the top Discogs genre is under `Non-Music---*` or duration < 3s).
+jesoos uses that verdict to reject speech / spoken-word uploads before save.
 
 # Operations
 
