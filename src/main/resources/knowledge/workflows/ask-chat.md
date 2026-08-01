@@ -48,7 +48,11 @@ streamed.
 | `ChatType` | `PUBLIC` / `OTS` | `ASK` |
 | In-memory history keys | `conn_*` / `user_*` | `ask_conn_*` / `ask_user_*` |
 | Listener registration | yes, per brand | **never** |
-| Summarization | yes, for `PUBLIC` | no |
+| Summarization | yes, for `PUBLIC` | yes, `ASK` prompt |
+
+Ask history is per user and long-lived, so it is not replayed in full: past ten turns the older part of
+the conversation is represented by its latest `ASK` summary instead. See the chat summaries concept for
+the prompt split.
 
 The public help chat is a third, separate chat — see the help chat concept.
 

@@ -287,6 +287,24 @@ public class ChatRepository extends AsyncRepository {
                 );
     }
 
+    /**
+     * Age-based retention for chat types that are never summarized — {@link #deleteOldSummarizedMessages}
+     * only reaps rows carrying a summarized_at, so these would otherwise be kept forever.
+     */
+    public Uni<Void> deleteOldMessagesByType(ChatType chatType, int daysOld) {
+        String sql = "DELETE FROM " + entityData.getTableName() +
+                " WHERE chat_type = $1 AND timestamp < $2";
+
+        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusDays(daysOld);
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(chatType.name(), cutoff))
+                .replaceWithVoid()
+                .onFailure().invoke(throwable ->
+                        LOGGER.error("Failed to delete old {} messages", chatType, throwable)
+                );
+    }
+
     public Uni<List<String>> getActiveBrands() {
         String sql = "SELECT DISTINCT brand_name FROM " + entityData.getTableName() +
                 " WHERE chat_type = 'PUBLIC' AND summarized_at IS NULL";
@@ -298,9 +316,14 @@ public class ChatRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    /**
+     * Anonymous rows (user_id 0) have no one to summarize for, and HELP is never summarized —
+     * without both filters the HELP chat would be swept in as a phantom "user 0" session.
+     */
     public Uni<List<ActiveUserSession>> getActiveUsers() {
         String sql = "SELECT DISTINCT user_id, brand_name, chat_type FROM " + entityData.getTableName() +
-                " WHERE summarized_at IS NULL AND user_id IS NOT NULL";
+                " WHERE summarized_at IS NULL AND user_id IS NOT NULL AND user_id <> 0" +
+                " AND chat_type <> '" + ChatType.HELP.name() + "'";
 
         return client.preparedQuery(sql)
                 .execute()

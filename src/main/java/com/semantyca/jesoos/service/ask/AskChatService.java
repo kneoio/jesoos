@@ -9,6 +9,7 @@ import com.semantyca.jesoos.model.chat.ChatMessageEnvelope;
 import com.semantyca.jesoos.model.cnst.ChatType;
 import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.ListenerService;
+import com.semantyca.jesoos.service.maintenance.ChatSummaryService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
 import com.semantyca.jesoos.ws.AskChatController;
@@ -41,9 +42,13 @@ public class AskChatService {
     public static final String ASSISTANT_NAME = "Mixplaclone";
     public static final String ASSISTANT_LANGUAGES = "en";
 
+    /** Turns replayed verbatim; everything older is carried by the summary. */
+    private static final int RECENT_HISTORY_WINDOW = 10;
+
     private final String askPrompt;
 
     @Inject ChatRepository chatRepository;
+    @Inject ChatSummaryService chatSummaryService;
     @Inject AskAgent askAgent;
     @Inject MetricPublisher metricPublisher;
     @Inject ListenerService listenerService;
@@ -116,50 +121,49 @@ public class AskChatService {
         metricPublisher.publishMetric(SCOPE_KEY, MetricEventType.DEBUG, ProcessType.FLOW,
                 "ask_user", Map.of("message", userMessage, "userId", user.getId(), "connectionId", connectionId), traceId);
 
-        String userLabel = user.getId() != 0 && user.getLogin() != null ? user.getLogin() : "";
+        String userLabel = user.getLogin() != null ? user.getLogin() : "";
         String renderedPrompt = askPrompt
                 .replace("{{assistantLanguages}}", ASSISTANT_LANGUAGES)
                 .replace("{{userName}}", sanitize(userLabel));
-        // {{isAuthenticated}} left for AskAgent per iteration
 
-        List<LlmMessage> history = trimOrphanedUserMessages(
-                chatRepository.getConversationHistory(askConnectionKey(connectionId)));
-
-        Map<String, Object> initData = new HashMap<>();
-        initData.put(AskState.USER_ID, user.getId());
-        initData.put(AskState.CONNECTION_ID, connectionId);
-        initData.put(AskState.HISTORY, new ArrayList<>(history));
-        initData.put(AskState.SYSTEM_PROMPT, renderedPrompt);
-        initData.put(AskState.ASSISTANT_NAME, ASSISTANT_NAME);
-        initData.put(AskState.ITERATION, 0);
-
-        int startHistorySize = history.size();
         long startTs = System.currentTimeMillis();
 
-        return askAgent.run(initData).flatMap(finalState -> {
-            long finalUserId = finalState.userId();
-            String botText = finalState.botResponse();
-            publishMetrics(traceId, finalUserId, finalState.history(), startHistorySize, botText, startTs);
+        return loadConversationHistoryWithSummary(user.getId(), connectionId).flatMap(history -> {
+            Map<String, Object> initData = new HashMap<>();
+            initData.put(AskState.USER_ID, user.getId());
+            initData.put(AskState.CONNECTION_ID, connectionId);
+            initData.put(AskState.HISTORY, new ArrayList<>(history));
+            initData.put(AskState.SYSTEM_PROMPT, renderedPrompt);
+            initData.put(AskState.ASSISTANT_NAME, ASSISTANT_NAME);
+            initData.put(AskState.ITERATION, 0);
 
-            if (botText == null || botText.isBlank()) {
-                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                return Uni.createFrom().voidItem();
-            }
+            int startHistorySize = history.size();
 
-            String responseText = botText.replaceAll("(?s)<thinking>.*?</thinking>", "").trim();
-            if (responseText.isBlank()) {
-                chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
-                return Uni.createFrom().voidItem();
-            }
+            return askAgent.run(initData).flatMap(finalState -> {
+                long finalUserId = finalState.userId();
+                String botText = finalState.botResponse();
+                publishMetrics(traceId, finalUserId, finalState.history(), startHistorySize, botText, startTs);
 
-            chatRepository.replaceConversationHistory(
-                    askConnectionKey(connectionId),
-                    finalState.history());
+                if (botText == null || botText.isBlank()) {
+                    chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    return Uni.createFrom().voidItem();
+                }
 
-            return emitResponse(responseText, chunkHandler, completionHandler, connectionId, finalUserId,
-                    finalState.responseStreamed());
+                String responseText = botText.replaceAll("(?s)<thinking>.*?</thinking>", "").trim();
+                if (responseText.isBlank()) {
+                    chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
+                    return Uni.createFrom().voidItem();
+                }
+
+                chatRepository.replaceConversationHistory(
+                        askConnectionKey(connectionId),
+                        finalState.history());
+
+                return emitResponse(responseText, chunkHandler, completionHandler, connectionId, finalUserId,
+                        finalState.responseStreamed());
+            });
         }).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("Ask generateBotResponse failed connectionId=%s: %s", connectionId, err.getMessage());
@@ -197,6 +201,33 @@ public class AskChatService {
                     .timestamp(botMessage.timestamp()).build().toJson());
             return null;
         }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
+    }
+
+    /**
+     * Ask conversations are long-lived per user, so the raw history cannot be replayed forever:
+     * past the recent window the older turns are represented by their ASK summary instead.
+     */
+    private Uni<List<LlmMessage>> loadConversationHistoryWithSummary(long userId, String connectionId) {
+        List<LlmMessage> currentHistory = trimOrphanedUserMessages(
+                chatRepository.getConversationHistory(askConnectionKey(connectionId)));
+
+        if (currentHistory.size() <= RECENT_HISTORY_WINDOW) {
+            return Uni.createFrom().item(currentHistory);
+        }
+
+        return chatSummaryService.getLatestUserSummary(userId, SCOPE_KEY, ChatType.ASK)
+                .map(summaryText -> {
+                    List<LlmMessage> recent = currentHistory.subList(
+                            currentHistory.size() - RECENT_HISTORY_WINDOW, currentHistory.size());
+                    if (summaryText == null || summaryText.isBlank()) {
+                        return new ArrayList<>(recent);
+                    }
+                    List<LlmMessage> historyWithSummary = new ArrayList<>();
+                    historyWithSummary.add(LlmMessage.text(LlmMessage.Role.USER,
+                            "[Previous conversation summary]\n" + summaryText + "\n[End of summary]"));
+                    historyWithSummary.addAll(recent);
+                    return historyWithSummary;
+                });
     }
 
     /** Resolve Listener label identifiers for an authenticated reconnect. */

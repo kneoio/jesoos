@@ -83,13 +83,14 @@ public class ChatSummaryRepository extends AsyncRepository {
                 .onItem().transform(Optional::ofNullable);
     }
 
-    public Uni<Optional<ChatSummary>> getLatestUserSummary(long userId, String brandName, ChatType chatType) {
+    public Uni<Optional<ChatSummary>> getLatestUserSummary(long userId, String brandName, ChatType chatType,
+                                                          SummaryType summaryType) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE user_id = $1 AND brand_name = $2 AND chat_type = $3 AND summary_type = 'USER' " +
+                " WHERE user_id = $1 AND brand_name = $2 AND chat_type = $3 AND summary_type = $4 " +
                 "ORDER BY created_at DESC LIMIT 1";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(userId, brandName, chatType.name()))
+                .execute(Tuple.of(userId, brandName, chatType.name(), summaryType.name()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(this::from)
                 .concatenate()

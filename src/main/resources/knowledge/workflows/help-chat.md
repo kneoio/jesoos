@@ -45,9 +45,18 @@ re-sending text that was already streamed.
 # Scope and persistence
 
 Every row is written with `user_id = 0`, `brand_name = 'mixpla'` and type `HELP`, and history is read
-back by `connection_id`. The in-memory conversation key is `help_conn_*`, dropped when the socket
-closes — a reconnect starts a fresh conversation. Nothing is summarized, and no listener row is ever
+back by `connection_id`. The in-memory conversation key is `help_conn_*`. No listener row is ever
 created or read.
+
+Nothing here is summarized: the caller is anonymous, the conversation lasts one visit, and there is no
+continuity worth preserving. The conversation is capped instead, three ways:
+
+* **Socket close** — a closed tab, a reload or a navigation drops the history immediately.
+* **Idle TTL** — an hour without a message expires the conversation; the next message starts fresh.
+  A `@Scheduled(every="15m")` sweep also evicts idle entries whose socket is still held open, so an
+  abandoned tab cannot pin its history in memory.
+* **Row retention** — the nightly cleanup deletes `HELP` rows older than two days by age, since the
+  normal cleanup only reaps rows that carry a `summarized_at` and these never will.
 
 # Hardening
 

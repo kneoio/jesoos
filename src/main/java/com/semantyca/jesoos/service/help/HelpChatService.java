@@ -11,6 +11,7 @@ import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.ws.HelpChatController;
 import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
+import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
@@ -43,6 +45,11 @@ public class HelpChatService {
     public static final String ASSISTANT_LANGUAGES = "en";
 
     private static final long ANONYMOUS_USER_ID = 0L;
+
+    /** A visitor who went quiet for this long starts over; nothing here is worth keeping warm. */
+    private static final long IDLE_TTL_MS = 60 * 60 * 1000L;
+
+    private final Map<String, Long> lastActivity = new ConcurrentHashMap<>();
 
     private final String helpPrompt;
 
@@ -78,6 +85,9 @@ public class HelpChatService {
 
     public Uni<String> processUserMessage(String content, String connectionId) {
         return Uni.createFrom().item(() -> {
+            expireIfIdle(connectionId);
+            lastActivity.put(connectionId, System.currentTimeMillis());
+
             ChatMessageEnvelope message = ChatMessageEnvelope.of(
                     MessageType.USER, "visitor", content, System.currentTimeMillis(), connectionId);
 
@@ -187,7 +197,29 @@ public class HelpChatService {
         }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
     }
 
+    /** Socket close, reload or navigation away — the conversation does not survive it. */
     public void dropConversation(String connectionId) {
         chatRepository.clearConversationHistory(helpConnectionKey(connectionId));
+        lastActivity.remove(connectionId);
+    }
+
+    private void expireIfIdle(String connectionId) {
+        Long last = lastActivity.get(connectionId);
+        if (last != null && System.currentTimeMillis() - last >= IDLE_TTL_MS) {
+            chatRepository.clearConversationHistory(helpConnectionKey(connectionId));
+            LOGGER.infof("[help] conversation expired after idle connection=%s", connectionId);
+        }
+    }
+
+    /** Sockets held open by an idle tab would otherwise pin their history in memory indefinitely. */
+    @Scheduled(every = "15m")
+    public void sweepIdleConversations() {
+        long now = System.currentTimeMillis();
+        lastActivity.entrySet().removeIf(entry -> {
+            if (now - entry.getValue() < IDLE_TTL_MS) return false;
+            chatRepository.clearConversationHistory(helpConnectionKey(entry.getKey()));
+            LOGGER.infof("[help] swept idle conversation connection=%s", entry.getKey());
+            return true;
+        });
     }
 }

@@ -43,6 +43,8 @@ public class ChatSummaryService {
     private static final int BRAND_SUMMARY_THRESHOLD = 20;
     private static final int USER_SUMMARY_THRESHOLD = 20;
     private static final int MESSAGE_RETENTION_DAYS = 7;
+    /** Help chat is anonymous and never summarized, so its rows are reaped by age alone. */
+    private static final int HELP_RETENTION_DAYS = 2;
     // A brand summary is on-air material: summarize the tail on age too, not only on volume,
     // otherwise a quiet station never crosses the count threshold and the DJ stays blind.
     private static final int BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES = 10;
@@ -120,6 +122,11 @@ public class ChatSummaryService {
                 .subscribe().with(
                         v -> LOGGER.infof("Cleaned up old summarized messages older than %s days", MESSAGE_RETENTION_DAYS),
                         error -> LOGGER.error("Failed to cleanup old messages", error)
+                );
+        chatRepository.deleteOldMessagesByType(ChatType.HELP, HELP_RETENTION_DAYS)
+                .subscribe().with(
+                        v -> LOGGER.infof("Cleaned up help messages older than %s days", HELP_RETENTION_DAYS),
+                        error -> LOGGER.error("Failed to cleanup old help messages", error)
                 );
     }
 
@@ -213,14 +220,19 @@ public class ChatSummaryService {
                     List<ChatMessage> toSummarize = messages.subList(0, messagesToSummarize);
 
                     String messagesText = formatMessagesForSummary(toSummarize);
-                    return buildListenerProfiles(toSummarize)
-                            .flatMap(profiles -> generateUserSummary(messagesText, profiles))
+                    SummaryType summaryType = summaryTypeFor(chatType);
+                    // Ask is a platform Q&A, not a listener relationship: no DJ persona, no profiles.
+                    Uni<String> generation = chatType == ChatType.ASK
+                            ? generateAskSummary(messagesText)
+                            : buildListenerProfiles(toSummarize)
+                                    .flatMap(profiles -> generateUserSummary(messagesText, profiles));
+                    return generation
                             .onFailure().invoke(error ->
-                                    publishSummaryFailure(brandName, SummaryType.USER, toSummarize, error))
+                                    publishSummaryFailure(brandName, summaryType, toSummarize, error))
                             .flatMap(summaryText -> {
                                 ChatSummary summary = new ChatSummary();
                                 summary.setBrandName(brandName);
-                                summary.setSummaryType(SummaryType.USER);
+                                summary.setSummaryType(summaryType);
                                 summary.setUserId(userId);
                                 summary.setChatType(chatType);
                                 summary.setSummary(summaryText);
@@ -235,7 +247,7 @@ public class ChatSummaryService {
                                                     .collect(Collectors.toList());
                                             return chatRepository.markMessagesAsSummarized(messageIds, summaryId);
                                         })
-                                        .invoke(() -> publishSummaryCreated(brandName, SummaryType.USER,
+                                        .invoke(() -> publishSummaryCreated(brandName, summaryType,
                                                 toSummarize, summaryText));
                             });
                 });
@@ -368,8 +380,13 @@ public class ChatSummaryService {
     }
 
     public Uni<String> getLatestUserSummary(long userId, String brandName, ChatType chatType) {
-        return chatSummaryRepository.getLatestUserSummary(userId, brandName, chatType)
+        return chatSummaryRepository.getLatestUserSummary(userId, brandName, chatType, summaryTypeFor(chatType))
                 .map(opt -> opt.map(ChatSummary::getSummary).orElse(null));
+    }
+
+    /** Ask conversations are their own summary type; every other chat keeps the listener USER type. */
+    private static SummaryType summaryTypeFor(ChatType chatType) {
+        return chatType == ChatType.ASK ? SummaryType.ASK : SummaryType.USER;
     }
 
     /**
@@ -467,6 +484,30 @@ public class ChatSummaryService {
 
                 Listener profile (collected by the chat bot during these conversations):
                 """ + (listenerProfiles.isBlank() ? "(none available)" : listenerProfiles) + """
+
+                Conversation:
+                """ + messagesText;
+        return callSummaryLlm(prompt);
+    }
+
+    /**
+     * Ask continuity: what this person is trying to understand, not who they are on air.
+     */
+    private Uni<String> generateAskSummary(String messagesText) {
+        String prompt = """
+                Summarize the following conversation between a Mixpla user and the platform
+                assistant Mixplaclone.
+
+                This summary is read back at the start of their next Ask session so the assistant can
+                pick up where it left off. Capture what they were trying to understand or do, which
+                parts of the platform came up, the level of depth that suited them, any decision or
+                recommendation given, and any question left unanswered.
+
+                Lines labelled "HOST (you)" are the assistant's own earlier replies.
+                This is a support conversation, not a broadcast: no on-air phrasing, no persona, no
+                small talk, and nothing about the person beyond what they said about their own use of
+                Mixpla. Only state what the messages support. Never invent a detail.
+                Be concise. Format as bullet points.
 
                 Conversation:
                 """ + messagesText;

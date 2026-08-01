@@ -12,12 +12,27 @@ Summarization is how the **air DJ learns what happened in chat**. Chat and air a
 listener, so a summary has to let the DJ sound like the same person who was just talking to them —
 "thanks Mira for reaching me in chat, so we have someone from Michigan tonight…".
 
-`ChatSummaryService` produces two LLM-generated types from the same conversations:
+`ChatSummaryService` produces three LLM-generated types from the same conversations:
 
 * **BRAND** (`chat_type = 'PUBLIC'`, brand-wide) — consumed on air by `DraftFactory` when a draft is
   built for a spoken intro.
 * **USER** (per listener and chat type) — consumed by chat itself for conversation continuity via
   `ChatService` → `getLatestUserSummary`. It keeps the last five messages unsummarized.
+* **ASK** (per user) — the same per-user mechanism for Ask Mixpla, under its own `SummaryType` so it
+  can never be mistaken for on-air material.
+
+`summarizeUserMessages` picks both the prompt and the `SummaryType` from the `ChatType`. `PUBLIC` gets
+the listener prompt above with the profile block and type `USER`; `ASK` gets type `ASK` and
+`generateAskSummary` — a support-conversation prompt with no DJ persona, no on-air phrasing and no
+listener profiles, capturing what the person was trying to understand, how deep an answer suited them
+and what was left unanswered. `AskChatService` reads it back once the live conversation passes ten
+turns, replaying only the recent window plus the summary, so a long-running Ask thread stops growing
+the request. Without the split, Ask conversations were summarized with the on-air prompt and the
+result was never read by anyone.
+
+`HELP` is never summarized — the caller is anonymous, the conversation lasts one visit and there is no
+continuity to preserve. `getActiveUsers` excludes it, and excludes `user_id = 0`, or the help chat would
+be picked up as a phantom "user 0" session.
 
 # Busy chat is ranked, not a roll call
 
@@ -108,6 +123,10 @@ it, or the LLM will invent listeners.
 
 `deleteOldSummarizedMessages` runs nightly at 03:00 with `MESSAGE_RETENTION_DAYS = 7`. OTS chat is never
 summarized.
+
+That query only reaps rows carrying a `summarized_at`, so anything never summarized would be kept
+forever. The same nightly job therefore also runs `deleteOldMessagesByType(HELP, HELP_RETENTION_DAYS)`
+(2 days), deleting help rows by age alone.
 
 # Key files
 
