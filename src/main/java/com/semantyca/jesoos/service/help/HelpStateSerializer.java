@@ -1,4 +1,4 @@
-package com.semantyca.jesoos.service.ask;
+package com.semantyca.jesoos.service.help;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,13 +15,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AskStateSerializer extends StateSerializer<AskState> {
+public class HelpStateSerializer extends StateSerializer<HelpState> {
 
     private final ObjectMapper mapper;
     private final CollectionType historyType;
 
-    public AskStateSerializer() {
-        super(AskState::new);
+    public HelpStateSerializer() {
+        super(HelpState::new);
         mapper = new ObjectMapper();
         mapper.setVisibility(
                 mapper.getSerializationConfig().getDefaultVisibilityChecker()
@@ -33,50 +33,38 @@ public class AskStateSerializer extends StateSerializer<AskState> {
 
     @Override
     public void writeData(Map<String, Object> data, ObjectOutput out) throws IOException {
-        out.writeLong(toLong(data.get(AskState.USER_ID)));
-        writeString(out, (String) data.get(AskState.CONNECTION_ID));
-        writeString(out, (String) data.get(AskState.SYSTEM_PROMPT));
-        writeString(out, (String) data.get(AskState.ASSISTANT_NAME));
-        writeString(out, (String) data.get(AskState.BOT_RESPONSE));
-        writeString(out, (String) data.get(AskState.LISTENER_CONTEXT));
-        writeString(out, (String) data.get(AskState.AUDIENCES));
-        @SuppressWarnings("unchecked")
-        List<String> labels = (List<String>) data.get(AskState.LABELS);
-        writeString(out, mapper.writeValueAsString(labels != null ? labels : List.of()));
-        out.writeInt(toInt(data.get(AskState.ITERATION)));
-        out.writeBoolean(data.get(AskState.RESPONSE_STREAMED) instanceof Boolean b && b);
+        writeString(out, (String) data.get(HelpState.CONNECTION_ID));
+        writeString(out, (String) data.get(HelpState.SYSTEM_PROMPT));
+        writeString(out, (String) data.get(HelpState.ASSISTANT_NAME));
+        writeString(out, (String) data.get(HelpState.BOT_RESPONSE));
+        out.writeInt(toInt(data.get(HelpState.ITERATION)));
+        out.writeBoolean(data.get(HelpState.RESPONSE_STREAMED) instanceof Boolean b && b);
 
         @SuppressWarnings("unchecked")
-        List<LlmMessage> history = (List<LlmMessage>) data.get(AskState.HISTORY);
+        List<LlmMessage> history = (List<LlmMessage>) data.get(HelpState.HISTORY);
         writeString(out, mapper.writeValueAsString(history != null ? history : List.of()));
 
-        LlmToolCall toolCall = (LlmToolCall) data.get(AskState.TOOL_CALL);
+        LlmToolCall toolCall = (LlmToolCall) data.get(HelpState.TOOL_CALL);
         writeString(out, toolCall != null ? mapper.writeValueAsString(toolCall) : null);
     }
 
     @Override
     public Map<String, Object> readData(ObjectInput in) throws IOException, ClassNotFoundException {
         Map<String, Object> data = new HashMap<>();
-        data.put(AskState.USER_ID, in.readLong());
-        data.put(AskState.CONNECTION_ID, readString(in));
-        data.put(AskState.SYSTEM_PROMPT, readString(in));
-        data.put(AskState.ASSISTANT_NAME, readString(in));
-        data.put(AskState.BOT_RESPONSE, readString(in));
-        data.put(AskState.LISTENER_CONTEXT, readString(in));
-        data.put(AskState.AUDIENCES, readString(in));
-        String labelsJson = readString(in);
-        CollectionType labelsType = mapper.getTypeFactory().constructCollectionType(List.class, String.class);
-        data.put(AskState.LABELS, mapper.readValue(labelsJson != null ? labelsJson : "[]", labelsType));
-        data.put(AskState.ITERATION, in.readInt());
-        data.put(AskState.RESPONSE_STREAMED, in.readBoolean());
+        data.put(HelpState.CONNECTION_ID, readString(in));
+        data.put(HelpState.SYSTEM_PROMPT, readString(in));
+        data.put(HelpState.ASSISTANT_NAME, readString(in));
+        data.put(HelpState.BOT_RESPONSE, readString(in));
+        data.put(HelpState.ITERATION, in.readInt());
+        data.put(HelpState.RESPONSE_STREAMED, in.readBoolean());
 
         String historyJson = readString(in);
         List<LlmMessage> history = mapper.readValue(historyJson != null ? historyJson : "[]", historyType);
-        data.put(AskState.HISTORY, new ArrayList<>(history));
+        data.put(HelpState.HISTORY, new ArrayList<>(history));
 
         String toolCallJson = readString(in);
         if (toolCallJson != null) {
-            data.put(AskState.TOOL_CALL, mapper.readValue(toolCallJson, LlmToolCall.class));
+            data.put(HelpState.TOOL_CALL, mapper.readValue(toolCallJson, LlmToolCall.class));
         }
         return data;
     }
@@ -96,12 +84,6 @@ public class AskStateSerializer extends StateSerializer<AskState> {
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-    }
-
-    private static long toLong(Object v) {
-        if (v instanceof Long l) return l;
-        if (v instanceof Integer i) return i.longValue();
-        return 0L;
     }
 
     private static int toInt(Object v) {

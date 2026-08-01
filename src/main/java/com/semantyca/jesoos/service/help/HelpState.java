@@ -1,18 +1,16 @@
-package com.semantyca.jesoos.service.ask;
+package com.semantyca.jesoos.service.help;
 
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
-import com.semantyca.jesoos.service.knowledge.Audience;
 import org.bsc.langgraph4j.state.AgentState;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-public class AskState extends AgentState {
+/** Help chat is anonymous by design — no userId, no listener context, no audience. */
+public class HelpState extends AgentState {
 
-    public static final String USER_ID = "userId";
     public static final String CONNECTION_ID = "connectionId";
     public static final String HISTORY = "history";
     public static final String SYSTEM_PROMPT = "systemPrompt";
@@ -21,41 +19,20 @@ public class AskState extends AgentState {
     public static final String BOT_RESPONSE = "botResponse";
     public static final String RESPONSE_STREAMED = "responseStreamed";
     public static final String ITERATION = "iteration";
-    public static final String LISTENER_CONTEXT = "listenerContext";
-    public static final String AUDIENCES = "audiences";
-    public static final String LABELS = "labels";
 
-    public AskState(Map<String, Object> initData) {
+    public HelpState(Map<String, Object> initData) {
         super(initData);
-    }
-
-    public long userId() {
-        Object v = data().get(USER_ID);
-        if (v instanceof Long l) return l;
-        if (v instanceof Integer i) return i.longValue();
-        return 0L;
     }
 
     public String connectionId() { return (String) data().getOrDefault(CONNECTION_ID, ""); }
     public String systemPrompt() { return (String) data().getOrDefault(SYSTEM_PROMPT, ""); }
-    public String assistantName() { return (String) data().getOrDefault(ASSISTANT_NAME, "Mixplaclone"); }
+    public String assistantName() { return (String) data().getOrDefault(ASSISTANT_NAME, "Mixpla Help"); }
     public LlmToolCall toolCall() { return (LlmToolCall) data().get(TOOL_CALL); }
     public String botResponse() { return (String) data().get(BOT_RESPONSE); }
+
     public boolean responseStreamed() {
         Object v = data().get(RESPONSE_STREAMED);
         return v instanceof Boolean b && b;
-    }
-    public String listenerContext() { return (String) data().getOrDefault(LISTENER_CONTEXT, ""); }
-
-    public Set<Audience> audiences() {
-        return Audience.parse((String) data().get(AUDIENCES));
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<String> labels() {
-        Object v = data().get(LABELS);
-        if (v instanceof List<?> list) return (List<String>) list;
-        return List.of();
     }
 
     public int iteration() {

@@ -142,11 +142,6 @@ public class AskChatService {
             publishMetrics(traceId, finalUserId, finalState.history(), startHistorySize, botText, startTs);
 
             if (botText == null || botText.isBlank()) {
-                if (finalUserId != 0 && user.getId() == 0) {
-                    return emitResponse("You're signed in. What would you like to know about Mixpla?",
-                            chunkHandler, completionHandler, connectionId, finalUserId, false)
-                            .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
-                }
                 chunkHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                 completionHandler.accept(ChatMessageDTO.processingDone(connectionId).build().toJson());
                 return Uni.createFrom().voidItem();
@@ -164,8 +159,7 @@ public class AskChatService {
                     finalState.history());
 
             return emitResponse(responseText, chunkHandler, completionHandler, connectionId, finalUserId,
-                    finalState.responseStreamed())
-                    .invoke(() -> sendDeferredSessionToken(finalState, connectionId));
+                    finalState.responseStreamed());
         }).ifNoItem().after(java.time.Duration.ofSeconds(90)).fail()
         .onFailure().recoverWithUni(err -> {
             LOGGER.errorf("Ask generateBotResponse failed connectionId=%s: %s", connectionId, err.getMessage());
@@ -203,24 +197,6 @@ public class AskChatService {
                     .timestamp(botMessage.timestamp()).build().toJson());
             return null;
         }).replaceWithVoid().runSubscriptionOn(getDefaultWorkerPool());
-    }
-
-    private void sendDeferredSessionToken(AskState finalState, String connectionId) {
-        String token = finalState.sessionToken();
-        if (token == null || controller == null) return;
-        long userId = finalState.userId();
-        String userName = finalState.sessionUserName() != null ? finalState.sessionUserName() : "";
-        controller.sendToConnection(connectionId, new JsonObject()
-                .put("type", "session_token")
-                .put("token", token)
-                .put("userName", userName)
-                .put("labels", new JsonArray(finalState.labels()))
-                .encode());
-        if (userId > 0) {
-            // Session already upgraded in tool node; token notify is for the client.
-            LOGGER.infof("[AskChat] deferred session_token userId=%d connectionId=%s labels=%s",
-                    userId, connectionId, finalState.labels());
-        }
     }
 
     /** Resolve Listener label identifiers for an authenticated reconnect. */
@@ -283,13 +259,6 @@ public class AskChatService {
         List<LlmMessage> connHistory = chatRepository.getConversationHistory(askConnectionKey(connectionId));
         if (!connHistory.isEmpty()) {
             chatRepository.replaceConversationHistory(askUserKey(userId), connHistory);
-        }
-    }
-
-    public void clearConversationHistory(String connectionId, long userId) {
-        chatRepository.clearConversationHistory(askConnectionKey(connectionId));
-        if (userId != 0) {
-            chatRepository.clearConversationHistory(askUserKey(userId));
         }
     }
 

@@ -8,6 +8,7 @@ import com.semantyca.jesoos.rest.DebugResource;
 import com.semantyca.jesoos.rest.InfoResource;
 import com.semantyca.jesoos.rest.SoundFragmentUploadResource;
 import com.semantyca.jesoos.ws.AskChatController;
+import com.semantyca.jesoos.ws.HelpChatController;
 import com.semantyca.jesoos.ws.PublicChatController;
 import com.semantyca.core.server.security.GlobalErrorHandler;
 import io.vertx.ext.web.Router;
@@ -38,6 +39,9 @@ public class JesoosApplication {
     AskChatController askChatController;
 
     @Inject
+    HelpChatController helpChatController;
+
+    @Inject
     ChatUploadResource chatUploadResource;
 
     @Inject
@@ -53,6 +57,7 @@ public class JesoosApplication {
         infoResource.setupRoutes(router);
         publicChatController.setupRoutes(router);
         askChatController.setupRoutes(router);
+        helpChatController.setupRoutes(router);
         chatUploadResource.setupRoutes(router);
         soundFragmentUploadResource.setupRoutes(router);
         debugResource.setupRoutes(router);

@@ -2,15 +2,15 @@
 type: Workflow
 title: Ask Mixpla
 description: The internal platform-knowledge chat presented as Mixplaclone — its own WebSocket, agent and tools, isolated from listener chat and extractable as a service.
-tags: [ask, chat, knowledge, auth, otp, mixplaclone, streaming, isolation]
+tags: [ask, chat, knowledge, auth, oidc, mixplaclone, streaming, isolation]
 audience: [user, artist, owner, developer]
 ---
 
 # Ask Mixpla
 
-The internal platform-knowledge assistant, presented as **Mixplaclone**. It has no brand context and
-runs on its own WebSocket and agent, deliberately **isolated** from the public brand and OTS listener
-chat. It shares the agent mechanics — langgraph4j, tool handlers, the LLM client — but has a separate
+The internal platform-knowledge assistant, presented as **Mixplaclone**. It lives inside the
+protected area, has no brand context and runs on its own WebSocket and agent, deliberately
+**isolated** from the in-player brand chat and from the public help chat. It shares the agent mechanics — langgraph4j, tool handlers, the LLM client — but has a separate
 controller, service, agent, prompt, tools and history keys so the package can be extracted into its own
 service later. Ask turns are never routed through `ChatService`, `ChatAgent` or `PublicChatController`.
 
@@ -26,8 +26,7 @@ AskChatController (WebSocket /jesoos/ws/ask)
 ```
 
 `AskAgent` mirrors `ChatAgent` with a maximum of 8 tool iterations, and there is no brand queue
-injection. `loadContext` loads the authenticated user's Listener profile into volatile context when one
-exists.
+injection. `loadContext` loads the user's Listener profile into volatile context when one exists.
 
 Models are the same Anthropic stack through `BrandLlmProviderResolver` with a fixed synthetic slug
 `mixpla`, since the provider is platform-wide and the brand parameter is vestigial.
@@ -51,28 +50,26 @@ streamed.
 | Listener registration | yes, per brand | **never** |
 | Summarization | yes, for `PUBLIC` | no |
 
+The public help chat is a third, separate chat — see the help chat concept.
+
 Database rows still use `brand_name = 'mixpla'` as the scope column, matching the existing schema, with
 type `ASK`.
 
 # Authentication
 
-Ask supports two sign-in paths that resolve to the same local user by email (no station listener upsert):
+**Keycloak OIDC only.** Ask sits behind the protected area, so the surrounding app has already signed
+the caller in; there is no in-chat sign-in, no email OTP and no anonymous mode. The client passes its
+OIDC access token as `?token=` on the Ask WebSocket. `AskAuthService` calls Keycloak `userinfo`,
+resolves email → local `IUser`, and the connection is accepted. A missing or unresolvable token is
+rejected with **401** — the socket is never opened. There is no station listener upsert.
 
-1. **Email OTP** (in-chat) — `PublicChatSessionManager` + `KeycloakAuthService`, same as public chat OTP.
-2. **Keycloak OIDC** — a client already logged in via OIDC passes the access token as `?token=` on the Ask
-   WebSocket. `AskAuthService` tries the OTP session store first; if that misses and the token looks like
-   a JWT, it calls Keycloak `userinfo`, resolves email → local `IUser`, mints a normal Ask session token,
-   and upgrades the connection. History keys are `ask_user_{userId}`, so the same email after OTP or OIDC
-   continues the same conversation. Public chat / `ChatAgent` are unchanged.
-
-A caller with `userId == 0` is anonymous, their prompt is truncated at the `!! AUTHENTICATED ONLY`
-marker so there is no topic or tools section, and they are driven through email OTP before any platform
-question is answered. Anonymous tools are `start_auth` and `verify_code` only; authenticated tools are
-`search_platform_knowledge`, `listener_data` and `logoff`.
+Because every caller is authenticated, the prompt has no anonymous branch and the tool set is fixed:
+`search_platform_knowledge` and `listener_data`. There is no `start_auth`, `verify_code` or `logoff`
+tool — signing out is the surrounding app's job.
 
 `loadContext` injects the listener profile by `userId` into volatile LLM context when a Listener row
 exists, so Mixplaclone knows whom it is speaking to, and `listener_data` can read or write that profile
-through the shared tool and handler with no brand registration on Ask login.
+through the shared tool and handler with no brand registration.
 
 `loadContext` also resolves the caller's **audience** from Listener labels (`Audience.fromLabels`) into
 `AskState.AUDIENCES`. That drives two things: `{{audience}}` in the prompt, which sets tone and answer
@@ -80,42 +77,28 @@ depth, and the audience filter passed to `search_platform_knowledge`. No Listene
 Labels are read-only from chat — `owner` and `developer` are datanest-assigned and the handler refuses
 them.
 
-On successful OTP (`AskVerifyCodeToolHandler`), Listener labels are loaded once into AskState
-(`LISTENER_CONTEXT`, `AUDIENCES`, `LABELS`) so the same graph turn already has the correct audience.
-The deferred WS `session_token` includes those labels alongside `token` and `userName` for the UI.
-Reconnect with `?token=` (Ask session UUID or OIDC access token) resolves labels the same way on the
-connect `session_token`. After an OIDC connect the server returns a minted Ask session UUID in
-`session_token` — the UI should store that for reconnects.
-
-`AskVerifyCodeToolHandler` stores the session token only, without
-`ChatAuthService.registerListener`, and `AskLogoffToolHandler` clears the Ask history keys and downgrades
-the Ask WebSocket session.
-
-On connect, `?token=` is optional and an invalid or missing token falls back to anonymous, the same
-recovery pattern as public chat. OIDC with no matching local user stays anonymous. An anonymous session
-is workstation-scoped: the frontend keeps a stable `anonId` in local storage and passes it as the
-WebSocket `connectionId`.
+On connect the server sends a `session_token` message carrying `userName` and the caller's Listener
+`labels` — the badges the UI shows. It no longer carries a `token` field: the OIDC access token is the
+only credential and the client already has it.
 
 # Tools
 
 | Tool | Purpose |
 |---|---|
-| `start_auth` / `verify_code` / `logoff` | sign-in and sign-out, with Ask-specific verify and logoff handlers |
 | `search_platform_knowledge` | weighted search over the shared OKF knowledge bundle, scoped to the caller's audience |
 | `listener_data` | read and write the listener profile so the assistant knows whom it is speaking to |
 
-There are no catalog, play, upload, ad or community tools.
+There are no auth, catalog, play, upload, ad or community tools.
 
 # Isolation and extractability
 
 The package root is `com.semantyca.jesoos.service.ask` plus `ws.AskChatController`. Shared as libraries
-only: `service.chat.llm.*`, `service.knowledge.*`, `BaseToolHandler`, `ToolNodeResult`, `StartAuthTool`
-and `StartAuthToolHandler.execute`, `ListenerDataTool` and its handler, the tool schema classes,
-`PublicChatSessionManager`, `ChatRepository` and `ChatMessageDTO`.
+only: `service.chat.llm.*`, `service.knowledge.*`, `BaseToolHandler`, `ToolNodeResult`,
+`ListenerDataTool` and its handler, the tool schema classes, `ChatRepository` and `ChatMessageDTO`.
 
 Extracting it to a new service means lifting `service.ask`, `AskChatController` and the Ask prompt, and
 taking `service.knowledge` plus `resources/knowledge/**` along — or pointing at wherever the bundle is
-served from — while keeping the LLM and session dependencies.
+served from — while keeping the LLM and Keycloak dependencies.
 
 # Key files
 
@@ -123,7 +106,6 @@ served from — while keeping the LLM and session dependencies.
 |---|---|
 | WebSocket | `ws/AskChatController` |
 | Orchestration | `AskChatService`, `AskAgent` |
-| Connect auth | `AskAuthService` (OTP session + OIDC userinfo) |
-| Auth handlers | `tools/auth/AskVerifyCodeToolHandler`, `AskLogoffToolHandler` |
+| Connect auth | `AskAuthService` (OIDC userinfo only) |
 | Knowledge | `service/knowledge/*` (shared), `resources/knowledge/**` |
 | Prompt | `resources/prompts/askPrompt.hbs` |

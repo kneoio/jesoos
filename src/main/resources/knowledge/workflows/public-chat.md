@@ -7,8 +7,13 @@ tags: [chat, listener, dj, sign-in, requests, events]
 
 # Talking to the DJ
 
-Every station has a chat where listeners talk to its AI DJ. It knows the station's catalog and what is
-playing, and it stays on the subject of music, the station and the platform.
+Every station has a chat where listeners talk to its AI DJ. It lives **inside the player**, always in
+the context of one brand: it knows that station's catalog and what is playing, and it stays on the
+subject of music, the station and the platform.
+
+It is not the platform help chat and not the internal Ask chat. Questions about Mixpla itself, asked
+by someone who is not listening to a station, belong in the public help chat; platform questions from
+someone signed in to the app belong in Ask.
 
 Without signing in, you can talk to the DJ and pass a message to the station owner. Signing in is a
 short email exchange: you give your address, receive a code, and type it back. Once you are in, the DJ

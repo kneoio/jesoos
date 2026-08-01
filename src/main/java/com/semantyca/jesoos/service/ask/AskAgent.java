@@ -1,27 +1,16 @@
 package com.semantyca.jesoos.service.ask;
 
-import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
-import com.semantyca.jesoos.external.KeycloakAuthService;
-import com.semantyca.jesoos.messaging.MetricPublisher;
-import com.semantyca.jesoos.repository.ChatRepository;
 import com.semantyca.jesoos.service.ListenerService;
 import com.semantyca.jesoos.service.knowledge.Audience;
 import com.semantyca.jesoos.service.knowledge.KnowledgeBase;
 import com.semantyca.jesoos.service.knowledge.SearchPlatformKnowledgeTool;
 import com.semantyca.jesoos.service.knowledge.SearchPlatformKnowledgeToolHandler;
-import com.semantyca.jesoos.service.ask.tools.auth.AskLogoffToolHandler;
-import com.semantyca.jesoos.service.ask.tools.auth.AskVerifyCodeToolHandler;
-import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.service.chat.ToolNodeResult;
 import com.semantyca.jesoos.service.chat.llm.*;
 import com.semantyca.jesoos.service.chat.tools.ListenerDataTool;
 import com.semantyca.jesoos.service.chat.tools.ListenerDataToolHandler;
 import com.semantyca.jesoos.service.chat.tools.ListenerLabelCache;
-import com.semantyca.jesoos.service.chat.tools.auth.LogoffTool;
-import com.semantyca.jesoos.service.chat.tools.auth.StartAuthTool;
-import com.semantyca.jesoos.service.chat.tools.auth.StartAuthToolHandler;
-import com.semantyca.jesoos.service.chat.tools.auth.VerifyCode;
 import com.semantyca.jesoos.ws.AskChatController;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -51,13 +40,7 @@ public class AskAgent {
     private static final String LLM_SLUG = AskChatService.SCOPE_KEY;
 
     @Inject BrandLlmProviderResolver llmProviderResolver;
-    @Inject KeycloakAuthService keycloakAuthService;
-    @Inject PublicChatSessionManager sessionManager;
-    @Inject UserService userService;
-    @Inject ChatRepository chatRepository;
-    @Inject MetricPublisher metricPublisher;
     @Inject AskChatController controller;
-    @Inject AskChatService askChatService;
     @Inject ListenerService listenerService;
     @Inject ListenerLabelCache listenerLabelCache;
     @Inject KnowledgeBase knowledgeBase;
@@ -102,21 +85,15 @@ public class AskAgent {
     }
 
     private CompletableFuture<Map<String, Object>> llmNode(AskState state) {
-        boolean isAuthenticated = state.userId() != 0;
         Set<Audience> audiences = state.audiences();
-        List<LlmTool> tools = getToolsFor(isAuthenticated);
+        List<LlmTool> tools = List.of(SearchPlatformKnowledgeTool.toTool(), ListenerDataTool.toTool());
 
         String model = state.iteration() == 0
                 ? llmProviderResolver.modelFor(LLM_SLUG, LlmUseCase.MAIN_CHAT)
                 : llmProviderResolver.modelFor(LLM_SLUG, LlmUseCase.FOLLOW_UP);
 
         String base = state.systemPrompt()
-                .replace("{{isAuthenticated}}", Boolean.toString(isAuthenticated))
                 .replace("{{audience}}", Audience.primary(audiences).identifier());
-        if (!isAuthenticated) {
-            int gateIdx = base.indexOf("!! AUTHENTICATED ONLY");
-            if (gateIdx >= 0) base = base.substring(0, gateIdx).trim();
-        }
 
         LlmRequest request = LlmRequest.builder()
                 .maxTokens(1024L)
@@ -191,38 +168,8 @@ public class AskAgent {
                     updates.put(AskState.TOOL_CALL, null);
                     updates.put(AskState.ITERATION, state.iteration() + 1);
 
-                    if (result.clearHistory()) {
-                        updates.put(AskState.USER_ID, 0L);
-                        updates.putAll(AskListenerContext.toStateUpdates(AskListenerContext.empty()));
-                    }
-
                     if (result.wsMessage() != null) {
                         controller.sendToConnection(connectionId, result.wsMessage());
-                    }
-
-                    if (result.newUserId() != null && result.newUserId() > 0 && result.newUser() != null) {
-                        updates.put(AskState.USER_ID, result.newUserId());
-                        if (result.sessionToken() != null) {
-                            updates.put(AskState.SESSION_TOKEN, result.sessionToken());
-                            updates.put(AskState.SESSION_USER_NAME, result.sessionUserName());
-                        }
-                        if (result.listenerContext() != null) {
-                            updates.put(AskState.LISTENER_CONTEXT, result.listenerContext());
-                        }
-                        if (result.audiences() != null) {
-                            updates.put(AskState.AUDIENCES, result.audiences());
-                        }
-                        if (result.labels() != null) {
-                            updates.put(AskState.LABELS, result.labels());
-                        }
-                        askChatService.persistConnectionHistory(connectionId, result.newUserId());
-                        LOGGER.infof("[AskAgent] auth upgraded userId=%d connectionId=%s labels=%s",
-                                result.newUserId(), connectionId, result.labels());
-                        return chatRepository.migrateAnonymousDbRecords(connectionId, result.newUserId())
-                                .onFailure().invoke(err -> LOGGER.warnf(err, "[AskAgent] migration failed conn=%s", connectionId))
-                                .onFailure().recoverWithNull()
-                                .invoke(() -> controller.upgradeUserSession(connectionId, result.newUser()))
-                                .replaceWith(updates);
                     }
 
                     return Uni.createFrom().item(updates);
@@ -242,11 +189,6 @@ public class AskAgent {
     private Uni<ToolNodeResult> executeToolCall(LlmToolCall toolCall, AskState state) {
         Map<String, Object> input = toolCall.input();
         return switch (toolCall.name()) {
-            case "start_auth" -> StartAuthToolHandler.execute(input, keycloakAuthService);
-            case "verify_code" -> AskVerifyCodeToolHandler.execute(input, sessionManager, userService,
-                    listenerService, listenerLabelCache, state.connectionId(), metricPublisher);
-            case "logoff" -> AskLogoffToolHandler.execute(sessionManager, userService, controller,
-                    askChatService, metricPublisher, state.userId(), state.connectionId());
             case "search_platform_knowledge" -> SearchPlatformKnowledgeToolHandler.execute(input, knowledgeBase, state.audiences());
             case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, state.userId());
             default -> {
@@ -270,25 +212,9 @@ public class AskAgent {
 
     private static String toolStatusMessage(String toolName) {
         return switch (toolName) {
-            case "start_auth" -> "Sending verification code...";
-            case "verify_code" -> "Verifying code...";
             case "search_platform_knowledge" -> "Looking up Mixpla knowledge...";
             case "listener_data" -> "Remembering...";
-            case "logoff" -> "Signing out...";
             default -> null;
         };
-    }
-
-    private List<LlmTool> getToolsFor(boolean isAuthenticated) {
-        List<LlmTool> tools = new ArrayList<>();
-        if (isAuthenticated) {
-            tools.add(SearchPlatformKnowledgeTool.toTool());
-            tools.add(ListenerDataTool.toTool());
-            tools.add(LogoffTool.toTool());
-        } else {
-            tools.add(StartAuthTool.toTool());
-            tools.add(VerifyCode.toTool());
-        }
-        return tools;
     }
 }

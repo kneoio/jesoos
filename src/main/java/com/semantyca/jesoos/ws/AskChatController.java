@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.ws;
 
 import com.semantyca.core.controller.AbstractSecuredController;
-import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.dto.ChatMessageDTO;
@@ -22,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Internal Mixpla Ask WebSocket — isolated from {@link PublicChatController}.
- * No brandSlug; platform-scoped chat only.
+ * No brandSlug; platform-scoped chat only, OIDC-authenticated callers only.
  */
 @ApplicationScoped
 public class AskChatController extends AbstractSecuredController<Object, Object> {
@@ -33,7 +32,6 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
     private final AskChatService askChatService;
     private final AskAuthService askAuthService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
-    private final Map<String, UserHolder> connectionUsers = new ConcurrentHashMap<>();
 
     public AskChatController() {
         super(null);
@@ -55,29 +53,28 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         router.route("/jesoos/ws/ask").handler(rc -> {
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
                 String token = rc.request().getParam("token");
-                String anonId = rc.request().getParam("anonId");
                 assert askAuthService != null;
                 askAuthService.authenticate(token)
-                        .onItem().invoke(auth -> {
-                            IUser user = auth.user();
-                            if (user instanceof AnonymousUser || user.getId() == 0) {
-                                LOG.warnf("[ask-ws-auth] token resolved to anonymous");
-                            } else {
-                                LOG.infof("[ask-ws-auth] token OK — userId=%d", user.getId());
-                            }
-                        })
-                        .onFailure().recoverWithItem(err -> {
-                            LOG.warnf("[ask-ws-auth] token validation failed — %s", err.getMessage());
-                            return AskAuthService.Result.anonymous();
-                        })
                         .subscribe().with(
-                                auth -> rc.request().toWebSocket()
-                                        .onSuccess(ws -> handleAskWebSocket(ws, auth.user(), anonId, auth.sessionToken()))
-                                        .onFailure(err -> {
-                                            LOG.error("Ask WebSocket connection failed", err);
-                                            rc.fail(500, err);
-                                        }),
-                                err -> rc.response().setStatusCode(401).end("Invalid or expired token")
+                                auth -> {
+                                    IUser user = auth.user();
+                                    if (AskAuthService.isAnonymous(user)) {
+                                        LOG.warnf("[ask-ws-auth] rejected — token missing or not resolvable");
+                                        rc.response().setStatusCode(401).end("Authentication required");
+                                        return;
+                                    }
+                                    LOG.infof("[ask-ws-auth] token OK — userId=%d", user.getId());
+                                    rc.request().toWebSocket()
+                                            .onSuccess(ws -> handleAskWebSocket(ws, user))
+                                            .onFailure(err -> {
+                                                LOG.error("Ask WebSocket connection failed", err);
+                                                rc.fail(500, err);
+                                            });
+                                },
+                                err -> {
+                                    LOG.warnf("[ask-ws-auth] token validation failed — %s", err.getMessage());
+                                    rc.response().setStatusCode(401).end("Invalid or expired token");
+                                }
                         );
             } else {
                 rc.response().setStatusCode(400).end("WebSocket upgrade required");
@@ -85,38 +82,22 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         });
     }
 
-    private void handleAskWebSocket(ServerWebSocket webSocket, IUser user, String anonId, String sessionToken) {
+    private void handleAskWebSocket(ServerWebSocket webSocket, IUser user) {
         webSocket.accept();
 
-        String connectionId = (isAnonymous(user) && isValidAnonId(anonId))
-                ? anonId
-                : newConnectionId();
+        String connectionId = newConnectionId();
         activeConnections.put(connectionId, webSocket);
-        UserHolder userHolder = new UserHolder(user);
-        connectionUsers.put(connectionId, userHolder);
 
-        if (!isAnonymous(user)) {
-            assert askChatService != null;
-            askChatService.bootstrapConnectionHistory(connectionId, user.getId());
-            String userName = user.getLogin() != null ? user.getLogin() : "";
-            askChatService.resolveLabelsForUser(user.getId())
-                    .subscribe().with(
-                            labels -> webSocket.writeTextMessage(new JsonObject()
-                                    .put("type", "session_token")
-                                    .put("token", sessionToken)
-                                    .put("userName", userName)
-                                    .put("labels", new JsonArray(labels))
-                                    .encode()),
-                            err -> {
-                                LOG.warnf(err, "[ask-ws-auth] labels resolve failed userId=%d", user.getId());
-                                webSocket.writeTextMessage(new JsonObject()
-                                        .put("type", "session_token")
-                                        .put("token", sessionToken)
-                                        .put("userName", userName)
-                                        .put("labels", new JsonArray())
-                                        .encode());
-                            });
-        }
+        assert askChatService != null;
+        askChatService.bootstrapConnectionHistory(connectionId, user.getId());
+        String userName = user.getLogin() != null ? user.getLogin() : "";
+        askChatService.resolveLabelsForUser(user.getId())
+                .subscribe().with(
+                        labels -> webSocket.writeTextMessage(sessionMessage(userName, labels)),
+                        err -> {
+                            LOG.warnf(err, "[ask-ws-auth] labels resolve failed userId=%d", user.getId());
+                            webSocket.writeTextMessage(sessionMessage(userName, java.util.List.of()));
+                        });
 
         LOG.infof("Ask chat WebSocket connected: %s user=%s", connectionId, user.getUserName());
 
@@ -125,8 +106,8 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                 JsonObject msgJson = new JsonObject(message);
                 String action = msgJson.getString("action");
                 switch (action) {
-                    case "sendMessage" -> handleUserMessage(webSocket, msgJson, connectionId, userHolder);
-                    case "getHistory" -> handleGetHistory(webSocket, msgJson, connectionId, userHolder);
+                    case "sendMessage" -> handleUserMessage(webSocket, msgJson, connectionId, user);
+                    case "getHistory" -> handleGetHistory(webSocket, msgJson, connectionId, user);
                     default -> sendError(webSocket, "Unknown action: " + action);
                 }
             } catch (Exception e) {
@@ -136,26 +117,26 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         });
 
         webSocket.closeHandler(v -> {
-            IUser closingUser = userHolder.getUser();
-            if (!isAnonymous(closingUser)) {
-                assert askChatService != null;
-                askChatService.persistConnectionHistory(connectionId, closingUser.getId());
-            }
+            askChatService.persistConnectionHistory(connectionId, user.getId());
             activeConnections.remove(connectionId);
-            connectionUsers.remove(connectionId);
             LOG.infof("Ask chat WebSocket closed: %s", connectionId);
         });
 
         webSocket.exceptionHandler(err -> {
             LOG.errorf(err, "Ask WebSocket error for %s", connectionId);
             activeConnections.remove(connectionId);
-            connectionUsers.remove(connectionId);
         });
     }
 
-    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
-                                   UserHolder userHolder) {
-        IUser user = userHolder.getUser();
+    private static String sessionMessage(String userName, java.util.List<String> labels) {
+        return new JsonObject()
+                .put("type", "session_token")
+                .put("userName", userName)
+                .put("labels", new JsonArray(labels))
+                .encode();
+    }
+
+    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, IUser user) {
         String content = msgJson.getString("content");
         if (content == null || content.trim().isEmpty()) {
             sendError(webSocket, "Message content cannot be empty");
@@ -166,9 +147,7 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
             return;
         }
 
-        String username = isAnonymous(user)
-                ? sanitizeUsername(msgJson.getString("username", "anonymous"))
-                : (user.getLogin() != null ? user.getLogin() : "user");
+        String username = user.getLogin() != null ? user.getLogin() : "user";
 
         assert askChatService != null;
         askChatService.processUserMessage(username, content, connectionId, user)
@@ -181,7 +160,7 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                                     webSocket::writeTextMessage,
                                     webSocket::writeTextMessage,
                                     connectionId,
-                                    userHolder.getUser()
+                                    user
                             ).subscribe().with(
                                     v -> {},
                                     e -> {
@@ -197,11 +176,10 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                 );
     }
 
-    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, String connectionId,
-                                  UserHolder userHolder) {
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, IUser user) {
         Integer limit = msgJson.getInteger("limit", 50);
         assert askChatService != null;
-        askChatService.getChatHistory(limit, connectionId, userHolder.getUser())
+        askChatService.getChatHistory(limit, connectionId, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {
@@ -211,22 +189,6 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
                 );
     }
 
-    public void upgradeUserSession(String connectionId, IUser newUser) {
-        UserHolder holder = connectionUsers.get(connectionId);
-        if (holder != null) {
-            holder.setUser(newUser);
-            LOG.infof("Ask session upgraded connection=%s user=%s", connectionId, newUser.getUserName());
-        }
-    }
-
-    public void downgradeUserSession(String connectionId) {
-        UserHolder holder = connectionUsers.get(connectionId);
-        if (holder != null) {
-            holder.setUser(AnonymousUser.build());
-            LOG.infof("Ask session downgraded connection=%s", connectionId);
-        }
-    }
-
     public void sendToConnection(String connectionId, String message) {
         ServerWebSocket ws = activeConnections.get(connectionId);
         if (ws != null && !ws.isClosed()) {
@@ -234,41 +196,10 @@ public class AskChatController extends AbstractSecuredController<Object, Object>
         }
     }
 
-    private boolean isAnonymous(IUser user) {
-        return user instanceof AnonymousUser || user.getId() == 0;
-    }
-
-    private boolean isValidAnonId(String anonId) {
-        if (anonId == null || anonId.isBlank()) return false;
-        if (anonId.length() == 16 && anonId.chars().allMatch(AskChatController::isBase64UrlChar)) {
-            return true;
-        }
-        try {
-            java.util.UUID.fromString(anonId);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    private static boolean isBase64UrlChar(int c) {
-        return (c >= 'A' && c <= 'Z')
-                || (c >= 'a' && c <= 'z')
-                || (c >= '0' && c <= '9')
-                || c == '-'
-                || c == '_';
-    }
-
     private static String newConnectionId() {
         byte[] buf = new byte[12];
         CONNECTION_ID_RANDOM.nextBytes(buf);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
-    }
-
-    private static String sanitizeUsername(String raw) {
-        if (raw == null || raw.isBlank()) return "anonymous";
-        String cleaned = raw.replaceAll("[\\r\\n\\t\\x00-\\x1F\\x7F]", "").trim();
-        return cleaned.isEmpty() ? "anonymous" : cleaned.substring(0, Math.min(cleaned.length(), 64));
     }
 
     private void sendError(ServerWebSocket webSocket, String message) {

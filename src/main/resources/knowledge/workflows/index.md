@@ -28,3 +28,4 @@
 * [Subscriptions](subscriptions.md) - Free and Pro plans, entitlements and billing behaviour.
 * [Promo codes](promo-codes.md) - Time-boxed Pro grants without payment.
 * [Ask chat](ask-chat.md) - Internal platform-knowledge chat.
+* [Help chat](help-chat.md) - Public unauthenticated help about Mixpla.
