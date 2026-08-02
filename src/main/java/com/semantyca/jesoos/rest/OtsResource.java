@@ -11,7 +11,6 @@ import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class OtsResource extends AbstractResource {
-    private static final Logger LOGGER = Logger.getLogger(OtsResource.class);
 
     @Inject
     OneTimeStreamService oneTimeStreamService;
