@@ -89,7 +89,8 @@ public class OneTimeStreamService {
                                             stream.setStatus(StreamStatus.PENDING);
 
                                             return agendaService.buildAgenda(stream.getSlugName(), stream.getBrand(),
-                                                            definition.getScriptId(), LocalDateTime.now(stream.getTimeZone()), actingUser)
+                                                            definition.getScriptId(), LocalDateTime.now(stream.getTimeZone()),
+                                                            stream.getSceneDurations(), actingUser)
                                                     .invoke(agenda -> {
                                                         stream.setAgenda(agenda);
                                                         pool.add(stream);

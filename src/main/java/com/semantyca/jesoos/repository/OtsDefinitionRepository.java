@@ -15,6 +15,10 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 import static com.semantyca.mixpla.repository.MixplaNameResolver.OTS_DEFINITION;
 
 @ApplicationScoped
@@ -46,6 +50,12 @@ public class OtsDefinitionRepository extends AsyncRepository {
         JsonObject vars = row.getJsonObject("user_variables");
         if (vars != null) {
             doc.setUserVariables(vars.getMap());
+        }
+        JsonObject durations = row.getJsonObject("scene_durations");
+        if (durations != null) {
+            Map<UUID, Integer> sceneDurations = new HashMap<>();
+            durations.forEach(e -> sceneDurations.put(UUID.fromString(e.getKey()), ((Number) e.getValue()).intValue()));
+            doc.setSceneDurations(sceneDurations);
         }
         return doc;
     }

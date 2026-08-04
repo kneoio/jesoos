@@ -29,6 +29,14 @@ listener opens the link.
 An owner-scoped OTS is how someone runs a personal event stream from their own music without tying it
 to a station.
 
+# Scene duration overrides
+
+The script's scenes carry a nominal duration each, but that is the template. A definition may
+override the duration of any of its script's scenes — the real event decides how long each block
+actually runs. The agenda build uses the override where one exists and the scene's own duration
+everywhere else, and the overridden length is what drives song selection, the timeline and where the
+next scene starts.
+
 # What a listener hears
 
 Opening the link starts the stream, so the first thing on air is a short waiting melody while the

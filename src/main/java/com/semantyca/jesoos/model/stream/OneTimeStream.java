@@ -30,6 +30,7 @@ public class OneTimeStream extends AbstractStream {
     private LocalDateTime scheduledOfflineAt;
     private boolean isSynthetic;
     private String chatContext;
+    private Map<UUID, Integer> sceneDurations;
 
     public OneTimeStream(OtsDefinition definition, Script script, Brand brand, ZoneId fallbackTimeZone) {
         if (brand == null) {
@@ -58,6 +59,7 @@ public class OneTimeStream extends AbstractStream {
         this.aiAgentId = definition.getAgentId() != null ? definition.getAgentId() : this.brand.getAiAgentId();
         this.brand.setAiAgentId(this.aiAgentId);
         this.chatContext = definition.getChatContext();
+        this.sceneDurations = definition.getSceneDurations() != null ? definition.getSceneDurations() : Map.of();
     }
 
     @Override

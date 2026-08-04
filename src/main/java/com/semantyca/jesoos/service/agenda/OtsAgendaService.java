@@ -39,13 +39,14 @@ public class OtsAgendaService extends AbstractAgendaService {
         super(scriptService, aiAgentService, scheduleSongSupplier, sceneService, metricPublisher);
     }
 
-    public Uni<StreamAgenda> buildAgenda(String streamSlug, Brand brand, UUID scriptId, LocalDateTime startTime, IUser user) {
+    public Uni<StreamAgenda> buildAgenda(String streamSlug, Brand brand, UUID scriptId, LocalDateTime startTime,
+                                         Map<UUID, Integer> sceneDurations, IUser user) {
         assert scriptService != null;
         assert sceneService != null;
         return scriptService.getById(scriptId, user)
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AbstractAgendaService::orderedSceneSet)
-                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes)));
+                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes, sceneDurations)));
     }
 
     /**
@@ -73,7 +74,8 @@ public class OtsAgendaService extends AbstractAgendaService {
         return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), talkativity, oneTimeRun);
     }
 
-    private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime, NavigableSet<Scene> scenes) {
+    private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime,
+                                                    NavigableSet<Scene> scenes, Map<UUID, Integer> sceneDurations) {
         ZoneId zone = brand.getTimeZone();
         UUID agentId = brand.getAiAgentId();
         SongSourceScope scope = brand.getId() != null
@@ -107,7 +109,8 @@ public class OtsAgendaService extends AbstractAgendaService {
             for (Scene scene : scenes) {
                 stateChain = stateChain.chain(state -> {
                     boolean oneTimeRun = scene.getSceneType() == SceneType.ONE_TIME;
-                    int durationSeconds = scene.getDurationSeconds();
+                    Integer override = sceneDurations != null ? sceneDurations.get(scene.getId()) : null;
+                    int durationSeconds = override != null ? override : scene.getDurationSeconds();
                     LocalDateTime sceneStart = state.currentTime();
 
                     return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), otsTalkativity, oneTimeRun)
