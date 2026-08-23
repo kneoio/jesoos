@@ -24,7 +24,7 @@ StaggeredSongScheduler                 // WHEN each entry fires
   • per PENDING entry: skip if fully in the past; apply the DJ boost intro if enabled
   • schedule a Vert.x timer at (emissionTime − aivoxDelaySeconds lead)
   • at fire: deadline and backpressure checks → EMITTING → emitTimelineEntry
-        generated → GeneratedContentEmitter
+        generated → skip if DJ off, else GeneratedContentEmitter
         jingle    → JingleSongEmitter
         else      → SongEmitter
   → QueueSupplier.sendSongsToQueue → RabbitMQ "streaming" (routingKey = brandSlug) → aivox

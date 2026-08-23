@@ -11,7 +11,10 @@ audience: [owner, developer]
 A scene sourced as `GENERATED` carries no songs. At build the scene contributes a single leading
 generated slot (`entry.generated = true`), `ScheduleSongSupplier` returns an empty pool, and
 `contentPrompts`, `mixingType` and `mixingArtefacts` are copied onto the `LiveScene`. The audio is
-produced by `GeneratedContentEmitter` when the slot fires.
+produced by `GeneratedContentEmitter` when the slot fires. Radio skips that emit when the DJ is
+off (`DjStateService.isDjEnabled`) — the same flag aivox clears with `disableDj` when there are no
+listeners — so a generated slot does not pay for LLM or TTS with nobody listening. Songs still
+emit without intros. OTS does not use this scheduler and is unchanged.
 
 # What gets generated
 

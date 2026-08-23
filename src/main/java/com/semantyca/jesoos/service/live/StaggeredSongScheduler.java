@@ -300,6 +300,13 @@ public class StaggeredSongScheduler {
                 entry.isGenerated(), entry.isHasJingle());
         return brandPool.get(brandName)
                 .chain(stream -> {
+                    // Same gate as song/jingle TTS: aivox disableDj (no listeners) must not pay LLM/TTS
+                    // for generated blocks. OTS does not use this scheduler.
+                    if (entry.isGenerated() && !djStateService.isDjEnabled(brandName)) {
+                        LOGGER.infof("DJ off — skipping generated content entry #%d for brand '%s'",
+                                entry.getSequenceNumber(), brandName);
+                        return Uni.createFrom().voidItem();
+                    }
                     // The scene is re-snapshotted from the brand on every agenda rebuild, so it is never
                     // staler than the stream field; OTS resolves the agent the same way.
                     UUID agentId = liveScene.getAgentId() != null ? liveScene.getAgentId() : stream.getAiAgentId();

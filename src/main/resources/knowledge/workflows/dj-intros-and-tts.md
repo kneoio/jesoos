@@ -17,7 +17,7 @@ actual **text and audio** are produced at emission. Talkativity governs how many
 Two independent per-brand runtime flags live in memory in `DjStateService`, not in the agenda.
 
 **DJ enabled** (`isDjEnabled`) is the master gate on TTS and defaults to **off** for cost. With it off
-the emitters send songs and jingles only. It is toggled by the `enableDj` and `disableDj` commands
+the emitters send songs and jingles only, and radio generated entries are not emitted at all. It is toggled by the `enableDj` and `disableDj` commands
 (`CommandService`, reached from `CommandResource` REST or RabbitMQ) and cleared when the brand leaves the
 pool (`BrandPool.onRemoved` → `remove`).
 
