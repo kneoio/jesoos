@@ -14,6 +14,7 @@ import com.semantyca.mixpla.dto.queue.metric.MetricEventType;
 import com.semantyca.mixpla.dto.queue.metric.ProcessType;
 import com.semantyca.mixpla.model.cnst.StreamPriority;
 import com.semantyca.jesoos.model.stream.ILiveStream;
+import io.smallrye.mutiny.CompositeException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import jakarta.annotation.PreDestroy;
@@ -25,11 +26,13 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class OtsStreamScheduler {
@@ -155,11 +158,7 @@ public class OtsStreamScheduler {
                                         MetricEventType.ERROR,
                                         ProcessType.FLOW,
                                         "ots_entry_failed",
-                                        Map.of(
-                                                "seq", entry.getSequenceNumber(),
-                                                "scene", scene.getSceneTitle(),
-                                                "error", err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName()
-                                        ),
+                                        failurePayload(scene, entry, err),
                                         scene.getTraceId()
                                 );
                                 checkOtsFinished(streamSlug, capturedStream);
@@ -186,6 +185,97 @@ public class OtsStreamScheduler {
 
     private static String timerKey(LiveScene scene, TimelineEntry entry) {
         return scene.getSceneId() + ":" + entry.getSequenceNumber();
+    }
+
+    private static Map<String, Object> failurePayload(LiveScene scene, TimelineEntry entry, Throwable err) {
+        Throwable root = rootCause(err);
+        String errorMsg = err.getMessage() != null ? err.getMessage() : err.getClass().getSimpleName();
+        String rootMsg = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("seq", entry.getSequenceNumber());
+        payload.put("scene", scene.getSceneTitle());
+        if (scene.getSceneId() != null) {
+            payload.put("sceneId", scene.getSceneId().toString());
+        }
+        if (scene.getAgentId() != null) {
+            payload.put("agentId", scene.getAgentId().toString());
+        }
+        payload.put("generated", entry.isGenerated());
+        if (entry.getMixingStrategy() != null) {
+            payload.put("mixingStrategy", entry.getMixingStrategy().name());
+        }
+        payload.put("song", songLabel(entry));
+        payload.put("promptId", promptIds(entry));
+        payload.put("errorType", err.getClass().getSimpleName());
+        payload.put("error", errorMsg);
+        payload.put("rootCause", root.getClass().getSimpleName() + ": " + rootMsg);
+        payload.put("stackTrace", stackSnippet(root));
+        String causes = describeCauses(err);
+        if (!causes.isEmpty()) {
+            payload.put("causes", causes);
+        }
+        return payload;
+    }
+
+    private static String songLabel(TimelineEntry entry) {
+        if (entry.getSongs() == null || entry.getSongs().isEmpty()) {
+            return "";
+        }
+        return entry.getSongs().stream()
+                .map(s -> {
+                    if (s.getSoundFragment() == null) {
+                        return "(no fragment)";
+                    }
+                    String title = s.getSoundFragment().getTitle() != null ? s.getSoundFragment().getTitle() : "?";
+                    String artist = s.getSoundFragment().getArtist() != null ? s.getSoundFragment().getArtist() : "?";
+                    return title + " – " + artist;
+                })
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String promptIds(TimelineEntry entry) {
+        if (entry.getSongs() == null || entry.getSongs().isEmpty()) {
+            return "";
+        }
+        return entry.getSongs().stream()
+                .map(s -> s.getPromptEntry() != null && s.getPromptEntry().getPromptId() != null
+                        ? s.getPromptEntry().getPromptId().toString()
+                        : "")
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String describeCauses(Throwable t) {
+        if (!(t instanceof CompositeException ce) || ce.getCauses().isEmpty()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        int i = 0;
+        for (Throwable cause : ce.getCauses()) {
+            Throwable root = rootCause(cause);
+            String msg = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+            parts.add("[" + i++ + "] " + root.getClass().getName() + ": " + msg + "\n" + stackSnippet(root));
+        }
+        return String.join("\n---\n", parts);
+    }
+
+    private static String stackSnippet(Throwable t) {
+        StackTraceElement[] frames = t.getStackTrace();
+        StringBuilder snippet = new StringBuilder();
+        for (int i = 0; i < Math.min(12, frames.length); i++) {
+            snippet.append(frames[i].toString()).append("\n");
+        }
+        return snippet.toString().trim();
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        if (t instanceof CompositeException ce && !ce.getCauses().isEmpty()) {
+            return rootCause(ce.getCauses().getFirst());
+        }
+        Throwable cause = t;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 
     private Uni<Void> emitEntry(String streamSlug, LiveScene scene, TimelineEntry entry, ZoneId zone, ILiveStream stream, UUID emissionTraceId) {

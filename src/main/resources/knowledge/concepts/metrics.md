@@ -35,6 +35,7 @@ never be able to break the audio path.
 | `song_played`, `queue_dequeue` | aivox playout progress |
 | `chat_summary_created`, `chat_summary_failed` | chat summarization |
 | `ots_start_received`, `ots_start_ok`, `ots_start_failed` | OTS command handling |
+| `ots_entry_failed` | OTS emission failure; payload includes root cause, stack snippet and unwrapped CompositeException causes |
 | `backpressure_ignored_ots` | backpressure was skipped on an OTS |
 
 # Silence watchdog

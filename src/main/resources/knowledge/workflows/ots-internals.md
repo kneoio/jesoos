@@ -259,6 +259,13 @@ same codes and thresholds as the radio build path, so metriq dashboards need no 
 per scene, mirroring radio's payload of `scene`, `entries` and `currentTime`. Because OTS arms every
 scene in one pass, these land as a burst within about a millisecond of each other, one event per scene.
 
+`ots_entry_failed` (error) when an entry's emit chain fails. Payload matches radio's `entry_failed`
+shape — `seq`, `scene`, `song`, `promptId`, `errorType`, `error`, `rootCause`, `stackTrace` — plus
+`sceneId`, `agentId`, `generated` and `mixingStrategy`. Mutiny's `CompositeException` (the usual
+wrapper around `The mapper returned null`) has no useful `getCause()`; the event unwraps
+`getCauses()` into `causes` so each inner class, message and stack snippet is visible. The top-level
+`error` string alone is not enough to locate which mapper returned null.
+
 **Backpressure:** `backpressure_ignored_ots` (warning) instead of `backpressure_ok` when the slug
 resolves to an OTS.
 
