@@ -43,6 +43,7 @@ public class OtsDefinitionRepository extends AsyncRepository {
         setDefaultFields(doc, row);
         doc.setSlugName(row.getString("slug_name"));
         doc.setName(row.getString("name"));
+        doc.setColor(row.getString("color"));
         doc.setScriptId(row.getUUID("script_id"));
         doc.setBrandId(row.getUUID("brand_id"));
         doc.setAgentId(row.getUUID("agent_id"));

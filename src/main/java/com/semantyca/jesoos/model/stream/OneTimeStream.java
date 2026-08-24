@@ -1,7 +1,6 @@
 package com.semantyca.jesoos.model.stream;
 
 import com.semantyca.core.model.cnst.LanguageCode;
-import com.semantyca.core.util.WebHelper;
 import com.semantyca.mixpla.model.Script;
 import com.semantyca.mixpla.model.brand.Brand;
 import com.semantyca.mixpla.model.brand.BrandScriptEntry;
@@ -49,7 +48,7 @@ public class OneTimeStream extends AbstractStream {
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
         localizedName.put(LanguageCode.en, definition.getName());
         this.localizedName = localizedName;
-        this.color = WebHelper.generateRandomBrightColor();
+        this.color = definition.getColor();
         this.profileId = script.getDefaultProfileId();
         this.scripts = List.of(new BrandScriptEntry(script.getId(), this.userVariables));
         this.timeZone = this.brand.getTimeZone();
