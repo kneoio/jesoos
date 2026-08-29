@@ -49,7 +49,6 @@ public class SoundFragmentDTO extends AbstractDTO {
     private List<UploadFileDTO> uploadedFiles;
     private List<UUID> representedInBrands;
     private OffsetDateTime expiresAt;
-    private List<RlsActionDTO> rlsActions = new ArrayList<>();
 
     public SoundFragmentDTO(String id) {
         this.id = UUID.fromString(id);
