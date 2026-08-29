@@ -82,7 +82,7 @@ public class JingleSongEmitter {
                     SoundFragment jingle = jingles.get(ThreadLocalRandom.current().nextInt(jingles.size()));
                     int jingleDuration = jingle.getLength() != null ? (int) jingle.getLength().toSeconds() : DEFAULT_JINGLE_DURATION;
 
-                    if (djEnabled && entry.isHasIntro()) {
+                    if (djEnabled && entry.isHasIntro() && hasIntroSource(entry)) {
                         LanguageTag lang = AiHelperUtils.selectLanguageByWeight(agent);
                         return introTtsGenerator.generateIntroAudioFile(scene, entry.getSongs().getFirst(), null, agent, stream, lang, entry.getSequenceNumber(), emissionTraceId)
                                 .chain(introResult -> {
@@ -115,6 +115,14 @@ public class JingleSongEmitter {
                     dto.setSongs(songMap);
                     return queueSupplier.sendSongsToQueue(streamSlug, dto, scene.getTraceId());
                 });
+    }
+
+    private static boolean hasIntroSource(TimelineEntry entry) {
+        if (entry.getSongs() == null || entry.getSongs().isEmpty()) {
+            return false;
+        }
+        var promptEntry = entry.getSongs().getFirst().getPromptEntry();
+        return promptEntry != null && promptEntry.hasIntroSource();
     }
 
     private static SongQueueMessageDTO createBaseSongQueueMessage(LiveScene scene, TimelineEntry entry, MixingType mixingStrategy, long deadline, int priority) {

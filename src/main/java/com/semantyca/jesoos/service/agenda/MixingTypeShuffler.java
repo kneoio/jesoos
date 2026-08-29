@@ -39,23 +39,33 @@ public class MixingTypeShuffler {
         return new MixingStrategy(type, 1, false);
     }
 
-    public static MixingStrategy selectOtsStrategy(int availableSongCount, int consecutive2SongCount) {
+    public static MixingStrategy selectOtsStrategy(int availableSongCount, boolean allowIntros,
+                                                   int consecutive2SongCount) {
         if (availableSongCount == 1) {
-            return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+            return allowIntros
+                    ? new MixingStrategy(MixingType.INTRO_SONG, 1, true)
+                    : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
         }
         // Force single after 2 consecutive 2-song entries, otherwise ~50% chance of 2-song
         if (consecutive2SongCount < 2 && Math.random() < 0.5) {
-            MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
-            return new MixingStrategy(type, 2, true);
+            if (allowIntros) {
+                MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
+                return new MixingStrategy(type, 2, true);
+            }
+            return new MixingStrategy(MixingType.SONG_CROSSFADE_SONG, 2, false);
         }
-        return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+        return allowIntros
+                ? new MixingStrategy(MixingType.INTRO_SONG, 1, true)
+                : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
     }
 
     /**
-     * The one and only intro-bearing entry of a one-time-run scene (OTS, or a radio ONE_TIME slot).
-     * Always has an intro — call this exactly once per scene, for the entry that greets.
+     * The one entry of a one-time-run scene (OTS, or a radio ONE_TIME slot). Speaks only when the
+     * scene has active intro content — otherwise the song plays as {@code SONG_ONLY}.
      */
-    public static MixingStrategy selectOneTimeRunStrategy() {
-        return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+    public static MixingStrategy selectOneTimeRunStrategy(boolean allowIntros) {
+        return allowIntros
+                ? new MixingStrategy(MixingType.INTRO_SONG, 1, true)
+                : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
     }
 }

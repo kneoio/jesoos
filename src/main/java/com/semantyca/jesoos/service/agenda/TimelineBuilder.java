@@ -59,7 +59,7 @@ public class TimelineBuilder {
                                                 LocalDateTime sceneStart) {
         return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
                 (availableSongCount, allowIntros, ignoredTalkativity, lastType, consecutiveCount, consecutive2SongCount, consecutiveIntroCount) ->
-                        MixingTypeShuffler.selectOtsStrategy(availableSongCount, consecutive2SongCount),
+                        MixingTypeShuffler.selectOtsStrategy(availableSongCount, allowIntros, consecutive2SongCount),
                 false, sceneStart);
     }
 
@@ -136,7 +136,7 @@ public class TimelineBuilder {
             if (!(songIndex < songs.size())) break;
             int remainingSongs = songs.size() - songIndex;
             MixingStrategy strategy = scene.isOneTimeRun()
-                    ? MixingTypeShuffler.selectOneTimeRunStrategy()
+                    ? MixingTypeShuffler.selectOneTimeRunStrategy(allowIntros)
                     : strategySelector.select(remainingSongs, allowIntros, talkativity, lastMixingType, consecutiveMixingCount, consecutive2SongCount, consecutiveIntroCount);
 
             List<SongEntry> songList;

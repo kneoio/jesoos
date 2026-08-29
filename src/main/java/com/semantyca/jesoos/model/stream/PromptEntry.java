@@ -17,4 +17,8 @@ public class PromptEntry {
     public boolean isAction() {
         return customAction != null;
     }
+
+    public boolean hasIntroSource() {
+        return isAction() || promptId != null;
+    }
 }

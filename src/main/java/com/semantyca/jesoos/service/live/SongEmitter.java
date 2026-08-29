@@ -75,7 +75,8 @@ public class SongEmitter {
             boolean shouldGenerateIntros = entry.isHasIntro();
             List<Uni<IntroAudioResult>> introUnis = new ArrayList<>();
             for (int i = 0; i < entry.getSongs().size(); i++) {
-                boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i);
+                boolean needsIntro = shouldGenerateIntros && needsIntroAtIndex(mixingStrategy, i)
+                        && hasIntroSource(entry.getSongs().get(i));
                 if (needsIntro) {
                     SoundFragment previousSong = i > 0 ? entry.getSongs().get(i - 1).getSoundFragment() : null;
                     introUnis.add(introTtsGenerator.generateIntroAudioFile(
@@ -186,6 +187,10 @@ public class SongEmitter {
             return index == 1;
         }
         return true;
+    }
+
+    private static boolean hasIntroSource(SongEntry song) {
+        return song.getPromptEntry() != null && song.getPromptEntry().hasIntroSource();
     }
 
     /**

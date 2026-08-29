@@ -44,6 +44,8 @@ Do not assume the type chosen at build survives to air. It is re-decided at emis
 * With the DJ offline, `SongEmitter` downgrades to a no-intro type (`getNoIntroMergingTypes`), and
   `JingleSongEmitter` sends `FILLER_JINGLE` — or `JINGLE_INTRO_SONG` when the DJ is on and the entry
   has an intro.
+* A song with no prompt and no custom action is not an error: emitters skip TTS and send a no-intro
+  type (`SONG_ONLY` / `SONG_CROSSFADE_SONG` / `FILLER_JINGLE`).
 * `introAtIndex` and `needsIntroAtIndex` encode that `SONG_INTRO_SONG` introduces only the **second**
   song.
 
@@ -51,6 +53,10 @@ Do not assume the type chosen at build survives to air. It is re-decided at emis
 
 On the OTS path aivox supports only `INTRO_SONG`, `LISTENER_INTRO_SONG` and `SONG_CROSSFADE_SONG`.
 Anything else sent with an `otsSlugName` will not be mixed.
+
+OTS still honors `allowIntros`. A scene with no active intro prompt or custom action is mixed as
+`SONG_ONLY` (one song) or `SONG_CROSSFADE_SONG` (two). The same fallback applies at emission if an
+intro type was chosen but the song has nothing to say.
 
 # Key files
 

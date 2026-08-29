@@ -78,6 +78,10 @@ from `djStateService.isDjEnabled(brandName)` and `OtsStreamScheduler` always pas
 `streamSlug` remains the sole routing and tagging identity, threaded through `scheduleStream` →
 `scheduleSceneSongs` → `scheduleEntry` → `emitEntry`.
 
+Always-on is the DJ *toggle*, not a guarantee of speech. A scene with no active intro prompt or custom
+action plays the song without an intro (`SONG_ONLY` / `SONG_CROSSFADE_SONG`). That is legitimate, not
+a data bug.
+
 Do not reintroduce a brand-slug-based DJ lookup for OTS: that is exactly the confusion that caused the
 original bug, and the always-on decision means OTS has no use for one.
 

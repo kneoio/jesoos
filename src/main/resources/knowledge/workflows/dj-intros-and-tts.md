@@ -64,7 +64,9 @@ before the change, which the voice-aware reuse key now re-renders.
 
 # Generation chain
 
-TTS runs inside the emitters, only when `djStateService.isDjEnabled(brand)` and the entry has an intro:
+TTS runs inside the emitters, only when `djStateService.isDjEnabled(brand)` and the entry has an intro,
+and the song actually has a prompt or a custom action. A missing prompt is not a failure: the song
+goes out without TTS.
 
 ```
 resolveForLanguage(promptId, lang)            (or the CustomAction path)

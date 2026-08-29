@@ -14,7 +14,8 @@ moment it starts, and is then torn down. It lives on its own slug — something 
 behind it. See the streams concept for the umbrella.
 
 Two things always differ from radio. The DJ is **always on** for an OTS, regardless of the master
-brand's DJ toggle. And the stream is not started by anyone in advance: it comes up when the first
+brand's DJ toggle — but a scene with no intro prompt still plays its songs without a spoken intro.
+And the stream is not started by anyone in advance: it comes up when the first
 listener opens the link.
 
 # Two scopes
