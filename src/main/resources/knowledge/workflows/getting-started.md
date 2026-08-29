@@ -63,4 +63,6 @@ labels are assigned in datanest and cannot be granted from chat, but they grant 
 not having one does not stop anyone from creating a station.
 
 Likewise the `artist` label only matters for submitting a track into **someone else's** station through
-its chat. It has nothing to do with uploading music into your own catalog.
+its chat. It has nothing to do with uploading music into your own catalog in Mixdeck. The `artist` label is
+not configured in Mixdeck — instead, the listener talks to the station's AI DJ in the player chat, convinces
+the DJ they are an artist, and the DJ grants the `artist` label dynamically right in the conversation.

@@ -26,7 +26,7 @@ picks up whatever you were trying to do rather than making you ask again.
   you as someone it knows.
 * Recognition of other listeners in the community, limited to first names.
 * Creating a small advertisement by conversation, where the station allows it.
-* Submitting your own music, if you are set up as an artist on the station.
+* Submitting your own music: talk with the DJ and ask to submit tracks; if the DJ is convinced you are an artist, it grants you the `artist` label on the spot, unlocking direct file upload and Suno import in the chat.
 
 # Event chat
 

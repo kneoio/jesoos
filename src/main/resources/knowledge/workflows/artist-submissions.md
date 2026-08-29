@@ -10,6 +10,16 @@ tags: [artist, upload, submission, suno, intro, tts]
 Getting a track on air runs through the public brand chat, not Mixdeck. Eligibility is the `artist`
 label on the listener: without it the upload and import tools refuse.
 
+# Becoming an artist
+
+The `artist` label is **not** a setting or toggle in Mixdeck. It is granted dynamically by the station's
+AI DJ during a live conversation in that station's player chat:
+
+1. The listener signs in to the station's public chat (via email OTP).
+2. The listener talks with the DJ, introduces themselves as an artist/producer, and expresses their desire to submit a song.
+3. Once the DJ is satisfied that the caller is an artist, the DJ bot assigns the `artist` label directly to the listener's profile on the spot (using `listener_data add_label label_identifier=artist`).
+4. With the label active, the listener is immediately unlocked to upload files or import from Suno.
+
 # Paths
 
 * Chat upload — the file is posted to the temporary upload endpoint, then the DJ saves it to the
