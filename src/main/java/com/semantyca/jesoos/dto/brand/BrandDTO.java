@@ -63,7 +63,6 @@ public class BrandDTO extends AbstractDTO {
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private Map<ChatFeatureFlag, Boolean> chatFeatureFlags = new HashMap<>();
-    private Integer isTemporary = 0;
     private UUID aiAgentId;
     private UUID profileId;
     private boolean aiOverridingEnabled;
