@@ -58,6 +58,12 @@ public class OtsDefinitionRepository extends AsyncRepository {
             durations.forEach(e -> sceneDurations.put(UUID.fromString(e.getKey()), ((Number) e.getValue()).intValue()));
             doc.setSceneDurations(sceneDurations);
         }
+        JsonObject talkativities = row.getJsonObject("scene_talkativities");
+        if (talkativities != null) {
+            Map<UUID, Double> sceneTalkativities = new HashMap<>();
+            talkativities.forEach(e -> sceneTalkativities.put(UUID.fromString(e.getKey()), ((Number) e.getValue()).doubleValue()));
+            doc.setSceneTalkativities(sceneTalkativities);
+        }
         return doc;
     }
 }

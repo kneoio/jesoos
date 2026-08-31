@@ -15,8 +15,10 @@ behind it. See the streams concept for the umbrella.
 
 Two things always differ from radio. The DJ is **always on** for an OTS, regardless of the master
 brand's DJ toggle — but a scene with no intro prompt still plays its songs without a spoken intro.
-And the stream is not started by anyone in advance: it comes up when the first
-listener opens the link.
+A **LOOP** scene honors a definition-level talkativity override the same way duration is overridden;
+with no override it stays fully talkative (1.0). A **ONE_TIME** scene still speaks on every entry
+when it has intro content. And the stream is not started by anyone in advance: it comes up when the
+first listener opens the link.
 
 # Two scopes
 
@@ -37,6 +39,14 @@ override the duration of any of its script's scenes — the real event decides h
 actually runs. The agenda build uses the override where one exists and the scene's own duration
 everywhere else, and the overridden length is what drives song selection, the timeline and where the
 next scene starts.
+
+# Scene talkativity overrides
+
+Same map-on-the-definition pattern as duration (`scene_talkativities`). The script scene's own
+talkativity is not used. If the definition has an override for a **LOOP** scene, that value drives
+song-fill and `selectOtsStrategy` (the radio coin-flip, OTS-safe mix types). If there is no override,
+OTS stays at 1.0 — always intro when the scene has intro content. `ONE_TIME` scenes ignore the map
+and always intro.
 
 # What a listener hears
 

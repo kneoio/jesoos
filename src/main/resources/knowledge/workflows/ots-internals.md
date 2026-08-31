@@ -78,9 +78,14 @@ from `djStateService.isDjEnabled(brandName)` and `OtsStreamScheduler` always pas
 `streamSlug` remains the sole routing and tagging identity, threaded through `scheduleStream` →
 `scheduleSceneSongs` → `scheduleEntry` → `emitEntry`.
 
-Always-on is the DJ *toggle*, not a guarantee of speech. A scene with no active intro prompt or custom
-action plays the song without an intro (`SONG_ONLY` / `SONG_CROSSFADE_SONG`). That is legitimate, not
-a data bug.
+Always-on is the DJ *toggle*, not a guarantee of speech. Talkativity on **LOOP** scenes comes from
+the OTS definition override map (`scene_talkativities`), the same pattern as `scene_durations` —
+not from the script scene. When an override is present, `OtsAgendaService` passes it into song-fill
+and `MixingTypeShuffler.selectOtsStrategy`, which coin-flips intros and suppresses a third consecutive
+intro unless talkativity is 1.0. OTS mix types stay restricted (no jingles). No override, or a
+`ONE_TIME` scene, stays at 1.0 (`selectOneTimeRunStrategy` still always intros when there is active
+intro content). A scene with no active intro prompt or custom action plays the song without an intro
+(`SONG_ONLY` / `SONG_CROSSFADE_SONG`). That is legitimate, not a data bug.
 
 Do not reintroduce a brand-slug-based DJ lookup for OTS: that is exactly the confusion that caused the
 original bug, and the always-on decision means OTS has no use for one.

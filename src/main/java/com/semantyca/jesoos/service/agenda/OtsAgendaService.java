@@ -40,13 +40,13 @@ public class OtsAgendaService extends AbstractAgendaService {
     }
 
     public Uni<StreamAgenda> buildAgenda(String streamSlug, Brand brand, UUID scriptId, LocalDateTime startTime,
-                                         Map<UUID, Integer> sceneDurations, IUser user) {
+                                         Map<UUID, Integer> sceneDurations, Map<UUID, Double> sceneTalkativities, IUser user) {
         assert scriptService != null;
         assert sceneService != null;
         return scriptService.getById(scriptId, user)
                 .replaceWith(sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
                         .map(AbstractAgendaService::orderedSceneSet)
-                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes, sceneDurations)));
+                        .chain(scenes -> buildAgendaFromScenes(streamSlug, brand, startTime, scenes, sceneDurations, sceneTalkativities)));
     }
 
     /**
@@ -75,7 +75,8 @@ public class OtsAgendaService extends AbstractAgendaService {
     }
 
     private Uni<StreamAgenda> buildAgendaFromScenes(String streamSlug, Brand brand, LocalDateTime startTime,
-                                                    NavigableSet<Scene> scenes, Map<UUID, Integer> sceneDurations) {
+                                                    NavigableSet<Scene> scenes, Map<UUID, Integer> sceneDurations,
+                                                    Map<UUID, Double> sceneTalkativities) {
         ZoneId zone = brand.getTimeZone();
         UUID agentId = brand.getAiAgentId();
         SongSourceScope scope = brand.getId() != null
@@ -99,8 +100,6 @@ public class OtsAgendaService extends AbstractAgendaService {
             agentUni = Uni.createFrom().nullItem();
         }
 
-        double otsTalkativity = 1.0;
-
         // Scenes are built sequentially, not in parallel: a ONE_TIME scene's real content length
         // (not its nominal Scene.durationSeconds) determines when the next scene actually starts.
         Uni<List<LiveScene>> chain = agentUni.chain(agent -> {
@@ -109,12 +108,15 @@ public class OtsAgendaService extends AbstractAgendaService {
             for (Scene scene : scenes) {
                 stateChain = stateChain.chain(state -> {
                     boolean oneTimeRun = scene.getSceneType() == SceneType.ONE_TIME;
-                    Integer override = sceneDurations != null ? sceneDurations.get(scene.getId()) : null;
-                    int durationSeconds = override != null ? override : scene.getDurationSeconds();
+                    Integer durationOverride = sceneDurations != null ? sceneDurations.get(scene.getId()) : null;
+                    int durationSeconds = durationOverride != null ? durationOverride : scene.getDurationSeconds();
+                    Double talkativityOverride = sceneTalkativities != null ? sceneTalkativities.get(scene.getId()) : null;
+                    // LOOP: definition override if present, else OTS default 1.0. ONE_TIME: always intro.
+                    double talkativity = (!oneTimeRun && talkativityOverride != null) ? talkativityOverride : 1.0;
                     LocalDateTime sceneStart = state.currentTime();
 
-                    return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), otsTalkativity, oneTimeRun)
-                            .chain(pool -> resetExclusionIfCatalogExhausted(scope, scene, durationSeconds, otsTalkativity, oneTimeRun, state, pool))
+                    return fetchSongsForSceneWithDuration(scope, scene, durationSeconds, scheduleSongSupplier, state.usedIds(), talkativity, oneTimeRun)
+                            .chain(pool -> resetExclusionIfCatalogExhausted(scope, scene, durationSeconds, talkativity, oneTimeRun, state, pool))
                             .map(pool -> {
                                 pool.songs().stream()
                                         .filter(sf -> sf.getSource() != SourceType.STREAM)
@@ -140,7 +142,7 @@ public class OtsAgendaService extends AbstractAgendaService {
 
                                 List<SongEntry> songEntries = convertToSongEntries(pool.songs(), pool.sharedInfo(), durationSeconds);
                                 List<TimelineEntry> timeline = new TimelineBuilder().buildOtsTimeline(
-                                        liveScene, songEntries, durationSeconds, otsTalkativity, scene.getIntroPrompts(), scene.getActions(), sceneStart);
+                                        liveScene, songEntries, durationSeconds, talkativity, scene.getIntroPrompts(), scene.getActions(), sceneStart);
                                 assignPromptsToTimeline(timeline, scene.getIntroPrompts(), scene.getActions(), agent);
                                 liveScene.setTimeline(timeline);
 

@@ -52,7 +52,14 @@ Do not assume the type chosen at build survives to air. It is re-decided at emis
 # OTS restriction
 
 On the OTS path aivox supports only `INTRO_SONG`, `LISTENER_INTRO_SONG` and `SONG_CROSSFADE_SONG`.
-Anything else sent with an `otsSlugName` will not be mixed.
+Anything else sent with an `otsSlugName` will not be mixed. `selectOtsStrategy` therefore never emits
+jingles.
+
+A **LOOP** scene uses a definition-level talkativity override when one exists (`scene_talkativities`,
+same lookup as `scene_durations`), then the same coin-flip as radio (`Math.random() < talkativity`,
+plus the two-consecutive-intro cap unless talkativity is 1.0), just with those OTS-safe types.
+Song fill uses that same resolved value so the pool is sized for the expected intro mix. No
+override means 1.0. `ONE_TIME` scenes still always intro when they have active intro content.
 
 OTS still honors `allowIntros`. A scene with no active intro prompt or custom action is mixed as
 `SONG_ONLY` (one song) or `SONG_CROSSFADE_SONG` (two). The same fallback applies at emission if an

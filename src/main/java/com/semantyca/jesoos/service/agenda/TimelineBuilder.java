@@ -58,8 +58,8 @@ public class TimelineBuilder {
                                                 List<CustomAction> actions,
                                                 LocalDateTime sceneStart) {
         return buildTimeline(scene, songs, sceneDurationSeconds, talkativity, introPrompts, actions,
-                (availableSongCount, allowIntros, ignoredTalkativity, lastType, consecutiveCount, consecutive2SongCount, consecutiveIntroCount) ->
-                        MixingTypeShuffler.selectOtsStrategy(availableSongCount, allowIntros, consecutive2SongCount),
+                (availableSongCount, allowIntros, talkativityValue, lastType, consecutiveCount, consecutive2SongCount, consecutiveIntroCount) ->
+                        MixingTypeShuffler.selectOtsStrategy(availableSongCount, allowIntros, talkativityValue, consecutive2SongCount, consecutiveIntroCount),
                 false, sceneStart);
     }
 

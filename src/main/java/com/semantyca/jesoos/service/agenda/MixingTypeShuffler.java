@@ -39,24 +39,30 @@ public class MixingTypeShuffler {
         return new MixingStrategy(type, 1, false);
     }
 
-    public static MixingStrategy selectOtsStrategy(int availableSongCount, boolean allowIntros,
-                                                   int consecutive2SongCount) {
-        if (availableSongCount == 1) {
-            return allowIntros
-                    ? new MixingStrategy(MixingType.INTRO_SONG, 1, true)
-                    : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
+    /**
+     * OTS LOOP: talkativity is the same coin-flip as radio, but only OTS-supported mix types
+     * ({@code INTRO_SONG}, {@code SONG_INTRO_SONG}, {@code INTRO_SONG_INTRO_SONG},
+     * {@code SONG_CROSSFADE_SONG}, {@code SONG_ONLY}) — no jingles.
+     */
+    public static MixingStrategy selectOtsStrategy(int availableSongCount, boolean allowIntros, double talkativity,
+                                                   int consecutive2SongCount, int consecutiveIntroCount) {
+        if (consecutiveIntroCount >= 2 && talkativity < 1.0) {
+            allowIntros = false;
         }
-        // Force single after 2 consecutive 2-song entries, otherwise ~50% chance of 2-song
-        if (consecutive2SongCount < 2 && Math.random() < 0.5) {
-            if (allowIntros) {
+        if (allowIntros && Math.random() < talkativity) {
+            if (availableSongCount == 1) {
+                return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+            }
+            if (consecutive2SongCount < 2 && Math.random() < 0.5) {
                 MixingType type = Math.random() < 0.5 ? MixingType.INTRO_SONG_INTRO_SONG : MixingType.SONG_INTRO_SONG;
                 return new MixingStrategy(type, 2, true);
             }
+            return new MixingStrategy(MixingType.INTRO_SONG, 1, true);
+        }
+        if (availableSongCount >= 2 && consecutive2SongCount < 2 && Math.random() < 0.5) {
             return new MixingStrategy(MixingType.SONG_CROSSFADE_SONG, 2, false);
         }
-        return allowIntros
-                ? new MixingStrategy(MixingType.INTRO_SONG, 1, true)
-                : new MixingStrategy(MixingType.SONG_ONLY, 1, false);
+        return new MixingStrategy(MixingType.SONG_ONLY, 1, false);
     }
 
     /**
