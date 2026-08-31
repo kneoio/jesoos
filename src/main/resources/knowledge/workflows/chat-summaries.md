@@ -80,6 +80,10 @@ A `@Scheduled(every="5m")` job runs per active brand and summarizes when either
 `count >= BRAND_SUMMARY_THRESHOLD` (20) or the oldest unsummarized message is at least
 `BRAND_SUMMARY_MAX_TAIL_AGE_MINUTES` (10) old.
 
+Each LLM call takes at most `BRAND_SUMMARY_THRESHOLD` (20) oldest unsummarized messages. A backlog
+(failed ticks, a busy room) drains over later ticks instead of one oversized prompt that hits the
+provider token-per-minute cap.
+
 The age trigger matters: on a count-only rule a quiet station never crosses twenty and the DJ stays blind
 indefinitely.
 

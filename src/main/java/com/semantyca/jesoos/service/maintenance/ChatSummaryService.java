@@ -149,7 +149,8 @@ public class ChatSummaryService {
                         return Uni.createFrom().voidItem();
                     }
                     return summarizeBrandMessages(brandName)
-                            .invoke(() -> LOGGER.infof("Summarized %s messages for brand %s (tailAging=%s)", count, brandName, tailIsAging));
+                            .invoke(() -> LOGGER.infof("Summarized brand %s (unsummarized=%s, batch<=%s, tailAging=%s)",
+                                    brandName, count, BRAND_SUMMARY_THRESHOLD, tailIsAging));
                 })
                 // Never let one brand abort the sequence; the batch stays unsummarized and is retried.
                 .onFailure().recoverWithItem(error -> {
@@ -176,7 +177,7 @@ public class ChatSummaryService {
     }
 
     public Uni<Void> summarizeBrandMessages(String brandName) {
-        return chatRepository.getUnsummarizedBrandMessages(brandName, 100)
+        return chatRepository.getUnsummarizedBrandMessages(brandName, BRAND_SUMMARY_THRESHOLD)
                 .flatMap(messages -> {
                     if (messages.isEmpty()) {
                         return Uni.createFrom().voidItem();
