@@ -68,7 +68,7 @@ public interface JesoosConfig {
     String getSummaryAnthropicModel();
 
     @WithName("summary.groq.model")
-    @WithDefault("llama-3.3-70b-versatile")
+    @WithDefault("openai/gpt-oss-20b")
     String getSummaryGroqModel();
 
     @WithName("intro-tts.llm.provider")
@@ -80,7 +80,7 @@ public interface JesoosConfig {
     String getIntroTtsAnthropicModel();
 
     @WithName("intro-tts.groq.model")
-    @WithDefault("llama-3.3-70b-versatile")
+    @WithDefault("openai/gpt-oss-20b")
     String getIntroTtsGroqModel();
 
     @WithName("generated.llm.provider")
@@ -92,7 +92,7 @@ public interface JesoosConfig {
     String getGeneratedAnthropicModel();
 
     @WithName("generated.groq.model")
-    @WithDefault("llama-3.3-70b-versatile")
+    @WithDefault("openai/gpt-oss-20b")
     String getGeneratedGroqModel();
 
     @WithName("modelslab.api-key")
