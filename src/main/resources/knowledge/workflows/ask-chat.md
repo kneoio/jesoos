@@ -90,7 +90,7 @@ only credential and the client already has it.
 | Tool | Purpose |
 |---|---|
 | `search_platform_knowledge` | weighted search over the shared OKF knowledge bundle, scoped to the caller's audience |
-| `listener_data` | read and write the listener profile so the assistant knows whom it is speaking to |
+| `listener_data` | read and write the listener profile so the assistant knows whom it is speaking to. `get` returns name, nicknames, labels and custom user_data only — no `listener_id` or `user_id`. Mixplaclone must not echo internal identifiers in Mixdeck |
 
 There are no auth, catalog, play, upload, ad or community tools.
 

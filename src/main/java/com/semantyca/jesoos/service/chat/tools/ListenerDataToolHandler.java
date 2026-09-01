@@ -74,8 +74,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                     List<String> resolvedLabels = labelCache.resolveToIdentifiers(listener.getLabels());
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
-                            .put("listener_id", listener.getId().toString())
-                            .put("user_id", listener.getUserId())
                             .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
                             .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
                             .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
@@ -250,8 +248,6 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                             List<String> resolvedLabels = labelCache.resolveToIdentifiers(listener.getLabels());
                             JsonObject payload = new JsonObject()
                                     .put("ok", true)
-                                    .put("listener_id", listener.getId().toString())
-                                    .put("user_id", listener.getUserId())
                                     .put("localized_name", JsonObject.mapFrom(listener.getLocalizedName()))
                                     .put("nick_name", JsonObject.mapFrom(listener.getNickName()))
                                     .put("user_data", listener.getUserData() != null ? JsonObject.mapFrom(listener.getUserData().getData()) : new JsonObject())
