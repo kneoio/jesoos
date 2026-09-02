@@ -8,10 +8,9 @@ audience: [developer]
 
 # Inter-service messaging
 
-Services talk over RabbitMQ, not REST. Async messaging is preferred because the platform targets
-Kubernetes-native horizontal scaling and synchronous REST between services does not scale cleanly
-across pods. Some REST calls still exist for legacy reasons and are migrated to messaging when
-touched.
+Services talk over RabbitMQ, not REST. Async messaging is preferred because production may scale
+services horizontally later and synchronous REST between instances does not scale cleanly. Some REST
+calls still exist for legacy reasons and are migrated to messaging when touched.
 
 # Channels
 

@@ -15,8 +15,9 @@ Anyone can sign up and run their own streams — it is self-service, with no app
 stream is is in the streams concept, what the product is *for* is in the positioning concept, and what
 a new user actually does is in the getting-started workflow.
 
-The platform targets Kubernetes-native horizontal scaling, so any service may run as many pods.
-aivox is the first and primary candidate for running at many pods.
+The platform runs as Docker Compose on a single production node (clankino). Services talk over
+RabbitMQ rather than synchronous REST, so the stack can be split horizontally later without
+rewiring call paths. aivox is the first service that would scale out.
 
 # Parts
 

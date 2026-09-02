@@ -45,7 +45,7 @@ public class JingleSongEmitter {
     }
 
     public Uni<Void> send(String streamSlug,
-                          boolean djOn,
+                          boolean djEnabled,
                           LiveScene scene,
                           TimelineEntry entry,
                           AiAgent agent,
@@ -55,7 +55,6 @@ public class JingleSongEmitter {
                           UUID emissionTraceId) {
         // DJ on/off is a per-brand toggle for radio; OTS callers force this true always -- a
         // personal one-time stream always talks, regardless of the master brand's live toggle.
-        boolean djEnabled = djOn;
         long sceneDeadline = scene.getEndTime().atZone(brandZone).toInstant().toEpochMilli();
 
         if (stream.getBrandId() == null) {

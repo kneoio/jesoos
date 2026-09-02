@@ -240,8 +240,8 @@ the URL is a legitimate fresh run rather than a resumption.
 
 # Restart reconciliation
 
-In-memory state — `pool.isActive`, `endedSlugs`, the `starting` claim — is lost when the pod restarts,
-while `OtsRunStatus` persists, so a crash mid-run leaves a row stuck in `STREAMING`. Before handling
+In-memory state — `pool.isActive`, `endedSlugs`, the `starting` claim — is lost when the jesoos
+process restarts, while `OtsRunStatus` persists, so a crash mid-run leaves a row stuck in `STREAMING`. Before handling
 `JESOOS_START_OTS`, `coldStart` reconciles rather than resurrects: a `ONE_SHOT` row is finalized to
 `DONE` and answers `ENDED`, and a `REPEATABLE` row is reset to `PENDING` and started fresh. The status
 write in `startOts` is part of the reactive chain rather than fire-and-forget, to avoid racing a stale

@@ -9,8 +9,8 @@ audience: [developer]
 # One system, several services
 
 Mixpla is one system; the split into services is a deployment and scalability choice, inherited from the
-former `KneoBroadcaster` monolith. Any service may run as many pods, aivox first among them, which is
-why synchronous REST between services is discouraged.
+former `KneoBroadcaster` monolith. Production is a single-node Docker Compose stack; inter-service
+calls use RabbitMQ (not REST) so aivox and others can scale out later without redesign.
 
 # Stack
 

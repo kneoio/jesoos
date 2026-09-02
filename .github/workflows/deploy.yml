@@ -75,7 +75,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/kneo/compose
+            cd /home/mixpla/compose
             docker compose pull jesoos
             docker compose up -d jesoos
             docker image prune -f
