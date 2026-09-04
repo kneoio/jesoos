@@ -170,8 +170,7 @@ public class KeycloakAuthService {
                                     "Your Mixpla verification code",
                                     "Here is your sign-in code",
                                     "Use this one-time code to continue. It is valid for 10 minutes.",
-                                    "If you did not request this, you can ignore this message.",
-                                    "Sent by Mixpla")
+                                    "If you did not request this, you can ignore this message.")
                             .map(v -> {
                                 LOG.info("OTP email sent to {}", normalizedEmail);
                                 return true;
