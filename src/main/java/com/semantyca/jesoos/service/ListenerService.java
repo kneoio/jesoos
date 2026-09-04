@@ -268,10 +268,17 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     private Uni<Long> createNewUser(Listener listener, String email) {
         String normalizedEmail = EmailUtil.normalize(email);
         UserDTO userDTO = new UserDTO();
-        String slugName = WebHelper.generateSlug(normalizedEmail);
-        userDTO.setLogin(slugName);
+        userDTO.setLogin(WebHelper.generateUserLogin(preferredName(listener), listener.getNickName(), listener.getLocalizedName()));
         userDTO.setEmail(normalizedEmail);
         return userService.add(userDTO, true);
+    }
+
+    private static String preferredName(Listener listener) {
+        if (listener.getUserData() == null || listener.getUserData().getData() == null) {
+            return null;
+        }
+        Object preferred = listener.getUserData().getData().get("preferred_name");
+        return preferred instanceof String s && !s.isBlank() ? s : null;
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {
