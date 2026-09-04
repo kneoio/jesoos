@@ -1,10 +1,9 @@
 package com.semantyca.jesoos.external;
 
+import com.semantyca.core.service.mail.MailService;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.service.chat.PublicChatSessionManager;
 import com.semantyca.jesoos.util.EmailUtil;
-import io.quarkus.mailer.Mail;
-import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -28,7 +27,7 @@ public class KeycloakAuthService {
     Vertx vertx;
 
     @Inject
-    ReactiveMailer mailer;
+    MailService mailService;
 
     @Inject
     PublicChatSessionManager sessionManager;
@@ -165,36 +164,14 @@ public class KeycloakAuthService {
                     sessionManager.storePendingOtp(normalizedEmail, code);
                     LOG.info("OTP generated and stored for {}", normalizedEmail);
 
-                    String htmlBody = "<!DOCTYPE html>"
-                            + "<html><head><style>"
-                            + "body { margin: 0; padding: 24px; background: #f7f7fb; font-family: Inter, Arial, sans-serif; color: #1f2937; }"
-                            + ".card { max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #ececf2; border-radius: 14px; padding: 28px; }"
-                            + ".brand { font-size: 22px; font-weight: 700; color: #4f46e5; margin-bottom: 8px; }"
-                            + ".title { font-size: 20px; margin: 0 0 12px; }"
-                            + ".subtitle { margin: 0 0 18px; color: #4b5563; line-height: 1.45; }"
-                            + ".code-box { margin: 16px 0 18px; background: #f3f4ff; border: 1px solid #dfe1ff; border-radius: 12px; text-align: center; padding: 18px; }"
-                            + ".code { font-size: 34px; letter-spacing: 6px; font-weight: 700; color: #312e81; font-family: 'Courier New', monospace; }"
-                            + ".note { margin: 0; color: #6b7280; font-size: 14px; line-height: 1.45; }"
-                            + ".footer { margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f5; color: #9ca3af; font-size: 12px; }"
-                            + "</style></head><body>"
-                            + "<div class='card'>"
-                            + "<div class='brand'>Mixpla</div>"
-                            + "<h2 class='title'>Here is your sign-in code</h2>"
-                            + "<p class='subtitle'>Use this one-time code to continue. It is valid for 10 minutes.</p>"
-                            + "<div class='code-box'>"
-                            + "<div class='code'>" + code + "</div>"
-                            + "</div>"
-                            + "<p class='note'>If you did not request this, you can ignore this message.</p>"
-                            + "<div class='footer'>Sent by Mixpla</div>"
-                            + "</div></body></html>";
-
-                    Mail mail = Mail.withHtml(
-                            normalizedEmail,
-                            "Your Mixpla verification code",
-                            htmlBody
-                    ).setFrom(config.getFromAddress());
-
-                    return mailer.send(mail)
+                    return mailService.sendOtp(
+                                    normalizedEmail,
+                                    code,
+                                    "Your Mixpla verification code",
+                                    "Here is your sign-in code",
+                                    "Use this one-time code to continue. It is valid for 10 minutes.",
+                                    "If you did not request this, you can ignore this message.",
+                                    "Sent by Mixpla")
                             .map(v -> {
                                 LOG.info("OTP email sent to {}", normalizedEmail);
                                 return true;

@@ -22,7 +22,7 @@ import com.semantyca.jesoos.service.live.SongEmitter;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
-import io.quarkus.mailer.reactive.ReactiveMailer;
+import com.semantyca.core.service.mail.MailService;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.json.JsonObject;
@@ -58,7 +58,7 @@ public class ChatAgent {
     @Inject KeycloakAuthService keycloakAuthService;
     @Inject PublicChatController controller;
     @Inject MetricPublisher metricPublisher;
-    @Inject ReactiveMailer reactiveMailer;
+    @Inject MailService mailService;
     @Inject AiAgentService aiAgentService;
     @Inject BrandPool brandPool;
     @Inject OneTimeStreamPool oneTimeStreamPool;
@@ -343,7 +343,7 @@ public class ChatAgent {
             case "listener_data" -> ListenerDataToolHandler.execute(input, listenerService, listenerLabelCache, userId);
             case "find_community_member" -> FindCommunityMemberToolHandler.execute(input, listenerService, brandName, userId);
             case "inform_owner" -> SendEmailToOwnerToolHandler.execute(input, brandService, userService,
-                    reactiveMailer, config.getFromAddress(), userId, brandName);
+                    mailService, userId, brandName);
             case "upload_song" -> UploadSongToolHandler.execute(input, listenerService, userService,
                     soundFragmentService, sharedSoundFragmentService, aiHelperService, brandPool, songEmitter, aiAgentService,
                     listenerLabelCache, brandService, spectraClient, config, brandName, userId);

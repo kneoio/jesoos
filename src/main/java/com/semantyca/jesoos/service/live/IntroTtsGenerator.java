@@ -9,6 +9,7 @@ import com.semantyca.core.model.cnst.LanguageCode;
 import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.util.ResourceUtil;
+import com.semantyca.core.service.mail.MailService;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.*;
 import com.semantyca.jesoos.messaging.MetricPublisher;

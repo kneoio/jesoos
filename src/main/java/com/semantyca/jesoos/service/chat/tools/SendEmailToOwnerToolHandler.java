@@ -1,12 +1,11 @@
 package com.semantyca.jesoos.service.chat.tools;
 
 import com.semantyca.core.service.UserService;
+import com.semantyca.core.service.mail.MailService;
 import com.semantyca.jesoos.service.BrandService;
 import com.semantyca.jesoos.service.chat.llm.LlmMessage;
 import com.semantyca.jesoos.service.chat.llm.LlmRequest;
 import com.semantyca.jesoos.service.chat.llm.LlmToolCall;
-import io.quarkus.mailer.Mail;
-import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
@@ -25,8 +24,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
             Map<String, Object> inputMap,
             BrandService brandService,
             UserService userService,
-            ReactiveMailer reactiveMailer,
-            String fromAddress,
+            MailService mailService,
             long userId,
             String stationSlug,
             Consumer<String> chunkHandler,
@@ -61,27 +59,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
             String userEmail = tuple.getItem1().get().getEmail();
             String toEmail = tuple.getItem2().getOwner().getEmail();
-
-            String htmlBody = """
-                    <!DOCTYPE html>
-                    <html>
-                    <body style="font-family: Arial, sans-serif; padding: 20px;">
-                        <p><strong>Station:</strong> %s</p>
-                        <p><strong>Subject:</strong> %s</p>
-                        <hr style="border: 1px solid #ddd; margin: 20px 0;">
-                        <div style="white-space: pre-wrap;">%s</div>
-                    </body>
-                    </html>
-                    """.formatted(stationSlug, subject, message);
-            String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
-
-            Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
-                    .setText(textBody)
-                    .setFrom("Mixpla <" + fromAddress + ">")
-                    .setReplyTo(userEmail);
-
-            return reactiveMailer.send(mail)
-                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email to owner", failure))
+            return mailService.sendMessageToOwner(toEmail, userEmail, subject, stationSlug, message)
                     .replaceWith("owner");
         })
                 .flatMap(sentTo -> {
@@ -110,7 +88,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
     public static Uni<com.semantyca.jesoos.service.chat.ToolNodeResult> execute(
             Map<String, Object> inputMap, BrandService brandService, UserService userService,
-            ReactiveMailer reactiveMailer, String fromAddress, long userId, String stationSlug) {
+            MailService mailService, long userId, String stationSlug) {
         String subject = (String) inputMap.getOrDefault("subject", "");
         String message = (String) inputMap.getOrDefault("message", "");
         LOGGER.infof("[InformOwner/execute] subject_len=%d message_len=%d userId=%d stationSlug=%s",
@@ -132,26 +110,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                     }
                     String userEmail = tuple.getItem1().get().getEmail();
                     String toEmail = tuple.getItem2().getOwner().getEmail();
-
-                    String htmlBody = """
-                            <!DOCTYPE html>
-                            <html>
-                            <body style="font-family: Arial, sans-serif; padding: 20px;">
-                                <p><strong>Station:</strong> %s</p>
-                                <p><strong>Subject:</strong> %s</p>
-                                <hr style="border: 1px solid #ddd; margin: 20px 0;">
-                                <div style="white-space: pre-wrap;">%s</div>
-                            </body>
-                            </html>
-                            """.formatted(stationSlug, subject, message);
-                    String textBody = "Station: " + stationSlug + "\nSubject: " + subject + "\n\n" + message;
-
-                    Mail mail = Mail.withHtml(toEmail, subject, htmlBody)
-                            .setText(textBody)
-                            .setFrom("Mixpla <" + fromAddress + ">")
-                            .setReplyTo(userEmail);
-
-                    return reactiveMailer.send(mail)
+                    return mailService.sendMessageToOwner(toEmail, userEmail, subject, stationSlug, message)
                             .map(v -> {
                                 LOGGER.infof("[InformOwner/execute] sent ok to=%s userId=%d", toEmail, userId);
                                 return com.semantyca.jesoos.service.chat.ToolNodeResult.ok(
