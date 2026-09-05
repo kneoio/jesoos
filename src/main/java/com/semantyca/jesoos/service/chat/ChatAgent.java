@@ -361,8 +361,8 @@ public class ChatAgent {
                     : PlaySongWithIntroToolHandler.execute(input, aiAgentService,
                         brandPool, introTtsGenerator, internalRestCall,
                         userService, config, ffmpegProvider, userId);
-            case "play_by_code" -> PlayByCodeToolHandler.execute(input, brandName, soundFragmentService,
-                    brandPool, internalRestCall);
+            case "play_by_code" -> PlayByCodeToolHandler.execute(input, brandName, userId, soundFragmentService,
+                    listenerService, brandPool, aiAgentService, introTtsGenerator, internalRestCall);
             case "transcribe_listener_audio" -> TranscribeListenerAudioToolHandler.execute(
                     input, userService, config, sttClient, userId);
             case "create_ad" -> CreateAdToolHandler.execute(input, brandService, adSessionManager, adGraph,

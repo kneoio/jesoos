@@ -25,6 +25,11 @@ A track can have a short `playCode` (a word or token). Typing that code in chat 
 queues that song immediately. There is no search, no shout-out, and no sign-in. The DJ recognizes the
 code, names the track, and says it is queued. The code must belong to a song on **this** station.
 
+If the listener is signed in and has a preferred name, the DJ also speaks a randomly chosen short
+on-air intro that names them, then the song (`INTRO_SONG`). Lines live in `play_code_intros.json`.
+Anonymous cues, or a signed-in listener with no name, go on as the song alone (`SONG_ONLY`). A
+missing name is never invented.
+
 Expiration (`playCodeExpiresAt`) is stored but not enforced yet.
 
 # Voice greetings

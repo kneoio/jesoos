@@ -72,7 +72,7 @@ Dispatch lives in `ChatAgent.executeToolCall`.
 | `search_brand_sound_fragments` | search the catalog, capped at 10 results |
 | `get_brand_catalog_summary` | full catalog overview — artists, genres, counts |
 | `play_song_with_intro` | queue a song with a spoken TTS intro, and optionally a listener recording |
-| `play_by_code` | queue a song by its `playCode` — no search, no shout-out, available anonymous |
+| `play_by_code` | queue a song by its `playCode` — no search, no shout-out, available anonymous. Signed-in with a preferred name → TTS intro naming them, then the song |
 | `transcribe_listener_audio` | Google STT on a listener greeting; DJ rejects a bad take |
 | `upload_song` | add an artist's track to the catalog |
 | `import_from_suno` | fetch an artist's track from a Suno link into the temp dir, returning `temp_filename` |
