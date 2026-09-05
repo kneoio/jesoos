@@ -68,7 +68,7 @@
         <dependency>
             <groupId>com.semantyca</groupId>
             <artifactId>2next</artifactId>
-            <version>1.4.137</version>
+            <version>1.4.138</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -113,6 +113,11 @@
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-texttospeech</artifactId>
             <version>2.40.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-speech</artifactId>
+            <version>4.43.0</version>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>

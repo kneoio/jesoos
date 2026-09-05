@@ -1,8 +1,8 @@
 ---
 type: Workflow
 title: DJ intros and TTS
-description: The DJ toggle and live boost, how a spoken intro's text and audio are produced at emission, prompt and language resolution, and the draft contract.
-tags: [dj, tts, intro, prompt, draft, language, boost, elevenlabs, chat-summary]
+description: The DJ toggle and live boost, how a spoken intro's text and audio are produced at emission, prompt and language resolution, Google STT for listener recordings, and the draft contract.
+tags: [dj, tts, stt, intro, prompt, draft, language, boost, elevenlabs, google, chat-summary]
 audience: [owner, developer]
 ---
 
@@ -91,6 +91,13 @@ here is intentional — silence on air is worse.
 
 The resulting path and duration go into the DTO `filePaths` map keyed by `IntroKey.*`, and aivox overlays
 the intro onto the song according to `mergingMethod`. jesoos never mixes audio.
+
+# Speech-to-text
+
+Listener voice recordings are transcribed by `GCPSTTClient` (`STTClient`) using the same GCP credentials
+as TTS. The engine type is `STTEngineType.GOOGLE` in 2next. Sync recognize, model `latest_short`, file
+cap 10 MB. Encoding is taken from the file extension (`webm`/`weba` → WEBM_OPUS, default for a mic
+capture). The chat shout-out path is not wired yet — STT exists as the client only.
 
 # Language selection
 

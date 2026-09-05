@@ -48,7 +48,7 @@ every query is user-scoped. jesoos and aivox run as a trusted system user and sk
 `com.semantyca:2next`. It owns the cross-service contracts: the domain model (`Brand`, `Script`, `Scene`,
 `SoundFragment`, `SharedSoundFragment`, `AiAgent`, `Voice`, `Listener`, `UserAd` and the rest), the enums
 (`MixingType`, `Boost`, `SceneType`, `WayOfSourcing`, `ApprovalStatus`, `StreamStatus`, `StreamPriority`,
-`TTSEngineType`, `SubmissionPolicy` and others), and the queue DTOs with their `SongKey` and `IntroKey`
+`TTSEngineType`, `STTEngineType`, `SubmissionPolicy` and others), and the queue DTOs with their `SongKey` and `IntroKey`
 livestream keys.
 
 A change to 2next is a change to every service's contract at once, so it requires explicit approval,

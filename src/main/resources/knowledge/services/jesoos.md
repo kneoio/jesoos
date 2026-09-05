@@ -16,6 +16,7 @@ to aivox over RabbitMQ.
 
 * Build the agenda (scripts and scenes) and emit a live timeline to aivox.
 * Host listener-facing brand/OTS chat and the internal Ask chat.
+* Transcribe listener recordings with Google STT (`GCPSTTClient`, same GCP credentials as TTS).
 * Publish metric events to metriq.
 
 jesoos runs as a trusted system user and skips Row-Level Security for performance.

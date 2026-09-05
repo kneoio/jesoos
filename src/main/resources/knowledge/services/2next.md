@@ -18,7 +18,7 @@ Core packages are `com.semantyca.core.*`, `com.semantyca.mixpla.*` and
   BrandSoundFragment, SharedSoundFragment, AiAgent, Voice, CustomAction, DjPrompt, Listener, Event,
   UserAd.
 * Enums and constants: MixingType, MergingTypeMeta, Boost, SceneType, WayOfSourcing, SourceType,
-  PlaylistItemType, ContentStatus, StreamStatus, StreamPriority, TTSEngineType, LlmType,
+  PlaylistItemType, ContentStatus, StreamStatus, StreamPriority, TTSEngineType, STTEngineType, LlmType,
   SubmissionPolicy.
 * Queue DTOs: SongQueueMessageDTO, CommandDTO, MetricEventDTO, plus the SongKey and IntroKey
   livestream keys.
