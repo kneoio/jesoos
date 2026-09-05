@@ -168,6 +168,26 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, type, limit, offset);
     }
 
+    public Uni<SoundFragment> findByPlayCodeForBrand(String playCode, String brandSlug) {
+        if (playCode == null || playCode.isBlank() || brandSlug == null || brandSlug.isBlank()) {
+            return Uni.createFrom().nullItem();
+        }
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
+                "JOIN mixpla__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id " +
+                "JOIN mixpla__brands b ON b.id = bsf.brand_id " +
+                "WHERE lower(t.play_code) = lower($1) AND b.slug_name = $2 AND t.archived = 0 " +
+                "LIMIT 1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(playCode.trim(), brandSlug))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        return from(iterator.next());
+                    }
+                    return Uni.createFrom().nullItem();
+                });
+    }
+
     public Uni<List<SoundFragment>> findActiveScheduledByBrand(UUID brandId) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findActiveScheduledByBrand(brandId);

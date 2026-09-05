@@ -15,9 +15,10 @@ It is not the platform help chat and not the internal Ask chat. Questions about 
 by someone who is not listening to a station, belong in the public help chat; platform questions from
 someone signed in to the app belong in Ask.
 
-Without signing in, you can talk to the DJ and pass a message to the station owner. Signing in is a
-short email exchange: you give your address, receive a code, and type it back. Once you are in, the DJ
-picks up whatever you were trying to do rather than making you ask again.
+Without signing in, you can talk to the DJ, pass a message to the station owner, and type a **play
+code** to queue that track. Signing in is a short email exchange: you give your address, receive a
+code, and type it back. Once you are in, the DJ picks up whatever you were trying to do rather than
+making you ask again.
 
 # What signing in unlocks
 

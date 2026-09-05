@@ -48,7 +48,7 @@ truncated** at the `!! AUTHENTICATED ONLY` marker and the tool set is restricted
 
 | State | Tools |
 |---|---|
-| Anonymous | `inform_owner`, `start_auth`, `verify_code` |
+| Anonymous | `inform_owner`, `start_auth`, `verify_code`, `play_by_code` |
 | Authenticated | the above minus auth, plus `search_brand_sound_fragments`, `get_brand_catalog_summary`, `listener_data`, `find_community_member`, `upload_song`, `assess_track`, `import_from_suno`, `play_song_with_intro`, `transcribe_listener_audio`, `create_ad` (only when `adEnabled`), `manage_events`, `send_ui_command`, `logoff` |
 
 The sign-in flow: ask for the email on one line and nothing else; the typed address goes to `start_auth`,
@@ -72,6 +72,7 @@ Dispatch lives in `ChatAgent.executeToolCall`.
 | `search_brand_sound_fragments` | search the catalog, capped at 10 results |
 | `get_brand_catalog_summary` | full catalog overview — artists, genres, counts |
 | `play_song_with_intro` | queue a song with a spoken TTS intro, and optionally a listener recording |
+| `play_by_code` | queue a song by its `playCode` — no search, no shout-out, available anonymous |
 | `transcribe_listener_audio` | Google STT on a listener greeting; DJ rejects a bad take |
 | `upload_song` | add an artist's track to the catalog |
 | `import_from_suno` | fetch an artist's track from a Suno link into the temp dir, returning `temp_filename` |

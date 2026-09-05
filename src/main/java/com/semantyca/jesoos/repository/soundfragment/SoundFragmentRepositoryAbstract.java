@@ -65,6 +65,9 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         }
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
+        doc.setPlayCode(row.getString("play_code"));
+        java.time.LocalDateTime playCodeExpiresRaw = row.getLocalDateTime("play_code_expires_at");
+        doc.setPlayCodeExpiresAt(playCodeExpiresRaw != null ? playCodeExpiresRaw.atOffset(ZoneOffset.UTC) : null);
         doc.setDescription(row.getString("description"));
         java.time.LocalDateTime expiresAtRaw = row.getLocalDateTime("expires_at");
         doc.setExpiresAt(expiresAtRaw != null ? expiresAtRaw.atOffset(ZoneOffset.UTC) : null);

@@ -58,6 +58,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.findById(uuid, SuperUser.ID, false, false);
     }
 
+    public Uni<SoundFragment> findByPlayCodeForBrand(String playCode, String brandSlug) {
+        assert repository != null;
+        return repository.findByPlayCodeForBrand(playCode, brandSlug);
+    }
+
     public Uni<List<SoundFragment>> getByTypeAndBrand(PlaylistItemType type, UUID brandId) {
         assert repository != null;
         return repository.findByTypeAndBrand(type, brandId, 100, 0);

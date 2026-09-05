@@ -19,6 +19,14 @@ Only then is the song queued. The DJ says it has been queued, not that it is pla
 goes into the station's line-up behind whatever is already buffered. There can be a few minutes
 between the confirmation and hearing it.
 
+# Play codes
+
+A track can have a short `playCode` (a word or token). Typing that code in chat — signed in or not —
+queues that song immediately. There is no search, no shout-out, and no sign-in. The DJ recognizes the
+code, names the track, and says it is queued. The code must belong to a song on **this** station.
+
+Expiration (`playCodeExpiresAt`) is stored but not enforced yet.
+
 # Voice greetings
 
 A signed-in listener can record a short greeting. The DJ hears a transcript first (language is

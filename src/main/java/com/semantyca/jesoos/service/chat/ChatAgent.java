@@ -252,6 +252,7 @@ public class ChatAgent {
     private static String toolStatusMessage(String toolName) {
         return switch (toolName) {
             case "play_song_with_intro"       -> "Queueing your song...";
+            case "play_by_code"               -> "Queueing your song...";
             case "start_auth"                 -> "Sending verification code...";
             case "verify_code"                -> "Verifying code...";
             case "upload_song"                -> "Uploading your track...";
@@ -360,6 +361,8 @@ public class ChatAgent {
                     : PlaySongWithIntroToolHandler.execute(input, aiAgentService,
                         brandPool, introTtsGenerator, internalRestCall,
                         userService, config, ffmpegProvider, userId);
+            case "play_by_code" -> PlayByCodeToolHandler.execute(input, brandName, soundFragmentService,
+                    brandPool, internalRestCall);
             case "transcribe_listener_audio" -> TranscribeListenerAudioToolHandler.execute(
                     input, userService, config, sttClient, userId);
             case "create_ad" -> CreateAdToolHandler.execute(input, brandService, adSessionManager, adGraph,
@@ -406,6 +409,7 @@ public class ChatAgent {
     private List<LlmTool> getToolsForUser(boolean isAuthenticated, String djLanguages, boolean adEnabled) {
         List<LlmTool> tools = new ArrayList<>();
         tools.add(SendEmailToOwnerTool.toTool());
+        tools.add(PlayByCodeTool.toTool());
         if (isAuthenticated) {
             tools.add(SearchBrandSoundFragments.toTool());
             tools.add(GetBrandCatalogSummary.toTool());
