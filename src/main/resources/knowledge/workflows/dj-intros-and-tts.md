@@ -97,7 +97,13 @@ the intro onto the song according to `mergingMethod`. jesoos never mixes audio.
 Listener voice recordings are transcribed by `GCPSTTClient` (`STTClient`) using the same GCP credentials
 as TTS. The engine type is `STTEngineType.GOOGLE` in 2next. Sync recognize, model `latest_short`, file
 cap 10 MB. Encoding is taken from the file extension (`webm`/`weba` → WEBM_OPUS, default for a mic
-capture). The chat shout-out path is not wired yet — STT exists as the client only.
+capture). Language is **detected**: up to four BCP-47 codes are sent (`languageCode` plus
+`alternativeLanguageCodes`), padded from a default set when the caller passes no hints. The detected
+code is returned on `SttResult`.
+
+The chat shout-out path calls `transcribe_listener_audio` after `show_record_button`. A failed or empty
+transcript is for the DJ to reject; the original file is queued only after a usable take, as
+`IntroKey.LISTENER` on `LISTENER_SONG` or `INTRO_LISTENER_SONG` (`INTRO_1` is still DJ TTS).
 
 # Language selection
 
@@ -154,6 +160,7 @@ chat-mentioned song for the upcoming track.
 | Area | File |
 |---|---|
 | TTS | `live/IntroTtsGenerator`, `live/scripting/DraftFactory` |
+| STT | `external/GCPSTTClient`, `chat/tools/TranscribeListenerAudioToolHandler` |
 | Prompt and language | `service/PromptService`, `util/AiHelperUtils` |
 | DJ and live boost state | `live/DjStateService`, `live/LiveBoostState` |
 | Commands | `service/CommandService`, `rest/CommandResource`, `messaging/CommandConsumer` |

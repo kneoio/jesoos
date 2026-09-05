@@ -49,7 +49,7 @@ truncated** at the `!! AUTHENTICATED ONLY` marker and the tool set is restricted
 | State | Tools |
 |---|---|
 | Anonymous | `inform_owner`, `start_auth`, `verify_code` |
-| Authenticated | the above minus auth, plus `search_brand_sound_fragments`, `get_brand_catalog_summary`, `listener_data`, `find_community_member`, `upload_song`, `assess_track`, `import_from_suno`, `play_song_with_intro`, `create_ad` (only when `adEnabled`), `manage_events`, `send_ui_command`, `logoff` |
+| Authenticated | the above minus auth, plus `search_brand_sound_fragments`, `get_brand_catalog_summary`, `listener_data`, `find_community_member`, `upload_song`, `assess_track`, `import_from_suno`, `play_song_with_intro`, `transcribe_listener_audio`, `create_ad` (only when `adEnabled`), `manage_events`, `send_ui_command`, `logoff` |
 
 The sign-in flow: ask for the email on one line and nothing else; the typed address goes to `start_auth`,
 which sends a code; say the code was sent and ask for it; the typed code goes to `verify_code`.
@@ -71,11 +71,12 @@ Dispatch lives in `ChatAgent.executeToolCall`.
 | `start_auth` / `verify_code` / `logoff` | sign-in and sign-out |
 | `search_brand_sound_fragments` | search the catalog, capped at 10 results |
 | `get_brand_catalog_summary` | full catalog overview — artists, genres, counts |
-| `play_song_with_intro` | queue a song with a spoken TTS intro |
+| `play_song_with_intro` | queue a song with a spoken TTS intro, and optionally a listener recording |
+| `transcribe_listener_audio` | Google STT on a listener greeting; DJ rejects a bad take |
 | `upload_song` | add an artist's track to the catalog |
 | `import_from_suno` | fetch an artist's track from a Suno link into the temp dir, returning `temp_filename` |
 | `assess_track` | run spectra analysis on the temp file **before** `upload_song` — bpm, key and scale, moods, top genres, danceability, loudness, duration, an `is_music` verdict and a weak AI-generation check. `is_music == false` means do not save |
-| `send_ui_command` | for example `show_upload_button`, which reveals the upload UI |
+| `send_ui_command` | `show_upload_button` reveals the upload UI; `show_record_button` reveals the mic for a voice greeting |
 | `listener_data` | get and set listener memory, and `add_label` for the `artist` label |
 | `find_community_member` | warm recognition only, privacy-limited |
 | `inform_owner` | email the station owner |
@@ -91,11 +92,22 @@ without a tool call.
 Never skipped:
 
 1. **Search only.** `search_brand_sound_fragments`, show a numbered list, stop.
-2. **Confirm and ask for the shout-out, mandatory.** Acknowledge the pick, then always ask whether they
-   want something said on air — a dedication or a hello — and wait for the reply.
-3. **Queue.** `play_song_with_intro` with the intro in the DJ language, then a clear confirmation that
-   the song is queued and *will* play. The DJ only adds to the queue and must never claim a track is
-   "playing now".
+2. **Confirm and ask for the on-air message, mandatory.** Acknowledge the pick, then always ask
+   whether they want something on air — typed shout-out, a recorded greeting the DJ introduces, or
+   a recording that *is* the intro. Wait for the reply.
+   - Typed / skip → DJ TTS as before.
+   - Voice → `send_ui_command(show_record_button)` first (separate gate from artist upload). The client
+     uploads to `/chat/upload-temp` and sends `I uploaded a file: <filename>`. Then
+     `transcribe_listener_audio`. If STT fails or the take is unusable, the DJ rejects and asks to
+     re-record or type it. STT auto-detects language (Google alternative language codes).
+3. **Queue.** `play_song_with_intro`:
+   - typed / skip → `textToTTSIntro` only → `MixingType.INTRO_SONG`
+   - DJ introduces the recording → `textToTTSIntro` (announcement) + `listenerAudioFilename` →
+     `INTRO_LISTENER_SONG` (`INTRO_1` = TTS, `LISTENER` = recording)
+   - listener intros the song themselves → `listenerAudioFilename` only → `LISTENER_SONG`
+
+Then a clear confirmation that the song is queued and *will* play. The DJ only adds to the queue and
+must never claim a track is "playing now".
 
 This dance is enforced by the prompt rather than by code, so the model tracks its place from history. A
 future refactor may promote it to a sub-graph like the ad flow.
@@ -225,7 +237,7 @@ stop.
 | Auth | `ChatAuthService`, `tools/auth/*` |
 | Provider and LLM | `llm/BrandLlmProviderResolver`, `llm/AnthropicChatLlmClient`, `llm/LlmRequest` |
 | Ads | `ad/AdSessionManager`, `ad/AdGraph`, `ad/AdContinuationHandler` |
-| Tools | `tools/*` |
+| Tools | `tools/*` (`TranscribeListenerAudioToolHandler`, `PlaySongWithIntroToolHandler`) |
 | Prompts | `resources/prompts/mainPrompt.hbs` |
 
 The internal Mixpla Ask chat is a separate package (`service/ask`) — Ask branches never go here.

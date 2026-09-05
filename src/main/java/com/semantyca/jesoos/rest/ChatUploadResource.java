@@ -51,7 +51,8 @@ public class ChatUploadResource extends AbstractResource {
         chatAuthService.authenticateUserFromToken(token)
                 .subscribe().with(
                         user -> {
-                            if (user.getId() == 0 || !sessionManager.hasUploadPermission(user.getId())) {
+                            if (user.getId() == 0 || !(sessionManager.hasUploadPermission(user.getId())
+                                    || sessionManager.hasRecordPermission(user.getId()))) {
                                 rc.fail(403, new IllegalArgumentException("Upload not available — ask the DJ first"));
                                 return;
                             }

@@ -44,6 +44,8 @@ the name is a cross-service contract, not a statement about scope.
 |---|---|---|
 | `SONG_ONLY` | `handleSongOnlyWithSegments` | single |
 | `INTRO_SONG`, `LISTENER_INTRO_SONG` | `handleIntroSong` | single, intro plus song |
+| `LISTENER_SONG` | concat listener recording plus song | single, chat queue |
+| `INTRO_LISTENER_SONG` | concat DJ TTS, listener recording, then song | single, chat queue |
 | `JINGLE_INTRO_SONG` | `handleJingleIntroSong` | single, jingle plus intro plus song |
 | `FILLER_JINGLE` | `handleFillerJingle` | single, jingle plus song |
 | `SONG_CROSSFADE_SONG`, `_VAR_1` | `handleConcatenationAndFeed(CROSSFADE)` | single pair |

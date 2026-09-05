@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.chat;
 import com.semantyca.core.service.UserService;
 import com.semantyca.jesoos.config.JesoosConfig;
 import com.semantyca.jesoos.external.KeycloakAuthService;
+import com.semantyca.jesoos.external.STTClient;
 import com.semantyca.jesoos.messaging.MetricPublisher;
 import com.semantyca.jesoos.outbound.InternalRestCall;
 import com.semantyca.jesoos.repository.ChatRepository;
@@ -19,6 +20,7 @@ import com.semantyca.jesoos.service.live.BrandPool;
 import com.semantyca.jesoos.service.live.IntroTtsGenerator;
 import com.semantyca.jesoos.service.live.OneTimeStreamPool;
 import com.semantyca.jesoos.service.live.SongEmitter;
+import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import com.semantyca.jesoos.service.soundfragment.SharedSoundFragmentService;
 import com.semantyca.jesoos.service.soundfragment.SoundFragmentService;
 import com.semantyca.jesoos.ws.PublicChatController;
@@ -77,6 +79,8 @@ public class ChatAgent {
     @Inject SunoImportService sunoImportService;
     @Inject com.semantyca.jesoos.service.agenda.AgendaViewService agendaViewService;
     @Inject BrandLlmProviderResolver llmProviderResolver;
+    @Inject STTClient sttClient;
+    @Inject FFmpegProvider ffmpegProvider;
 
     private CompiledGraph<ChatState> compiledGraph;
 
@@ -354,13 +358,19 @@ public class ChatAgent {
                     ? PlaySongForOtsToolHandler.execute(input, brandName, aiAgentService,
                         oneTimeStreamPool, introTtsGenerator, internalRestCall)
                     : PlaySongWithIntroToolHandler.execute(input, aiAgentService,
-                        brandPool, introTtsGenerator, internalRestCall);
+                        brandPool, introTtsGenerator, internalRestCall,
+                        userService, config, ffmpegProvider, userId);
+            case "transcribe_listener_audio" -> TranscribeListenerAudioToolHandler.execute(
+                    input, userService, config, sttClient, userId);
             case "create_ad" -> CreateAdToolHandler.execute(input, brandService, adSessionManager, adGraph,
                     userId, brandName, djName, connectionId);
             case "manage_events" -> ManageEventsToolHandler.execute(input, eventService, brandService, brandName);
             case "send_ui_command" -> {
-                if ("show_upload_button".equals(input.getOrDefault("command", ""))) {
+                Object command = input.getOrDefault("command", "");
+                if ("show_upload_button".equals(command)) {
                     sessionManager.grantUploadPermission(userId);
+                } else if ("show_record_button".equals(command)) {
+                    sessionManager.grantRecordPermission(userId);
                 }
                 yield SendUICommandToolHandler.execute(input, connectionId);
             }
@@ -404,7 +414,8 @@ public class ChatAgent {
             tools.add(UploadSongTool.toTool());
             tools.add(AssessTrackTool.toTool());
             tools.add(SunoImportTool.toTool());
-            tools.add(PlaySongWithIntroTool.toTool(djLanguages));
+            tools.add(PlaySongWithIntroTool.toTool(djLanguages, true));
+            tools.add(TranscribeListenerAudioTool.toTool());
             if (adEnabled) {
                 tools.add(CreateAdTool.toTool());
             }

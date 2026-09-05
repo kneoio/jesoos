@@ -225,6 +225,8 @@ public class TimelineBuilder {
     private static final Map<MixingType, MixingType> INTRO_DOWNGRADE = Map.of(
             MixingType.INTRO_SONG,             MixingType.SONG_ONLY,
             MixingType.LISTENER_INTRO_SONG,    MixingType.SONG_ONLY,
+            MixingType.LISTENER_SONG,          MixingType.SONG_ONLY,
+            MixingType.INTRO_LISTENER_SONG,    MixingType.SONG_ONLY,
             MixingType.JINGLE_INTRO_SONG,      MixingType.FILLER_JINGLE,
             MixingType.INTRO_SONG_INTRO_SONG,  MixingType.SONG_CROSSFADE_SONG,
             MixingType.SONG_INTRO_SONG,        MixingType.SONG_CROSSFADE_SONG

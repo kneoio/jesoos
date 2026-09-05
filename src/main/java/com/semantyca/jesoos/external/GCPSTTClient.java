@@ -24,6 +24,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -31,6 +33,9 @@ import java.util.stream.Collectors;
 public class GCPSTTClient implements STTClient {
     private static final Logger LOGGER = Logger.getLogger(GCPSTTClient.class);
     private static final int MAX_SYNC_BYTES = 10 * 1024 * 1024;
+    private static final int MAX_LANGUAGE_CODES = 4;
+    private static final List<LanguageTag> DEFAULT_HINTS = List.of(
+            LanguageTag.EN_US, LanguageTag.ES_ES, LanguageTag.PT_PT, LanguageTag.RU_RU);
 
     @Inject
     JesoosConfig config;
@@ -54,7 +59,7 @@ public class GCPSTTClient implements STTClient {
     }
 
     @Override
-    public Uni<SttResult> transcribe(Path audioFile, LanguageTag language) {
+    public Uni<SttResult> transcribe(Path audioFile, List<LanguageTag> languageHints) {
         return Uni.createFrom().item(() -> {
             if (audioFile == null || !Files.isRegularFile(audioFile)) {
                 return SttResult.failure("audio file is missing");
@@ -68,16 +73,20 @@ public class GCPSTTClient implements STTClient {
                     return SttResult.failure("audio file exceeds 10 MB sync STT limit");
                 }
 
-                String langCode = languageCode(language);
+                List<String> langCodes = languageCodes(languageHints);
+                String primary = langCodes.getFirst();
                 AudioEncoding encoding = encodingFor(audioFile);
-                LOGGER.infof("GCP STT file=%s lang=%s encoding=%s bytes=%d",
-                        audioFile.getFileName(), langCode, encoding, bytes.length);
+                LOGGER.infof("GCP STT file=%s langs=%s encoding=%s bytes=%d",
+                        audioFile.getFileName(), langCodes, encoding, bytes.length);
 
                 RecognitionConfig.Builder configBuilder = RecognitionConfig.newBuilder()
                         .setEncoding(encoding)
-                        .setLanguageCode(langCode)
+                        .setLanguageCode(primary)
                         .setEnableAutomaticPunctuation(true)
                         .setModel("latest_short");
+                for (int i = 1; i < langCodes.size(); i++) {
+                    configBuilder.addAlternativeLanguageCodes(langCodes.get(i));
+                }
                 if (encoding == AudioEncoding.LINEAR16) {
                     configBuilder.setSampleRateHertz(16000);
                 }
@@ -103,13 +112,43 @@ public class GCPSTTClient implements STTClient {
                 SpeechRecognitionResult first = response.getResults(0);
                 SpeechRecognitionAlternative alt = first.getAlternatives(0);
                 float confidence = alt.getConfidence();
-                LOGGER.infof("GCP STT transcript length=%d confidence=%.2f", transcript.length(), confidence);
-                return SttResult.success(transcript, confidence, langCode);
+                String detected = first.getLanguageCode();
+                if (detected == null || detected.isBlank()) {
+                    detected = primary;
+                }
+                LOGGER.infof("GCP STT transcript length=%d confidence=%.2f lang=%s",
+                        transcript.length(), confidence, detected);
+                return SttResult.success(transcript, confidence, detected);
             } catch (Exception e) {
                 LOGGER.errorf("GCP STT failed: %s", e.getMessage());
                 return SttResult.failure("GCP STT failed: " + e.getMessage());
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    static List<String> languageCodes(List<LanguageTag> hints) {
+        List<String> codes = new ArrayList<>();
+        if (hints != null) {
+            for (LanguageTag tag : hints) {
+                addCode(codes, languageCode(tag));
+            }
+        }
+        for (LanguageTag tag : DEFAULT_HINTS) {
+            addCode(codes, languageCode(tag));
+        }
+        if (codes.isEmpty()) {
+            codes.add(LanguageTag.EN_US.tag());
+        }
+        if (codes.size() > MAX_LANGUAGE_CODES) {
+            return List.copyOf(codes.subList(0, MAX_LANGUAGE_CODES));
+        }
+        return List.copyOf(codes);
+    }
+
+    private static void addCode(List<String> codes, String code) {
+        if (code != null && !code.isBlank() && !codes.contains(code) && codes.size() < MAX_LANGUAGE_CODES) {
+            codes.add(code);
+        }
     }
 
     static String languageCode(LanguageTag tag) {

@@ -25,6 +25,7 @@ public class PublicChatSessionManager {
     private final Pool client;
     private final ConcurrentHashMap<String, PendingOtp> pendingOtps = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Instant> uploadGates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Instant> recordGates = new ConcurrentHashMap<>();
 
     public record PendingOtp(String code, Instant expiresAt) {
         boolean isExpired() { return Instant.now().isAfter(expiresAt); }
@@ -66,6 +67,19 @@ public class PublicChatSessionManager {
         Instant expiry = uploadGates.get(userId);
         if (expiry == null || Instant.now().isAfter(expiry)) {
             uploadGates.remove(userId);
+            return false;
+        }
+        return true;
+    }
+
+    public void grantRecordPermission(long userId) {
+        recordGates.put(userId, Instant.now().plusSeconds(UPLOAD_GATE_EXPIRY_SECONDS));
+    }
+
+    public boolean hasRecordPermission(long userId) {
+        Instant expiry = recordGates.get(userId);
+        if (expiry == null || Instant.now().isAfter(expiry)) {
+            recordGates.remove(userId);
             return false;
         }
         return true;
@@ -130,5 +144,6 @@ public class PublicChatSessionManager {
                 err -> {}
             );
         uploadGates.entrySet().removeIf(e -> Instant.now().isAfter(e.getValue()));
+        recordGates.entrySet().removeIf(e -> Instant.now().isAfter(e.getValue()));
     }
 }

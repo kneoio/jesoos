@@ -28,13 +28,17 @@ the set is a cross-service contract — jesoos may only emit what aivox dispatch
 | Family | Types |
 |---|---|
 | No TTS | `SONG_ONLY`, `SONG_CROSSFADE_SONG` (and `_VAR_1`), `FILLER_JINGLE`, `NOT_MIXED` |
-| With spoken intro | `INTRO_SONG`, `LISTENER_INTRO_SONG`, `JINGLE_INTRO_SONG`, `SONG_INTRO_SONG`, `INTRO_SONG_INTRO_SONG` |
+| With spoken intro | `INTRO_SONG`, `LISTENER_INTRO_SONG`, `LISTENER_SONG`, `INTRO_LISTENER_SONG`, `JINGLE_INTRO_SONG`, `SONG_INTRO_SONG`, `INTRO_SONG_INTRO_SONG` |
 | Generated | `JINGLE_GENERATED_JINGLE`, `JINGLE_GENERATED_JINGLE_WITH_BACKGROUND`, `INTRO_JINGLE_GENERATED_JINGLE_WITH_BACKGROUND` |
 
 The generated set is **open** — more types may be added.
 
 `SONG_INTRO_SONG` and `INTRO_SONG_INTRO_SONG` produce **two** mixed fragments in aivox and must stay
 together as an ordered pair.
+
+`LISTENER_SONG` and `INTRO_LISTENER_SONG` are **chat-queue only** — the agenda shuffler never picks
+them. `LISTENER_SONG` is the listener recording then the song. `INTRO_LISTENER_SONG` is DJ TTS
+announcement, then the listener recording, then the song (`IntroKey.INTRO_1` + `IntroKey.LISTENER`).
 
 # The build-time choice is not final
 

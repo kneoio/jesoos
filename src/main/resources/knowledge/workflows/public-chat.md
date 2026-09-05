@@ -21,7 +21,8 @@ picks up whatever you were trying to do rather than making you ask again.
 
 # What signing in unlocks
 
-* Searching the station's catalog and requesting a track with a spoken shout-out.
+* Searching the station's catalog and requesting a track with a spoken shout-out, including a recorded
+  voice greeting the DJ can put on air.
 * Being remembered — your preferred name, city, favourite genres and similar details, so the DJ greets
   you as someone it knows.
 * Recognition of other listeners in the community, limited to first names.
