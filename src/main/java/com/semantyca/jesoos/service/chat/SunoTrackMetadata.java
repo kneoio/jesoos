@@ -6,6 +6,8 @@ package com.semantyca.jesoos.service.chat;
  * downloaded and {@link #empty(String)} carries only the id, so import never fails on metadata alone.
  * {@code genreTags} is Suno's free-form tag string (e.g. "jungle, drum and bass") — it is a hint for
  * the LLM to map onto the station's controlled genres, not a ready-to-use {@code genre_names} value.
+ * {@code audioUrl} / {@code videoUrl} are the media URLs from the page, used only to pick a download
+ * source; they are not returned to the chat agent.
  */
 public record SunoTrackMetadata(
         String songId,
@@ -16,13 +18,16 @@ public record SunoTrackMetadata(
         String genreTags,
         String imageUrl,
         Double durationSeconds,
-        String prompt) {
+        String prompt,
+        String audioUrl,
+        String videoUrl) {
 
     public static SunoTrackMetadata empty(String songId) {
-        return new SunoTrackMetadata(songId, null, null, null, null, null, null, null, null);
+        return new SunoTrackMetadata(songId, null, null, null, null, null, null, null, null, null, null);
     }
 
     public SunoTrackMetadata withTempFilename(String tempFilename) {
-        return new SunoTrackMetadata(songId, tempFilename, title, artist, handle, genreTags, imageUrl, durationSeconds, prompt);
+        return new SunoTrackMetadata(songId, tempFilename, title, artist, handle, genreTags, imageUrl,
+                durationSeconds, prompt, audioUrl, videoUrl);
     }
 }

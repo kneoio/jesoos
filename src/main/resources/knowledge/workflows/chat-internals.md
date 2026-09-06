@@ -128,9 +128,11 @@ future refactor may promote it to a sub-graph like the ad flow.
 # The Suno path
 
 An alternative to steps 3 and 4. Given a Suno link from an authenticated artist, `import_from_suno`
-resolves the song id from the URL and `SunoImportService` downloads `https://cdn1.suno.ai/<id>.mp3` into
-the **same** temp directory the upload endpoint uses, returning a `temp_filename`. No
-`show_upload_button` is needed, because the server pulls the file directly.
+resolves the song id from the URL and `SunoImportService` downloads the still-public song video
+`https://cdn1.suno.ai/<id>.mp4` (or the page's `video_url`), extracts the audio to mp3, and writes it
+into the **same** temp directory the upload endpoint uses, returning a `temp_filename`. The old
+`cdn1.suno.ai/<id>.mp3` URL is CloudFront 403 and the page `audio_url` is the sentinel
+`.../api/forbidden`. No `show_upload_button` is needed, because the server pulls the file directly.
 
 The same call scrapes the public song page `https://suno.com/song/<id>` with a browser user agent and
 parses the embedded Next.js RSC payload for `title`, `artist` (`display_name`), `handle`, `genre_tags`

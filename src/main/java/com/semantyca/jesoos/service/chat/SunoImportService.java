@@ -3,6 +3,7 @@ package com.semantyca.jesoos.service.chat;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.util.FileSecurityUtils;
 import com.semantyca.jesoos.config.JesoosConfig;
+import com.semantyca.jesoos.service.manipulation.FFmpegProvider;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.core.json.JsonObject;
@@ -13,8 +14,11 @@ import io.vertx.ext.web.client.WebClientOptions;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import net.bramp.ffmpeg.FFmpegExecutor;
+import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.jboss.logging.Logger;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,22 +30,25 @@ import java.util.regex.Pattern;
 /**
  * Downloads a track from a Suno share link into the same temp upload directory that
  * {@code /jesoos/chat/upload-temp} writes to, so the returned filename can be fed straight
- * into {@code upload_song} (see knowledge bundle {@code workflows/chat-internals.md}). Suno serves the rendered track from its
- * CDN as {@code https://cdn1.suno.ai/<songId>.mp3}; we resolve the song id from the link and
- * pull that cached file.
+ * into {@code upload_song} (see knowledge bundle {@code workflows/chat-internals.md}).
+ *
+ * <p>Suno no longer serves a public MP3: {@code https://cdn1.suno.ai/<songId>.mp3} is CloudFront
+ * 403, and the page's {@code audio_url} is the sentinel {@code .../api/forbidden}. The still-public
+ * file is the song video {@code https://cdn1.suno.ai/<songId>.mp4} (also in {@code video_url}); we
+ * download that and extract the audio track to mp3.
  *
  * <p>In addition to the audio, we fetch the public song page and scrape the embedded Next.js
  * RSC payload for title / artist / genre tags / artwork so the chat agent can confirm the
  * metadata with the artist instead of asking for everything from scratch. Metadata scraping
  * is strictly best-effort: any failure degrades to {@link SunoTrackMetadata#empty} and the
- * download still succeeds.
+ * download still succeeds from the constructed mp4 URL.
  */
 @ApplicationScoped
 public class SunoImportService {
 
     private static final Logger LOGGER = Logger.getLogger(SunoImportService.class);
     private static final String UPLOAD_CONTROLLER = "chat-upload-controller";
-    private static final String CDN_TEMPLATE = "https://cdn1.suno.ai/%s.mp3";
+    private static final String CDN_MP4_TEMPLATE = "https://cdn1.suno.ai/%s.mp4";
     private static final String SONG_PAGE_TEMPLATE = "https://suno.com/song/%s";
     // Suno returns 403 for the default WebClient UA; a browser UA gets the rendered HTML.
     private static final String BROWSER_UA =
@@ -63,6 +70,8 @@ public class SunoImportService {
     private static final Pattern DURATION = Pattern.compile("\"duration\"\\s*:\\s*([0-9.]+)");
     private static final Pattern PROMPT =
             Pattern.compile("\"metadata\"\\s*:\\s*\\{[^}]*?\"prompt\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern AUDIO_URL = Pattern.compile("\"audio_url\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern VIDEO_URL = Pattern.compile("\"video_url\"\\s*:\\s*\"([^\"]*)\"");
     private static final Pattern TITLE_TAG = Pattern.compile("<title>(.*?)</title>", Pattern.DOTALL);
 
     @Inject
@@ -70,6 +79,9 @@ public class SunoImportService {
 
     @Inject
     Vertx vertx;
+
+    @Inject
+    FFmpegProvider ffmpegProvider;
 
     private WebClient webClient;
 
@@ -90,29 +102,54 @@ public class SunoImportService {
                     if (songId == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Could not read a Suno song id from the link"));
                     }
-                    Uni<String> fileUni = downloadMp3(songId, user);
-                    Uni<SunoTrackMetadata> metaUni = fetchMetadata(songId);
-                    return Uni.combine().all().unis(fileUni, metaUni).asTuple()
-                            .map(tuple -> tuple.getItem2().withTempFilename(tuple.getItem1()));
+                    return fetchMetadata(songId)
+                            .chain(meta -> downloadAudio(songId, meta, user)
+                                    .map(meta::withTempFilename));
                 });
     }
 
-    private Uni<String> downloadMp3(String songId, IUser user) {
-        String cdnUrl = String.format(CDN_TEMPLATE, songId);
+    private Uni<String> downloadAudio(String songId, SunoTrackMetadata meta, IUser user) {
+        String mediaUrl = pickDownloadUrl(meta, songId);
         String uniqueFilename = "suno-" + songId + "-" + UUID.randomUUID().toString().substring(0, 8) + ".mp3";
-        return webClient.getAbs(cdnUrl).send()
+        LOGGER.infof("Suno import fetching %s for song %s", mediaUrl, songId);
+        return webClient.getAbs(mediaUrl)
+                .putHeader("User-Agent", BROWSER_UA)
+                .putHeader("Referer", "https://suno.com/")
+                .send()
                 .map(response -> {
                     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                        throw new RuntimeException("Suno CDN returned HTTP " + response.statusCode() + " for " + cdnUrl);
+                        throw new RuntimeException("Suno CDN returned HTTP " + response.statusCode() + " for " + mediaUrl);
                     }
                     Buffer body = response.body();
                     if (body == null || body.length() == 0) {
-                        throw new RuntimeException("Suno CDN returned an empty file for " + cdnUrl);
+                        throw new RuntimeException("Suno CDN returned an empty file for " + mediaUrl);
                     }
                     return body.getBytes();
                 })
                 .emitOn(Infrastructure.getDefaultWorkerPool())
-                .map(bytes -> writeTemp(user, uniqueFilename, bytes));
+                .map(bytes -> looksLikeMp4(mediaUrl, bytes)
+                        ? writeAndExtractMp3(user, uniqueFilename, bytes)
+                        : writeTemp(user, uniqueFilename, bytes));
+    }
+
+    static String pickDownloadUrl(SunoTrackMetadata meta, String songId) {
+        if (isUsableAudioUrl(meta.audioUrl())) return meta.audioUrl();
+        if (isHttpUrl(meta.videoUrl())) return meta.videoUrl();
+        return String.format(CDN_MP4_TEMPLATE, songId);
+    }
+
+    static boolean isUsableAudioUrl(String url) {
+        return isHttpUrl(url) && !url.contains("/api/forbidden");
+    }
+
+    private static boolean isHttpUrl(String url) {
+        return url != null && (url.startsWith("https://") || url.startsWith("http://"));
+    }
+
+    private static boolean looksLikeMp4(String url, byte[] bytes) {
+        if (url != null && url.contains(".mp4")) return true;
+        return bytes != null && bytes.length >= 8
+                && bytes[4] == 'f' && bytes[5] == 't' && bytes[6] == 'y' && bytes[7] == 'p';
     }
 
     /**
@@ -142,6 +179,7 @@ public class SunoImportService {
      */
     static SunoTrackMetadata parseMetadata(String html, String songId) {
         String title = null, artist = null, handle = null, genreTags = null, imageUrl = null, prompt = null;
+        String audioUrl = null, videoUrl = null;
         Double duration = null;
 
         String chunk = null;
@@ -162,6 +200,8 @@ public class SunoImportService {
                 handle = firstGroup(text, HANDLE);
                 imageUrl = firstGroup(text, IMAGE_URL);
                 genreTags = firstGroup(text, DISPLAY_TAGS);
+                audioUrl = firstGroup(text, AUDIO_URL);
+                videoUrl = firstGroup(text, VIDEO_URL);
                 String durStr = firstGroup(text, DURATION);
                 if (durStr != null) {
                     try {
@@ -182,7 +222,8 @@ public class SunoImportService {
             if (t != null) title = t.trim();
         }
 
-        return new SunoTrackMetadata(songId, null, title, artist, handle, genreTags, imageUrl, duration, prompt);
+        return new SunoTrackMetadata(songId, null, title, artist, handle, genreTags, imageUrl, duration,
+                prompt, audioUrl, videoUrl);
     }
 
     /**
@@ -217,6 +258,48 @@ public class SunoImportService {
                     return location == null ? null : extractSongId(location);
                 })
                 .onFailure().recoverWithItem((String) null);
+    }
+
+    private String writeAndExtractMp3(IUser user, String uniqueFilename, byte[] bytes) {
+        Path destDir = Paths.get(config.getPathUploads(), UPLOAD_CONTROLLER, user.getLogin(), "temp");
+        Path mp4File = null;
+        try {
+            Files.createDirectories(destDir);
+            Path mp3File = FileSecurityUtils.secureResolve(destDir, uniqueFilename);
+            mp4File = Files.createTempFile(destDir, "suno-", ".mp4");
+            Files.write(mp4File, bytes);
+            extractMp3(mp4File, mp3File);
+            LOGGER.infof("Suno import saved: %s (%d bytes audio from mp4) for user %s",
+                    uniqueFilename, Files.size(mp3File), user.getLogin());
+            return uniqueFilename;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to save Suno track for user " + user.getLogin() + ": " + e.getMessage(), e);
+        } finally {
+            if (mp4File != null) {
+                try {
+                    Files.deleteIfExists(mp4File);
+                } catch (IOException ignore) {
+                    // temp leftover is harmless
+                }
+            }
+        }
+    }
+
+    private void extractMp3(Path mp4, Path mp3) throws IOException {
+        FFmpegBuilder builder = new FFmpegBuilder()
+                .setInput(mp4.toAbsolutePath().toString())
+                .overrideOutputFiles(true)
+                .addOutput(mp3.toAbsolutePath().toString())
+                .disableVideo()
+                .setAudioCodec("libmp3lame")
+                .setAudioBitRate(192_000)
+                .done();
+        new FFmpegExecutor(ffmpegProvider.getFFmpeg(), ffmpegProvider.getFFprobe())
+                .createJob(builder)
+                .run();
+        if (!Files.isRegularFile(mp3) || Files.size(mp3) == 0) {
+            throw new IOException("ffmpeg produced an empty mp3 from " + mp4);
+        }
     }
 
     private String writeTemp(IUser user, String uniqueFilename, byte[] bytes) {
